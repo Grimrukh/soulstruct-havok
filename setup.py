@@ -13,9 +13,9 @@ def _get_version():
 
 
 setup(
-    name="soulstruct",
+    name="soulstruct-havok",
     version=_get_version(),
-    packages=["soulstruct"],
+    packages=["soulstruct_havok"],
     description="Havok tools extension for Soulstruct.",
     long_description=long_description,
     author="Scott Mooney (Grimrukh)",

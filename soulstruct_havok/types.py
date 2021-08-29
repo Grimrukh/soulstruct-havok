@@ -8,8 +8,6 @@ from functools import wraps
 from pathlib import Path
 from xml.etree import ElementTree
 
-from soulstruct.utilities.files import PACKAGE_PATH
-
 from .enums import TagFormatFlags, TagDataType
 
 _LOGGER = logging.getLogger(__name__)
@@ -473,11 +471,11 @@ class HKXTypeList:
 
         if type_database_path is None:
             if version == "2015":
-                type_database_path = PACKAGE_PATH("base/models/hkx/Types2015.xml")
+                type_database_path = Path(__file__).parent / "Types2015.xml"
             elif version == "2014":
-                type_database_path = PACKAGE_PATH("base/models/hkx/Types2014.xml")
+                type_database_path = Path(__file__).parent / "Types2014.xml"
             elif version == "2010":
-                type_database_path = PACKAGE_PATH("base/models/hkx/Types2010.xml")
+                type_database_path = Path(__file__).parent / "Types2010.xml"
             else:
                 raise NotImplementedError(f"No type database for version {version} yet.")
 

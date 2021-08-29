@@ -85,6 +85,8 @@ class RigidBody(Entity):
 class LinkedCollidable(HKXObject):
     """hkpLinkedCollidable"""
 
+    shape: tp.Union[None, ConvexShape, CapsuleShape, MoppBvTreeShape, ExtendedMeshShape, StorageExtendedMeshShape]
+
     def __init__(self, node: HKXNode):
         super().__init__(node)
         self.shape = Shape.auto_shape_type(node["shape"])
@@ -124,14 +126,22 @@ class Shape(ShapeBase):
         self.user_data = node["userData"]  # hkUlong
 
     @staticmethod
-    def auto_shape_type(node: HKXNode) -> tp.Union[None, ConvexShape, CapsuleShape]:
+    def auto_shape_type(node: HKXNode) -> tp.Union[
+        None, ConvexShape, CapsuleShape, MoppBvTreeShape, ExtendedMeshShape, StorageExtendedMeshShape
+    ]:
         """Examines member names (dict keys) to determine shape, rather than loading types."""
         members = set(node.value.keys())
-        if members >= {"radius", "vertexA", "vertexB"}:
+        if members >= {"embeddedTrianglesSubpart", "shapesSubparts", "meshstorage", "shapestorage"}:
+            return node.get_py_object(StorageExtendedMeshShape)
+        elif members >= {"embeddedTrianglesSubpart", "shapesSubparts"}:
+            return node.get_py_object(ExtendedMeshShape)
+        elif members >= {"moppData", "moppDataSize", "codeInfoCopy", "child", "childSize"}:
+            return node.get_py_object(MoppBvTreeShape)
+        elif members >= {"radius", "vertexA", "vertexB"}:
             return node.get_py_object(CapsuleShape)
         elif members >= {"radius"}:
             return node.get_py_object(ConvexShape)
-        raise TypeError(f"Could not detect `Shape` subclass from node keys: {members}")
+        raise TypeError(f"Could not detect `Shape` subclass from node keys: {node.value.keys()}")
 
 
 class SphereRepShape(Shape):
@@ -154,6 +164,187 @@ class CapsuleShape(ConvexShape):
         super().__init__(node)
         self.vertex_A = Vector4(node["vertexA"])
         self.vertex_B = Vector4(node["vertexB"])
+
+
+class BvTreeShape(Shape):
+    """hkpBvTreeShape"""
+
+    def __init__(self, node: HKXNode):
+        super().__init__(node)
+        self.bv_tree_type = node["bvTreeType"]  # TODO: enum
+
+
+class MoppBvTreeShapeBase(BvTreeShape):
+    """hkMoppBvTreeShapeBase"""
+
+    code: tp.Optional[MoppCode]
+
+    def __init__(self, node: HKXNode):
+        super().__init__(node)
+        self.code = node["code"].get_py_object(MoppCode)
+        # `moppData` is an array of Opaque pointers.
+        self.mopp_data_size = node["moppDataSize"]
+        self.code_info_copy = node["codeInfoCopy"]
+
+
+class MoppCode(HKXObject):
+    """hkpMoppCode"""
+
+    info: tp.Optional[MoppCodeCodeInfo]
+    data: list[int]
+
+    def __init__(self, node: HKXNode):
+        super().__init__(node)
+        self.info = node["info"].get_py_object(MoppCodeCodeInfo)
+        self.data = node["data"]
+        self.build_type = node["buildType"]
+
+
+class MoppCodeCodeInfo(HKXObject):
+
+    offset: Vector4
+
+    def __init__(self, node: HKXNode):
+        super().__init__(node)
+        self.offset = Vector4(node["offset"])
+
+
+class MoppBvTreeShape(MoppBvTreeShapeBase):
+    """hkpMoppBvTreeShape"""
+
+    child: tp.Optional[SingleShapeContainer]
+    child_size: int
+
+    def __init__(self, node: HKXNode):
+        super().__init__(node)
+        self.child = node["child"].get_py_object(SingleShapeContainer)
+        self.child_size = node["childSize"]
+
+
+class ShapeContainer(HKXObject):
+    """hkpShapeContainer"""
+
+    def __init__(self, node: HKXNode):
+        super().__init__(node)
+
+
+class SingleShapeContainer(ShapeContainer):
+    """hkpSingleShapeContainer"""
+
+    child_shape: tp.Union[None, ConvexShape, CapsuleShape, MoppBvTreeShape, ExtendedMeshShape, StorageExtendedMeshShape]
+
+    def __init__(self, node: HKXNode):
+        super().__init__(node)
+        self.child_shape = Shape.auto_shape_type(node["childShape"])
+
+
+class ShapeCollection(Shape):
+    """hkpShapeCollection"""
+
+    def __init__(self, node: HKXNode):
+        super().__init__(node)
+        self.disable_welding = node["disableWelding"]
+        self.collection_type = node["collectionType"]
+
+
+class ExtendedMeshShape(ShapeCollection):
+    """hkpExtendedMeshShape"""
+
+    embedded_triangles_subpart: tp.Optional[ExtendedMeshShapeTrianglesSubpart]
+    triangles_subparts: list[tp.Optional[ExtendedMeshShapeTrianglesSubpart]]
+    shapes_subparts: list[tp.Optional[ExtendedMeshShapeShapesSubpart]]
+    welding_info: list[int]
+
+    def __init__(self, node: HKXNode):
+        super().__init__(node)
+        self.embedded_triangles_subpart = node["embeddedTrianglesSubpart"].get_py_object(
+            ExtendedMeshShapeTrianglesSubpart
+        )
+        self.aabb_half_extents = node["aabbHalfExtents"]
+        self.aabb_center = node["aabbCenter"]
+        self.material_class = node["materialClass"]
+        self.num_bits_for_subpart_index = node["numBitsForSubpartIndex"]
+        self.triangles_subparts = [
+            n.get_py_object(ExtendedMeshShapeTrianglesSubpart) for n in node["trianglesSubparts"]
+        ]
+        self.shapes_subparts = [n.get_py_object(ExtendedMeshShapeShapesSubpart) for n in node["shapesSubparts"]]
+        self.welding_info = node["weldingInfo"]
+        self.welding_type = node["weldingType"]
+        self.default_collision_filter_info = node["defaultCollisionFilterInfo"]
+        self.cached_num_child_shapes = node["cachedNumChildShapes"]
+        self.triangle_radius = node["triangleRadius"]
+        self.padding = node["padding"]
+
+
+class StorageExtendedMeshShape(ExtendedMeshShape):
+    """hkpStorageExtendedMeshShape
+
+    Note unusual lower case of member names.
+    """
+
+    mesh_storage: list[tp.Optional[StorageExtendedMeshShapeMeshSubpartStorage]]
+
+    def __init__(self, node: HKXNode):
+        super().__init__(node)
+        self.mesh_storage = [n.get_py_object(StorageExtendedMeshShapeMeshSubpartStorage) for n in node["meshstorage"]]
+        self.shape_storage = node["shapestorage"]  # empty array so far
+
+
+class ExtendedMeshShapeSubpart(HKXObject):
+    """hkpExtendedMeshShape::Subpart"""
+
+    def __init__(self, node: HKXNode):
+        super().__init__(node)
+        self.type_and_flags = node["typeAndFlags"]
+        self.shape_info = node["shapeInfo"]
+        self.material_striding = node["materialStriding"]
+        self.material_index_striding = node["materialIndexStriding"]
+        self.material_index_base = node["materialIndexBase"]
+        self.material_base = node["materialBase"]
+        self.user_data = node["userData"]
+
+
+class ExtendedMeshShapeTrianglesSubpart(ExtendedMeshShapeSubpart):
+    """hkpExtendedMeshShape::TrianglesSubpart"""
+
+    def __init__(self, node: HKXNode):
+        super().__init__(node)
+        self.num_triangle_shapes = node["numTriangleShapes"]
+        self.vertex_base = node["vertexBase"]
+        self.num_vertices = node["numVertices"]
+        self.index_base = node["indexBase"]
+        self.vertex_striding = node["vertexStriding"]
+        self.triangle_offset = node["triangleOffset"]
+        self.index_striding = node["indexStriding"]
+        self.striding_type = node["stridingType"]
+        self.flip_alternate_triangles = node["flipAlternateTriangles"]
+        self.extrusion = node["extrusion"]
+        self.transform = node["transform"]
+
+
+class ExtendedMeshShapeShapesSubpart(ExtendedMeshShapeSubpart):
+    """hkpExtendedMeshShape::ShapesSubpart"""
+
+    def __init__(self, node: HKXNode):
+        super().__init__(node)
+        self.child_shapes = node["childShapes"]
+        self.rotation = node["rotation"]
+        self.translation = node["translation"]
+
+
+class StorageExtendedMeshShapeMeshSubpartStorage(HKXObject):
+    """hkpStorageExtendedMeshShapeMeshSubpartStorage"""
+
+    def __init__(self, node: HKXNode):
+        super().__init__(node)
+        self.vertices = node["vertices"]
+        self.indices_8 = node["indices8"]
+        self.indices_16 = node["indices16"]
+        self.indices_32 = node["indices32"]
+        self.material_indices = node["materialIndices"]
+        self.materials = node["materials"]
+        self.named_materials = node["namedMaterials"]
+        self.material_indices_16 = node["materialIndices16"]
 
 
 class TypedBroadPhaseHandle(HKXObject):
@@ -291,7 +482,7 @@ class ConstraintInstance(HKXObject):
     def __init__(self, node: HKXNode):
         super().__init__(node)
         # `owner` is Opaque.
-        self.data = ConstraintData.auto_constant_data_type(node["data"])
+        self.data = ConstraintData.auto_constraint_data_type(node["data"])
         self.constraint_modifiers = node["constraintModifiers"]  # TODO: hkpModifierConstraintAtoms (None)
         self.entities = [n.get_py_object(RigidBody) for n in node["entities"]]
         self.priority = node["priority"]
@@ -312,10 +503,9 @@ class ConstraintData(HKXObject):
         self.user_data = node["userData"]
 
     @staticmethod
-    def auto_constant_data_type(node: HKXNode) -> tp.Union[None, RagdollConstraintData, BallAndSocketConstraintData]:
+    def auto_constraint_data_type(node: HKXNode) -> tp.Union[None, RagdollConstraintData, BallAndSocketConstraintData]:
         if node.value is None:
             return None
-        print(node.value)
         if "transforms" in node.value["atoms"].value:
             return node.get_py_object(RagdollConstraintData)
         elif "pivots" in node.value["atoms"].value:

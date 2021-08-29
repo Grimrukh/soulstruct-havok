@@ -8,7 +8,8 @@ import typing as tp
 from pathlib import Path
 
 from soulstruct.base.game_file import GameFile, InvalidGameFileTypeError
-from soulstruct.containers.bnd import BaseBND, BND
+from soulstruct.containers import Binder
+from soulstruct.containers.bnd import BaseBND
 from soulstruct.containers.bnd.entry import BNDEntry
 from soulstruct.utilities.maths import QuatTransform, Vector4
 from soulstruct.utilities.binary import BinaryReader
@@ -52,17 +53,20 @@ class HKX(GameFile):
         file_source: Typing = None,
         dcx_magic: tuple[int, int] = (),
         compendium: tp.Optional[HKX] = None,
+        hkx_format="",
     ):
+        if hkx_format not in {"", "tagfile", "packfile"}:
+            raise ValueError(f"`hkx_format` must be 'tagfile' or 'packfile' if given, not: {hkx_format}")
         self.root = None
         self.all_nodes = []
         self.hkx_types = HKXTypeList([])
-        self.hkx_format = ""
+        self.hkx_format = hkx_format
         self.hk_version = ""
         self.is_compendium = False
         self.compendium_ids = []
-        super().__init__(file_source, dcx_magic, compendium=compendium)
+        super().__init__(file_source, dcx_magic, compendium=compendium, hkx_format=hkx_format)
 
-    def _handle_other_source_types(self, file_source, compendium: tp.Optional[HKX] = None):
+    def _handle_other_source_types(self, file_source, compendium: tp.Optional[HKX] = None, hkx_format=""):
 
         if isinstance(file_source, str):
             file_source = Path(file_source)
@@ -79,11 +83,15 @@ class HKX(GameFile):
             file_source = file_source.open("rb")
         if isinstance(file_source, (bytes, io.BufferedIOBase, BinaryReader)):
             reader = BinaryReader(file_source)
-            hkx_format = self._detect_hkx_format(reader)
-            if hkx_format is None:
+            detected_hkx_format = self._detect_hkx_format(reader)
+            if detected_hkx_format is None:
                 raise InvalidGameFileTypeError("`file_source` was not an HKX packfile or tagfile.")
-            self.hkx_format = hkx_format
-            self.unpack(reader, hkx_format=hkx_format)
+            elif self.hkx_format and detected_hkx_format != self.hkx_format:
+                raise ValueError(
+                    f"Detected HKX format {detected_hkx_format} does not match passed format: {self.hkx_format}"
+                )
+            self.hkx_format = detected_hkx_format
+            self.unpack(reader, compendium=compendium)
             return
 
         if isinstance(file_source, HKXNode):
@@ -170,14 +178,14 @@ class HKX(GameFile):
     def pack_tagfile(self) -> bytes:
         return self.pack("tagfile")
 
-    def write(self, file_path: tp.Union[None, str, Path] = None, make_dirs=True, hkx_format=""):
-        super().write(file_path, make_dirs, hkx_format=hkx_format)
+    def write(self, file_path: tp.Union[None, str, Path] = None, make_dirs=True, check_hash=False, hkx_format=""):
+        super().write(file_path, make_dirs=make_dirs, check_hash=check_hash, hkx_format=hkx_format)
 
-    def write_packfile(self, file_path: tp.Union[None, str, Path] = None, make_dirs=True):
-        self.write(file_path, make_dirs=make_dirs, hkx_format="packfile")
+    def write_packfile(self, file_path: tp.Union[None, str, Path] = None, make_dirs=True, check_hash=False):
+        self.write(file_path, make_dirs=make_dirs, check_hash=check_hash, hkx_format="packfile")
 
-    def write_tagfile(self, file_path: tp.Union[None, str, Path] = None, make_dirs=True):
-        self.write(file_path, make_dirs=make_dirs, hkx_format="tagfile")
+    def write_tagfile(self, file_path: tp.Union[None, str, Path] = None, make_dirs=True, check_hash=False):
+        self.write(file_path, make_dirs=make_dirs, check_hash=check_hash, hkx_format="tagfile")
 
     def write_xml(self, xml_file_path: Path, with_backport=False):
         serializer = HKXXMLSerializer(self.root, with_backport=with_backport)
@@ -352,7 +360,7 @@ class SkeletonHKX(HKX):
     @classmethod
     def from_anibnd(cls, anibnd_path: tp.Union[Path, str], prefer_bak=False) -> SkeletonHKX:
         anibnd_path = Path(anibnd_path)
-        anibnd = BND(anibnd_path, from_bak=prefer_bak)
+        anibnd = Binder(anibnd_path, from_bak=prefer_bak)
         return cls(anibnd[1000000])
 
 
@@ -425,7 +433,7 @@ class AnimationHKX(HKX):
             if not animation_path.endswith(".hkx"):
                 animation_path += ".hkx"
         anibnd_path = Path(anibnd_path)
-        anibnd = BND(anibnd_path, from_bak=prefer_bak)
+        anibnd = Binder(anibnd_path, from_bak=prefer_bak)
         return cls(anibnd[animation_path])
 
 
@@ -450,7 +458,6 @@ class RagdollHKX(HKX):
         self.animation_container = self.get_variant_node(0).get_py_object(AnimationContainer)
         self.standard_skeleton = self.animation_container.skeletons[0]
         self.ragdoll_skeleton = self.animation_container.skeletons[1]
-        print(self.get_root_tree_string())
         self.physics_data = self.get_variant_node(1).get_py_object(PhysicsData)
         self.ragdoll_instance = self.get_variant_node(2).get_py_object(RagdollInstance)
         self.ragdoll_to_standard_skeleton_mapper = self.get_variant_node(3).get_py_object(SkeletonMapper)
@@ -472,11 +479,7 @@ class RagdollHKX(HKX):
             pose.node.value["translation"].value = tuple(x * factor for x in pose.translation)
 
         for rigid_body in self.physics_data.systems[0].rigid_bodies:
-            shape = rigid_body.collidable.shape
-            shape.node.value["radius"].value = shape.radius * factor
-            if "vertexA" in shape.node.value:  # capsule
-                shape.node.value["vertexA"].value = tuple(x * factor for x in shape.vertex_A)
-                shape.node.value["vertexB"].value = tuple(x * factor for x in shape.vertex_B)
+            self.scale_shape(rigid_body.collidable.shape, factor)
 
             # TODO: motion inertiaAndMassInv?
 
@@ -496,20 +499,38 @@ class RagdollHKX(HKX):
 
         for mapper in (self.ragdoll_to_standard_skeleton_mapper, self.standard_to_ragdoll_skeleton_mapper):
             for simple in mapper.mapping.simple_mappings:
-                simple.node.value["aFromBTransform"].value["translation"].value = tuple(
-                    x * factor for x in simple.A_from_B_transform.translation
-                )
+                self.scale_tuple_member(simple.node.value["aFromBTransform"], "translation", factor)
             for chain in mapper.mapping.chain_mappings:
-                chain.node.value["startAFromBTransform"].value["translation"].value = tuple(
-                    x * factor for x in chain.start_A_from_B_transform.translation
-                )
+                self.scale_tuple_member(chain.node.value["startAFromBTransform"], "translation", factor)
+
+    def scale_shape(self, shape, factor: float):
+        if "radius" in shape.node.value:  # hkpConvexShape
+            shape.node.value["radius"].value = shape.radius * factor
+            if "vertexA" in shape.node.value:  # hkpCapsuleShape
+                self.scale_tuple_member(shape.node, "vertexA", factor)
+                self.scale_tuple_member(shape.node, "vertexB", factor)
+        elif "moppData" in shape.node.value:  # hkpMoppBvTreeShape
+            self.scale_shape(shape.child.child_shape, factor)
+        elif "embeddedTrianglesSubpart" in shape.node.value:  # hkpExtendedMeshShape
+            ets_node = shape.node.value["embeddedTrianglesSubpart"]
+            self.scale_tuple_member(ets_node.value["transform"], "translation", factor)
+            self.scale_tuple_member(shape.node, "aabbHalfExtents", factor)
+            self.scale_tuple_member(shape.node, "aabbCenter", factor)
+            if "meshstorage" in shape.node.value:  # hkpStorageExtendedMeshShape
+                for mesh_node in shape.node.value["meshstorage"].value:
+                    for vertex_node in mesh_node.value["vertices"].value:
+                        vertex_node.value = tuple(v * factor for v in vertex_node.value)
+
+    @staticmethod
+    def scale_tuple_member(node: HKXNode, member_name: str, factor: float):
+        node.value[member_name].value = tuple(x * factor for x in node.value[member_name].value)
 
     @classmethod
     def from_chrbnd(cls, chrbnd_path: tp.Union[Path, str], prefer_bak=False) -> RagdollHKX:
         chrbnd_path = Path(chrbnd_path)
         if (bak_path := chrbnd_path.with_suffix(chrbnd_path.suffix + ".bak")).is_file() and prefer_bak:
             chrbnd_path = bak_path
-        chrbnd = BND(chrbnd_path)
+        chrbnd = Binder(chrbnd_path)
         model_name = chrbnd_path.name.split(".")[0]  # e.g. "c0000"
         return cls(chrbnd[f"{model_name}.hkx"])
 
@@ -586,7 +607,7 @@ class ClothHKX(HKX):
         chrbnd_path = Path(chrbnd_path)
         if (bak_path := chrbnd_path.with_suffix(chrbnd_path.suffix + ".bak")).is_file() and prefer_bak:
             chrbnd_path = bak_path
-        chrbnd = BND(chrbnd_path)
+        chrbnd = Binder(chrbnd_path)
         model_name = chrbnd_path.name.split(".")[0]  # e.g. "c0000"
         try:
             return cls(chrbnd[f"{model_name}_c.hkx"])

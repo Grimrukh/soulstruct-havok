@@ -104,7 +104,7 @@ class HKXNode:
             try:
                 node = self.value[name]
             except KeyError:
-                raise KeyError(f"Invalid member name for Class node: {name}")
+                raise KeyError(f"Invalid member name for Class node: {name}. Members: {self.value.keys()}")
         else:
             raise TypeError(
                 f"Cannot index node with value type {type(self.value)}. Only Array/Tuple (by index) and Class (by "
