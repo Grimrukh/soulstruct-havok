@@ -26,12 +26,12 @@ class PhysicsSystem(HKXObject):
     """hkpPhysicsSystem"""
 
     rigid_bodies: list[tp.Optional[RigidBody]]
-    constraints: list[tp.Optional[ConstraintInstance]]
+    constraints: list[tp.Union[None, ConstraintInstance, ConstraintChainInstance]]
 
     def __init__(self, node: HKXNode):
         super().__init__(node)
         self.rigid_bodies = [n.get_py_object(RigidBody) for n in node["rigidBodies"]]
-        self.constraints = [n.get_py_object(ConstraintInstance) for n in node["constraints"]]
+        self.constraints = [ConstraintInstance.auto_constraint_instance_type(n) for n in node["constraints"]]
         self.actions = node["actions"]  # array of pointers
         self.phantoms = node["phantoms"]  # array of pointers
         self.name = node["name"]  # "Default Physics System"
@@ -476,7 +476,14 @@ class SweptTransform(HKXObject):
 class ConstraintInstance(HKXObject):
     """hkpConstraintInstance"""
 
-    data: tp.Union[None, RagdollConstraintData, BallAndSocketConstraintData]
+    data: tp.Union[
+        None,
+        RagdollConstraintData,
+        BallAndSocketConstraintData,
+        BreakableConstraintData,
+        StiffSpringConstraintData,
+        BallSocketChainData,
+    ]
     listeners: tp.Optional[ConstraintInstanceSmallArraySerializeOverrideType]
 
     def __init__(self, node: HKXNode):
@@ -494,6 +501,84 @@ class ConstraintInstance(HKXObject):
         # `internal` is Opaque.
         self.uid = node["uid"]
 
+    @staticmethod
+    def auto_constraint_instance_type(node: HKXNode) -> tp.Union[None, ConstraintInstance, ConstraintChainInstance]:
+        """Determine `ConstraintInstance` subtype by inspecting the member names of its `atoms` member."""
+        if node.value is None:
+            return None
+        if "chainedEntities" in node.value:
+            return node.get_py_object(ConstraintChainInstance)
+        else:
+            return node.get_py_object(ConstraintInstance)
+
+
+class ConstraintChainInstance(ConstraintInstance):
+    """hkpConstraintChainInstance"""
+
+    def __init__(self, node: HKXNode):
+        super().__init__(node)
+        self.chained_entities = node["chainedEntities"]
+        self.action = node["action"].get_py_object(ConstraintChainInstanceAction)
+        self.chain_connectedness = node["chainConnectedness"]
+
+
+class BallSocketChainData(HKXObject):
+    """hkpBallSocketChainData"""
+
+    infos: list[tp.Optional[BallSocketChainDataConstraintInfo]]
+
+    def __init__(self, node: HKXNode):
+        super().__init__(node)
+        self.atoms = node["atoms"].get_py_object(BridgeAtoms)  # TODO: always bridge atoms?
+        self.infos = [n.get_py_object(BallSocketChainDataConstraintInfo) for n in node["infos"]]
+        self.link_0_pivot_b_velocity = node["link0PivotBVelocity"]
+        self.tau = node["tau"]
+        self.damping = node["damping"]
+        self.cfm = node["cfm"]
+        self.max_error_distance = node["maxErrorDistance"]
+        self.inertia_per_meter = node["inertiaPerMeter"]
+        self.use_stabilized_code = node["useStabilizedCode"]
+
+
+class BridgeAtoms(HKXObject):
+    """hkpBridgeAtoms"""
+
+    def __init__(self, node: HKXNode):
+        super().__init__(node)
+        self.bridge_atom = node["bridgeAtom"].get_py_object(BridgeConstraintAtom)
+
+
+class BridgeConstraintAtom(HKXObject):
+    """hkpBridgeConstraintAtom"""
+
+    def __init__(self, node: HKXNode):
+        super().__init__(node)
+        self.type = node["type"]
+        # `buildJacobianFunc` is opaque.
+        # `constraintData` references containing class
+
+
+class BallSocketChainDataConstraintInfo(HKXObject):
+    """hkpBallSocketChainData::ConstraintInfo"""
+
+    def __init__(self, node: HKXNode):
+        super().__init__(node)
+        self.pivot_in_a = node["pivotInA"]
+        self.pivot_in_b = node["pivotInB"]
+        self.flags = node["flags"]
+
+
+class ConstraintChainInstanceAction(HKXObject):
+    """hkpConstraintChainInstanceAction"""
+
+    def __init__(self, node: HKXNode):
+        super().__init__(node)
+        # `world` is opaque.
+        # `island` is opaque.
+        self.user_data = node["userData"]
+        self.name = node["name"]
+        # `constraintInstance` references containing class
+
 
 class ConstraintData(HKXObject):
     """hkpConstraintData"""
@@ -503,14 +588,28 @@ class ConstraintData(HKXObject):
         self.user_data = node["userData"]
 
     @staticmethod
-    def auto_constraint_data_type(node: HKXNode) -> tp.Union[None, RagdollConstraintData, BallAndSocketConstraintData]:
+    def auto_constraint_data_type(node: HKXNode) -> tp.Union[
+        None,
+        RagdollConstraintData,
+        BallAndSocketConstraintData,
+        BreakableConstraintData,
+        StiffSpringConstraintData,
+        BallSocketChainData,
+    ]:
+        """Determine `ConstraintData` subtype by inspecting the member names of its `atoms` member."""
         if node.value is None:
             return None
-        if "transforms" in node.value["atoms"].value:
-            return node.get_py_object(RagdollConstraintData)
+        if "constraintData" in node.value:
+            return node.get_py_object(BreakableConstraintData)  # shallow wrapper around Ragdoll constraint
+        elif "infos" in node.value:
+            return node.get_py_object(BallSocketChainData)  # shallow wrapper around Ragdoll constraint
+        elif "transforms" in node.value["atoms"].value:
+            return node.get_py_object(RagdollConstraintData)  # could use Hinge or Ragdoll atoms
+        elif "spring" in node.value["atoms"].value:
+            return node.get_py_object(StiffSpringConstraintData)
         elif "pivots" in node.value["atoms"].value:
             return node.get_py_object(BallAndSocketConstraintData)
-        raise TypeError(f"Could not detect `ConstraintData` subtype from node.")
+        raise TypeError("Could not detect `ConstraintData` subtype from node members.")
 
 
 class RagdollConstraintData(ConstraintData):
@@ -524,6 +623,16 @@ class RagdollConstraintData(ConstraintData):
             self.atoms = node["atoms"].get_py_object(HingeConstraintDataAtoms)
         else:
             self.atoms = node["atoms"].get_py_object(RagdollConstraintDataAtoms)
+
+
+class BreakableConstraintData(ConstraintData):
+    """hkpBreakableConstraintData"""
+
+    constraint_data: tp.Optional[RagdollConstraintData]
+
+    def __init__(self, node: HKXNode):
+        super().__init__(node)
+        self.constraint_data = node["constraintData"].get_py_object(RagdollConstraintData)
 
 
 class HingeConstraintDataAtoms(HKXObject):
@@ -662,6 +771,17 @@ class BallSocketConstraintAtom(ConstraintAtom):
         self.inertia_stabilization_factor = node["inertiaStabilizationFactor"]
 
 
+class StiffSpringConstraintAtom(ConstraintAtom):
+    """hkpStiffSpringConstraintAtom"""
+
+    def __init__(self, node: HKXNode):
+        super().__init__(node)
+        self.length = node["length"]
+        self.max_length = node["maxLength"]
+        self.spring_constant = node["springConstant"]
+        self.spring_damping = node["springDamping"]
+
+
 class BallAndSocketConstraintData(ConstraintData):
     """hkpBallAndSocketConstraintData"""
 
@@ -684,6 +804,30 @@ class BallAndSocketConstraintDataAtoms(HKXObject):
         self.pivots = node["pivots"].get_py_object(SetLocalTranslationsConstraintAtom)
         self.setup_stabilization = node["setupStabilization"].get_py_object(SetupStabilizationAtom)
         self.ball_socket = node["ballSocket"].get_py_object(BallSocketConstraintAtom)
+
+
+class StiffSpringConstraintData(ConstraintData):
+    """hkpStiffSpringConstraintData"""
+
+    atoms: tp.Optional[StiffSpringConstraintDataAtoms]
+
+    def __init__(self, node: HKXNode):
+        super().__init__(node)
+        self.atoms = node["atoms"].get_py_object(StiffSpringConstraintDataAtoms)
+
+
+class StiffSpringConstraintDataAtoms(HKXObject):
+    """hkpStiffSpringConstraintDataAtoms"""
+
+    pivots: tp.Optional[SetLocalTranslationsConstraintAtom]
+    setup_stabilization: tp.Optional[SetupStabilizationAtom]
+    spring: tp.Optional[StiffSpringConstraintAtom]
+
+    def __init__(self, node: HKXNode):
+        super().__init__(node)
+        self.pivots = node["pivots"].get_py_object(SetLocalTranslationsConstraintAtom)
+        self.setup_stabilization = node["setupStabilization"].get_py_object(SetupStabilizationAtom)
+        self.spring = node["spring"].get_py_object(StiffSpringConstraintAtom)
 
 
 class SetLocalTranslationsConstraintAtom(ConstraintAtom):

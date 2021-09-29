@@ -581,12 +581,30 @@ class ClothHKX(HKX):
             swept_transform.node.value[4].value = tuple(x * factor for x in swept_transform.center_of_mass_local)
 
         for constraint_instance in self.physics_data.systems[0].constraints:
+
+            try:
+                infos = constraint_instance.data.infos
+            except AttributeError:
+                pass
+            else:
+                for info in infos:
+                    info.pivot_in_a = tuple(x * factor for x in info.pivot_in_a)
+                    info.pivot_in_b = tuple(x * factor for x in info.pivot_in_b)
+                constraint_instance.data.link_0_pivot_b_velocity = tuple(
+                    x * factor for x in constraint_instance.data.link_0_pivot_b_velocity
+                )
+                # TODO: scale tau, damping, cfm?
+                constraint_instance.data.max_error_distance *= factor
+                constraint_instance.data.inertia_per_meter *= factor
+
             try:
                 atoms = constraint_instance.data.atoms
             except AttributeError:
                 continue
+
             if "transforms" in atoms.node.value:
                 transforms = atoms.transforms
+
                 old_transform_A = transforms.transform_a.to_flat_column_order()
                 scaled_translate = tuple(x * factor for x in old_transform_A[12:15]) + (1.0,)
                 transforms.node.value["transformA"].value = tuple(old_transform_A[:12]) + scaled_translate
@@ -594,13 +612,20 @@ class ClothHKX(HKX):
                 old_transform_B = transforms.transform_b.to_flat_column_order()
                 scaled_translate = tuple(x * factor for x in old_transform_B[12:15]) + (1.0,)
                 transforms.node.value["transformB"].value = tuple(old_transform_B[:12]) + scaled_translate
-            elif "pivots" in atoms.node.value:
+
+            if "pivots" in atoms.node.value:
                 pivots = atoms.pivots
+
                 scaled_translate = tuple(x * factor for x in pivots.translation_a)
                 pivots.node.value["translationA"].value = scaled_translate
 
                 scaled_translate = tuple(x * factor for x in pivots.translation_b)
                 pivots.node.value["translationB"].value = scaled_translate
+
+            if "spring" in atoms.node.value:
+                spring = atoms.spring
+                spring.length *= factor
+                spring.max_length *= factor
 
     @classmethod
     def from_chrbnd(cls, chrbnd_path: tp.Union[Path, str], prefer_bak=False) -> ClothHKX:

@@ -104,7 +104,7 @@ class HKXNode:
             try:
                 node = self.value[name]
             except KeyError:
-                raise KeyError(f"Invalid member name for Class node: {name}. Members: {self.value.keys()}")
+                raise KeyError(f"Invalid member name for Class node: '{name}'. Members: {list(self.value.keys())}")
         else:
             raise TypeError(
                 f"Cannot index node with value type {type(self.value)}. Only Array/Tuple (by index) and Class (by "
@@ -157,7 +157,7 @@ class HKXNode:
         self.type_index = new_hkx_types.get_type_index(node_type)
 
     def __repr__(self):
-        return f"Node({type(self.value)})"
+        return f"Node({type(self.value).__name__})" if self.value is not None else "Node(None)"
 
     def get_tree_string(self, hkx_types: HKXTypeList, object_ids: dict[HKXNode, int] = None, indent=0) -> str:
         """Recursively construct node hierarchy string (with indents), with this as the root.
@@ -314,6 +314,8 @@ class NodeTypeReindexer:
         self._old_types = hkx_types
         self._root_node = root_node
         self._adder_sources = {}  # type: dict[HKXType, str]
+        self._reindexed_nodes = []  # type: list[HKXNode]
+        self._checked_nodes = set()  # type: set[HKXNode]
 
         if root_node is not None:
             if new_types is not None:
@@ -370,8 +372,11 @@ class NodeTypeReindexer:
         if isinstance(node, (HKXArrayNode, HKXTupleNode)):
             return  # no further nodes to recur on
 
+        self._checked_nodes.add(node)
+
         if node_base_type.tag_data_type == TagDataType.Pointer:
-            node_queue.append(node.value)
+            if node.value not in self._checked_nodes:
+                node_queue.append(node.value)
         elif node_base_type.tag_data_type == TagDataType.Class:
             for member in node_type.get_all_members(self._old_types):
                 node_queue.append(node.value[member.name])

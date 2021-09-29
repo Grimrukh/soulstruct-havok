@@ -30,6 +30,8 @@ class HKXTagFileUnpacker:
     root: tp.Optional[HKXNode]
     all_nodes: list[HKXNode]
     hkx_types: HKXTypeList
+    hkx_items: list[HKXItem]
+    items_in_process: list[HKXItem]  # items currently being unpacked (checked to avoid infinite recursion)
     is_compendium: bool
     compendium_ids: list[str]
     hk_version: str
@@ -38,6 +40,8 @@ class HKXTagFileUnpacker:
         self.root = None
         self.all_nodes = []
         self.hkx_types = HKXTypeList([])
+        self.hkx_items = []
+        self.items_in_process = []
         self.is_compendium = False
         self.compendium_ids = []
         self.hk_version = ""
@@ -376,9 +380,25 @@ class HKXTagFileUnpacker:
             print(f"{' ' * indent}  {Fore.RED}ITEM INDEX: {item_index} ({hex(item_index)}) {Fore.RESET}")
         item = self.hkx_items[item_index]
         if item.node_value is None:
-            item.node_value = self.unpack_node(
-                reader, hkx_type=item.hkx_type, node_offset=item.absolute_offset, indent=indent + 4
-            )
+            if item in self.items_in_process:
+                if item.hkx_type.tag_data_type != TagDataType.Class:
+                    # I don't think this can happen, because only Class items can have any nesting (members) at all,
+                    # unless an Array item somehow contains itself (unlikely).
+                    raise ValueError(f"Non-Class HKX item with index {item_index} is nested within itself.")
+
+            self.items_in_process.append(item)
+            if item.hkx_type.tag_data_type == TagDataType.Class:
+                # Create dictionary node now, and update its `value` later in case of member recursion.
+                item.node_value = HKXNode(value={}, type_index=self.hkx_types.index(item.hkx_type))
+                actual_node = self.unpack_node(
+                    reader, hkx_type=item.hkx_type, node_offset=item.absolute_offset, indent=indent + 4
+                )
+                item.node_value.value = actual_node.value
+            else:
+                item.node_value = self.unpack_node(
+                    reader, hkx_type=item.hkx_type, node_offset=item.absolute_offset, indent=indent + 4
+                )
+            self.items_in_process.remove(item)
         return item.node_value
 
     def unpack_class(

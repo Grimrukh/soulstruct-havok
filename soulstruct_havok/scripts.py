@@ -38,11 +38,12 @@ def scale_dsr_character(dsr_chr_path: tp.Union[str, Path], model_id: int, scale_
     anibnd[1000000].data = skeleton.pack()
     print("    Done.")
     try:
-        cloth = ClothHKX(chrbnd[f"{model_name}_c.hkx"])
+        cloth_file = chrbnd[f"{model_name}_c.hkx"]
     except KeyError:
         # No cloth for this character.
         print(f"No cloth file for {model_name}.")
     else:
+        cloth = ClothHKX(cloth_file)
         print(f"Scaling {model_name} cloth...")
         cloth.scale(scale_factor)
         print("    Done.")
@@ -63,6 +64,12 @@ def scale_dsr_character(dsr_chr_path: tp.Union[str, Path], model_id: int, scale_
 
 
 if __name__ == '__main__':
-    CHARACTER_ID = 2930
-    SCALE = 10.0
-    scale_dsr_character(r"F:\Steam\steamapps\common\DARK SOULS REMASTERED (Workbench)\chr", CHARACTER_ID, SCALE)
+    from contextlib import redirect_stdout
+    CHARACTER_ID = 5300
+    SCALE = 0.58
+    PREFER_BAK = True
+    # with open("c2930.log", "w") as f:
+    #     with redirect_stdout(f):
+    scale_dsr_character(
+        r"F:\Steam\steamapps\common\DARK SOULS REMASTERED (Workbench)\chr", CHARACTER_ID, SCALE, PREFER_BAK
+    )

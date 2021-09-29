@@ -379,7 +379,13 @@ class TrackVector3:
         return track_flags
 
     def pack_quantized_float(self, writer: BinaryWriter, q_float: float, minimum: float, maximum: float):
-        ratio = (q_float - minimum) / (maximum - minimum)
+        if minimum == maximum:
+            if q_float == minimum:
+                ratio = 0.0
+            else:
+                raise ValueError(f"Min/max values for quantization of float {q_float} are equal: {minimum}")
+        else:
+            ratio = (q_float - minimum) / (maximum - minimum)
         if self.scalar_quantization == ScalarQuantizationType.Bits8:
             writer.pack("B", int(ratio * 255))
         elif self.scalar_quantization == ScalarQuantizationType.Bits16:
