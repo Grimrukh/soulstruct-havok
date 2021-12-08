@@ -14,12 +14,12 @@ from soulstruct.containers.bnd.entry import BNDEntry
 from soulstruct.utilities.maths import QuatTransform, Vector4
 from soulstruct.utilities.binary import BinaryReader
 
-from .hkxml import HKXXMLSerializer, HKXXMLParser
-from .nodes import HKXNode, NodeCollector, NodeTypeReassigner
-from .packfile import HKXPackFilePacker, HKXPackFileUnpacker
+# TODO: PackFilePacker currently broken.
+from .packfile.unpacker import PackFileUnpacker
 from .spline_compression import SplineCompressedAnimationData
-from .tagfile import HKXTagFilePacker, HKXTagFileUnpacker
-from .types import HKXTypeList, HKXTemplate
+from .tagfile.packer import TagFilePacker
+from .tagfile.unpacker import TagFileUnpacker
+from .types import hk
 
 from .objects.hka import *
 from .objects.hkp import PhysicsData
@@ -38,13 +38,13 @@ class HKX(GameFile):
     default to writing the format that was loaded. Same for `pack()` and its two variants.
     """
 
-    Typing = tp.Union[GameFile.Typing, HKXNode]
+    Typing = tp.Union[GameFile.Typing]
 
-    root: tp.Optional[HKXNode]
-    all_nodes: list[HKXNode]
-    hkx_types = HKXTypeList
-    hkx_format: str  # "packfile" or "tagfile"
+    root: tp.Optional[hk]
+    hk_types = list[tp.Type[hk]]
+    hk_format: str  # "packfile" or "tagfile"
     hk_version: str
+    unpacker: TagFileUnpacker | PackFileUnpacker
     is_compendium: bool
     compendium_ids = list[str]
 
@@ -53,20 +53,21 @@ class HKX(GameFile):
         file_source: Typing = None,
         dcx_magic: tuple[int, int] = (),
         compendium: tp.Optional[HKX] = None,
-        hkx_format="",
+        hk_format="",
     ):
-        if hkx_format not in {"", "tagfile", "packfile"}:
-            raise ValueError(f"`hkx_format` must be 'tagfile' or 'packfile' if given, not: {hkx_format}")
+        if hk_format not in {"", "tagfile", "packfile"}:
+            raise ValueError(f"`hk_format` must be 'tagfile' or 'packfile' if given, not: {hk_format}")
         self.root = None
         self.all_nodes = []
-        self.hkx_types = HKXTypeList([])
-        self.hkx_format = hkx_format
+        self.hk_types = []  # type: list[tp.Type[hk]]
+        self.hk_format = hk_format
         self.hk_version = ""
         self.is_compendium = False
+        self.unpacker = None
         self.compendium_ids = []
-        super().__init__(file_source, dcx_magic, compendium=compendium, hkx_format=hkx_format)
+        super().__init__(file_source, dcx_magic, compendium=compendium, hk_format=hk_format)
 
-    def _handle_other_source_types(self, file_source, compendium: tp.Optional[HKX] = None, hkx_format=""):
+    def _handle_other_source_types(self, file_source, compendium: tp.Optional[HKX] = None, hk_format=""):
 
         if isinstance(file_source, str):
             file_source = Path(file_source)
@@ -83,14 +84,14 @@ class HKX(GameFile):
             file_source = file_source.open("rb")
         if isinstance(file_source, (bytes, io.BufferedIOBase, BinaryReader)):
             reader = BinaryReader(file_source)
-            detected_hkx_format = self._detect_hkx_format(reader)
-            if detected_hkx_format is None:
+            detected_hk_format = self._detect_hk_format(reader)
+            if detected_hk_format is None:
                 raise InvalidGameFileTypeError("`file_source` was not an HKX packfile or tagfile.")
-            elif self.hkx_format and detected_hkx_format != self.hkx_format:
+            elif self.hk_format and detected_hk_format != self.hk_format:
                 raise ValueError(
-                    f"Detected HKX format {detected_hkx_format} does not match passed format: {self.hkx_format}"
+                    f"Detected HKX format {detected_hk_format} does not match passed format: {self.hk_format}"
                 )
-            self.hkx_format = detected_hkx_format
+            self.hk_format = detected_hk_format
             self.unpack(reader, compendium=compendium)
             return
 
@@ -105,7 +106,7 @@ class HKX(GameFile):
         raise InvalidGameFileTypeError("`file_source` was not an `XML` file, `HKX` file/stream, or `HKXNode`.")
 
     @staticmethod
-    def _detect_hkx_format(reader: BinaryReader) -> tp.Optional[str]:
+    def _detect_hk_format(reader: BinaryReader) -> tp.Optional[str]:
         """Peek into buffer to find out if it is a "packfile", "tagfile", or unknown (`None`)."""
         first_eight_bytes = reader.unpack_bytes(length=8, offset=reader.position)
         if first_eight_bytes == b"\x57\xE0\xE0\x57\x10\xC0\xC0\x10":
@@ -126,51 +127,52 @@ class HKX(GameFile):
         """
         self.all_nodes = NodeCollector(self.root, self.hkx_types).nodes
 
-    def unpack(self, reader: BinaryReader, hkx_format="", compendium: tp.Optional[HKX] = None):
-        if not hkx_format:
-            hkx_format = self.hkx_format
-        if hkx_format == "packfile":
+    def unpack(self, reader: BinaryReader, hk_format="", compendium: tp.Optional[HKX] = None):
+        if not hk_format:
+            hk_format = self.hk_format
+        if hk_format == "packfile":
             if compendium is not None:
                 raise ValueError("`compendium` was passed with HKX packfile source (used only by newer tagfiles).")
             self.unpack_packfile(reader)
-        elif hkx_format == "tagfile":
+        elif hk_format == "tagfile":
             self.unpack_tagfile(reader, compendium=compendium)
         else:
             raise ValueError(
-                f"`hkx_format` must be 'packfile' or 'tagfile' for `HKX.unpack()`, not {repr(hkx_format)}."
+                f"`hk_format` must be 'packfile' or 'tagfile' for `HKX.unpack()`, not {repr(hk_format)}."
             )
 
     def unpack_packfile(self, reader: BinaryReader):
         """Buffer is known to be `packfile`."""
-        unpacker = HKXPackFileUnpacker(reader)
-        self.root = unpacker.root
-        self.hkx_types = unpacker.hkx_types
-        self.hk_version = unpacker.hk_version
+        self.unpacker = PackFileUnpacker()
+        self.unpacker.unpack(reader)
+        self.root = self.unpacker.root
+        # self.hk_types = unpacker.hk_types  # TODO: Not necessary, I think.
+        self.hk_version = self.unpacker.hk_version
         self.is_compendium = False
         self.compendium_ids = []
-        self.all_nodes = unpacker.all_nodes
 
     def unpack_tagfile(self, reader: BinaryReader, compendium: tp.Optional[HKX] = None):
         """Buffer is known to be `tagfile`."""
-        unpacker = HKXTagFileUnpacker(reader, compendium=compendium)
-        self.root = unpacker.root
-        self.hkx_types = unpacker.hkx_types
-        self.hk_version = unpacker.hk_version
-        self.is_compendium = unpacker.is_compendium
-        self.compendium_ids = unpacker.compendium_ids
-        self.all_nodes = unpacker.all_nodes
+        self.unpacker = TagFileUnpacker()
+        self.unpacker.unpack(reader, compendium=compendium)
+        self.root = self.unpacker.root
+        self.hk_types = self.unpacker.hk_type_infos
+        self.hk_version = self.unpacker.hk_version
+        self.is_compendium = self.unpacker.is_compendium
+        self.compendium_ids = self.unpacker.compendium_ids
+        self.all_nodes = self.unpacker.all_nodes
 
-    def pack(self, hkx_format="") -> bytes:
-        if hkx_format == "":
-            hkx_format = self.hkx_format
-        if hkx_format.lower() == "packfile":
-            return HKXPackFilePacker(self).pack()
-        elif hkx_format.lower() == "tagfile":
-            packer = HKXTagFilePacker(self)
+    def pack(self, hk_format="") -> bytes:
+        if hk_format == "":
+            hk_format = self.hk_format
+        if hk_format.lower() == "packfile":
+            return PackFilePacker(self).pack()
+        elif hk_format.lower() == "tagfile":
+            packer = TagFilePacker(self)
             packed = packer.pack()
-            self.hkx_types = packer.hkx_types
+            self.hk_types = packer.hk_types
             return packed
-        raise ValueError(f"Invalid `hkx_format` for `HKX.pack()`: {hkx_format}. Should be 'packfile' or 'tagfile'.")
+        raise ValueError(f"Invalid `hk_format` for `HKX.pack()`: {hk_format}. Should be 'packfile' or 'tagfile'.")
 
     def pack_packfile(self) -> bytes:
         return self.pack("packfile")
@@ -178,21 +180,21 @@ class HKX(GameFile):
     def pack_tagfile(self) -> bytes:
         return self.pack("tagfile")
 
-    def write(self, file_path: tp.Union[None, str, Path] = None, make_dirs=True, check_hash=False, hkx_format=""):
-        super().write(file_path, make_dirs=make_dirs, check_hash=check_hash, hkx_format=hkx_format)
+    def write(self, file_path: tp.Union[None, str, Path] = None, make_dirs=True, check_hash=False, hk_format=""):
+        super().write(file_path, make_dirs=make_dirs, check_hash=check_hash, hk_format=hk_format)
 
     def write_packfile(self, file_path: tp.Union[None, str, Path] = None, make_dirs=True, check_hash=False):
-        self.write(file_path, make_dirs=make_dirs, check_hash=check_hash, hkx_format="packfile")
+        self.write(file_path, make_dirs=make_dirs, check_hash=check_hash, hk_format="packfile")
 
     def write_tagfile(self, file_path: tp.Union[None, str, Path] = None, make_dirs=True, check_hash=False):
-        self.write(file_path, make_dirs=make_dirs, check_hash=check_hash, hkx_format="tagfile")
+        self.write(file_path, make_dirs=make_dirs, check_hash=check_hash, hk_format="tagfile")
 
     def write_xml(self, xml_file_path: Path, with_backport=False):
         serializer = HKXXMLSerializer(self.root, with_backport=with_backport)
         serializer.write(xml_file_path)
 
     def get_root_tree_string(self) -> str:
-        return self.root.get_tree_string(self.hkx_types)
+        return self.root.get_tree_string()
 
     # ~~~ CONVENIENCE NODE RETRIEVAL METHODS ~~~ #
 
@@ -215,7 +217,7 @@ class HKX(GameFile):
     # Tagfile versions (2015 and after) use version string format "YYYYAABB", where AA is a major version and BB is a
     # minor version (e.g. "20160100").
 
-    # The default `hkx_format` of the `HKX` will also be changed to "packfile" or "tagfile" whenever you use one of
+    # The default `hk_format` of the `HKX` will also be changed to "packfile" or "tagfile" whenever you use one of
     # these conversion methods.
 
     # Versions used by various FromSoftware games:
@@ -230,7 +232,7 @@ class HKX(GameFile):
         self._convert_swept_transform_to_tuple()
         self._convert_uint8_to_ufloat8()
         NodeTypeReassigner(self.hkx_types, HKXTypeList.load_2015()).reassign_hkx(self)
-        self.hkx_format = "tagfile"
+        self.hk_format = "tagfile"
         self.hk_version = "20150100"
         self._update_animation_type_enum(new_enum=True)
 
@@ -410,10 +412,22 @@ class AnimationHKX(HKX):
         scaled_data = self.get_spline_compressed_animation_data().get_scaled_animation_data(factor)
         self.animation.node.value["data"].value = scaled_data
 
-        # Root motion (if present).
+        # Root motion (if present), sans W.
         if extracted_motion := self.animation.extracted_motion:
             for sample_node in extracted_motion.node.value["referenceFrameSamples"].value:
-                sample_node.value = tuple(sample_vector * factor for sample_vector in sample_node.value)
+                # Scale X, Y, and Z only, not W.
+                vec = sample_node.value
+                sample_node.value = (vec[0] * factor, vec[1] * factor, vec[2] * factor, vec[3])
+
+    def reverse(self):
+        """Reverses all control points in all spline tracks, and also root motion (reference frame samples)."""
+        reversed_data = self.get_spline_compressed_animation_data().get_reversed_animation_data()
+        self.animation.node.value["data"].value = reversed_data
+
+        # Root motion (if present).
+        if extracted_motion := self.animation.extracted_motion:
+            reversed_motion = tuple(reversed(extracted_motion.node.value["referenceFrameSamples"].value))
+            extracted_motion.node.value["referenceFrameSamples"].value = reversed_motion
 
     @property
     def root_motion(self):

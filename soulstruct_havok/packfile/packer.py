@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-__all__ = ["HKXPackFilePacker"]
+__all__ = ["PackFilePacker"]
 
 import typing as tp
 from collections import deque
@@ -18,9 +18,9 @@ if tp.TYPE_CHECKING:
 _DEBUG_PACK_PRINT = []
 
 
-class HKXPackFilePacker:
+class PackFilePacker:
 
-    class EntryQueue(deque[tuple[HKXNode, HKXItemEntry]]):
+    class EntryQueue(deque[tuple[HKXNode, PackFileItemEntry]]):
         """Each instance holds `(node, entry)` pairs, where `node` is the root `HKXNode` of the given `entry` and will
         be recursively packed into it."""
 
@@ -34,7 +34,7 @@ class HKXPackFilePacker:
 
     def pack(
         self,
-        header_version=HKXPackFileVersion.Version0x08,  # Dark Souls PTDE version
+        header_version=PackFileVersion.Version0x08,  # Dark Souls PTDE version
         pointer_size=4,
         is_little_endian=True,
         padding_option=0,
@@ -46,7 +46,7 @@ class HKXPackFilePacker:
         writer = BinaryWriter(big_endian=not is_little_endian)
 
         # TODO: Do the "contents" header indices/offsets vary? I don't imagine so, not for my scope anyway.
-        self.header = HKXHeader(
+        self.header = PackFileHeader(
             version=header_version,
             pointer_size=pointer_size,
             is_little_endian=is_little_endian,
@@ -63,11 +63,11 @@ class HKXPackFilePacker:
             )
         writer.pad_align(16, b"\xFF")
 
-        class_name_section = HKXSectionHeader(section_tag=b"__classnames__")
+        class_name_section = PackFileSectionHeader(section_tag=b"__classnames__")
         class_name_section.pack(writer)
-        types_section = HKXSectionHeader(section_tag=b"__types__")
+        types_section = PackFileSectionHeader(section_tag=b"__types__")
         types_section.pack(writer)
-        data_section = HKXSectionHeader(section_tag=b"__data__")
+        data_section = PackFileSectionHeader(section_tag=b"__data__")
         data_section.pack(writer)
 
         # Class section.
@@ -79,7 +79,7 @@ class HKXPackFilePacker:
         class_name_offsets = {}  # type: dict[str, int]
         for class_name in class_names:
             try:
-                signature = CLASS_NAME_SIGNATURES[class_name]
+                signature = TYPE_NAME_HASHES[self.hk_version][class_name]
             except KeyError:
                 raise KeyError(
                     f"Soulstruct does not know the HKX packfile signature for class {class_name}. Please tell "
@@ -90,16 +90,16 @@ class HKXPackFilePacker:
             writer.append(class_name.encode("ascii") + b"\0")
         writer.pad_align(16, b"\xFF")
         class_section_end_offset = writer.position - class_section_absolute_data_start
-        class_name_section.fill_classname_or_type_section(
+        class_name_section.fill_type_name_or_type_section(
             writer, class_section_absolute_data_start, class_section_end_offset
         )
 
-        types_section.fill_classname_or_type_section(writer, absolute_data_start=writer.position, end_offset=0)
+        types_section.fill_type_name_or_type_section(writer, absolute_data_start=writer.position, end_offset=0)
 
         data_absolute_start = writer.position
-        self.data_entries = {}  # type: dict[HKXNode, HKXItemEntry]  # tracks entries that have already been created
-        self.ordered_data_entries = []  # type: list[HKXItemEntry]  # entries only added here after they are packed
-        root_data_entry = HKXItemEntry(self.hkx.root.get_type(self.hkx_types))  # hkRootLevelContainer
+        self.data_entries = {}  # type: dict[HKXNode, PackFileItemEntry]  # tracks entries that have already been created
+        self.ordered_data_entries = []  # type: list[PackFileItemEntry]  # entries only added here after they are packed
+        root_data_entry = PackFileItemEntry(self.hkx.root.get_type(self.hkx_types))  # hkRootLevelContainer
         self.data_entries[self.hkx.root] = root_data_entry
         top_level_entry_queue = self.EntryQueue([(self.hkx.root, root_data_entry)])
         self.pack_queued_entries(entry_queue=top_level_entry_queue)
@@ -180,7 +180,7 @@ class HKXPackFilePacker:
     def pack_node(
         self,
         node: HKXNode,
-        entry: HKXItemEntry,
+        entry: PackFileItemEntry,
         entry_queue: EntryQueue,
         pointer_queue: PointerQueue,
         hkx_type: HKXType = None,
@@ -254,7 +254,7 @@ class HKXPackFilePacker:
         elif hkx_type.tag_data_type == TagDataType.Array:
             self.pack_array(array_node=node, entry=entry, pointer_queue=pointer_queue, with_flag=flag_array)
 
-        elif hkx_type.tag_data_type == TagDataType.Tuple:
+        elif hkx_type.tag_data_type == TagDataType.Struct:
             # Tuple of nodes of type `node.pointer`, which are all packed immediately (unlike arrays and their pointer
             # structs).
             for child_node in node.value:
@@ -272,19 +272,19 @@ class HKXPackFilePacker:
             print(f"Aligning {hkx_type.name} at {entry.writer.position} to {hkx_type.alignment}")
         entry.writer.pad_align(hkx_type.alignment)
 
-    def pack_string(self, entry: HKXItemEntry, pointer_queue: PointerQueue, string: str):
+    def pack_string(self, entry: PackFileItemEntry, pointer_queue: PointerQueue, string: str):
         """Queue the given string to be packed, after the current array, class, or raw object is finished (whichever
         comes first)."""
         pointer_queue.append((entry.writer.position, string))
         entry.writer.pad(self.header.pointer_size)
 
-    def pack_pointer(self, entry_node: HKXNode, entry: HKXItemEntry, entry_queue: EntryQueue):
+    def pack_pointer(self, entry_node: HKXNode, entry: PackFileItemEntry, entry_queue: EntryQueue):
         if entry_node in self.data_entries:
             # Data entry for node already created (in a previous call of this method).
             deferenced_entry = self.data_entries[entry_node]
         else:
             # Create new data entry.
-            deferenced_entry = HKXItemEntry(entry_node.get_type(self.hkx_types))
+            deferenced_entry = PackFileItemEntry(entry_node.get_type(self.hkx_types))
             self.data_entries[entry_node] = deferenced_entry
             entry_queue.append((entry_node, deferenced_entry))
         entry.entry_pointers[entry.writer.position] = (deferenced_entry, 0)
@@ -293,7 +293,7 @@ class HKXPackFilePacker:
     def pack_array(
         self,
         array_node: HKXNode,
-        entry: HKXItemEntry,
+        entry: PackFileItemEntry,
         pointer_queue: PointerQueue,
         with_flag=True,
     ):
@@ -314,7 +314,7 @@ class HKXPackFilePacker:
                 print(f"Queuing array: {array_ptr_offset}, {array_element_type.name}, {len(array_node.value)}")
             pointer_queue.append((array_ptr_offset, array_node.value))
 
-    def pack_queued_data(self, entry: HKXItemEntry, entry_queue: EntryQueue, pointer_queue: PointerQueue, indent: int):
+    def pack_queued_data(self, entry: PackFileItemEntry, entry_queue: EntryQueue, pointer_queue: PointerQueue, indent: int):
         """Write all queued string/array data at the current offset.
 
         Called when a Class, Array, or Tuple node has finished packing.

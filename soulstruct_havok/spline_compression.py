@@ -158,10 +158,26 @@ def read_uint40(reader: BinaryReader) -> int:
 
 
 def read_quaternion_ThreeComp40(reader: BinaryReader) -> Quaternion:
+    """
+    Quaternion data packed into 40 bits.
 
-    mask = (1 << 12) - 1
-    positive_mask = mask >> 1
+    Bits 0-11 (first 12 minor) are X data.
+    Bits 12-23 (second 12 minor) are Y data.
+    Bits 24-35 (third 12 minor) are Z data.
+    Bits 36-37 (four major) are "result shift".
+    Bits 38-39 don't matter (zeroes).
+
+    We then subtract a "positive mask" (4095) from X, Y, and Z.
+
+    We calculate a "temp_val" 3-tuple by multiplying X, Y, and Z by a "fractal", `0.000345436`.
+
+    More...
+    """
+
+    mask = (1 << 12) - 1  # eleven 1 bits
+    positive_mask = mask >> 1  # ten 1 bits
     fractal = 0.000345436
+
     c_val = read_uint40(reader)  # "Read only the 5 bytes needed to prevent EndOfStreamException" -- Meow
     x = c_val & mask
     y = ((c_val >> 12) & mask)
@@ -396,23 +412,31 @@ class TrackVector3:
 
 class TrackQuaternion:
 
+    spline_header: tp.Optional[SplineHeader]
+    raw_value: tp.Union[None, bytes, list[bytes]]  # one or multiple quantized quaternions
     value: tp.Union[None, SplineQuaternion, Quaternion]
 
     def __init__(self, reader: BinaryReader, track_flags: int, rotation_quantization: RotationQuantizationType):
-        """Holds data for a track's rotation. Could be one static `Quaterion` or a 4D `SplineQuaternion`."""
+        """Holds data for a track's rotation. Could be one static `Quaternion` or a 4D `SplineQuaternion`."""
         self.rotation_quantization = rotation_quantization
+        quantized_size = self.rotation_quantization.get_rotation_byte_count()
         if track_flags & (TrackFlags.SplineX | TrackFlags.SplineY | TrackFlags.SplineZ | TrackFlags.SplineW):
             self.spline_header = SplineHeader(reader)
             reader.align(rotation_quantization.get_rotation_align())
+            with reader.temp_offset(reader.position):
+                self.raw_value = [reader.read(quantized_size) for _ in range(self.spline_header.control_point_count)]
             self.value = SplineQuaternion(
                 read_quantized_quaternion(reader, self.rotation_quantization)
                 for _ in range(self.spline_header.control_point_count)
             )
         elif track_flags & (TrackFlags.StaticX | TrackFlags.StaticY | TrackFlags.StaticZ | TrackFlags.StaticW):
             self.spline_header = None
+            with reader.temp_offset(reader.position):
+                self.raw_value = reader.read(quantized_size)
             self.value = read_quantized_quaternion(reader, self.rotation_quantization)
         else:
             self.spline_header = None
+            self.raw_value = None
             self.value = Quaternion.identity()
 
     def get_quaternion_at_frame(self, frame: float) -> Quaternion:
@@ -425,6 +449,18 @@ class TrackQuaternion:
     def pack(self, writer: BinaryWriter):
         """TODO: Need to write quantized quaternions..."""
         raise NotImplementedError("Cannot pack spline quaternions yet, sorry.")
+
+    def pack_raw(self, writer: BinaryWriter):
+        """Substitute method that supports reversal, but not actual quaternion modification."""
+        if self.spline_header:
+            self.spline_header.pack(writer, alignment=self.rotation_quantization.get_rotation_align())
+
+        if isinstance(self.raw_value, list):
+            writer.append(b"".join(self.raw_value))
+        elif isinstance(self.raw_value, bytes):
+            writer.append(self.raw_value)
+        else:
+            pass  # identity, nothing to pack
 
 
 class TransformFlags:
@@ -462,6 +498,7 @@ class TransformFlags:
 
 
 class TransformTrack:
+    """Single track of animation data, usually corresponding to a single bone."""
 
     mask: TransformFlags
     translation: TrackVector3
@@ -558,7 +595,6 @@ class SplineCompressedAnimationData:
 
         Has no side effects (e.g. does NOT modify the raw animation data).
         """
-
         reader = BinaryReader(bytearray(self.raw_data), byte_order=">" if self.big_endian else "<")
         scaled_data = bytearray(self.raw_data)
 
@@ -601,3 +637,67 @@ class SplineCompressedAnimationData:
             reader.align(16)
 
         return list(scaled_data)
+
+    def get_reversed_animation_data(self) -> list[int]:
+        """Unpacks the data like `unpack()`, but maintains a spline-reversed version of it as it encounters data.
+
+        Has no side effects (e.g. does NOT modify the raw animation data).
+        """
+        reader = BinaryReader(bytearray(self.raw_data), byte_order=">" if self.big_endian else "<")
+        reversed_data = bytearray(self.raw_data)
+
+        for block_index in range(self.block_count):
+
+            transform_track_masks = [TransformFlags(reader) for _ in range(self.transform_track_count)]
+
+            reader.align(4)
+
+            for i in range(self.transform_track_count):
+                mask = transform_track_masks[i]
+
+                translation_offset = reader.position
+                translation = TrackVector3(reader, mask.translation_track_flags, mask.translation_quantization, 0.0)
+                for axis in "xyz":
+                    axis_value = getattr(translation, axis)
+                    if isinstance(axis_value, SplineFloat):
+                        reversed_axis_value = SplineFloat(reversed(axis_value))
+                        setattr(translation, axis, reversed_axis_value)
+                    # Else, no need to modify constant axis.
+                writer = BinaryWriter()
+                translation.pack(writer)  # new quantization bounds are automatically computed
+                new_data_segment = writer.finish()
+                reversed_data[translation_offset:translation_offset + len(new_data_segment)] = new_data_segment
+
+                reader.align(4)
+
+                rotation_offset = reader.position
+                rotation = TrackQuaternion(reader, mask.rotation_track_flags, mask.rotation_quantization)
+                if isinstance(rotation.value, SplineQuaternion):
+                    rotation.raw_value = list(reversed(rotation.raw_value))
+                    rotation.value = SplineQuaternion(reversed(rotation.value))
+                # Else, no need to modify constant rotation.
+                writer = BinaryWriter()
+                rotation.pack_raw(writer)
+                new_data_segment = writer.finish()
+                reversed_data[rotation_offset:rotation_offset + len(new_data_segment)] = new_data_segment
+
+                reader.align(4)
+
+                scale_offset = reader.position
+                scale = TrackVector3(reader, mask.scale_track_flags, mask.scale_quantization, 1.0)
+                for axis in "xyz":
+                    axis_value = getattr(scale, axis)
+                    if isinstance(axis_value, SplineFloat):
+                        reversed_axis_value = SplineFloat(reversed(axis_value))
+                        setattr(scale, axis, reversed_axis_value)
+                    # Else, no need to modify constant axis.
+                writer = BinaryWriter()
+                scale.pack(writer)  # new quantization bounds are automatically computed
+                new_data_segment = writer.finish()
+                reversed_data[scale_offset:scale_offset + len(new_data_segment)] = new_data_segment
+
+                reader.align(4)
+
+            reader.align(16)
+
+        return list(reversed_data)

@@ -4,7 +4,7 @@ from soulstruct.base.models.flver import FLVER
 from soulstruct.config import DSR_PATH
 from soulstruct.containers import Binder
 
-from soulstruct_havok import HKX, AnimationHKX, SkeletonHKX, RagdollHKX, ClothHKX
+from soulstruct_havok.core import HKX, AnimationHKX, SkeletonHKX, RagdollHKX, ClothHKX
 
 GAME_CHR_PATH = Path(r"G:\Steam\steamapps\common\DARK SOULS REMASTERED\chr")
 
@@ -120,7 +120,7 @@ def load_collision():
 
     """
 
-    dsr_hkx = HKX("resources/h0001B0A10_DSR.hkx.dcx", hkx_format="tagfile")
+    dsr_hkx = HKX("resources/h0001B0A10_DSR.hkx.dcx", hk_format="tagfile")
     print(dsr_hkx.get_root_tree_string())
 
     # mopp_code_data = dsr_hkx.get_variant_node(0)["systems"][0]["rigidBodies"][0]["collidable"]["shape"]["code"]["data"]
@@ -131,16 +131,110 @@ def load_collision():
     # print(ptde_hkx.get_root_tree_string())
 
 
-def load_valley_flver():
+def bb_to_dsr():
+    """Try loading and converting c2800's ragdoll and an attack animation (3000) to DSR format."""
+    # skeleton_hkx = HKX("resources/BB/c2800/Skeleton.HKX")
+    # print("Skeleton loaded successfully.")
+    # print(skeleton_hkx.root.get_tree_string(skeleton_hkx.hkx_types))
 
-    valley = FLVER(DSR_PATH + "/map/m16_00_00_00/m0000B0A16.flver.dcx")
-    print(valley)
+    ragdoll_hkx = HKX("resources/BB/c2020/c2020.HKX")
+    print("Ragdoll loaded successfully.")
+    # print(ragdoll_hkx.root.get_tree_string(ragdoll_hkx.hkx_types))
+    # with open("bb_ragdoll.txt", "w") as f:
+    #     f.write(ragdoll_hkx.root.get_tree_string(ragdoll_hkx.hkx_types))
+
+    # capra_ragdoll = HKX("resources/DSR/c2240/c2240.hkx")
+    # with open("dsr_ragdoll.txt", "w") as f:
+    #     f.write(capra_ragdoll.root.get_tree_string(capra_ragdoll.hkx_types))
+    # animation_hkx = HKX("resources/BB/c2800/a000_003000.hkx")
+    # print("Animation loaded successfully.")
+    # print(animation_hkx.root.get_tree_string(animation_hkx.hkx_types))
+
+
+def new_tag_unpacker():
+    # TODO: Finally have a good-looking pack. Let's see if I fucked up the types...
+    #  - Test repack works in game (c2240).
+    #  - Generate 2014 classes from XML.
+    #  - Update packfile unpacker. Fortunately, don't need writes.
+    #  - Start actually fucking inspecting the hkp vs. hknp. Probably find out it's not possible. :/
+    #       - In all seriousness, it HAS to be possible, even if I use a DSR model as a kind of template.
+
+    import contextlib
+
+    with open("real.txt", "w") as f:
+        with contextlib.redirect_stdout(f):
+            h = HKX("resources/DSR/c2240/c2240.hkx")
+    # all_types = list(h.root.collect_types())
+    # for t in set(all_types):
+    #     print(t.__name__)
+
+    # print(h.root["namedVariants"][0]["variant"])
+
+    h.write("c2240_repack.hkx")
+
+    with open("reopen.txt", "w") as f:
+        with contextlib.redirect_stdout(f):
+            hh = HKX("c2240_repack.hkx")
+
+
+# noinspection PyTypeChecker,PyUnresolvedReferences
+def packfile_test():
+    import contextlib
+    from soulstruct_havok.types import hk2015
+
+    # with open("c2240_a00_3000.txt", "w") as f:
+    #     with contextlib.redirect_stdout(f):
+    #         h = HKX("resources/DSR/c2240/a00_3000.hkx")
+    #         print(h.root.get_tree_string())
+
+    with open("c2240.txt", "w") as f:
+        with contextlib.redirect_stdout(f):
+            h = HKX("resources/DSR/c2240/c2240.hkx")
+            # print(h.root.get_tree_string())
+
+    print("Original file unpacked.")
+
+    h.write("c2240_repack.hkx")
+    print("Original file repacked.")
+
+    with open("c2240_repack.txt", "w") as f:
+        with contextlib.redirect_stdout(f):
+            h = HKX("c2240_repack.hkx")
+            # print(h.root.get_tree_string())
+
+    print("Repacked file unpacked again.")
+
+    #     hkaAnimationContainer = h.root.namedVariants[0].variant
+    #     hkaAnimationContainer: hk2015.hkaAnimationContainer
+    #     for skeleton in hkaAnimationContainer.skeletons:
+    #         print(
+    #             f"Skeleton {skeleton.name} has {len(skeleton.bones)} bones "
+    #             f"(reference pose len = {len(skeleton.referencePose)})."
+    #         )
+    #
+    #     hkpPhysicsData = h.root.namedVariants[1].variant
+    #     hkpPhysicsData: hk2015.hkpPhysicsData
+    #     hkpPhysicsSystem = hkpPhysicsData.systems[0]
+    #     print(f"Physics system has {len(hkpPhysicsSystem.rigidBodies)} rigid bodies.")
+
+    # with open("c2800.txt", "w") as f:
+    #     with contextlib.redirect_stdout(f):
+    #         h = HKX("resources/BB/c2800/c2800.HKX")
+    #         print(h.root.get_tree_string())
+    #
+    #     hkaAnimationContainer = h.root.namedVariants[0].variant
+    #     hkaAnimationContainer: hk2014.hkaAnimationContainer
+    #     for skeleton in hkaAnimationContainer.skeletons:
+    #         print(
+    #             f"Skeleton {skeleton.name} has {len(skeleton.bones)} bones "
+    #             f"(reference pose len = {len(skeleton.referencePose)})."
+    #         )
+    #
+    #     physics_data = h.root.namedVariants[1].variant
+    #     physics_data: hk2014.hknpPhysicsSceneData
+    #     physics_system = physics_data.systemDatas[0]
+    #     print(f"Physics system has {len(physics_system.bodyCinfos)} body C infos (rigidbodies).")
 
 
 if __name__ == '__main__':
-
-    # scale_character("c4510", scale_factor=0.4)
-    # retarget()
-
-    load_collision()
-    # load_valley_flver()
+    packfile_test()

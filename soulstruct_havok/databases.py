@@ -2,12 +2,14 @@ from __future__ import annotations
 
 __all__ = ["create_2010_database", "create_2014_database"]
 
+import re
 from pathlib import Path
 
-from soulstruct.base.models.hkx import HKX
-from soulstruct.base.models.hkx.converter import resize_pointers, resize_types, realign_types
-from soulstruct.base.models.hkx.nodes import NodeTypeReindexer
-from soulstruct.base.models.hkx.types import HKXTypeList, TypeAdder
+from soulstruct_havok.core import HKX
+from soulstruct_havok.converter import resize_pointers, resize_types, realign_types
+from soulstruct_havok.enums import TagDataType
+from soulstruct_havok.nodes import NodeTypeReindexer
+from soulstruct_havok.types import HKXType, HKXTypeList, TypeAdder
 
 
 def create_2010_database(ptde_chrbnd_hkx_path: Path) -> str:

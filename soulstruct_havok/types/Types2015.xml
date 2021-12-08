@@ -609,7 +609,7 @@ animation HKX files in Dark Souls Remastered.
         <member flags="34" name="m_size" offset="8" type="6" />
         <member flags="34" name="m_capacityAndFlags" offset="12" type="6" />
     </type>
-    <type alignment="8" byteSize="192" flags="45" id="146" name="hkxVertexAnimation" parent="10" subTypeFlags="7">
+    <type alignment="8" byteSize="192" flags="45" id="146" name="hkxVertexAnimation" parent="10" subTypeFlags="7" version="0">
         <member flags="32" name="time" offset="16" type="50" />
         <member flags="32" name="vertData" offset="24" type="121" />
         <member flags="32" name="vertexIndexMap" offset="160" type="166" />

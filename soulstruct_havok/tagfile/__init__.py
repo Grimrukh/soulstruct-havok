@@ -3,5 +3,3 @@
 Credit to `TagTools` by Skyth for these formats and how to backport the HKX node types:
     https://github.com/blueskythlikesclouds/TagTools
 """
-from .packer import HKXTagFilePacker
-from .unpacker import HKXTagFileUnpacker

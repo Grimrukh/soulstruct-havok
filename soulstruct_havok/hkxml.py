@@ -3,8 +3,7 @@ import typing as tp
 from xml.etree import ElementTree
 from pathlib import Path
 
-from .nodes import HKXNode
-from .types import HKXType, HKXTypeList
+from soulstruct_havok.types.info import *
 from .enums import *
 
 
@@ -250,7 +249,7 @@ class HKXXMLSerializer:
                 if hkx_type.tag_data_type == TagDataType.Array:
                     element.set("size", str(len(node.value)))
 
-                elif hkx_type.tag_data_type == TagDataType.Tuple:
+                elif hkx_type.tag_data_type == TagDataType.Struct:
                     element.set("size", str(hkx_type.tuple_size))
 
                 # hkVector4
@@ -304,7 +303,7 @@ class HKXXMLSerializer:
             parent.set("array", "true")
             self.serialize_member_prop(parent, hkx_type.pointer)
 
-        elif hkx_type.tag_data_type == TagDataType.Tuple:
+        elif hkx_type.tag_data_type == TagDataType.Struct:
             if hkx_type.pointer.get_base_type(self.hkx_types).tag_data_type == TagDataType.Float and hkx_type.tuple_size == 4:
                 parent.set("type", "vec4")
 
@@ -332,7 +331,7 @@ class HKXXMLSerializer:
             return "struct"
         elif hkx_type.tag_data_type == TagDataType.Array:
             return "array"
-        elif hkx_type.tag_data_type == TagDataType.Tuple:
+        elif hkx_type.tag_data_type == TagDataType.Struct:
             return "tuple"
         return ""
 

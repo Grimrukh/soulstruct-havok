@@ -63,13 +63,51 @@ def scale_dsr_character(dsr_chr_path: tp.Union[str, Path], model_id: int, scale_
     print(f"Character {model_name} scaling complete.")
 
 
-if __name__ == '__main__':
+def reverse_animation(
+    anibnd_path: tp.Union[str, Path], animation_id: int, new_animation_id: int = None, prefer_bak=True
+):
+    """Unpack given animation (HKX file) inside given ANIBND and reverse its frames."""
+    anibnd_path = Path(anibnd_path)
+    anibnd = BND3(anibnd_path, from_bak=prefer_bak)
+    try:
+        animation_entry = anibnd.entries_by_id[animation_id]
+    except KeyError:
+        raise KeyError(f"No such animation in '{anibnd_path.name}': {animation_id}")
+    animation = AnimationHKX(animation_entry)
+    print(f"Reversing animation {animation_id}...")
+    animation.reverse()
+    if new_animation_id is None or new_animation_id == animation_id:
+        animation_entry.data = animation.pack()
+    else:
+        if new_animation_id > 9999:
+            raise ValueError(f"Invalid animation ID: {new_animation_id}. Must be <= 9999.")
+        if new_animation_id in anibnd.entries_by_id:
+            raise KeyError(f"Animation ID {new_animation_id} already exists in ANIBND.")
+        new_entry = animation_entry.copy()
+        new_entry.id = new_animation_id
+        new_entry.path = str(Path(new_entry.path).parent / f"a00_{new_animation_id:04d}.hkx")
+        new_entry.data = animation.pack()
+        print(f"    Saving as new animation {new_animation_id}.")
+    print("    Done.")
+    anibnd.write()
+    print(f"New ANIBND written: {anibnd_path}.")
+
+
+def main():
     from contextlib import redirect_stdout
-    CHARACTER_ID = 5300
-    SCALE = 0.58
+    CHARACTER_ID = 2500
+    SCALE = 2.0
     PREFER_BAK = True
     # with open("c2930.log", "w") as f:
     #     with redirect_stdout(f):
     scale_dsr_character(
-        r"F:\Steam\steamapps\common\DARK SOULS REMASTERED (Workbench)\chr", CHARACTER_ID, SCALE, PREFER_BAK
+        r"F:\Steam\steamapps\common\DARK SOULS REMASTERED (Nightfall)\chr", CHARACTER_ID, SCALE, PREFER_BAK
+    )
+
+
+if __name__ == '__main__':
+    reverse_animation(
+        r"C:\Steam\steamapps\common\DARK SOULS REMASTERED (Nightfall)\obj\o3350-objbnd-dcx\obj\o3350\o3350.anibnd",
+        animation_id=0,
+        new_animation_id=1,
     )

@@ -5,5 +5,3 @@ they do *not* contain nearly as much type information as newer `.hkx` files (tho
 this information in the unused 'type' section - and in Sekiro, even the new `.hkx` files offload their type definitions
 to a "compendium" `.hkx` file).
 """
-from .packer import HKXPackFilePacker
-from .unpacker import HKXPackFileUnpacker

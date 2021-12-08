@@ -39,7 +39,7 @@ class PackMemberType(IntEnum):
     hkTransform = 0b00010010  # rotation and translation
     hkMatrix4 = 0b00010001
 
-    Pointer = 0b00010100  # pointer to a single object (either Class or Void)
+    Ptr = 0b00010100  # pointer to a single object (either Class or Void)
     hkArray = 0b00010110  # array subtype is in second byte
     hkEnum = 0b00011000  # always has a "hkClassEnum" entry pointer - enum int size in second byte
     hkClass = 0b00011001  # always has a "hkClass" entry pointer - no subtype
@@ -47,11 +47,9 @@ class PackMemberType(IntEnum):
     hkHalf16 = 0b00100000  # used by `hkpMaterial["rollingFrictionMultiplier"]`. Name found in DSR ragdoll file.
     hkStringPtr = 0b00100001
 
-    # TODO: These appears in BB/DS3 (2014).
+    # TODO: These appear in BB/DS3 (2014).
 
-    # TODO: below is possibly `hkViewPtr`? seen previously as array type of `hkpEntity["constraintsSlave"]`
-    hkPlanes = 0b00100010  # TODO: e.g. member "planes" of `hknpConvexPolytopeShape`, subtype `hkVector4`
-
+    NewStruct = 0b00100010  # name by me
     hkFlags = 0b00011111  # TODO: e.g. member "flags" of `hknpShape`, subtype `hkUint16`
     # 0b00000110_00011111
 
@@ -93,21 +91,25 @@ class TagDataType(IntEnum):
     Note that the lowest byte values are UNIQUE. `Pointer`, `Class`, `Array`, and `Tuple` types indicate the data type
     of the thing they point to or store using the `HKXType.pointer` attribute.
     """
-    Void = 0b00000000
-    Invalid = 0b00000001
-    Bool = 0b00000010
-    String = 0b00000011
-    Int = 0b00000100
-    Float = 0b00000101
-    Pointer = 0b00000110
-    Class = 0b00000111
-    Array = 0b00001000
-    Tuple = 0b00101000  # `Struct` would probably be a more accurate name, but they are loaded into `tuple`s here
+    Void = 0b00000000  # 0
+    Invalid = 0b00000001  # 1
+    Bool = 0b00000010  # 2
+    String = 0b00000011  # 3
+    Int = 0b00000100  # 4
+    Float = 0b00000101  # 5
+    Pointer = 0b00000110  # 6
+    Class = 0b00000111  # 7
+    Array = 0b00001000  # 8
+    Struct = 0b00101000  # 40
 
-    # `Tuple` subtypes
+    # `Struct` subtypes
+    # Three variants of generic "T[N]" structs, with fixed length determined by "vN" template.
+    IsVariable1 = 0b0_00000010 << 8
+    IsVariable2 = 0b0_00000011 << 8
+    IsVariable3 = 0b0_00000101 << 8
     IsVector4 = 0b0_00000100 << 8  # 4 floats
     IsTransform = 0b0_00010000 << 8  # first three 4-columns (rotation) + Vector4 (translation) (16 floats total)
-    IsMatrix3Impl = 0b0_00001100 << 8  # first three 4-columns (rotation) (12 floats total)
+    IsMatrix3Impl = 0b0_00001100 << 8  # first three 4-columns (rotation) (12 floats total) and 'tFT' template (float)
 
     # `Int` subtypes
     IsSigned = 0b0_00000010 << 8
@@ -121,9 +123,8 @@ class TagDataType(IntEnum):
     Float16 = 0b00000111_01000110 << 8  # has a `hkInt16` member called "value"
     # There is a `hkUFloat8` class as well, but its type flags are actually marked as `Class` here (has "value" member).
 
-    @classmethod
-    def has_flag(cls, tagfile_types: int):
-        return tagfile_types & cls.value
+    def has_flag(self, tagfile_types: int):
+        return bool(tagfile_types & self.value)
 
     @classmethod
     def from_packfile_integer(cls, packfile_type: PackMemberType) -> int:

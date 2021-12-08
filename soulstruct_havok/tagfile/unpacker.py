@@ -4,50 +4,48 @@ import logging
 import typing as tp
 from contextlib import contextmanager
 
-from colorama import init as colorama_init, Fore
 from soulstruct.utilities.binary import BinaryReader
 
-from .structs import HKXItem
-from ..enums import TagDataType, TagFormatFlags
-from ..nodes import HKXNode, HKXArrayNode, HKXTupleNode
-from ..types import HKXTemplate, HKXMember, HKXInterface, HKXType, HKXTypeList
+from soulstruct_havok.types.core import hk
+from soulstruct_havok.types.info import *
+from soulstruct_havok.enums import TagFormatFlags
+from .structs import *
 
 if tp.TYPE_CHECKING:
-    from ..core import HKX
-
-colorama_init()
-
+    from soulstruct_havok.core import HKX
+    from soulstruct_havok.types import hk2015
 
 _LOGGER = logging.getLogger(__name__)
 
+_DEBUG_TYPES = False
 _DEBUG_HASH = False
-_DEBUG_PRINT = ["XXX"]
-# _DEBUG_PRINT = "Class"
 
 
-class HKXTagFileUnpacker:
+class TagFileUnpacker:
     
-    root: tp.Optional[HKXNode]
-    all_nodes: list[HKXNode]
-    hkx_types: HKXTypeList
-    hkx_items: list[HKXItem]
-    items_in_process: list[HKXItem]  # items currently being unpacked (checked to avoid infinite recursion)
+    root: tp.Optional[hk2015.hkRootLevelContainer]  # TODO: Bit of a hack (hard-coding 2015 hierarchy).
+    hk_type_infos: list[TypeInfo]
+    items: list[TagFileItem]
     is_compendium: bool
     compendium_ids: list[str]
     hk_version: str
 
-    def __init__(self, reader: BinaryReader, compendium: tp.Optional[HKX] = None):
+    def __init__(self):
+
+        self.hk_types_module = None
         self.root = None
         self.all_nodes = []
-        self.hkx_types = HKXTypeList([])
-        self.hkx_items = []
-        self.items_in_process = []
+        self.hk_type_infos = []
+        self.items = []
         self.is_compendium = False
         self.compendium_ids = []
         self.hk_version = ""
-        self.unpack(reader, compendium=compendium)
 
-    def unpack(self, reader: BinaryReader, compendium: tp.Optional[HKX] = None):
+    def unpack(self, reader: BinaryReader, compendium: tp.Optional[HKX] = None, types_only=False):
+
+        if not types_only:
+            from soulstruct_havok.types import hk2015
+            self.hk_types_module = hk2015
 
         with self.unpack_section(reader, "TAG0", "TCM0") as (_, root_magic):
 
@@ -63,8 +61,35 @@ class HKXTagFileUnpacker:
                     data_start_offset = reader.position
                     # Skipping over data section for now.
 
-                self.hkx_types = self.unpack_type_section(reader, compendium=compendium)
-                self.hkx_items = self.unpack_index_section(reader, data_start_offset)
+                self.hk_type_infos = self.unpack_type_section(reader, compendium=compendium)
+
+                if not types_only:
+
+                    # Attach Python classes to each non-generic `TypeInfo`.
+                    for type_info in self.hk_type_infos[1:]:
+                        if type_info.name in type_info.GENERIC_TYPE_NAMES:
+                            continue
+                        try:
+                            py_class = getattr(self.hk_types_module, type_info.py_name)  # type: tp.Type[hk]
+                            type_info.check_py_class_match(py_class)
+                            type_info.py_class = py_class
+                        except AttributeError:
+                            # TODO: Create?
+                            raise TypeError(f"No Python type '{type_info.py_name}'. Info:\n{self}")
+
+                    if _DEBUG_TYPES:
+                        # Print `TypeInfo`s in alphabetical order by name.
+                        for type_info in sorted(
+                            self.hk_type_infos[1:],
+                            key=lambda x: (
+                                f"{x.name} "
+                                f"{getattr(x, 'pointer_type_info')} "
+                                f"{x.templates[0].type_info.name if x.templates and x.templates[0].name == 'tENUM' else ''}"
+                            ),
+                        ):
+                            print(type_info)
+
+                    self.items = self.unpack_index_section(reader, data_start_offset)
 
             elif root_magic == "TCM0":
                 # Compendium file.
@@ -75,27 +100,25 @@ class HKXTagFileUnpacker:
                         reader.unpack_string(length=8, encoding="ascii") for _ in range(data_size // 8)
                     ]
 
-                self.hkx_types = self.unpack_type_section(reader)
+                self.hk_type_infos = self.unpack_type_section(reader)
 
-        root_item = self.hkx_items[1]
-        if root_item.hkx_type is None:
-            raise ValueError("HKX root item had no `hkx_type`.")
-        if root_item.hkx_type.name != "hkRootLevelContainer":
-            raise ValueError(
-                f"Unexpected HKX root item type: {root_item.hkx_type.name}. Should be 'hkRootLevelContainer'."
-            )
-        if root_item.node_count != 1:
-            raise ValueError(f"HKX root item had a node count other than 1: {root_item.node_count}")
+        if not types_only:
 
-        # This call will recursively unpack all nodes.
-        self.root = self.unpack_node(
-            reader,
-            hkx_type=root_item.hkx_type,
-            node_offset=root_item.absolute_offset,  # first node in data
-        )
-        root_item.node_value = [self.root]
+            root_item = self.items[1]
+            if root_item.hk_type is None:
+                raise ValueError("Root item had no `hk_type`.")
+            if root_item.hk_type.__name__ != "hkRootLevelContainer":
+                raise ValueError(
+                    f"Unexpected HKX root item type: {root_item.hk_type.__name__}. Should be `hkRootLevelContainer`."
+                )
+            if root_item.length != 1:
+                raise ValueError(f"HKX root item has a length other than 1: {root_item.length}")
 
-    def unpack_type_section(self, reader: BinaryReader, compendium: tp.Optional[HKX] = None) -> HKXTypeList:
+            # This call will recursively unpack all items.
+            self.root = self.hk_types_module.hkRootLevelContainer.unpack(reader, root_item.absolute_offset, self.items)
+            root_item.value = self.root
+
+    def unpack_type_section(self, reader: BinaryReader, compendium: tp.Optional[HKX] = None) -> list[TypeInfo]:
         """Unpack `HKXType` instances from binary data (for TYPE files) or copy list already read from compendium
         HKX (for TCRF files).
 
@@ -112,7 +135,7 @@ class HKXTagFileUnpacker:
                 compendium_id = reader.unpack_string(length=8, encoding="utf-8")
                 if compendium_id not in compendium.compendium_ids:
                     raise ValueError(f"Could not find compendium ID {repr(compendium_id)} in `compendium`.")
-                return compendium.hkx_types
+                return compendium.unpacker.hk_type_infos
 
             # "TYPE" HKX (does not need compendium)
             if compendium is not None:
@@ -125,25 +148,31 @@ class HKXTagFileUnpacker:
                 type_names = reader.unpack_string(length=tstr_size, encoding="utf-8").split("\0")
 
             with self.unpack_section(reader, "TNAM", "TNA1"):
-                hkx_type_count = self.unpack_var_int(reader)
+                file_type_count = self.unpack_var_int(reader)
 
-                # This is where `HKXType` instances are first created, with `name` and `templates` only.
+                # This is where `TagTypeInfo` instances are first created, with `name` and `templates` only.
                 # More data is added below in the "TBOD" section, and cross-references are resolved at the end.
-                raw_hkx_types = []
-                for _ in range(hkx_type_count - 1):
-                    type_name = type_names[self.unpack_var_int(reader)]
-                    templates = []
+                # Note that we don't look for the Python class until the body is defined, so we can present more
+                # detailed information in the event that we can't find a type and have to raise an exception.
+                file_hk_types = [None]  # padded to preserve one-indexing
+                for _ in range(file_type_count - 1):
+                    type_name_index = self.unpack_var_int(reader)
                     template_count = self.unpack_var_int(reader)
+                    type_name = type_names[type_name_index]
+                    type_info = TypeInfo(name=type_name)
+                    type_info.templates = []
                     for _ in range(template_count):
-                        template_name = type_names[self.unpack_var_int(reader)]
-                        if template_name[0] == "t":
-                            templates.append(HKXTemplate(name=template_name, type_index=self.unpack_var_int(reader)))
-                        elif template_name[0] == "v":
-                            templates.append(HKXTemplate(name=template_name, value=self.unpack_var_int(reader)))
-                        else:
-                            raise TypeError(f"Found template name that was not 't' or 'v' type: {template_name}")
-                    raw_hkx_types.append(HKXType(name=type_name, templates=templates))
-                hkx_types = HKXTypeList(raw_hkx_types)
+                        template_name_index = self.unpack_var_int(reader)
+                        template_name = type_names[template_name_index]
+                        template_value = self.unpack_var_int(reader)  # could be a type index ('t') or value ('v')
+                        type_info.templates.append(TemplateInfo(template_name, template_value))
+                    file_hk_types.append(type_info)
+
+                # Assign template types.
+                for type_info in file_hk_types[1:]:
+                    for template in type_info.templates:
+                        if template.is_type:
+                            template.type_info = file_hk_types[template.value]
 
             with self.unpack_section(reader, "FSTR") as (fstr_size, _):
                 member_names = reader.unpack_string(length=fstr_size, encoding="utf-8").split("\0")
@@ -152,80 +181,81 @@ class HKXTagFileUnpacker:
                 body_section_end = reader.position + body_section_size
                 while reader.position < body_section_end:
 
-                    hkx_type_index = self.unpack_var_int(reader)
-                    hkx_parent_type_index = self.unpack_var_int(reader)
-                    hkx_type_flags = self.unpack_var_int(reader)
+                    type_index = self.unpack_var_int(reader)
+                    parent_type_index = self.unpack_var_int(reader)
+                    tag_format_flags = self.unpack_var_int(reader)
 
-                    if hkx_type_index == 0:
-                        continue
+                    if type_index == 0:
+                        continue  # null type
 
-                    hkx_type = hkx_types[hkx_type_index]
-                    hkx_type.parent_type_index = hkx_parent_type_index
-                    hkx_type.tag_format_flags = hkx_type_flags
+                    type_info = file_hk_types[type_index]
+                    if parent_type_index > 0:
+                        type_info.parent_type_info = file_hk_types[parent_type_index]
+                    type_info.tag_format_flags = tag_format_flags
 
-                    if hkx_type.tag_format_flags & TagFormatFlags.SubType:
-                        hkx_type.tag_type_flags = self.unpack_var_int(reader)
+                    if tag_format_flags & TagFormatFlags.SubType:
+                        type_info.tag_type_flags = tag_type_flags = self.unpack_var_int(reader)
 
-                    if (
-                        hkx_type.tag_format_flags & TagFormatFlags.Pointer
-                        and hkx_type.tag_type_flags & 0b0000_1111 >= 6
-                    ):
-                        hkx_type.pointer_type_index = self.unpack_var_int(reader)
+                    if tag_format_flags & TagFormatFlags.Pointer and tag_type_flags & 0b0000_1111 >= 6:
+                        type_info.pointer_type_index = self.unpack_var_int(reader)
+                        type_info.pointer_type_info = file_hk_types[type_info.pointer_type_index]
 
-                    if hkx_type.tag_format_flags & TagFormatFlags.Version:
-                        hkx_type.version = self.unpack_var_int(reader)
+                    if tag_format_flags & TagFormatFlags.Version:
+                        type_info.version = self.unpack_var_int(reader)
 
-                    if hkx_type.tag_format_flags & TagFormatFlags.ByteSize:
-                        hkx_type.byte_size = self.unpack_var_int(reader)
-                        hkx_type.alignment = self.unpack_var_int(reader)
+                    if tag_format_flags & TagFormatFlags.ByteSize:
+                        type_info.byte_size = self.unpack_var_int(reader)
+                        type_info.alignment = self.unpack_var_int(reader)
 
-                    if hkx_type.tag_format_flags & TagFormatFlags.AbstractValue:
-                        hkx_type.abstract_value = self.unpack_var_int(reader)
+                    if tag_format_flags & TagFormatFlags.AbstractValue:
+                        type_info.abstract_value = self.unpack_var_int(reader)
 
-                    if hkx_type.tag_format_flags & TagFormatFlags.Members:
+                    if tag_format_flags & TagFormatFlags.Members:
                         member_count = self.unpack_var_int(reader)
-                        hkx_type.members = [
-                            HKXMember(
+                        type_info.members = [
+                            MemberInfo(
                                 name=member_names[self.unpack_var_int(reader)],
                                 flags=self.unpack_var_int(reader),
                                 offset=self.unpack_var_int(reader),
-                                type_index=self.unpack_var_int(reader),
+                                type_index=(member_type_index := self.unpack_var_int(reader)),
+                                type_info=file_hk_types[member_type_index],
                             ) for _ in range(member_count)
                         ]
 
-                    if hkx_type.tag_format_flags & TagFormatFlags.Interfaces:
+                    if tag_format_flags & TagFormatFlags.Interfaces:
                         interface_count = self.unpack_var_int(reader)
-                        hkx_type.interfaces = [
-                            HKXInterface(
-                                type_index=self.unpack_var_int(reader),
-                                flags=self.unpack_var_int(reader)
+                        type_info.interfaces = [
+                            InterfaceInfo(
+                                type_index=(interface_type_index := self.unpack_var_int(reader)),
+                                flags=self.unpack_var_int(reader),
+                                type_info=file_hk_types[interface_type_index],
                             )
                             for _ in range(interface_count)
                         ]
 
-                    if hkx_type.tag_format_flags & TagFormatFlags.Unknown:
-                        raise ValueError("HKX type has flag `0b1000_0000`, which is unknown and not supported.")
+                    if tag_format_flags & TagFormatFlags.Unknown:
+                        raise ValueError(
+                            f"Havok type '{type_info.name}' has flag `0b1000_0000`, which is unknown and not supported."
+                        )
 
             with self.unpack_section(reader, "THSH"):
                 hashed = []
                 for _ in range(self.unpack_var_int(reader)):
-                    hkx_type_index = self.unpack_var_int(reader)
-                    hkx_types[hkx_type_index].hsh = reader.unpack_value("<I")
-                    hashed.append(
-                        (hkx_types[hkx_type_index].name, hex(reader.position),
-                         hkx_type_index, hkx_types[hkx_type_index].hsh)
-                    )
+                    type_index = self.unpack_var_int(reader)
+                    type_info = file_hk_types[type_index]
+                    type_info.hsh = reader.unpack_value("<I")
+                    hashed.append((type_info.name, hex(reader.position), type_index, type_info.hsh))
                 if _DEBUG_HASH:
-                    for h in sorted(hashed):
-                        print(h[0], h[2], h[3])
+                    for h in sorted(hashed, key=lambda x: x[3]):
+                        print(h[3], h[0])
 
             with self.unpack_section(reader, "TPAD"):
                 pass
 
-        return hkx_types
+        return file_hk_types
 
-    def unpack_index_section(self, reader: BinaryReader, data_start_offset: int) -> list[HKXItem]:
-        """Returns a list of `HKXItem` instances, padded at the start with `None` to preserve one-indexing."""
+    def unpack_index_section(self, reader: BinaryReader, data_start_offset: int) -> list[TagFileItem]:
+        """Returns a list of `TagFileItem` instances, padded at the start with `None` to preserve one-indexing."""
         items = []
 
         with self.unpack_section(reader, "INDX"):
@@ -233,23 +263,22 @@ class HKXTagFileUnpacker:
             with self.unpack_section(reader, "ITEM") as (item_section_size, _):
                 item_section_end = reader.position + item_section_size
                 while reader.position < item_section_end:
-                    item_info, relative_item_offset, node_count = reader.unpack("<III")
+                    item_info, relative_item_offset, length = reader.unpack("<III")
 
                     if item_info == 0:
                         # Null item.
                         items.append(None)
                         continue
 
-                    # `item_info` combines flags (first byte) and HKX type index (last three bytes).
+                    # `item_info` combines flags (first byte) and HK type index (last three bytes).
                     # `relative_item_offset` is relative to start of DATA section. Absolute offset is stored in item.
-                    hkx_type_index = item_info & 0x00FFFFFF
+                    type_index = item_info & 0x00FFFFFF
                     is_ptr = bool((item_info >> 24) & 0b00010000)
-                    item = HKXItem(
-                        hkx_type=self.hkx_types[hkx_type_index],
+                    item = TagFileItem(
+                        hk_type=self.hk_type_infos[type_index].py_class,
                         absolute_offset=data_start_offset + relative_item_offset,
-                        node_count=node_count,
+                        length=length,
                         is_ptr=is_ptr,
-                        # Nodes are set during node unpack.
                     )
                     items.append(item)
 
@@ -270,187 +299,6 @@ class HKXTagFileUnpacker:
             yield data_size, magic
         finally:
             reader.seek(data_start_offset + data_size)
-
-    def unpack_node(
-        self, reader: BinaryReader, hkx_type: HKXType, node_offset=0, indent=0, debug_print=False
-    ) -> tp.Optional[HKXNode]:
-        reader.seek(node_offset)
-        orig_type = hkx_type
-        original_type_index = self.hkx_types.index(orig_type)
-        hkx_type = hkx_type.get_base_type(self.hkx_types)
-
-        ind = " " * indent
-        debug_print = debug_print or (not _DEBUG_PRINT or hkx_type.name in _DEBUG_PRINT)
-        if debug_print and hkx_type.name not in {"char", "unsigned char"}:
-            print_type_name = orig_type.name if hkx_type is orig_type else f"{orig_type.name} ({hkx_type.name})"
-            print(
-                f"{ind}{Fore.YELLOW}Unpacking node: {print_type_name} "
-                f"| {Fore.GREEN}{hkx_type.tag_data_type.name} | {Fore.CYAN}Pos: {hex(reader.position)}{Fore.RESET}"
-            )
-
-        if hkx_type.tag_data_type == TagDataType.Bool:
-            value = self.unpack_bool(reader, hkx_type.tag_type_flags)
-            node = HKXNode(value=value, type_index=original_type_index)
-
-        elif hkx_type.tag_data_type == TagDataType.Int:
-            value = self.unpack_int(reader, hkx_type.tag_type_flags)
-            node = HKXNode(value=value, type_index=original_type_index)
-
-        # Only 32-bit floats are unpacked properly. 16-bit floats and (yikes) 8-bit floats actually have "value" members
-        # that hold their type and are treated as Class types. Note that 64-bit floats (doubles) have not been observed.
-        elif hkx_type.tag_type_flags == TagDataType.Float | TagDataType.Float32:
-            value = self.unpack_float(reader)
-            node = HKXNode(value=value, type_index=original_type_index)
-
-        elif hkx_type.tag_data_type == TagDataType.String:
-            value = self.unpack_string(reader, indent, debug_print)
-            node = HKXNode(value=value, type_index=original_type_index)
-
-        elif hkx_type.tag_data_type == TagDataType.Pointer:
-            # Pointer to a single other `HKXItem`, which may contain any number of further nodes.
-            value = self.unpack_pointer(reader, indent, debug_print)
-            node = HKXNode(value=value, type_index=original_type_index)
-
-        # Floats other than 32-bit floats will be captured here as Class nodes.
-        elif hkx_type.tag_data_type == TagDataType.Class or hkx_type.tag_data_type == TagDataType.Float:
-            # Dictionary mapping type member names (fields, basically) to nodes.
-            value = self.unpack_class(reader, hkx_type, node_offset, indent)
-            node = HKXNode(value=value, type_index=original_type_index)
-
-        elif hkx_type.tag_data_type == TagDataType.Array:
-            # Array (list) of nodes, referenced with a pointer.
-            value = self.unpack_array(reader, indent, debug_print)
-            array_element_type = hkx_type.get_pointer_base_type(self.hkx_types)
-            if (
-                array_element_type.tag_data_type in {TagDataType.Bool, TagDataType.Int}
-                or array_element_type.tag_type_flags == TagDataType.Float | TagDataType.Float32
-            ):
-                node = HKXArrayNode(value=[n.value for n in value], type_index=original_type_index)
-            else:
-                node = HKXNode(value=value, type_index=original_type_index)
-
-        elif hkx_type.tag_data_type == TagDataType.Tuple:
-            # Tuple of nodes, which we can fortunately distinguish from array/pointer lists easily in Python.
-            value = self.unpack_tuple(reader, hkx_type, node_offset, indent)
-            tuple_element_type = hkx_type.get_base_pointer_type(self.hkx_types)
-            if (
-                tuple_element_type.tag_data_type in {TagDataType.Bool, TagDataType.Int}
-                or tuple_element_type.tag_type_flags == TagDataType.Float | TagDataType.Float32
-            ):
-                node = HKXTupleNode(value=tuple(n.value for n in value), type_index=original_type_index)
-            else:
-                node = HKXNode(value=value, type_index=original_type_index)
-
-        else:
-            raise TypeError(f"Could not unpack node from unknown HKX type: {hkx_type.name}.")
-
-        reader.seek(node_offset + hkx_type.byte_size)
-
-        # if debug_print and hkx_type.name not in {"char", "unsigned char"}:
-        #     if isinstance(value, (bool, int, str)):
-        #         print(f"{ind}{Fore.BLUE}-> value = {repr(value)}{Fore.RESET}")
-        #     else:
-        #         print(f"{ind}{Fore.BLUE}-> value type = {type(value)}{Fore.RESET}")
-
-        self.all_nodes.append(node)
-        return node
-
-    def unpack_bool(self, reader: BinaryReader, tag_type_flags: int) -> bool:
-        fmt = TagDataType.get_int_fmt(tag_type_flags)
-        return reader.unpack_value(fmt) > 0
-
-    def unpack_int(self, reader: BinaryReader, tag_type_flags: int) -> int:
-        fmt = TagDataType.get_int_fmt(tag_type_flags)
-        return reader.unpack_value(fmt)
-
-    def unpack_float(self, reader: BinaryReader) -> float:
-        return reader.unpack_value("<f")
-
-    def unpack_string(self, reader: BinaryReader, indent: int, debug_print=False) -> str:
-        string_bytearray = bytearray(
-            node.value for node in self.unpack_array(reader, indent, debug_print)
-        )
-        return string_bytearray.decode("shift_jis_2004").rstrip("\0")
-
-    def unpack_pointer(self, reader: BinaryReader, indent: int, debug_print=False) -> tp.Optional[HKXNode]:
-        item_index = reader.unpack_value("<I")
-        if item_index == 0:
-            return None
-        if debug_print:
-            print(f"{' ' * indent}  {Fore.RED}ITEM INDEX: {item_index} ({hex(item_index)}) {Fore.RESET}")
-        item = self.hkx_items[item_index]
-        if item.node_value is None:
-            if item in self.items_in_process:
-                if item.hkx_type.tag_data_type != TagDataType.Class:
-                    # I don't think this can happen, because only Class items can have any nesting (members) at all,
-                    # unless an Array item somehow contains itself (unlikely).
-                    raise ValueError(f"Non-Class HKX item with index {item_index} is nested within itself.")
-
-            self.items_in_process.append(item)
-            if item.hkx_type.tag_data_type == TagDataType.Class:
-                # Create dictionary node now, and update its `value` later in case of member recursion.
-                item.node_value = HKXNode(value={}, type_index=self.hkx_types.index(item.hkx_type))
-                actual_node = self.unpack_node(
-                    reader, hkx_type=item.hkx_type, node_offset=item.absolute_offset, indent=indent + 4
-                )
-                item.node_value.value = actual_node.value
-            else:
-                item.node_value = self.unpack_node(
-                    reader, hkx_type=item.hkx_type, node_offset=item.absolute_offset, indent=indent + 4
-                )
-            self.items_in_process.remove(item)
-        return item.node_value
-
-    def unpack_class(
-        self, reader: BinaryReader, hkx_type: HKXType, node_offset: int, indent: int
-    ) -> dict[str, HKXNode]:
-        value = {}
-        for hkx_member in hkx_type.get_all_members(self.hkx_types):
-            if not _DEBUG_PRINT or hkx_type.name in _DEBUG_PRINT or _DEBUG_PRINT == "Class":
-                print(f"{' ' * indent}  {Fore.MAGENTA}\"{hkx_member.name}\"{Fore.RESET}")
-            value[hkx_member.name] = self.unpack_node(
-                reader,
-                hkx_type=hkx_member.get_type(self.hkx_types),
-                node_offset=node_offset + hkx_member.offset,
-                indent=indent + 4,
-                debug_print=not _DEBUG_PRINT or hkx_type.name in _DEBUG_PRINT or _DEBUG_PRINT == "Class",
-            )
-        return value
-
-    def unpack_array(self, reader: BinaryReader, indent: int, debug_print=False) -> list[HKXNode, ...]:
-        item_index = reader.unpack_value("<I")
-        if item_index == 0:
-            return []
-        if debug_print:
-            print(f"{' ' * indent}  {Fore.RED}ITEM INDEX: {item_index} ({hex(item_index)}) {Fore.RESET}")
-        item = self.hkx_items[item_index]
-        if item.node_value is None:
-            item.node_value = [
-                self.unpack_node(
-                    reader,
-                    hkx_type=item.hkx_type,
-                    node_offset=item.absolute_offset + i * item.hkx_type.get_base_type(self.hkx_types).byte_size,
-                    indent=indent + 4,
-                )
-                for i in range(item.node_count)
-            ]
-        return item.node_value
-
-    def unpack_tuple(
-        self, reader: BinaryReader, hkx_type: HKXType, node_offset: int, indent: int
-    ) -> tuple[HKXNode, ...]:
-        tuple_element_type = hkx_type.get_pointer_base_type(self.hkx_types)
-        element_byte_size = tuple_element_type.get_base_type(self.hkx_types).byte_size
-        return tuple(
-            self.unpack_node(
-                reader,
-                hkx_type=tuple_element_type,
-                node_offset=node_offset + i * element_byte_size,
-                indent=indent + 4,
-                debug_print=not _DEBUG_PRINT or hkx_type.name in _DEBUG_PRINT
-            )
-            for i in range(hkx_type.tuple_size)
-        )
 
     @staticmethod
     def unpack_var_int(reader: BinaryReader) -> int:

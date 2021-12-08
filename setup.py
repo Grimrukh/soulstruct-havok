@@ -18,6 +18,7 @@ setup(
     packages=["soulstruct_havok"],
     description="Havok tools extension for Soulstruct.",
     long_description=long_description,
+    install_requires=["colorama"],
     author="Scott Mooney (Grimrukh)",
     author_email="grimrukh@gmail.com",
     url="https://github.com/grimrukh/soulstruct-havok",

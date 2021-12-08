@@ -1,16 +1,16 @@
 from __future__ import annotations
 
 __all__ = [
-    "HKXTypeEntry",
-    "HKXItemEntry",
-    "HKXHeader",
-    "HKXHeaderExtension",
-    "HKXSectionHeader",
-    "HKXPackFileVersion",
+    "PackFileTypeEntry",
+    "PackFileItemEntry",
+    "PackFileHeader",
+    "PackFileHeaderExtension",
+    "PackFileSectionHeader",
+    "PackFileVersion",
     "CHILD_POINTER_STRUCT",
     "ENTRY_POINTER_STRUCT",
     "ENTRY_SPEC_STRUCT",
-    "CLASS_NAME_SIGNATURES",
+    "TYPE_NAME_HASHES",
 ]
 
 import abc
@@ -19,21 +19,20 @@ from enum import IntEnum
 
 from soulstruct.utilities.binary import BinaryStruct, BinaryObject, BinaryReader
 
-from ..nodes import HKXNode
-from ..types import HKXType
+from soulstruct_havok.types.core import hk, hkArray_, Ptr_
 
 if tp.TYPE_CHECKING:
     from soulstruct.utilities.binary import BinaryWriter
 
 
-class HKXPackBaseEntry(abc.ABC):
+class PackFileBaseEntry(abc.ABC):
     offset_in_section: int
     entry_byte_size: int
     raw_data: bytes
 
     child_pointers: dict[int, int]  # maps source offset to dest offset inside same entry
-    entry_pointers: dict[int, tuple[HKXPackBaseEntry, int]]  # maps source offset to dest entry from same section
-    hkx_type: tp.Optional[HKXType]
+    entry_pointers: dict[int, tuple[PackFileBaseEntry, int]]  # maps source offset to dest entry from same section
+    hk_type: tp.Optional[tp.Type[hk | hkArray_ | Ptr_]]
 
     reader: tp.Optional[BinaryReader]
     writer: tp.Optional[BinaryWriter]
@@ -44,7 +43,7 @@ class HKXPackBaseEntry(abc.ABC):
         self.raw_data = b""
         self.child_pointers = {}
         self.entry_pointers = {}
-        self.hkx_type = None
+        self.hk_type = None
         self.reader = None
         self.writer = None
 
@@ -70,10 +69,10 @@ class HKXPackBaseEntry(abc.ABC):
         self.reader = BinaryReader(self.raw_data)
 
 
-class HKXTypeEntry(HKXPackBaseEntry):
+class PackFileTypeEntry(PackFileBaseEntry):
 
     NODE_TYPE_STRUCT_32 = BinaryStruct(
-        ("class_name_pointer", "I", 0),  # child pointer
+        ("type_name_pointer", "I", 0),  # child pointer
         ("parent_type_pointer", "I", 0),  # entry pointer
         ("byte_size", "I"),
         ("interface_count", "I"),
@@ -87,7 +86,7 @@ class HKXTypeEntry(HKXPackBaseEntry):
     )
 
     NODE_TYPE_STRUCT_64 = BinaryStruct(
-        ("class_name_pointer", "Q", 0),  # child pointer
+        ("type_name_pointer", "Q", 0),  # child pointer
         ("parent_type_pointer", "Q", 0),  # entry pointer
         ("byte_size", "I"),
         ("interface_count", "I"),
@@ -124,7 +123,7 @@ class HKXTypeEntry(HKXPackBaseEntry):
         ("member_name_pointer", "I", 0),  # child pointer
         ("member_type_pointer", "I", 0),  # entry pointer
         ("enum_pointer", "I", 0),  # entry pointer
-        ("member_data_and_pointer_type", "H"),  # two `(data_type, pointer_type)` bytes interpreted together
+        ("member_super_and_data_types", "H"),  # two `(data_type, pointer_type)` bytes interpreted together
         ("c_array_size", "H"),  # usually zero
         ("flags", "H"),
         ("member_byte_offset", "H"),
@@ -135,44 +134,59 @@ class HKXTypeEntry(HKXPackBaseEntry):
         ("member_name_pointer", "Q", 0),  # child pointer
         ("member_type_pointer", "Q", 0),  # entry pointer
         ("enum_pointer", "Q", 0),  # entry pointer
-        ("member_data_and_pointer_type", "H"),  # two `(data_type, pointer_type)` bytes interpreted together
+        ("member_super_and_data_types", "H"),  # two `(data_type, pointer_type)` bytes interpreted together
         ("c_array_size", "H"),  # size of tuple T[N]; usually zero
         ("flags", "H"),
         ("member_byte_offset", "H"),
         ("custom_attributes_pointer", "Q"),  # never observed; assuming this never occurs
     )
 
-    entry_pointers: dict[int, tuple[HKXTypeEntry, int]]
+    GENERIC_TYPE_NAMES = ["hkArray", "hkEnum", "hkRefPtr", "hkViewPtr", "T*", "T[N]"]
+
+    entry_pointers: dict[int, tuple[PackFileTypeEntry, int]]
 
     def __init__(self, class_name: str):
         super().__init__()
-        self.class_name = class_name
+        self.class_name = class_name  # e.g. "hkClass"
 
-    def get_type_name(self) -> str:
+    def get_type_name(self) -> tp.Optional[str]:
+        """Quickly look up type name from raw data."""
+        if not self.child_pointers:
+            return None
         return BinaryReader(self.raw_data).unpack_string(self.child_pointers[0], encoding="utf-8")
 
     def get_byte_size(self) -> int:
         return BinaryReader(self.raw_data).unpack_value("I", offset=8)
 
+    def get_referenced_entry_type(self, offset: int) -> tp.Optional[PackFileTypeEntry]:
+        if offset in self.entry_pointers:
+            type_entry, zero = self.entry_pointers[offset]
+            if zero != 0:
+                raise AssertionError(f"Found type entry pointer placeholder other than zero: {zero}")
+            return type_entry
+        # Member is not a class or pointer.
+        return None
+
     def __repr__(self):
-        return f"HKXTypeEntry({self.class_name})"
+        return f"PackFileTypeEntry({self.get_type_name()})"
 
 
-class HKXItemEntry(HKXPackBaseEntry):
+class PackFileItemEntry(PackFileBaseEntry):
 
-    entry_pointers: dict[int, tuple[HKXItemEntry, int]]
-    node: tp.Optional[HKXNode]  # for tracking the corresponding unpacked `HKXNode`
+    entry_pointers: dict[int, tuple[PackFileItemEntry, int]]
+    hk_type: tp.Type[hk | hkArray_ | Ptr_]
+    value: None | hk | bool | int | float | list | tuple
 
-    def __init__(self, hkx_type: HKXType):
+    def __init__(self, hk_type: tp.Type[hk | hkArray_ | Ptr_]):
         super().__init__()
-        self.hkx_type = hkx_type
-        self.node = None
+        self.hk_type = hk_type
+        self.value = None
 
     def __repr__(self):
-        return f"HKXItemEntry({self.hkx_type.name})"
+        return f"PackFileItemEntry({self.hk_type.__name__})"
 
 
-class HKXPackFileVersion(IntEnum):
+class PackFileVersion(IntEnum):
     Version0x05 = 0x05
     Version0x08 = 0x08
     Version0x09 = 0x09
@@ -183,7 +197,7 @@ class HKXPackFileVersion(IntEnum):
         return self == self.Version0x0B
 
 
-class HKXHeader(BinaryObject):
+class PackFileHeader(BinaryObject):
 
     STRUCT = BinaryStruct(
         ("magic0", "I", 0x57E0E057),
@@ -193,19 +207,19 @@ class HKXHeader(BinaryObject):
         ("pointer_size", "B"),  # 4 or 8
         ("is_little_endian", "?"),  # usually True (post DeS I assume)
         ("padding_option", "B"),  # 0 or 1 (1 in Bloodborne)
-        ("base_class", "B", 1),
+        ("base_type", "B", 1),
         ("section_count", "i", 3),
         ("contents_section_index", "i", 2),  # data section
         ("contents_section_offset", "i", 0),  # start of data section
-        ("contents_class_name_section_index", "i", 0),  # class name section
-        ("contents_class_name_section_offset", "i", 75),  # offset of "hkRootContainer" string in class name section
+        ("contents_type_name_section_index", "i", 0),  # type name section
+        ("contents_type_name_section_offset", "i", 75),  # offset of "hkRootLevelContainer" string in type name section
         ("contents_version_string", "14s"),  # e.g. "hk_2010.2.0-r1"
         "x",
         ("minus_one", "B", 0xFF),
         ("flags", "i"),  # usually 0
     )
 
-    version: HKXPackFileVersion
+    version: PackFileVersion
     pointer_size: int
     is_little_endian: bool
     padding_option: int
@@ -213,11 +227,11 @@ class HKXHeader(BinaryObject):
     flags: int
 
     DEFAULTS = {
-        "version": HKXPackFileVersion.Version0x08,
+        "version": PackFileVersion.Version0x08,
     }
 
 
-class HKXHeaderExtension(BinaryObject):
+class PackFileHeaderExtension(BinaryObject):
 
     STRUCT = BinaryStruct(
         ("unk_x3C", "h"),
@@ -236,10 +250,10 @@ class HKXHeaderExtension(BinaryObject):
     unk_x4C: int
 
 
-class HKXSectionHeader(BinaryObject):
+class PackFileSectionHeader(BinaryObject):
 
     STRUCT = BinaryStruct(
-        ("section_tag", "19s"),  # e.g. "__classnames__"
+        ("section_tag", "19s"),  # e.g. "__classnames__" (type section)
         ("minus_one", "B", 0xFF),
         ("absolute_data_start", "I"),
         ("child_pointers_offset", "I"),
@@ -272,7 +286,7 @@ class HKXSectionHeader(BinaryObject):
             end_offset=writer.AUTO_RESERVE,
         )
 
-    def fill_classname_or_type_section(self, writer: BinaryWriter, absolute_data_start: int, end_offset: int):
+    def fill_type_name_or_type_section(self, writer: BinaryWriter, absolute_data_start: int, end_offset: int):
         self.fill(
             writer,
             absolute_data_start=absolute_data_start,
@@ -298,28 +312,25 @@ ENTRY_POINTER_STRUCT = BinaryStruct(
 
 ENTRY_SPEC_STRUCT = BinaryStruct(
     ("relative_entry_offset", "I"),  # relative offset into "__data__" section
-    ("class_section_index", "I", 0),  # always references class section
-    ("class_name_offset", "I"),  # offset into `section_index` above (always class section)
+    ("type_section_index", "I", 0),  # always references type section
+    ("type_name_offset", "I"),  # offset into `section_index` above (always type section)
 )
 
-CLASS_NAME_SIGNATURES = {
-    "hkClass": 1968725750,
-    "hkClassMember": 1551803586,
-    "hkClassEnum": 2318797263,
-    "hkClassEnumItem": 3463416428,
-    "hkRootLevelContainer": 661831966,
-    "hkaAnimationBinding": 1726663025,
-    "hkaAnimationContainer": 2378302259,
-    "hkaDefaultAnimatedReferenceFrame": 1837491269,
-    "hkaRagdollInstance": 357124328,
-    "hkaSkeleton": 913211936,
-    "hkaSkeletonMapper": 316621477,
-    "hkaSplineCompressedAnimation": 2033115323,
-    "hkpCapsuleShape": 3708493779,
-    "hkpConstraintInstance": 55491167,
-    "hkpPhysicsData": 3265552868,
-    "hkpPhysicsSystem": 4285680663,
-    "hkpPositionConstraintMotor": 1955574531,
-    "hkpRagdollConstraintData": 2411060521,
-    "hkpRigidBody": 1979242501,
+# Hashes for Havok types (typically generic) that do not have a hash in the known database XML.
+TYPE_NAME_HASHES = {
+    "2010": {
+        "hkClass": 1968725750,
+        "hkClassMember": 1551803586,
+        "hkClassEnum": 2318797263,
+        "hkClassEnumItem": 3463416428,
+        "hkaAnimationBinding": 1726663025,
+        "hkaDefaultAnimatedReferenceFrame": 1837491269,
+        "hkaSplineCompressedAnimation": 2033115323,
+    },
+    "2014": {
+        "hkClass": 869540739,
+        "hkClassMember": 2968495897,
+        "hkClassEnum": 2318797263,
+        "hkClassEnumItem": 3463416428,
+    }
 }
