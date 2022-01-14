@@ -373,6 +373,7 @@ class TypeInfo:
             member_attr_hints = {}
             py_string += f"    local_members = (\n"
             for member in self.members:
+                print(member.name, member.type_info)
                 member_type_info = member.type_info
 
                 # TODO: Determine how 'NewStruct' will be detected from 2014 packfiles.

@@ -1,3 +1,4 @@
+import typing as tp
 from pathlib import Path
 
 from soulstruct.base.models.flver import FLVER
@@ -6,7 +7,7 @@ from soulstruct.containers import Binder
 
 from soulstruct_havok.core import HKX, AnimationHKX, SkeletonHKX, RagdollHKX, ClothHKX
 
-GAME_CHR_PATH = Path(r"G:\Steam\steamapps\common\DARK SOULS REMASTERED\chr")
+GAME_CHR_PATH = DSR_PATH + "/chr"
 
 
 def scale_character(model_name: str, scale_factor: float):
@@ -152,29 +153,46 @@ def bb_to_dsr():
 
 
 def new_tag_unpacker():
-    # TODO: Finally have a good-looking pack. Let's see if I fucked up the types...
-    #  - Test repack works in game (c2240).
-    #  - Generate 2014 classes from XML.
-    #  - Update packfile unpacker. Fortunately, don't need writes.
-    #  - Start actually fucking inspecting the hkp vs. hknp. Probably find out it's not possible. :/
-    #       - In all seriousness, it HAS to be possible, even if I use a DSR model as a kind of template.
+    h = HKX("resources/DSR/c2240/c2240.hkx")  # ragdoll
+    print("Opened tagfile c2240 ragdoll successfully.")
+    h_string = h.get_root_tree_string()
 
-    import contextlib
-
-    with open("real.txt", "w") as f:
-        with contextlib.redirect_stdout(f):
-            h = HKX("resources/DSR/c2240/c2240.hkx")
-    # all_types = list(h.root.collect_types())
-    # for t in set(all_types):
-    #     print(t.__name__)
-
-    # print(h.root["namedVariants"][0]["variant"])
+    print("Bones:")
+    for bone in h.root.namedVariants[0].variant.skeletons[1].bones:
+        print("   ", bone.name)
+    print(f"Physics rigid bodies: {len(h.root.namedVariants[1].variant.systems[0].rigidBodies)}")
+    print(f"Physics constraints: {len(h.root.namedVariants[1].variant.systems[0].constraints)}")
+    for c in h.root.namedVariants[1].variant.systems[0].constraints:
+        print("   ", c.name)
+    print(f"Ragdoll rigid bodies: {len(h.root.namedVariants[2].variant.rigidBodies)}")
+    for r in h.root.namedVariants[2].variant.rigidBodies:
+        print("   ", r.name)
+    print(f"Ragdoll constraints: {len(h.root.namedVariants[2].variant.constraints)}")
+    for c in h.root.namedVariants[2].variant.constraints:
+        print("   ", c.name)
+    exit()
 
     h.write("c2240_repack.hkx")
+    print("Wrote tagfile c2240 ragdoll successfully.")
 
-    with open("reopen.txt", "w") as f:
-        with contextlib.redirect_stdout(f):
-            hh = HKX("c2240_repack.hkx")
+    hh = HKX("c2240_repack.hkx")
+    print("Re-opened tagfile c2240 ragdoll successfully.")
+    hh_string = hh.get_root_tree_string()
+
+    if h_string == hh_string:
+        print("Re-opened file has identical tree string to original opened file.")
+    else:
+        print("ERROR: Re-opened file does NOT have identical tree string to original opened file.")
+
+    # Inject into live c2240 CHRBND.
+    chrbnd_path = GAME_CHR_PATH + "/c2240.chrbnd.dcx"
+    chrbnd = Binder(chrbnd_path)
+    chrbnd[300].set_uncompressed_data(h.pack())
+    chrbnd.write()
+    print("Wrote c2240 skeleton to game CHRBND.")
+
+    Path("c2240.txt").write_text(h_string)
+    Path("c2240_repack.txt").write_text(hh_string)
 
 
 # noinspection PyTypeChecker,PyUnresolvedReferences
@@ -237,4 +255,4 @@ def packfile_test():
 
 
 if __name__ == '__main__':
-    packfile_test()
+    new_tag_unpacker()

@@ -57,7 +57,7 @@ class HKX(GameFile):
     ):
         if hk_format not in {"", "tagfile", "packfile"}:
             raise ValueError(f"`hk_format` must be 'tagfile' or 'packfile' if given, not: {hk_format}")
-        self.root = None
+        self.root = None  # type: tp.Optional[hk]
         self.all_nodes = []
         self.hk_types = []  # type: list[tp.Type[hk]]
         self.hk_format = hk_format
@@ -170,7 +170,7 @@ class HKX(GameFile):
         elif hk_format.lower() == "tagfile":
             packer = TagFilePacker(self)
             packed = packer.pack()
-            self.hk_types = packer.hk_types
+            # self.hk_types = packer.hk_types
             return packed
         raise ValueError(f"Invalid `hk_format` for `HKX.pack()`: {hk_format}. Should be 'packfile' or 'tagfile'.")
 
@@ -196,15 +196,6 @@ class HKX(GameFile):
     def get_root_tree_string(self) -> str:
         return self.root.get_tree_string()
 
-    # ~~~ CONVENIENCE NODE RETRIEVAL METHODS ~~~ #
-
-    # These methods navigate the standard HKX node tree and return certain nodes of interest from certain files. Any
-    # attribute or key errors that occur while navigating the tree (e.g. because the structure is different or because
-    # nodes are missing) are up to the caller to handle.
-
-    def get_variant_node(self, variant_index=0) -> tp.Optional[HKXNode]:
-        return self.root["namedVariants"][variant_index]["variant"]
-
     # ~~~ CONVERSION METHODS ~~~ #
 
     # Call these to PERMANENTLY convert the HKX instance to the given Havok version. This works by iterating over all
@@ -226,15 +217,6 @@ class HKX(GameFile):
     #   Dark Souls 3:                           hk_2014-1.0-r1
     #   Dark Souls Remastered:                  20150100
     #   Sekiro:                                 20160100 (I think, could be 20160200)
-
-    def convert_to_20150100(self):
-        """Convert nodes to 2015 types and apply some other minor modifications."""
-        self._convert_swept_transform_to_tuple()
-        self._convert_uint8_to_ufloat8()
-        NodeTypeReassigner(self.hkx_types, HKXTypeList.load_2015()).reassign_hkx(self)
-        self.hk_format = "tagfile"
-        self.hk_version = "20150100"
-        self._update_animation_type_enum(new_enum=True)
 
     def _update_animation_type_enum(self, new_enum=True):
         """In Havok 2010, and possibly Havok 2012 (TBC), the enumeration for `AnimationType` was different to all

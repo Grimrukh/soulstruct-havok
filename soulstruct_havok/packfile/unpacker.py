@@ -88,11 +88,35 @@ class PackFileUnpacker:
             ).hk_type_infos
 
         if types_only:
+            # All missing (primitive) types must be present in `hk2014_base`.
+            from soulstruct_havok.types import hk2014_base
+            for type_info in self.hk_type_infos:
+                for member in type_info.members:
+                    try:
+                        member_hk_type = [t for t in self.hk_type_infos if t.py_name == member.type_py_name][0]
+                    except IndexError:
+                        try:
+                            member_hk_type = getattr(hk2014_base, member.type_py_name)
+                        except AttributeError:
+                            raise AttributeError(f"Could not find Havok 2014 type `{member.type_py_name}`.")
+                    member.type_info = member_hk_type.get_type_info()
             return
 
         # TODO: Just loading 2014 for now.
-        from soulstruct_havok.types import hk2014
+        from soulstruct_havok.types import hk2014, hk2014_base
         self.hk_types_module = hk2014
+
+        # for type_info in self.hk_type_infos:
+        #     for member in type_info.members:
+        #         try:
+        #             member_hk_type = getattr(self.hk_type_infos, member.type_py_name)
+        #         except AttributeError:
+        #             # Use `hk2014_base` as a backup.
+        #             try:
+        #                 member_hk_type = getattr(hk2014_base, member.type_py_name)
+        #             except AttributeError:
+        #                 raise AttributeError(f"Could not find Havok 2014 type `{member.type_py_name}`.")
+        #         member.type_info = member_hk_type.get_type_info()
 
         self.items = self.unpack_item_entries(
             BinaryReader(data_section_info.raw_data),
@@ -240,7 +264,14 @@ class PackFileUnpacker:
         for i, entry_spec in enumerate(entry_specs):
             type_name = self.class_names[entry_spec["type_name_offset"]]
             type_py_name = get_py_name(type_name)
-            hk_type = getattr(self.hk_types_module, type_py_name)
+            try:
+                hk_type = getattr(self.hk_types_module, type_py_name)
+            except AttributeError:
+                # Missing type. Print `TypeInfo`.
+                type_info = [t for t in self.hk_type_infos if t.name == type_name][0]
+                print(type_info)
+                raise
+
 
             if i < len(entry_specs) - 1:
                 data_size = entry_specs[i + 1]["relative_entry_offset"] - entry_spec["relative_entry_offset"]
@@ -325,6 +356,16 @@ class TypeUnpacker:
             if entry.class_name == "hkClass":
                 entry.start_reader()
                 self.hk_type_infos.append(self.unpack_class_type(entry))
+
+        # TODO: Assign member type infos.
+        # for type_info in self.hk_type_infos:
+        #     for member in type_info.members:
+        #         try:
+        #             member.type_info = [t for t in self.hk_type_infos if t.py_name == member.type_py_name][0]
+        #         except IndexError:
+        #             print([t.name for t in self.hk_type_infos])
+        #             print(f"Cannot find member type: {member.type_py_name}")
+        #             raise
 
     def unpack_class_type(self, entry: PackFileTypeEntry):
         if self.pointer_size == 4:

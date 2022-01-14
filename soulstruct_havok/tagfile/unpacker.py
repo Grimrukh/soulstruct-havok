@@ -77,18 +77,6 @@ class TagFileUnpacker:
                             # TODO: Create?
                             raise TypeError(f"No Python type '{type_info.py_name}'. Info:\n{self}")
 
-                    if _DEBUG_TYPES:
-                        # Print `TypeInfo`s in alphabetical order by name.
-                        for type_info in sorted(
-                            self.hk_type_infos[1:],
-                            key=lambda x: (
-                                f"{x.name} "
-                                f"{getattr(x, 'pointer_type_info')} "
-                                f"{x.templates[0].type_info.name if x.templates and x.templates[0].name == 'tENUM' else ''}"
-                            ),
-                        ):
-                            print(type_info)
-
                     self.items = self.unpack_index_section(reader, data_start_offset)
 
             elif root_magic == "TCM0":
@@ -244,10 +232,10 @@ class TagFileUnpacker:
                     type_index = self.unpack_var_int(reader)
                     type_info = file_hk_types[type_index]
                     type_info.hsh = reader.unpack_value("<I")
-                    hashed.append((type_info.name, hex(reader.position), type_index, type_info.hsh))
+                    hashed.append((type_info.name, hex(reader.position), type_index, type_info.hsh, type_info.py_name))
                 if _DEBUG_HASH:
                     for h in sorted(hashed, key=lambda x: x[3]):
-                        print(h[3], h[0])
+                        print(h[4], h[3])
 
             with self.unpack_section(reader, "TPAD"):
                 pass
@@ -255,7 +243,8 @@ class TagFileUnpacker:
         return file_hk_types
 
     def unpack_index_section(self, reader: BinaryReader, data_start_offset: int) -> list[TagFileItem]:
-        """Returns a list of `TagFileItem` instances, padded at the start with `None` to preserve one-indexing."""
+        """Returns a list of `TagFileItem` instances, padded at the start with `None` to preserve one-indexing (which
+        corresponds to a null item in the actual file)."""
         items = []
 
         with self.unpack_section(reader, "INDX"):
@@ -274,8 +263,9 @@ class TagFileUnpacker:
                     # `relative_item_offset` is relative to start of DATA section. Absolute offset is stored in item.
                     type_index = item_info & 0x00FFFFFF
                     is_ptr = bool((item_info >> 24) & 0b00010000)
+                    item_hk_type_info = self.hk_type_infos[type_index]
                     item = TagFileItem(
-                        hk_type=self.hk_type_infos[type_index].py_class,
+                        hk_type=item_hk_type_info.py_class,
                         absolute_offset=data_start_offset + relative_item_offset,
                         length=length,
                         is_ptr=is_ptr,
@@ -283,14 +273,22 @@ class TagFileUnpacker:
                     items.append(item)
 
             with self.unpack_section(reader, "PTCH"):
-                # No patch data read here. TODO: Why?
-                pass
+                # Patch data contains offsets (in DATA) to item indices. It isn't needed to unpack the file, but its
+                # format is checked here.
+                while True:
+                    try:
+                        type_index, offset_count = reader.unpack("<2I")
+                    except TypeError:
+                        break
+                    else:
+                        reader.unpack(f"<{offset_count}I")
 
         return items
 
     @contextmanager
     def unpack_section(self, reader: BinaryReader, *assert_magic) -> tuple[int, str]:
-        data_size = (reader.unpack_value(">I") & 0x3FFFFFFF) - 8  # mask out 2 MSB and subtract header size
+        # Mask out 2 most significant bits and subtract header size.
+        data_size = (reader.unpack_value(">I") & 0x3FFFFFFF) - 8
         magic = reader.unpack_string(length=4, encoding="utf-8")
         data_start_offset = reader.position
         if magic not in assert_magic:
@@ -301,7 +299,7 @@ class TagFileUnpacker:
             reader.seek(data_start_offset + data_size)
 
     @staticmethod
-    def unpack_var_int(reader: BinaryReader) -> int:
+    def unpack_var_int(reader: BinaryReader, warn_small_size=False) -> int:
         """Read a variable-sized big-endian integer from `buffer`.
 
         The first three bits determine the size of the integer:
@@ -309,18 +307,29 @@ class TagFileUnpacker:
             10* -> 16 bits (first 2 bits ignored, so really 14 bits)
             110 -> 24 bits (first 3 bits ignored, so really 21 bits)
             111 -> 32 bits (first 5 bits ignored, so really 27 bits)
+
+        If `warn_small_size=True`, a warning will be printed (for debugging purposes) if the number is unpacked could
+        have fit in a smaller varint. This helps for detecting obstacles in the way of byte-perfect writes.
         """
         byte = reader.unpack_value("B")
         if byte & 0b1000_0000:
             if byte & 0b0100_0000:
                 if byte & 0b0010_0000:
                     next_byte, next_short = reader.unpack(">BH")
-                    return (byte << 24 | next_byte << 16 | next_short) & 0b00000111_11111111_11111111_11111111
+                    value = (byte << 24 | next_byte << 16 | next_short) & 0b00000111_11111111_11111111_11111111
+                    if warn_small_size and value < 0b00011111_11111111_11111111:
+                        print(f"WARNING: varint {value} could have used less than 27 bits.")
                 else:
                     next_short = reader.unpack_value(">H")
-                    return (byte << 16 | next_short) & 0b00011111_11111111_11111111
+                    value = (byte << 16 | next_short) & 0b00011111_11111111_11111111
+                    if warn_small_size and value < 0b00111111_11111111:
+                        print(f"WARNING: varint {value} could have used less than 21 bits.")
             else:
                 next_byte = reader.unpack_value("B")
-                return (byte << 8 | next_byte) & 0b00111111_11111111
+                value = (byte << 8 | next_byte) & 0b00111111_11111111
+                if warn_small_size and value < 0b01111111:
+                    print(f"WARNING: varint {value} could have used less than 14 bits.")
         else:
-            return byte & 0b01111111
+            value = byte & 0b01111111
+            # No value is too small to warn about.
+        return value

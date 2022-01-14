@@ -23,12 +23,18 @@ __all__ = [
     "hkViewPtr",
     "NewStruct_",
     "NewStruct",
+    "pack_string",
     "unpack_named_variant",
     "unpack_named_variant_packfile",
+    "pack_named_variant",
+    "TypeInfoGenerator",
 ]
 
 import typing as tp
+from collections import deque
 from pathlib import Path
+
+from colorama import init as colorama_init, Fore
 
 from soulstruct.utilities.binary import BinaryReader, BinaryWriter
 from soulstruct.utilities.inspection import get_hex_repr
@@ -39,6 +45,9 @@ from soulstruct_havok.types.info import *
 
 if tp.TYPE_CHECKING:
     from soulstruct_havok.packfile.structs import PackFileItemEntry
+
+
+colorama_init()
 
 
 _DEBUG_PRINT_UNPACK = False
@@ -128,9 +137,31 @@ class hk:
     __templates: tuple[TemplateValue | TemplateType, ...] = ()
     __interfaces: tuple[TemplateValue | TemplateType, ...] = ()
 
+    def __init__(self, **kwargs):
+        """Instance can be initiated with member `kwargs`."""
+        if kwargs:
+            member_names = self.get_member_names()
+            for member_name, member_value in kwargs.items():
+                if member_name not in member_names:
+                    raise ValueError(f"Invalid member passed to `{self.get_type_name()}`: {member_name}")
+                setattr(self, member_name, member_value)
+
+    @classmethod
+    def get_type_name(cls):
+        """Easier way (especially for instances) to get Python class name."""
+        return cls.__name__
+
     @classmethod
     def get_member_names(cls):
         return [m.name for m in cls.members]
+
+    @classmethod
+    def get_type_with_member(cls, member_name: str) -> tp.Type[hk]:
+        """Find the Havok type in this class's hierarchy that actually defines the given `member_name`."""
+        for parent_type in cls.get_type_hierarchy():
+            if member_name in [m.name for m in parent_type.local_members]:
+                return parent_type
+        raise ValueError(f"Member '{member_name}' is not defined by any base type of {cls.get_type_name()}.")
 
     @classmethod
     def get_tag_data_type(cls):
@@ -140,6 +171,14 @@ class hk:
     def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
         # noinspection PyTypeChecker
         return list(cls.__mro__[:-2])  # exclude `hk` and `object`
+
+    @classmethod
+    def get_immediate_parent(cls) -> tp.Optional[tp.Type[hk]]:
+        """Get immediate `hk` parent if one exists."""
+        hierarchy = cls.get_type_hierarchy()
+        if len(hierarchy) > 1:
+            return hierarchy[1]
+        return None
 
     @classmethod
     def unpack(cls, reader: BinaryReader, offset: int, items: list[TagFileItem] = None) -> tp.Any:
@@ -203,7 +242,14 @@ class hk:
         return value
 
     @classmethod
-    def pack(cls, writer: BinaryWriter, value: tp.Any, items: list[TagFileItem], existing_items: dict[hk, TagFileItem]):
+    def pack(
+        cls,
+        item: TagFileItem,
+        value: tp.Any,
+        items: list[TagFileItem],
+        existing_items: dict[hk, TagFileItem],
+        item_creation_queue: dict[str, deque[tp.Callable]],
+    ):
         """Use this `hk` type to process and pack the Python `value`.
 
         Primitive types and structs can be packed immediately, without creating a new item (whichever item the `writer`
@@ -211,24 +257,24 @@ class hk:
         will cause a new item to be created with its own `BinaryWriter`; this item's data, once complete, will be stored
         in its `data` attribute, and all items' data can be assembled in order at the end.
         """
-        _debug_print_pack(f"Packing `{cls.__name__}` with value {value}... ({cls.get_tag_data_type().name})")
+        _debug_print_pack(f"Packing `{cls.__name__}` with value {repr(value)}... ({cls.get_tag_data_type().name})")
         tag_data_type = cls.get_tag_data_type()
         if tag_data_type == TagDataType.Invalid:
             # Cannot pack opaque type (and the file expects no data).
             pass
         elif tag_data_type == TagDataType.Bool:
-            pack_bool(cls, writer, value)
+            pack_bool(cls, item, value)
         elif tag_data_type == TagDataType.String:
-            pack_string(cls, writer, value, items)
+            pack_string(cls, item, value, items, item_creation_queue)
         elif tag_data_type == TagDataType.Int:
-            pack_int(cls, writer, value)
+            pack_int(cls, item, value)
         elif tag_data_type == TagDataType.Float:
-            pack_float(cls, writer, value)
+            pack_float(cls, item, value)
         elif tag_data_type == TagDataType.Class:
-            pack_class(cls, writer, value, items, existing_items)
+            pack_class(cls, item, value, items, existing_items, item_creation_queue)
         else:
-            # 'Pointer' and 'Array' types are handled by `_Pointer` and `_hkArray` subclasses, respectively.
-            raise ValueError(f"Cannot pack `hk` subclass `{cls.__name__}` with tag data type {tag_data_type}.")
+            # 'Pointer' and 'Array' types are handled by `Ptr_` and `hkArray_` subclasses, respectively.
+            raise ValueError(f"Cannot pack `hk` subclass `{cls.__name__}` with tag data type {tag_data_type.name}.")
 
     @classmethod
     def get_type_info(cls) -> TypeInfo:
@@ -269,21 +315,6 @@ class hk:
 
         return type_info
 
-    @classmethod
-    def update_type_info_dict(cls, type_info_dict: dict[str, TypeInfo]) -> list[TypeInfo]:
-        """Updates `type_info_dict` with the types needed by this Python class.
-
-        Also returns a list of all new types created here (that is, types that were actually added to the dictionary).
-
-        This base method only requires one corresponding type. Children like `_hkArray` and `_hkEnum` will create
-        additional generic types in their overrides of this method.
-        """
-        if cls.__name__ in type_info_dict:
-            return []
-        new_type_info = cls.get_type_info()
-        type_info_dict[cls.__name__] = new_type_info
-        return [new_type_info]
-
     def __getitem__(self, member_name: str):
         if not self.members:
             raise TypeError(f"Havok type {self.__class__.__name__} has no members.")
@@ -319,110 +350,12 @@ class hk:
     def get_interfaces(cls) -> list[Interface]:
         return getattr(cls, f"_{cls.__name__.lstrip('_')}__interfaces", [])
 
-    def collect_types_with_instance(self):
-        return self.collect_types(self)
-
     @classmethod
-    def collect_types(cls, instance=None) -> list[tp.Type[hk]]:
-        """Collect all types used by all templates, interfaces, and members of this type, and so on, recursively.
-
-        We use the type's `members` definition mostly, so we can return the full set of `hkArray`, `Pointer`, etc.
-        classes, but need the actual instance to confirm the types used by any variant fields and parent-class pointers.
-
-        This only returns the Python classes; index detection for writing needs to be done by the caller.
-
-        NOTE: There are no "pointers to arrays" or "arrays of arrays" or "pointers to pointers", which simplifies things
-        somewhat. There are just arrays of pointers sometimes.
-
-        Also note that, to simplify the logic for primitive types that use primitive Python types like `int`, this type
-        itself is not collected here, but should be handled by the caller instead.
-        """
-        all_types = []  # does NOT check own type
-
-        for template_info in cls.get_templates():
-            if isinstance(template_info, TemplateType):
-                all_types.append(template_info.type)
-
-        for interface_info in cls.get_interfaces():
-            all_types.append(interface_info.type)
-
-        for member_info in cls.members:
-
-            member_value = getattr(instance, member_info.name) if instance else None
-
-            if issubclass(member_info.type, hkArray_):
-                all_types += member_info.type.get_type_hierarchy()  # `hkArray` type
-                data_type = member_info.type.get_data_type()
-                all_types += data_type.get_type_hierarchy()
-                all_types += data_type.collect_types()
-                if issubclass(data_type, Ptr_):
-                    ptr_data_type = data_type.get_data_type()
-                    if ptr_data_type != cls:
-                        all_types += ptr_data_type.get_type_hierarchy()
-                        all_types += ptr_data_type.collect_types()
-                if issubclass(data_type, Ptr_) or data_type.members:
-                    # Note that if this is an array of pointers, the pointer type has already been added, and the Python
-                    # object will still just be a list of `hk` instances.
-                    if member_value is not None:
-                        member_value: list[hk]
-                        for i, element in enumerate(member_value):
-                            if element is not None:
-                                all_types += type(element).get_type_hierarchy()
-                                all_types += element.collect_types_with_instance()
-
-            elif issubclass(member_info.type, hkStruct_):
-                # Very similar to array.
-                all_types += member_info.type.get_type_hierarchy()  # `hkStruct` type
-                data_type = member_info.type.get_data_type()
-                all_types += data_type.get_type_hierarchy()
-                all_types += data_type.collect_types()
-                if issubclass(data_type, Ptr_):
-                    ptr_data_type = data_type.get_data_type()
-                    if ptr_data_type != cls:
-                        all_types += ptr_data_type.get_type_hierarchy()
-                        all_types += ptr_data_type.collect_types()
-                if issubclass(data_type, Ptr_) or data_type.members:
-                    all_types += data_type.collect_types()
-                    if member_value is not None:
-                        member_value: tuple[hk]
-                        for i, element in enumerate(member_value):
-                            if element is not None:
-                                all_types += type(element).get_type_hierarchy()
-                                all_types += element.collect_types_with_instance()
-
-            elif issubclass(member_info.type, Ptr_) or member_info.name == "ptr":  # includes `hkRefPtr`
-                # Similar to above, but no iteration over elements required.
-                all_types += member_info.type.get_type_hierarchy()  # `Ptr` type
-                data_type = member_info.type.get_data_type()
-                if data_type != cls:
-                    all_types += data_type.get_type_hierarchy()  # Data type
-                    all_types += data_type.collect_types()
-                    if member_value is not None:
-                        member_value: hk
-                        all_types += type(member_value).get_type_hierarchy()  # type may be a subclass of expected
-                        all_types += member_value.collect_types_with_instance()
-
-            elif issubclass(member_info.type, hkEnum_):
-                # Similar to above, but no iteration over elements required.
-                all_types += member_info.type.get_type_hierarchy()  # `hkEnum` type
-                all_types += member_info.type.enum_type.get_type_hierarchy()  # no need to collect
-
-            elif member_info.type.get_tag_data_type() == TagDataType.Class:
-                # Member value may be a subclass of class type.
-                all_types += member_info.type.get_type_hierarchy()
-                all_types += member_info.type.collect_types()
-                if member_value is not None:
-                    member_value: hk
-                    all_types += type(member_value).get_type_hierarchy()  # type may be a subclass of expected
-                    all_types += member_value.collect_types_with_instance()
-
-            else:
-                # Just a primitive type.
-                all_types += member_info.type.get_type_hierarchy()
-                all_types += member_info.type.collect_types()
-                # No need to check member value.
-
-        return all_types
+    def get_member(cls, member_name: str) -> Member:
+        for member in cls.members:
+            if member.name == member_name:
+                return member
+        raise KeyError(f"No member named '{member_name}' in class `{cls.__name__}`.")
 
     def get_tree_string(self, indent=0, instances_shown: list = None) -> str:
         """Recursively build indented string of this instance and everything within its members."""
@@ -432,76 +365,202 @@ class hk:
         for member in self.members:
             member_value = getattr(self, member.name)
             if member_value is None or isinstance(member_value, (bool, int, float, str)):
-                lines.append(f"    {member.name} = {repr(member_value)}")
+                lines.append(f"    {member.name} = {repr(member_value)},")
             elif isinstance(member_value, hk):
                 if member_value in instances_shown:
                     lines.append(
-                        f"    {member.name} = {member_value.__class__.__name__} "
-                        f"<{instances_shown.index(member_value)}>")
+                        f"    {member.name} = {member_value.__class__.__name__},"
+                        f"  # <{instances_shown.index(member_value)}>")
                 else:
                     lines.append(
-                        f"    {member.name} = {member_value.get_tree_string(indent + 4, instances_shown)} "
-                        f"<{len(instances_shown)}>"
+                        f"    {member.name} = {member_value.get_tree_string(indent + 4, instances_shown)}"
+                        f"  # <{len(instances_shown)}>"
                     )
                     instances_shown.append(member_value)
             elif isinstance(member_value, list):
                 if not member_value:
-                    lines.append(f"    {member.name} = []")
+                    lines.append(f"    {member.name} = [],")
                 elif isinstance(member_value[0], hk):
                     lines.append(f"    {member.name} = [")
                     for element in member_value:
                         if element in instances_shown:
-                            lines.append(f"        {element.__class__.__name__} <{instances_shown.index(element)}>")
+                            lines.append(f"        {element.__class__.__name__},  # <{instances_shown.index(element)}>")
                         else:
                             element_string = element.get_tree_string(indent + 8, instances_shown)
                             lines.append(
-                                f"        {element_string}, "
-                                f"<{len(instances_shown)}>"
+                                f"        {element_string}  # <{len(instances_shown)}>"
                             )
                             instances_shown.append(element)
-                    lines.append(f"    ]")
+                    lines.append(f"    ],")
                 elif isinstance(member_value[0], (list, tuple)):
                     lines.append(f"    {member.name} = [")
                     for element in member_value:
                         lines.append(f"        {repr(element)},")
-                    lines.append(f"    ]")
+                    lines.append(f"    ],")
                 else:
-                    lines.append(f"    {member.name} = {repr(member_value)}")
+                    lines.append(f"    {member.name} = {repr(member_value)},")
             elif isinstance(member_value, tuple):
                 if not member_value:
-                    lines.append(f"    {member.name} = ()")
+                    lines.append(f"    {member.name} = (),")
                 elif isinstance(member_value[0], hk):
                     lines.append(f"    {member.name} = (")
                     for element in member_value:
                         if element in instances_shown:
-                            lines.append(f"        {element.__class__.__name__} <{instances_shown.index(element)}>")
+                            lines.append(f"        {element.__class__.__name__},  # <{instances_shown.index(element)}>")
                         else:
                             lines.append(
-                                f"        {element.get_tree_string(indent + 8, instances_shown)}, "
-                                f"<{len(instances_shown)}>"
+                                f"        {element.get_tree_string(indent + 8, instances_shown)}"
+                                f"  # <{len(instances_shown)}>"
                             )
                             instances_shown.append(element)
-                    lines.append(f"    )")
+                    lines.append(f"    ),")
                 elif isinstance(member_value[0], (list, tuple)):
                     lines.append(f"    {member.name} = (")
                     for element in member_value:
                         lines.append(f"        {repr(element)},")
-                    lines.append(f"    )")
+                    lines.append(f"    ),")
                 else:
-                    lines.append(f"    {member.name} = {repr(member_value)}")
+                    lines.append(f"    {member.name} = {repr(member_value)},")
             else:
                 raise TypeError(f"Cannot parse value of member '{member.name}' for tree string: {type(member_value)}")
-        lines.append(")")
+        lines.append("),")
         return f"\n{' ' * indent}".join(lines)
 
     def __repr__(self):
         return f"{type(self).__name__}()"
 
 
+class hkBasePointer(hk):
+    """Intermediate base type shared by types with a `_data_type` attribute and `get_data_type()` method."""
+    _data_type = None  # type: tp.Type[hk] | DefType
+
+    @classmethod
+    def get_data_type(cls):
+        if isinstance(cls._data_type, DefType):
+            cls._data_type = cls._data_type.action()
+            return cls._data_type
+        return cls._data_type
+
+
+class TypeInfoGenerator:
+    """Builds ordered types by searching each `TagFileItem`, in order."""
+
+    _DEBUG_PRINT = False
+
+    def __init__(self, items: list[TagFileItem], hk_types_module):
+        self._checked_hk = set()
+        self.type_infos = {}  # type: dict[str, TypeInfo]
+        self._module = hk_types_module
+        self._scanned_type_names = set()
+
+        for item in items:
+            if isinstance(item.value, hk):
+                item_type = type(item.value)  # may be a subclass of `item.hk_type`
+            else:
+                item_type = item.hk_type
+            if self._DEBUG_PRINT:
+                print(f"{Fore.BLUE}Scanning item: {item_type.__name__}{Fore.RESET}")
+            self._scan_hk_type_queue(deque([item_type]), indent=0)
+            if item_type.__name__ == "hkRootLevelContainer":
+                self._add_type(getattr(self._module, "_char"))
+
+    def _add_type(self, hk_type: tp.Type[hk], indent=0):
+        if hk_type.__name__ in self.type_infos:
+            raise KeyError(f"Type named '{hk_type.__name__}' was collected more than once.")
+        type_info_index = len(self.type_infos) + 1
+        self.type_infos[hk_type.__name__] = hk_type.get_type_info()
+        if self._DEBUG_PRINT:
+            print(f"{' ' * indent}  {Fore.GREEN}Created TypeInfo {type_info_index}: {hk_type.__name__}{Fore.RESET}")
+
+    def _scan_hk_type_queue(self, hk_type_queue: deque[tp.Type[hk]], indent=0):
+        hk_type_subqueue = deque()  # type: deque[tp.Type[hk]]
+
+        while hk_type_queue:
+            hk_type = hk_type_queue.popleft()
+            self._scan_hk_type(hk_type, hk_type_subqueue, indent + 4)
+
+        if hk_type_subqueue:
+            self._scan_hk_type_queue(hk_type_subqueue, indent + 4)
+
+    def _scan_hk_type(self, hk_type: tp.Type[hk], hk_type_queue: deque[tp.Type[hk]], indent=0):
+        if hk_type.__name__ in self._scanned_type_names:
+            return
+        if self._DEBUG_PRINT:
+            print(f"{' ' * indent}{Fore.YELLOW}Scanning type: {hk_type.__name__}{Fore.RESET}")
+        self._scanned_type_names.add(hk_type.__name__)
+
+        if hk_type.__name__ not in self.type_infos:
+            self._add_type(hk_type, indent)
+
+        if issubclass(hk_type, hkEnum_):
+            if hk_type.storage_type.__name__ not in self.type_infos:
+                self._add_type(hk_type.storage_type, indent)
+                hk_type_queue.append(hk_type.storage_type)
+            if hk_type.enum_type.__name__ not in self.type_infos:
+                self._add_type(hk_type.enum_type, indent)
+                hk_type_queue.append(hk_type.enum_type)
+
+        # We don't add the entire hierarchy here. When each parent type is reached, its parents in turn will be reached.
+        parent_hk_type = hk_type.get_immediate_parent()
+        if parent_hk_type and parent_hk_type.__name__ not in self.type_infos:
+            self._add_type(parent_hk_type, indent)
+            hk_type_queue.append(parent_hk_type)
+
+        for template_info in hk_type.get_templates():
+            if isinstance(template_info, TemplateType):
+                if issubclass(template_info.type, hk) and template_info.type.__name__ not in self.type_infos:
+                    self._add_type(template_info.type, indent)
+                    hk_type_queue.append(template_info.type)
+
+        if issubclass(hk_type, hkBasePointer):
+            data_type = hk_type.get_data_type()  # type: tp.Type[hk]
+
+            if issubclass(data_type, hk) and data_type.__name__ not in self.type_infos:
+                self._add_type(data_type, indent)
+                hk_type_queue.append(data_type)
+
+            if issubclass(hk_type, hkArray_):
+                if "hkContainerHeapAllocator" not in self.type_infos:
+                    self._add_type(getattr(self._module, "hkContainerHeapAllocator"), indent)
+                    # Does not need to be queued.
+                if f"Ptr[{data_type.__name__}]" not in self.type_infos:
+                    self._add_type(Ptr(data_type), indent)
+                    # Does not need to be queued.
+                if "_int" not in self.type_infos:
+                    self._add_type(getattr(self._module, "_int"), indent)
+                    # Does not need to be queued.
+
+            if issubclass(hk_type, (hkRefPtr_, hkRefVariant_)):
+                if f"Ptr[{data_type.__name__}]" not in self.type_infos:
+                    self._add_type(Ptr(data_type), indent)
+                    # Does not need to be queued.
+
+        # if not issubclass(hk_type, hkStruct_):  # struct member types are covered by pointer data type above
+        for member in hk_type.local_members:
+            if issubclass(member.type, hk) and member.type.__name__ not in self.type_infos:
+                self._add_type(member.type, indent)
+                hk_type_queue.append(member.type)
+
+        for interface in hk_type.get_interfaces():
+            if issubclass(interface.type, hk) and interface.type not in self.type_infos:
+                self._add_type(interface.type, indent)
+                hk_type_queue.append(interface.type)
+
+
 # --- GENERIC CLASS BASES & GENERATORS --- #
 
 
-class hkArray_(hk):
+class hkContainerHeapAllocator(hk):
+    alignment = 1
+    byte_size = 1
+    tag_type_flags = 7
+
+    __tag_format_flags = 57
+    __abstract_value = 16
+    local_members = ()
+
+
+class hkArray_(hkBasePointer):
     """Array base class, which is used to generate subclasses dynamically for different data types.
 
     The array template 'tT' is always a T* pointer to type `data_type`, and member `m_data` is a pointer to that pointer
@@ -509,20 +568,13 @@ class hkArray_(hk):
 
     Other hkArray properties, like `tAllocator` and `m_size`, are constant and can be automatically generated.
     """
-    alignment = 8
+    alignment = 8  # actually aligned to 16 in tag file data
     byte_size = 16
     tag_type_flags = 8
 
     __tag_format_flags = 43
 
-    _data_type = None  # type: tp.Type[hk] | hkRefPtr | hkViewPtr | DefType
-
-    @classmethod
-    def get_data_type(cls):
-        if isinstance(cls._data_type, DefType):
-            cls._data_type = cls._data_type.action()
-            return
-        return cls._data_type
+    _data_type: tp.Type[hk] | hkRefPtr | hkViewPtr | DefType
 
     @classmethod
     def unpack(
@@ -554,14 +606,15 @@ class hkArray_(hk):
     @classmethod
     def pack(
         cls,
-        writer: BinaryWriter,
+        item: TagFileItem,
         value: list[hk] | list[int] | list[float] | list[str] | list[bool],
         items: list[TagFileItem],
         existing_items: dict[hk, TagFileItem],
+        item_creation_queue: dict[str, deque[tp.Callable]],
     ):
         """Remember that array length can be variable, unlike `hkStruct`."""
         _debug_print_pack(f"Packing `{cls.__name__}`... (length = {len(value)})")
-        pack_array(cls.get_data_type(), writer, value, items, existing_items)
+        pack_array(cls, item, value, items, existing_items, item_creation_queue)
         if _REQUIRE_INPUT:
             input("Continue?")
 
@@ -592,34 +645,9 @@ class hkArray_(hk):
         return type_info
 
     @classmethod
-    def update_type_info_dict(cls, type_info_dict: dict[str, TypeInfo]) -> list[TypeInfo]:
-        """If needed, also creates pointer type for `hkArray` generic type to be packed."""
-        if cls.__name__ in type_info_dict:
-            return []
-        new_types = []
-        pointer_py_name = f"Ptr[{cls.get_data_type().__name__}]"
-        if pointer_py_name not in type_info_dict:
-            pointer_type_py_name = cls.get_data_type().__name__
-            pointer_type_info = TypeInfo("T*")
-            pointer_type_info.templates = [
-                TemplateInfo("tT", type_py_name=pointer_type_py_name),
-            ]
-            pointer_type_info.pointer_type_py_name = pointer_type_py_name
-            pointer_type_info.tag_format_flags = 11
-            pointer_type_info.tag_type_flags = 6
-            pointer_type_info.byte_size = 8
-            pointer_type_info.alignment = 8
-            type_info_dict[pointer_py_name] = pointer_type_info
-            new_types.append(pointer_type_info)
-        array_type_info = cls.get_type_info()
-        type_info_dict[cls.__name__] = array_type_info
-        new_types.append(array_type_info)
-        return new_types
-
-    @classmethod
     def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
         # noinspection PyTypeChecker
-        return list(cls.__mro__[:-3])  # exclude this, `hk`, and `object`
+        return list(cls.__mro__[:-4])  # exclude this, `hkDataWrapper`, `hk`, and `object`
 
 
 def hkArray(data_type: tp.Type[hk] | hkRefPtr | hkViewPtr, hsh: int = None) -> tp.Type[hkArray_]:
@@ -652,8 +680,15 @@ class hkEnum_(hk):
         return cls.storage_type.unpack_packfile(entry, offset, pointer_size=pointer_size)
 
     @classmethod
-    def pack(cls, writer: BinaryWriter, value: tp.Any, items: list[TagFileItem], existing_items: dict[hk, TagFileItem]):
-        return cls.storage_type.pack(writer, value, items, existing_items)
+    def pack(
+        cls,
+        item: TagFileItem,
+        value: tp.Any,
+        items: list[TagFileItem],
+        existing_items: dict[hk, TagFileItem],
+        item_creation_queue: dict[str, deque[tp.Callable]],
+    ):
+        return cls.storage_type.pack(item, value, items, existing_items, item_creation_queue)
 
     @classmethod
     def get_type_info(cls) -> TypeInfo:
@@ -667,34 +702,6 @@ class hkEnum_(hk):
         type_info.parent_type_py_name = cls.storage_type.__name__
         type_info.tag_format_flags = 0
         return type_info
-
-    @classmethod
-    def update_type_info_dict(cls, type_info_dict: dict[str, TypeInfo]) -> list[TypeInfo]:
-        """If needed, also creates named enum type used as 'tENUM' template by generic `hkEnum` type.
-        """
-        if cls.__name__ in type_info_dict:
-            return []
-        new_types = []
-
-        # Both `tENUM` and `tSTORAGE` types will be real defined types, so it's just down to chance if they've already
-        # been defined by the time we get here, most likely (as they will be collected alongside this wrapper).
-
-        enum_py_name = cls.enum_type.__name__
-        if enum_py_name not in type_info_dict:
-            enum_type_info = cls.enum_type.get_type_info()
-            type_info_dict[enum_py_name] = enum_type_info
-            new_types.append(enum_type_info)
-
-        storage_py_name = cls.storage_type.__name__
-        if storage_py_name not in type_info_dict:
-            storage_type_info = cls.storage_type.get_type_info()
-            type_info_dict[storage_py_name] = storage_type_info
-            new_types.append(storage_type_info)
-
-        generic_enum_type_info = cls.get_type_info()
-        type_info_dict[cls.__name__] = generic_enum_type_info
-        new_types.append(generic_enum_type_info)
-        return new_types
 
     @classmethod
     def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
@@ -711,21 +718,13 @@ def hkEnum(enum_type: tp.Type[hk], storage_type: tp.Type[hk]) -> tp.Type[hkEnum_
     return wrapper_type
 
 
-class hkStruct_(hk):
+class hkStruct_(hkBasePointer):
     """Simple wrapper type for both 'T[N]' types and built-in tuple types like `hkVector4f`.
 
     These types store a fixed amount of data locally (e.g., within the same item) rather than separately, like arrays.
     """
-    _data_type = None  # type: tp.Type[hk] | DefType  # no `DefType()` instances, I believe
     length = 0
     is_generic = False
-
-    @classmethod
-    def get_data_type(cls) -> tp.Type[hk]:
-        """I don't believe self-references ever appear in Structs, but just in case (and for consistency)."""
-        if isinstance(cls._data_type, DefType):
-            cls._data_type = cls._data_type.action()
-        return cls._data_type
 
     @classmethod
     def unpack(cls, reader: BinaryReader, offset: int, items: list[TagFileItem] = None) -> tuple:
@@ -749,8 +748,15 @@ class hkStruct_(hk):
         return value
 
     @classmethod
-    def pack(cls, writer: BinaryWriter, value: tp.Any, items: list[TagFileItem], existing_items: dict[hk, TagFileItem]):
-        pack_struct(cls.get_data_type(), writer, value, items, existing_items, cls.length)
+    def pack(
+        cls,
+        item: TagFileItem,
+        value: tp.Any,
+        items: list[TagFileItem],
+        existing_items: dict[hk, TagFileItem],
+        item_creation_queue: dict[str, deque[tp.Callable]],
+    ):
+        pack_struct(cls.get_data_type(), item, value, items, existing_items, item_creation_queue, cls.length)
 
     @classmethod
     def get_type_info(cls) -> TypeInfo:
@@ -782,16 +788,15 @@ class hkStruct_(hk):
 
         return type_info
 
-    # Uses standard `update_type_info_dict()`, as no additional generic types need to be created.
-
     @classmethod
     def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
         if cls.is_generic:
             # noinspection PyTypeChecker
-            return list(cls.__mro__[:-3])  # exclude this, `hk`, and `object`
+            return list(cls.__mro__[:-4])  # exclude this, `hkDataWrapper`, `hk`, and `object`
         else:
+            # exclude `_hkStruct[type, length]` subclass, this, `hkDataWrapper`, `hk`, and `object`
             # noinspection PyTypeChecker
-            return list(cls.__mro__[:-4])  # exclude `_hkStruct[type, length]` subclass, this, `hk`, and `object`
+            return list(cls.__mro__[:-5])
 
 
 def hkStruct(
@@ -813,7 +818,7 @@ def hkStruct(
     return struct_type
 
 
-class Ptr_(hk):
+class Ptr_(hkBasePointer):
     """Wrapper for a 'T*' generic pointer, which always points to a fixed type.
 
     This is necessary because some members, of 'Class' type, use data that is locally stored inside the same item,
@@ -827,14 +832,6 @@ class Ptr_(hk):
     tag_type_flags = 6
 
     __tag_format_flags = 11
-
-    _data_type = None  # type: tp.Type[hk] | DefType
-
-    @classmethod
-    def get_data_type(cls):
-        if isinstance(cls._data_type, DefType):
-            cls._data_type = cls._data_type.action()
-        return cls._data_type
 
     @classmethod
     def set_data_type(cls, data_type: tp.Type[hk]):
@@ -863,13 +860,14 @@ class Ptr_(hk):
     @classmethod
     def pack(
         cls,
-        writer: BinaryWriter,
+        item: TagFileItem,
         value: hk,
         items: list[TagFileItem],
-        existing_items: dict[hk, TagFileItem] = None,
+        existing_items: dict[hk, TagFileItem],
+        item_creation_queue: dict[str, deque[tp.Callable]],
     ):
         _debug_print_pack(f"Packing `{cls.__name__}`...")
-        pack_pointer(cls.get_data_type(), writer, value, items, existing_items)
+        pack_pointer(cls, item, value, items, existing_items, item_creation_queue)
         if _REQUIRE_INPUT:
             input("Continue?")
 
@@ -888,12 +886,10 @@ class Ptr_(hk):
             type_info.hsh = hsh
         return type_info
 
-    # Uses standard `update_type_info_dict()`, as no additional generic types need to be created.
-
     @classmethod
     def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
         # noinspection PyTypeChecker
-        return list(cls.__mro__[:-3])  # exclude this, `hk`, and `object`
+        return list(cls.__mro__[:-4])  # exclude this, `hkDataWrapper`, `hk`, and `object`
 
 
 def Ptr(data_type: tp.Type[hk] | DefType, hsh: int = None) -> tp.Type[Ptr_]:
@@ -927,7 +923,7 @@ class hkRefPtr_(Ptr_):
     @classmethod
     def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
         # noinspection PyTypeChecker
-        return list(cls.__mro__[:-4])  # exclude this, `_Ptr`, `hk`, and `object`
+        return list(cls.__mro__[:-5])  # exclude this, `_Ptr`, `hkDataWrapper`, `hk`, and `object`
 
     @classmethod
     def get_type_info(cls) -> TypeInfo:
@@ -950,31 +946,6 @@ class hkRefPtr_(Ptr_):
 
         return type_info
 
-    @classmethod
-    def update_type_info_dict(cls, type_info_dict: dict[str, TypeInfo]) -> list[TypeInfo]:
-        """If needed, also creates pointer type for `hkRefPtr[ptr]` generic type member to be packed."""
-        if cls.__name__ in type_info_dict:
-            return []
-        new_types = []
-        pointer_py_name = f"Ptr[{cls.get_data_type().__name__}]"
-        if pointer_py_name not in type_info_dict:
-            data_type_py_name = cls.get_data_type().__name__
-            pointer_type_info = TypeInfo("T*")
-            pointer_type_info.templates = [
-                TemplateInfo("tT", type_py_name=data_type_py_name),
-            ]
-            pointer_type_info.pointer_type_py_name = data_type_py_name
-            pointer_type_info.tag_format_flags = 11
-            pointer_type_info.tag_type_flags = 6
-            pointer_type_info.byte_size = 8
-            pointer_type_info.alignment = 8
-            type_info_dict[pointer_py_name] = pointer_type_info
-            new_types.append(pointer_type_info)
-        ref_ptr_type_info = cls.get_type_info()
-        type_info_dict[cls.__name__] = ref_ptr_type_info
-        new_types.append(ref_ptr_type_info)
-        return new_types
-
 
 def hkRefPtr(data_type: tp.Type[hk] | DefType, hsh: int = None) -> tp.Type[hkRefPtr_]:
     """Create a `_hkRefPtr` subclass dynamically, pointing to a particular type."""
@@ -993,7 +964,7 @@ class hkRefVariant_(Ptr_):
     @classmethod
     def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
         # noinspection PyTypeChecker
-        return list(cls.__mro__[:-4])  # exclude this, `Ptr_`, `hk`, and `object`
+        return list(cls.__mro__[:-5])  # exclude this, `Ptr_`, `hkDataWrapper`, `hk`, and `object`
 
     @classmethod
     def get_type_info(cls) -> TypeInfo:
@@ -1012,31 +983,6 @@ class hkRefVariant_(Ptr_):
         ]
 
         return type_info
-
-    @classmethod
-    def update_type_info_dict(cls, type_info_dict: dict[str, TypeInfo]) -> list[TypeInfo]:
-        """If needed, also creates pointer type for `hkRefVariant[ptr]` generic type member to be packed."""
-        if cls.__name__ in type_info_dict:
-            return []
-        new_types = []
-        pointer_py_name = f"Ptr[{cls.get_data_type().__name__}]"
-        if pointer_py_name not in type_info_dict:
-            data_type_py_name = cls.get_data_type().__name__
-            pointer_type_info = TypeInfo("T*")
-            pointer_type_info.templates = [
-                TemplateInfo("tT", type_py_name=data_type_py_name),
-            ]
-            pointer_type_info.pointer_type_py_name = data_type_py_name
-            pointer_type_info.tag_format_flags = 11
-            pointer_type_info.tag_type_flags = 6
-            pointer_type_info.byte_size = 8
-            pointer_type_info.alignment = 8
-            type_info_dict[pointer_py_name] = pointer_type_info
-            new_types.append(pointer_type_info)
-        ref_variant_type_info = cls.get_type_info()
-        type_info_dict[cls.__name__] = ref_variant_type_info
-        new_types.append(ref_variant_type_info)
-        return new_types
 
 
 def hkRefVariant(data_type: tp.Type[hk] | DefType, hsh: int = None) -> tp.Type[hkRefVariant_]:
@@ -1099,32 +1045,6 @@ class hkViewPtr_(hk):
 
         return type_info
 
-    @classmethod
-    def update_type_info_dict(cls, type_info_dict: dict[str, TypeInfo]) -> list[TypeInfo]:
-        """If needed, also creates pointer type for `hkViewPtr[ptr]` generic type member to be packed."""
-        if cls.__name__ in type_info_dict:
-            return []
-        new_types = []
-        pointer_py_name = f"Ptr[{cls.data_type_name}]"
-        if pointer_py_name not in type_info_dict:
-            pointer_type_info = TypeInfo("T*")
-            pointer_type_info.templates = [
-                TemplateInfo("tT", type_py_name=cls.data_type_name),
-            ]
-            pointer_type_info.pointer_type_py_name = cls.data_type_name
-            pointer_type_info.tag_format_flags = 11
-            pointer_type_info.tag_type_flags = 6
-            pointer_type_info.byte_size = 8
-            pointer_type_info.alignment = 8
-            # `hkViewPtr` hash is actually its pointer's hash.
-            pointer_type_info.hsh = cls.__dict__["__hsh"]
-            type_info_dict[pointer_py_name] = pointer_type_info
-            new_types.append(pointer_type_info)
-        view_ptr_type_info = cls.get_type_info()
-        type_info_dict[cls.__name__] = view_ptr_type_info
-        new_types.append(view_ptr_type_info)
-        return new_types
-
 
 def hkViewPtr(data_type_name: str, hsh: int = None):
     """Create a `_hkViewPtr` subclass dynamically, pointing to a particular type name."""
@@ -1135,7 +1055,7 @@ def hkViewPtr(data_type_name: str, hsh: int = None):
     return ptr_type
 
 
-class NewStruct_(hk):
+class NewStruct_(hkBasePointer):
     """Wrapper for a new type of pointer that only appears in `hknp` classes. (Name chosen by me.)
 
     It reads `length` and `jump` shorts, and uses that offset to make a jump ahead (from just before `length`) to
@@ -1147,14 +1067,6 @@ class NewStruct_(hk):
     tag_type_flags = 6
 
     __tag_format_flags = 11
-
-    _data_type = None  # type: tp.Type[hk] | DefType
-
-    @classmethod
-    def get_data_type(cls):
-        if isinstance(cls._data_type, DefType):
-            cls._data_type = cls._data_type.action()
-        return cls._data_type
 
     @classmethod
     def set_data_type(cls, data_type: tp.Type[hk]):
@@ -1182,13 +1094,14 @@ class NewStruct_(hk):
     @classmethod
     def pack(
         cls,
-        writer: BinaryWriter,
+        item: TagFileItem,
         value: hk,
         items: list[TagFileItem],
-        existing_items: dict[hk, TagFileItem] = None,
+        existing_items: dict[hk, TagFileItem],
+        item_creation_queue: dict[str, deque[tp.Callable]],
     ):
         _debug_print_pack(f"Packing `{cls.__name__}`...")
-        pack_pointer(cls.get_data_type(), writer, value, items, existing_items)
+        pack_pointer(cls, item, value, items, existing_items, item_creation_queue)
         if _REQUIRE_INPUT:
             input("Continue?")
 
@@ -1196,12 +1109,10 @@ class NewStruct_(hk):
     def get_type_info(cls) -> TypeInfo:
         raise TypeError("Cannot convert `_NewStruct` to `TypeInfo` yet for packing packfiles.")
 
-    # Uses standard `update_type_info_dict()`, as no additional generic types need to be created.
-
     @classmethod
     def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
         # noinspection PyTypeChecker
-        return list(cls.__mro__[:-3])  # exclude this, `hk`, and `object`
+        return list(cls.__mro__[:-4])  # exclude this, `hk`, `hkDataWrapper`, and `object`
 
 
 def NewStruct(data_type: tp.Type[hk]):
@@ -1221,9 +1132,9 @@ def unpack_bool(hk_type: tp.Type[hk], reader: BinaryReader) -> bool:
     return reader.unpack_value(fmt) > 0
 
 
-def pack_bool(hk_type: tp.Type[hk], writer: BinaryWriter, value: bool):
+def pack_bool(hk_type: tp.Type[hk], item: TagFileItem, value: bool):
     fmt = TagDataType.get_int_fmt(hk_type.tag_type_flags)
-    writer.pack(fmt, int(value))
+    item.writer.pack(fmt, int(value))
 
 
 def unpack_int(hk_type: tp.Type[hk], reader: BinaryReader) -> int:
@@ -1231,9 +1142,9 @@ def unpack_int(hk_type: tp.Type[hk], reader: BinaryReader) -> int:
     return reader.unpack_value(fmt)
 
 
-def pack_int(hk_type: tp.Type[hk], writer: BinaryWriter, value: int):
+def pack_int(hk_type: tp.Type[hk], item: TagFileItem, value: int):
     fmt = TagDataType.get_int_fmt(hk_type.tag_type_flags, signed=value < 0)
-    writer.pack(fmt, value)
+    item.writer.pack(fmt, value)
 
 
 def unpack_float32(reader: BinaryReader) -> float | hk:
@@ -1241,11 +1152,12 @@ def unpack_float32(reader: BinaryReader) -> float | hk:
     return reader.unpack_value("<f")
 
 
-def pack_float(hk_type: tp.Type[hk], writer: BinaryWriter, value: float | hk):
+def pack_float(hk_type: tp.Type[hk], item: TagFileItem, value: float | hk):
     if hk_type.tag_type_flags == TagDataType.Float | TagDataType.Float32:
-        writer.pack("<f", value)
+        item.writer.pack("<f", value)
     else:
-        pack_class(hk_type, writer, value, items=[], existing_items={})  # will not use items
+        # Will definitely not use or create items.
+        pack_class(hk_type, item, value, items=[], existing_items={}, item_creation_queue={})
 
 
 def unpack_class(
@@ -1294,19 +1206,25 @@ def unpack_class_packfile(hk_type: tp.Type[hk], entry: PackFileItemEntry, pointe
 
 def pack_class(
     hk_type: tp.Type[hk],
-    writer: BinaryWriter,
+    item: TagFileItem,
     value: hk,
     items: list[TagFileItem],
     existing_items: dict[hk, TagFileItem],
+    item_creation_queue: dict[str, deque[tp.Callable]],
 ):
-    member_start_offset = writer.position
+    member_start_offset = item.writer.position
+
+    # TODO: For named variants, we want to queue the "className" string item creations before the "name" strings.
+    #  Give `hkRootLevelContainer` a special `pack()` method that handles this properly.
+    #  Remember that the entire hk2015 file could be regenerated at some point, so make it resilient to that.
 
     _increment_debug_indent()
     for member in hk_type.members:
         _debug_print_pack(f"Member '{member.name}' (type `{member.type.__name__}`):")
         # Member offsets may not be perfectly packed together, so we always pad up to the proper offset.
-        writer.pad_to_offset(member_start_offset + member.offset)
-        member.type.pack(writer, value[member.name], items, existing_items)
+        item.writer.pad_to_offset(member_start_offset + member.offset)
+        member.type.pack(item, value[member.name], items, existing_items, item_creation_queue)
+    item.writer.pad_to_offset(member_start_offset + hk_type.byte_size)
     _decrement_debug_indent()
 
 
@@ -1385,33 +1303,53 @@ def unpack_pointer_packfile(data_hk_type: tp.Type[hk], entry: PackFileItemEntry,
 
 
 def pack_pointer(
-    data_hk_type: tp.Type[hk],
-    writer: BinaryWriter,
+    ptr_hk_type: tp.Union[tp.Type[Ptr_], tp.Type[NewStruct_]],
+    item: TagFileItem,
     value: hk,
     items: list[TagFileItem],
     existing_items: dict[hk, TagFileItem],
+    item_creation_queue: dict[str, deque[tp.Callable]],
 ):
     if value is None:
-        writer.pack("<I", 0)
+        item.writer.pack("<I", 0)
         return
 
-    if value in existing_items:
-        writer.pack("<I", items.index(existing_items[value]))
-        return
+    item.patches.setdefault(ptr_hk_type.__name__, []).append(item.writer.position)
+
+    data_hk_type = ptr_hk_type.get_data_type()
 
     if not isinstance(value, data_hk_type):
         raise TypeError(
             f"Pointer to `{data_hk_type.__name__}` contained wrong type: `{value.__class__.__name__}`"
         )
-    value_data_hk_type = type(value)
 
-    writer.pack("<I", len(items))  # next index
-    new_item = TagFileItem(value_data_hk_type, is_ptr=issubclass(value_data_hk_type, Ptr_))
-    existing_items[value] = new_item
-    items.append(new_item)
-    new_item_writer = BinaryWriter()
-    value_data_hk_type.pack(new_item_writer, value, items, existing_items)
-    new_item.data = new_item_writer.finish()
+    # Queues up a function that will create the item and write its offset to this position.
+    # No need to reserve an index in the writer; it will be recorded in the function body.
+
+    item_index_pos = item.writer.position
+    item.writer.pack("<I", 0)  # temporary
+
+    # print(f"Appending pointer item pack: {value}")
+
+    def delayed_item_creation(_item_creation_queue) -> tp.Optional[TagFileItem]:
+        # Item may have been created since this function was queued.
+        if value in existing_items:
+            existing_item = existing_items[value]
+            item.writer.pack_at(item_index_pos, "<I", items.index(existing_item))
+            return None
+
+        # print(f"Packing pointer item index {len(items)}")
+        item.writer.pack_at(item_index_pos, "<I", len(items))
+        value_data_hk_type = type(value)  # type: tp.Type[hk]  # may be a subclass of `data_hk_type`
+        new_item = TagFileItem(ptr_hk_type, is_ptr=value_data_hk_type.get_tag_data_type() == TagDataType.Class)
+        new_item.value = value
+        existing_items[value] = new_item
+        items.append(new_item)
+        new_item.writer = BinaryWriter()
+        # Item does NOT recur `.pack()` here. It is packed when this item is iterated over.
+        return new_item
+
+    item_creation_queue.setdefault("pointer", deque()).append(delayed_item_creation)
 
 
 def unpack_array(data_hk_type: tp.Type[hk], reader: BinaryReader, items: list[TagFileItem]) -> list:
@@ -1420,7 +1358,6 @@ def unpack_array(data_hk_type: tp.Type[hk], reader: BinaryReader, items: list[Ta
     if item_index == 0:
         return []
     item = items[item_index]
-    # TODO: Shouldn't we use `item.hk_type`, not `data_hk_type` (which must only be a parent)?
 
     if item.value is None:
         _increment_debug_indent()
@@ -1466,28 +1403,41 @@ def unpack_array_packfile(data_hk_type: tp.Type[hk], entry: PackFileItemEntry, p
 
 
 def pack_array(
-    data_hk_type: tp.Type[hk],
-    writer: BinaryWriter,
+    array_hk_type: tp.Type[hkArray_],
+    item: TagFileItem,
     value: list[hk | str | int | float | bool],
     items: list[TagFileItem],
     existing_items: dict[hk, TagFileItem],
+    item_creation_queue: dict[str, deque[tp.Callable]],
 ):
     """Array items are always created per instance, never re-used. (Not sure if that's correct, but it is here.)"""
     if not value:
-        writer.pack("<I", 0)
+        item.writer.pack("<I", 0)
         return
 
-    writer.pack("<I", len(items))  # next index
-    new_item = TagFileItem(data_hk_type, is_ptr=issubclass(data_hk_type, Ptr_), length=len(value))
-    items.append(new_item)
-    new_item_writer = BinaryWriter()
+    # Queues up a function that will create the item and write its item index to this position.
+    # No need to reserve an index in the writer; it will be recorded in the function body.
 
-    for i, element in enumerate(value):
-        # TODO: Could validate element type here (for pointers/strings, at least).
-        new_item_writer.pad_to_offset(i * data_hk_type.byte_size)
-        data_hk_type.pack(new_item_writer, element, items, existing_items)
+    item_index_pos = item.writer.position
+    item.writer.pack("<I", 0)  # temporary
+    data_hk_type = array_hk_type.get_data_type()
 
-    new_item.data = new_item_writer.finish()
+    # print(f"Appending array item pack: {value}")
+
+    def delayed_item_creation(_item_creation_queue) -> TagFileItem:
+        # print(f"Packing array item index {len(items)}")
+        item.writer.pack_at(item_index_pos, "<I", len(items))
+        new_item = TagFileItem(array_hk_type, is_ptr=False, length=len(value))
+        item.patches.setdefault(new_item.hk_type.__name__, []).append(item_index_pos)
+        new_item.value = value
+        items.append(new_item)
+        new_item.writer = BinaryWriter()
+        for i, element in enumerate(value):
+            data_hk_type.pack(new_item, element, items, existing_items, _item_creation_queue)
+            new_item.writer.pad_to_offset((i + 1) * data_hk_type.byte_size)
+        return new_item
+
+    item_creation_queue.setdefault("array", deque()).append(delayed_item_creation)
 
 
 def unpack_struct(
@@ -1519,19 +1469,20 @@ def unpack_struct_packfile(
 
 def pack_struct(
     data_hk_type: tp.Type[hk],
-    writer: BinaryWriter,
+    item: TagFileItem,
     value: tuple,
     items: list[TagFileItem],
     existing_items: dict[hk, TagFileItem],
+    item_creation_queue: dict[str, deque[tp.Callable]],
     length: int,
 ):
     """Structs are packed locally in the same item, but can contain pointers themselves."""
-    struct_start_offset = writer.position
+    struct_start_offset = item.writer.position
     if len(value) != length:
         raise ValueError(f"Length of `{data_hk_type.__name__}` value is not {length}: {value}")
     for i, element in enumerate(value):
-        writer.pad_to_offset(struct_start_offset + i * data_hk_type.byte_size)
-        data_hk_type.pack(writer, element, items, existing_items)
+        item.writer.pad_to_offset(struct_start_offset + i * data_hk_type.byte_size)
+        data_hk_type.pack(item, element, items, existing_items, item_creation_queue)
 
 
 def unpack_string(reader: BinaryReader, items: list[TagFileItem]) -> str:
@@ -1559,17 +1510,41 @@ def unpack_string_packfile(entry: PackFileItemEntry, pointer_size: int) -> str:
     return entry.reader.unpack_string(offset=string_offset, encoding="shift_jis_2004")
 
 
-def pack_string(string_hk_type: tp.Type[hk], writer: BinaryWriter, value: str, items: list[TagFileItem]):
+def pack_string(
+    string_hk_type: tp.Type[hk],
+    item: TagFileItem,
+    value: str,
+    items: list[TagFileItem],
+    item_creation_queue: dict[str, deque[tp.Callable]],
+    is_variant_name=False,
+):
+    """Like arrays (which they are, essentially), strings are never re-used as items."""
+    item.patches.setdefault(string_hk_type.__name__, []).append(item.writer.position)
+
     if not value:
-        writer.pack("<I", 0)
+        item.writer.pack("<I", 0)
         return
     if not isinstance(value, str):
         raise ValueError(f"Cannot pack non-string: {value}")
 
-    writer.pack("<I", len(items))  # next index
-    encoded = value.encode("shift_jis_2004") + b"\0"
-    new_item = TagFileItem(string_hk_type, is_ptr=False, data=encoded, length=len(encoded))
-    items.append(new_item)
+    item_index_pos = item.writer.position
+    item.writer.pack("<I", 0)  # temporary
+
+    def delayed_item_creation(_item_creation_queue) -> TagFileItem:
+        # print(f"Packing string item index {len(items)}")
+        item.writer.pack_at(item_index_pos, "<I", len(items))
+        encoded = value.encode("shift_jis_2004") + b"\0"
+        new_item = TagFileItem(string_hk_type, is_ptr=False, length=len(encoded))
+        new_item.value = value
+        items.append(new_item)
+        new_item.writer = BinaryWriter()
+        new_item.writer.append(encoded)  # could write `data` immediately but this is more consistent
+        return new_item
+
+    if is_variant_name:
+        item_creation_queue.setdefault("variant_name_string", deque()).append(delayed_item_creation)
+    else:
+        item_creation_queue.setdefault("string", deque()).append(delayed_item_creation)
 
 
 def unpack_named_variant(
@@ -1624,6 +1599,37 @@ def unpack_named_variant_packfile(
     _debug_print_unpack(f"--> {variant_instance}")
     setattr(instance, variant_member.name, variant_instance)
     return instance
+
+
+def pack_named_variant(
+    hk_type: tp.Type[hk],
+    item: TagFileItem,
+    value: hk,
+    items: list[TagFileItem],
+    existing_items: dict[hk, TagFileItem],
+    item_creation_queue: dict[str, deque[tp.Callable]],
+):
+    """Named variants create items for their 'name' members before their 'className' members."""
+    member_start_offset = item.writer.position
+    _increment_debug_indent()
+
+    name_member = hk_type.members[0]
+    item.writer.pad_to_offset(member_start_offset + name_member.offset)
+    _debug_print_pack(f"Member 'name' (type `{name_member.type.__name__}`):")
+    # noinspection PyArgumentList
+    name_member.type.pack(item, value["name"], items, existing_items, item_creation_queue, is_variant_name=True)
+
+    class_name_member = hk_type.members[1]
+    item.writer.pad_to_offset(member_start_offset + class_name_member.offset)
+    _debug_print_pack(f"Member 'className' (type `{class_name_member.type.__name__}`):")
+    class_name_member.type.pack(item, value["className"], items, existing_items, item_creation_queue)
+
+    variant_member = hk_type.members[2]
+    item.writer.pad_to_offset(member_start_offset + variant_member.offset)
+    _debug_print_pack(f"Member 'variant' (type `{variant_member.type.__name__}`):")
+    variant_member.type.pack(item, value["variant"], items, existing_items, item_creation_queue)
+
+    _decrement_debug_indent()
 
 
 def create_module_from_files(version="2015", *file_paths: str | Path, is_tagfile=True):
@@ -1683,6 +1689,9 @@ if tp.TYPE_CHECKING:
     for type_info in raw_type_infos:
         if type_info.name in generic_types or type_info.py_name in type_info_dict:  # always skipped
             continue
+        print(type_info.py_name)
+        for member in type_info.members:
+            print(f"    {member.type_info}")
         type_info_dict[type_info.py_name] = type_info
 
     defined_py_names = ["hk"]
@@ -1740,8 +1749,10 @@ if tp.TYPE_CHECKING:
         type_info for name, type_info in type_info_dict.items()
         if type_info.get_parent_value("tag_data_type") == TagDataType.Struct
     ])
-    module_str += define(type_info_dict["hkQsTransformf"])  # bundles other structs together
-    module_str += define(type_info_dict["hkQsTransform"])  # alias for above
+    if "hkQsTransformf" in type_info_dict:
+        module_str += define(type_info_dict["hkQsTransformf"])  # bundles other structs together
+    if "hkQsTransform" in type_info_dict:
+        module_str += define(type_info_dict["hkQsTransform"])  # alias for above
 
     # Other shallow wrappers.
     module_str += f"\n\n# --- Havok Wrappers --- #\n"
@@ -1768,6 +1779,7 @@ if tp.TYPE_CHECKING:
 if __name__ == '__main__':
     create_module_from_files(
         "2014",
+        # Path(r"C:\Dark Souls\soulstruct-havok\tests\resources\BB\c2310\c2310-chrbnd-dcx\chr\c2310\c2310.HKX"),
         Path("../../tests/resources/BB/c2800/c2800.hkx").resolve(),
         is_tagfile=False,
     )

@@ -2583,3 +2583,95 @@ class hkaAnimationContainer(hkReferencedObject):
     bindings: list[hkaAnimationBinding]
     attachments: list[hkaBoneAttachment]
     skins: list[hkaMeshBinding]
+
+
+class hkpLimitedForceConstraintMotor(hk):
+    alignment = 16
+    byte_size = 24
+    tag_format_flag = 41
+    tag_type_flag = 7
+
+    local_members = (
+        Member("minForce", hkReal, offset=16, flags=0),
+        Member("maxForce", hkReal, offset=20, flags=0),
+    )
+
+
+class hkp2dAngConstraintAtom(hkpConstraintAtom):
+    alignment = 16
+    byte_size = 16
+    tag_format_flags = 41
+    tag_type_flags = 7
+
+    local_members = (
+        Member("freeRotationAxis", hkUint8, offset=2, flags=0),
+        Member("padding", hkStruct(hkUint8, 13), offset=3, flags=0),
+    )
+
+    freeRotationAxis: hkUint8
+    padding: tuple[hkUint8]
+
+
+class hkpAngMotorConstraintAtom(hkpConstraintAtom):
+    alignment = 16
+    byte_size = 40
+    tag_format_flags = 41
+    tag_type_flags = 7
+
+    __version = 1
+
+    local_members = (
+        Member("isEnabled", hkBool, offset=2, flags=0),
+        Member("motorAxis", hkUint8, offset=3, flags=0),
+        Member("initializdOffset", hkInt16, offset=4, flags=0),
+        Member("previousTargetAngleOffset", hkInt16, offset=6, flags=0),
+        Member("correspondingAngLimitSolverResultOffset", hkInt16, offset=8, flags=0),
+        Member("targetAngle", hkReal, offset=12, flags=0),
+        Member("motor", Ptr(hkpConstraintMotor), offset=16, flags=0),
+        Member("padding", hkStruct(hkUint8, 20), offset=24, flags=0),
+    )
+
+
+class hkpAngLimitConstraintAtom(hkpConstraintAtom):
+    alignment = 16
+    byte_size = 16
+    tag_format_flags = 41
+    tag_type_flags = 7
+
+    local_members = (
+        Member("isEnabled", hkUint8, offset=2, flags=0),
+        Member("limitAxis", hkUint8, offset=3, flags=0),
+        Member("minAngle", hkReal, offset=4, flags=0),
+        Member("maxAngle", hkReal, offset=8, flags=0),
+        Member("angularLimitsTauFactor", hkReal, offset=12, flags=0),
+    )
+
+
+class hkpLimitedHingeConstraintDataAtoms(hk):
+    alignment = 16
+    byte_size = 272
+    tag_format_flags = 41
+    tag_type_flags = 7
+
+    __version = 1
+
+    local_members = (
+        Member("transforms", hkpSetLocalTransformsConstraintAtom, offset=0, flags=0),
+        Member("setupStabilization", hkpSetupStabilizationAtom, offset=144, flags=0),
+        Member("angMotor", hkpAngMotorConstraintAtom, offset=160, flags=0),
+        Member("angFriction", hkpAngFrictionConstraintAtom, offset=200, flags=0),
+        Member("angLimit", hkpAngLimitConstraintAtom, offset=216, flags=0),
+        Member("2dAng", hkp2dAngConstraintAtom, offset=232, flags=0),
+        Member("ballSocket", hkpBallSocketConstraintAtom, offset=248, flags=0),
+    )
+
+
+class hkpLimitedHingeConstraintData(hkpConstraintData):
+    alignment = 16
+    byte_size = 304
+    tag_format_flags = 41
+    tag_type_flags = 7
+
+    local_members = (
+        Member("atoms", hkpLimitedHingeConstraintDataAtoms, offset=32, flags=256),
+    )

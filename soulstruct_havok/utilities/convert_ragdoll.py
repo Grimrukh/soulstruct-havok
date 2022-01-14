@@ -99,6 +99,6 @@ if __name__ == '__main__':
     # c2240_chrbnd = BND3(nf_chr_path / "c2240.chrbnd.dcx.bak")
 
     extract_info_to_json(
-        Binder(BLOODBORNE_CHR_PATH / "c2800.chrbnd.dcx"),
-        Path("C:/Dark Souls/havok-old/soulstruct_havok/BB_c2800_ragdoll.json"),
+        Binder(BLOODBORNE_CHR_PATH / "c2310.chrbnd.dcx"),
+        Path("C:/Dark Souls/havok-old/soulstruct_havok/BB_c2310_ragdoll.json"),
     )
