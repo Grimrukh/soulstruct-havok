@@ -5,7 +5,7 @@ __all__ = ["TagFileItem"]
 import logging
 import typing as tp
 
-from soulstruct_havok.types.core import TagDataType
+from soulstruct_havok.enums import TagDataType
 
 if tp.TYPE_CHECKING:
     from soulstruct.utilities.binary import BinaryWriter

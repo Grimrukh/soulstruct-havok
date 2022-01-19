@@ -667,6 +667,12 @@ def examine_dsr_ragdolls():
     ice_king_chrbnd.write()
 
 
+def map_collision():
+    van_col_path = r"C:\Steam\steamapps\common\DARK SOULS REMASTERED (Vanilla Backup)\map\m12_00_00_00\l12_00_00_00-hkxbhd\m12_00_00_00\l0035B0A12.hkx"
+    HKX(van_col_path)
+
+
 if __name__ == '__main__':
     # test_ragdoll_conversion()
-    examine_dsr_ragdolls()
+    # examine_dsr_ragdolls()
+    map_collision()

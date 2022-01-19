@@ -249,6 +249,8 @@ class TypeInfo:
             for member_field in ("name", "flags", "offset"):
                 if (py_value := getattr(py_member, member_field)) != (new_value := getattr(new_member, member_field)):
                     raise TypeMatchError(py_class, f"member {py_member.name}.{member_field}", py_value, new_value)
+                if py_member.type is None:
+                    raise ValueError(f"Defined Member {py_member.name} has type None. TypeInfo: {self}")
 
             # TODO: Should also check member type, but that's a little more complex with the array/enum wrappers, etc.
 
@@ -524,7 +526,6 @@ class TypeInfo:
 
     def get_parent_string(self):
         return (
-            # f"{self.parent_type_index} | "
             f"{self.parent_type_info.name if self.parent_type_info else None} | "
             f"{self.parent_type_py_name if self.parent_type_py_name else None}"
         )
@@ -535,6 +536,41 @@ class TypeInfo:
             f"{self.pointer_type_info.name if self.pointer_type_info else None} | "
             f"{self.pointer_type_py_name if self.pointer_type_py_name else None}"
         )
+
+    def get_rough_py_def(self):
+        """Formatted string that is a good starting point for manually defining this type."""
+        parent = self.parent_type_info.name if self.parent_type_info else "hk"
+        py_def = (
+            f"class {self.py_name}({parent}):\n"
+            f"    alignment = {self.alignment}\n"
+            f"    byte_size = {self.byte_size}\n"
+            f"    tag_type_flags = {self.tag_type_flags}"
+        )
+        if self.tag_format_flags:
+            py_def += f"\n\n    __tag_format_flags = {self.tag_format_flags}"
+
+        if self.hsh:
+            py_def += f"\n    __hsh = {self.hsh}"
+        if self.abstract_value:
+            py_def += f"\n    __abstract_value = {self.abstract_value}"
+        if self.version:
+            py_def += f"\n    __version = {self.version}"
+
+        if self.name != self.py_name:
+            py_def += f"\n    __real_name = \"{self.name}\""
+
+        if self.members:
+            py_def += f"\n\n    local_members = (\n"
+            for member in self.members:
+                py_def += (
+                    f"        Member(\"{member.name}\", {member.type_py_name}, "
+                    f"offset={member.offset}, flags={member.flags}),\n"
+                )
+            py_def += "    )"
+
+        # TODO: templates, interfaces
+
+        return py_def
 
     def __repr__(self) -> str:
         return (

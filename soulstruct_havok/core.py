@@ -193,8 +193,8 @@ class HKX(GameFile):
         serializer = HKXXMLSerializer(self.root, with_backport=with_backport)
         serializer.write(xml_file_path)
 
-    def get_root_tree_string(self) -> str:
-        return self.root.get_tree_string()
+    def get_root_tree_string(self, max_primitive_sequence_size=-1) -> str:
+        return self.root.get_tree_string(max_primitive_sequence_size=max_primitive_sequence_size)
 
     # ~~~ CONVERSION METHODS ~~~ #
 

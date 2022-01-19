@@ -357,7 +357,7 @@ class hk:
                 return member
         raise KeyError(f"No member named '{member_name}' in class `{cls.__name__}`.")
 
-    def get_tree_string(self, indent=0, instances_shown: list = None) -> str:
+    def get_tree_string(self, indent=0, instances_shown: list = None, max_primitive_sequence_size=-1) -> str:
         """Recursively build indented string of this instance and everything within its members."""
         if instances_shown is None:
             instances_shown = []
@@ -373,7 +373,8 @@ class hk:
                         f"  # <{instances_shown.index(member_value)}>")
                 else:
                     lines.append(
-                        f"    {member.name} = {member_value.get_tree_string(indent + 4, instances_shown)},"
+                        f"    {member.name} = "
+                        f"{member_value.get_tree_string(indent + 4, instances_shown, max_primitive_sequence_size)},"
                         f"  # <{len(instances_shown)}>"
                     )
                     instances_shown.append(member_value)
@@ -386,19 +387,32 @@ class hk:
                         if element in instances_shown:
                             lines.append(f"        {element.__class__.__name__},  # <{instances_shown.index(element)}>")
                         else:
-                            element_string = element.get_tree_string(indent + 8, instances_shown)
+                            element_string = element.get_tree_string(
+                                indent + 8, instances_shown, max_primitive_sequence_size
+                            )
                             lines.append(
                                 f"        {element_string},  # <{len(instances_shown)}>"
                             )
                             instances_shown.append(element)
                     lines.append(f"    ],")
                 elif isinstance(member_value[0], (list, tuple)):
-                    lines.append(f"    {member.name} = [")
-                    for element in member_value:
-                        lines.append(f"        {repr(element)},")
-                    lines.append(f"    ],")
+                    if 0 < max_primitive_sequence_size < len(member_value):
+                        lines.append(
+                            f"    {member.name} = [<{len(member_value)} tuples>],"
+                        )
+                    else:
+                        lines.append(f"    {member.name} = [")
+                        for element in member_value:
+                            lines.append(f"        {repr(element)},")
+                        lines.append(f"    ],")
                 else:
-                    lines.append(f"    {member.name} = {repr(member_value)},")
+                    # Primitive list.
+                    if 0 < max_primitive_sequence_size < len(member_value):
+                        lines.append(
+                            f"    {member.name} = [<{len(member_value)} {type(member_value[0]).__name__}>],"
+                        )
+                    else:
+                        lines.append(f"    {member.name} = {repr(member_value)},")
             elif isinstance(member_value, tuple):
                 if not member_value:
                     lines.append(f"    {member.name} = (),")
@@ -409,7 +423,8 @@ class hk:
                             lines.append(f"        {element.__class__.__name__},  # <{instances_shown.index(element)}>")
                         else:
                             lines.append(
-                                f"        {element.get_tree_string(indent + 8, instances_shown)},"
+                                f"        "
+                                f"{element.get_tree_string(indent + 8, instances_shown, max_primitive_sequence_size)},"
                                 f"  # <{len(instances_shown)}>"
                             )
                             instances_shown.append(element)
@@ -1176,6 +1191,12 @@ def unpack_class(
     for member in hk_type.members:
         _debug_print_unpack(f"Member '{member.name}' (type `{member.type.__name__}`):")
         member_value = member.type.unpack(reader, member_start_offset + member.offset, items)
+        # TODO: For finding the floor material hex offset in map collisions.
+        # if hk_type.__name__ == "_CustomMeshParameter":
+        #     print(
+        #         f"Custom mesh parameter member {member.name} offset: "
+        #         f"{hex(member_start_offset + member.offset)} ({member_value})"
+        #     )
         setattr(instance, member.name, member_value)  # type hint will be given in class definition
     _decrement_debug_indent()
     return instance
@@ -1632,9 +1653,10 @@ def pack_named_variant(
     _decrement_debug_indent()
 
 
-def create_module_from_files(version="2015", *file_paths: str | Path, is_tagfile=True):
+def create_module_from_files(version="2015", *file_paths: str | Path, is_tagfile=True, module_path: Path = None):
     """Create an actual Python module with a real class hierarchy that fully captures Havok types."""
-    module_path = Path(__file__).parent / f"hk{version}.py"
+    if module_path is None:
+        module_path = Path(__file__).parent / f"hk{version}.py"
 
     module_str = ""
 
@@ -1721,6 +1743,7 @@ if tp.TYPE_CHECKING:
                     continue  # try next type
             if not new_definitions:
                 ex_str = "\n    ".join(exceptions)
+                print(defined_py_names)
                 raise ValueError(
                     f"Could not define any types remaining in list: {[_t.name for _t in _type_infos]}.\n\n"
                     f"Last errors:\n    {ex_str}"
@@ -1731,17 +1754,23 @@ if tp.TYPE_CHECKING:
                 break
         return class_str
 
+    print("Defining Invalid Types")
+
     module_str += f"\n\n# --- Invalid Types --- #\n"
     module_str += define_all([
         type_info for name, type_info in type_info_dict.items()
         if type_info.tag_data_type == TagDataType.Invalid
     ])
 
+    print("Defining Primitive Types")
+
     module_str += f"\n\n# --- Primitive Types --- #\n"
     module_str += define_all([
         type_info for name, type_info in type_info_dict.items()
-        if not type_info.name.startswith("hk")
+        if not type_info.name.startswith("hk") and not type_info.name.startswith("Custom")
     ])
+
+    print("Defining Havok Struct Types")
 
     # Basic 'Struct' types.
     module_str += f"\n\n# --- Havok Struct Types --- #\n"
@@ -1754,12 +1783,16 @@ if tp.TYPE_CHECKING:
     if "hkQsTransform" in type_info_dict:
         module_str += define(type_info_dict["hkQsTransform"])  # alias for above
 
+    print("Defining Havok Wrappers")
+
     # Other shallow wrappers.
     module_str += f"\n\n# --- Havok Wrappers --- #\n"
     module_str += define_all([
         type_info for name, type_info in type_info_dict.items()
         if type_info.tag_type_flags is None
     ])
+
+    print("Defining Havok Core Types")
 
     # Core classes.
     module_str += f"\n\n# --- Havok Core Types --- #\n"
@@ -1778,10 +1811,12 @@ if tp.TYPE_CHECKING:
 
 if __name__ == '__main__':
     create_module_from_files(
-        "2014",
+        "2015",
         # Path(r"C:\Dark Souls\soulstruct-havok\tests\resources\BB\c2310\c2310-chrbnd-dcx\chr\c2310\c2310.HKX"),
-        Path("../../tests/resources/BB/c2800/c2800.hkx").resolve(),
-        is_tagfile=False,
+        # Path("../../tests/resources/BB/c2800/c2800.hkx").resolve(),
+        Path("C:/Dark Souls/Projects/NightfallMod/Nightfall/RES/Interroot/map/m12_00_00_00/h0535B0A12.hkx"),
+        is_tagfile=True,
+        module_path=Path(__file__).parent / f"hk2015_collision.py"
     )
 
     # create_module_from_files(

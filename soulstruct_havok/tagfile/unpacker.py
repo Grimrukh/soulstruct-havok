@@ -75,7 +75,15 @@ class TagFileUnpacker:
                             type_info.py_class = py_class
                         except AttributeError:
                             # TODO: Create?
-                            raise TypeError(f"No Python type '{type_info.py_name}'. Info:\n{self}")
+                            print(type_info.get_rough_py_def())
+                            raise TypeError(f"No Python type '{type_info.py_name}'. Info:\n{type_info}")
+                        else:
+                            # TODO: check member type.
+                            pass
+                            # for py_member, info_member in zip(py_class.local_members, type_info.members):
+                            #     if py_member.type is None:
+                            #         raise TypeError(f"Bad py member: ")
+
 
                     self.items = self.unpack_index_section(reader, data_start_offset)
 

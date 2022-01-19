@@ -2907,3 +2907,592 @@ class hkpLimitedHingeConstraintData(hkpConstraintData):
     local_members = (
         Member("atoms", hkpLimitedHingeConstraintDataAtoms, offset=32, flags=32),
     )
+
+
+# FROM MAP COLLISION:
+
+
+class hkQuaternion(hkQuaternionf):
+    """Havok alias."""
+    __tag_format_flags = 0
+    local_members = ()
+
+
+class hkpShapeContainer(hk):
+    alignment = 8
+    byte_size = 8
+    tag_type_flags = 7
+
+    __tag_format_flags = 57
+    __abstract_value = 147
+    local_members = ()
+
+
+class hkpBvTreeShapeBvTreeType(hk):
+    alignment = 4
+    byte_size = 4
+    tag_type_flags = 33284
+
+    __tag_format_flags = 9
+    __real_name = "hkpBvTreeShape::BvTreeType"
+    local_members = ()
+
+
+class hkpMoppCodeCodeInfo(hk):
+    alignment = 16
+    byte_size = 16
+    tag_type_flags = 7
+
+    __tag_format_flags = 41
+    __real_name = "hkpMoppCode::CodeInfo"
+
+    local_members = (
+        Member("offset", hkVector4, offset=0, flags=32),
+    )
+    members = local_members
+
+    offset: hkVector4
+
+
+class hkpMoppCodeBuildType(hk):
+    alignment = 4
+    byte_size = 4
+    tag_type_flags = 33284
+
+    __tag_format_flags = 9
+    __real_name = "hkpMoppCode::BuildType"
+    local_members = ()
+
+
+class _CustomMeshParameter(hkReferencedObject):
+    alignment = 8
+    byte_size = 72
+    tag_type_flags = 7
+
+    __tag_format_flags = 41
+    __hsh = 4160631638
+    __real_name = "CustomMeshParameter"
+
+    local_members = (
+        Member("version", hkUint32, offset=16, flags=36),
+        Member("vertexDataBuffer", hkArray(hkUint8, hsh=2877151166), offset=24, flags=36),
+        Member("vertexDataStride", hkInt32, offset=40, flags=36),
+        Member("primitiveDataBuffer", hkArray(hkUint8, hsh=2877151166), offset=48, flags=36),
+        Member("materialNameData", hkUint32, offset=64, flags=36),
+    )
+    members = hkReferencedObject.members + local_members
+
+    version: hkUint32
+    vertexDataBuffer: list[hkUint8]
+    vertexDataStride: hkInt32
+    primitiveDataBuffer: list[hkUint8]
+    materialNameData: hkUint32
+
+
+class hkpExtendedMeshShapeSubpart(hk):
+    alignment = 8
+    byte_size = 32
+    tag_type_flags = 7
+
+    __tag_format_flags = 45
+    __version = 3
+    __real_name = "hkpExtendedMeshShape::Subpart"
+
+    local_members = (
+        Member("typeAndFlags", hkUint16, offset=0, flags=34),
+        Member("shapeInfo", hkUint16, offset=2, flags=32),
+        Member("materialStriding", hkInt16, offset=4, flags=33),
+        Member("materialIndexStriding", hkUint16, offset=6, flags=32),
+        Member("materialIndexBase", Ptr(hkReflectDetailOpaque, hsh=None), offset=8, flags=33),
+        Member("materialBase", Ptr(hkReflectDetailOpaque, hsh=None), offset=16, flags=33),
+        Member("userData", hkUlong, offset=24, flags=32),
+    )
+    members = local_members
+
+    typeAndFlags: hkUint16
+    shapeInfo: hkUint16
+    materialStriding: hkInt16
+    materialIndexStriding: hkUint16
+    materialIndexBase: hkReflectDetailOpaque
+    materialBase: hkReflectDetailOpaque
+    userData: hkUlong
+
+
+class hkpWeldingUtilityWeldingType(hk):
+    alignment = 4
+    byte_size = 4
+    tag_type_flags = 33284
+
+    __tag_format_flags = 9
+    __real_name = "hkpWeldingUtility::WeldingType"
+    local_members = ()
+
+
+class hkpShapeCollectionCollectionType(hk):
+    alignment = 4
+    byte_size = 4
+    tag_type_flags = 33284
+
+    __tag_format_flags = 9
+    __real_name = "hkpShapeCollection::CollectionType"
+    local_members = ()
+
+
+class hkpExtendedMeshShapeIndexStridingType(hk):
+    alignment = 4
+    byte_size = 4
+    tag_type_flags = 33284
+
+    __tag_format_flags = 9
+    __real_name = "hkpExtendedMeshShape::IndexStridingType"
+    local_members = ()
+
+
+class hkpMeshMaterial(hk):
+    alignment = 4
+    byte_size = 4
+    tag_type_flags = 7
+
+    __tag_format_flags = 41
+
+    local_members = (
+        Member("filterInfo", hkUint32, offset=0, flags=32),
+    )
+    members = local_members
+
+    filterInfo: hkUint32
+
+
+class hkpMoppCode(hkReferencedObject):
+    alignment = 16
+    byte_size = 64
+    tag_type_flags = 7
+
+    __tag_format_flags = 41
+    __hsh = 1660805132
+
+    local_members = (
+        Member("info", hkpMoppCodeCodeInfo, offset=16, flags=32),
+        Member("data", hkArray(hkUint8, hsh=2877151166), offset=32, flags=32),
+        Member("buildType", hkEnum(hkpMoppCodeBuildType, hkInt8), offset=48, flags=32),
+    )
+    members = hkReferencedObject.members + local_members
+
+    info: hkpMoppCodeCodeInfo
+    data: list[hkUint8]
+    buildType: hkpMoppCodeBuildType
+
+
+class hkpExtendedMeshShapeTrianglesSubpart(hkpExtendedMeshShapeSubpart):
+    alignment = 16
+    byte_size = 144
+    tag_type_flags = 7
+
+    __tag_format_flags = 45
+    __hsh = 1411582562
+    __version = 4
+    __real_name = "hkpExtendedMeshShape::TrianglesSubpart"
+
+    local_members = (
+        Member("numTriangleShapes", _int, offset=32, flags=32),
+        Member("vertexBase", Ptr(hkReflectDetailOpaque, hsh=None), offset=40, flags=33),
+        Member("numVertices", _int, offset=48, flags=32),
+        Member("indexBase", Ptr(hkReflectDetailOpaque, hsh=None), offset=56, flags=33),
+        Member("vertexStriding", hkUint16, offset=64, flags=32),
+        Member("triangleOffset", _int, offset=68, flags=32),
+        Member("indexStriding", hkUint16, offset=72, flags=32),
+        Member("stridingType", hkEnum(hkpExtendedMeshShapeIndexStridingType, hkInt8), offset=74, flags=32),
+        Member("flipAlternateTriangles", hkInt8, offset=75, flags=32),
+        Member("extrusion", hkVector4, offset=80, flags=32),
+        Member("transform", hkQsTransform, offset=96, flags=32),
+    )
+    members = hkpExtendedMeshShapeSubpart.members + local_members
+
+    numTriangleShapes: _int
+    vertexBase: hkReflectDetailOpaque
+    numVertices: _int
+    indexBase: hkReflectDetailOpaque
+    vertexStriding: hkUint16
+    triangleOffset: _int
+    indexStriding: hkUint16
+    stridingType: hkpExtendedMeshShapeIndexStridingType
+    flipAlternateTriangles: hkInt8
+    extrusion: hkVector4
+    transform: hkQsTransform
+
+
+class hkpStorageExtendedMeshShapeMaterial(hkpMeshMaterial):
+    alignment = 8
+    byte_size = 16
+    tag_type_flags = 7
+
+    __tag_format_flags = 45
+    __version = 1
+    __real_name = "hkpStorageExtendedMeshShape::Material"
+
+    local_members = (
+        Member("restitution", hkHalf16, offset=4, flags=32),
+        Member("friction", hkHalf16, offset=6, flags=32),
+        Member("userData", hkUlong, offset=8, flags=32),
+    )
+    members = hkpMeshMaterial.members + local_members
+
+    restitution: hkHalf16
+    friction: hkHalf16
+    userData: hkUlong
+
+
+class hkpNamedMeshMaterial(hkpMeshMaterial):
+    alignment = 8
+    byte_size = 16
+    tag_type_flags = 7
+
+    __tag_format_flags = 41
+
+    local_members = (
+        Member("name", hkStringPtr, offset=8, flags=32),
+    )
+    members = hkpMeshMaterial.members + local_members
+
+    name: hkStringPtr
+
+
+class hkpStorageExtendedMeshShapeMeshSubpartStorage(hkReferencedObject):
+    alignment = 8
+    byte_size = 144
+    tag_type_flags = 7
+
+    __tag_format_flags = 45
+    __hsh = 1824184153
+    __version = 3
+    __real_name = "hkpStorageExtendedMeshShape::MeshSubpartStorage"
+
+    local_members = (
+        Member("vertices", hkArray(hkVector4, hsh=2234779563), offset=16, flags=32),
+        Member("indices8", hkArray(hkUint8, hsh=2877151166), offset=32, flags=32),
+        Member("indices16", hkArray(hkUint16, hsh=3551656838), offset=48, flags=32),
+        Member("indices32", hkArray(hkUint32, hsh=None), offset=64, flags=32),
+        Member("materialIndices", hkArray(hkUint8, hsh=2877151166), offset=80, flags=32),
+        Member("materials", hkArray(hkpStorageExtendedMeshShapeMaterial, hsh=None), offset=96, flags=32),
+        Member("namedMaterials", hkArray(hkpNamedMeshMaterial, hsh=None), offset=112, flags=32),
+        Member("materialIndices16", hkArray(hkUint16, hsh=3551656838), offset=128, flags=32),
+    )
+    members = hkReferencedObject.members + local_members
+
+    vertices: list[hkVector4]
+    indices8: list[hkUint8]
+    indices16: list[hkUint16]
+    indices32: list[hkUint32]
+    materialIndices: list[hkUint8]
+    materials: list[hkpStorageExtendedMeshShapeMaterial]
+    namedMaterials: list[hkpNamedMeshMaterial]
+    materialIndices16: list[hkUint16]
+
+
+class hkpStorageExtendedMeshShapeShapeSubpartStorage(hkReferencedObject):
+    alignment = 8
+    byte_size = 64
+    tag_type_flags = 7
+
+    __tag_format_flags = 45
+    __version = 2
+    __real_name = "hkpStorageExtendedMeshShape::ShapeSubpartStorage"
+
+    local_members = (
+        Member("materialIndices", hkArray(hkUint8, hsh=2877151166), offset=16, flags=32),
+        Member("materials", hkArray(hkpStorageExtendedMeshShapeMaterial, hsh=None), offset=32, flags=32),
+        Member("materialIndices16", hkArray(hkUint16, hsh=3551656838), offset=48, flags=32),
+    )
+    members = hkReferencedObject.members + local_members
+
+    materialIndices: list[hkUint8]
+    materials: list[hkpStorageExtendedMeshShapeMaterial]
+    materialIndices16: list[hkUint16]
+
+
+class hkpSingleShapeContainer(hkpShapeContainer):
+    alignment = 8
+    byte_size = 16
+    tag_type_flags = 7
+
+    __tag_format_flags = 41
+
+    local_members = (
+        Member("childShape", Ptr(hkpShape, hsh=1200505464), offset=8, flags=34),
+    )
+    members = hkpShapeContainer.members + local_members
+
+    childShape: hkpShape
+
+
+class hkpBvTreeShape(hkpShape):
+    alignment = 8
+    byte_size = 40
+    tag_type_flags = 7
+
+    __tag_format_flags = 61
+    __abstract_value = 3
+    __version = 1
+
+    local_members = (
+        Member("bvTreeType", hkEnum(hkpBvTreeShapeBvTreeType, hkUint8), offset=32, flags=32),
+    )
+    members = hkpShape.members + local_members
+
+    bvTreeType: hkpBvTreeShapeBvTreeType
+
+
+class hkpShapeCollection(hkpShape):
+    alignment = 8
+    byte_size = 48
+    tag_type_flags = 7
+
+    __tag_format_flags = 121
+    __abstract_value = 3
+
+    local_members = (
+        Member("disableWelding", hkBool, offset=40, flags=32),
+        Member("collectionType", hkEnum(hkpShapeCollectionCollectionType, hkUint8), offset=41, flags=32),
+    )
+    members = hkpShape.members + local_members
+
+    disableWelding: hkBool
+    collectionType: hkpShapeCollectionCollectionType
+
+    __interfaces = (
+        Interface(hkpShapeContainer, flags=32),
+    )
+
+
+class hkpSphereRepShape(hkpShape):
+    alignment = 8
+    byte_size = 32
+    tag_type_flags = 7
+
+    __tag_format_flags = 41
+    local_members = ()
+
+
+class hkpCdBody(hk):
+    alignment = 8
+    byte_size = 32
+    tag_type_flags = 7
+
+    __tag_format_flags = 45
+    __version = 2
+
+    local_members = (
+        Member("shape", Ptr(hkpShape, hsh=1200505464), offset=0, flags=32),
+        Member("shapeKey", _unsigned_int, offset=8, flags=32),
+        Member("motion", Ptr(hkReflectDetailOpaque, hsh=None), offset=16, flags=37),
+        Member("parent", Ptr(DefType("hkpCdBody", lambda: hkpCdBody), hsh=None), offset=24, flags=33),
+    )
+    members = local_members
+
+    shape: hkpShape
+    shapeKey: _unsigned_int
+    motion: hkReflectDetailOpaque
+    parent: hkpCdBody
+
+
+class hkMoppBvTreeShapeBase(hkpBvTreeShape):
+    alignment = 16
+    byte_size = 80
+    tag_type_flags = 7
+
+    __tag_format_flags = 57
+    __abstract_value = 3
+
+    local_members = (
+        Member("code", Ptr(hkpMoppCode, hsh=3878741831), offset=40, flags=32),
+        Member("moppData", Ptr(hkReflectDetailOpaque, hsh=None), offset=48, flags=33),
+        Member("moppDataSize", hkUint32, offset=56, flags=33),
+        Member("codeInfoCopy", hkVector4, offset=64, flags=33),
+    )
+    members = hkpBvTreeShape.members + local_members
+
+    code: hkpMoppCode
+    moppData: hkReflectDetailOpaque
+    moppDataSize: hkUint32
+    codeInfoCopy: hkVector4
+
+
+class hkpConvexShape(hkpSphereRepShape):
+    alignment = 8
+    byte_size = 40
+    tag_type_flags = 7
+
+    __tag_format_flags = 57
+    __abstract_value = 3
+
+    local_members = (
+        Member("radius", hkReal, offset=32, flags=34),
+    )
+    members = hkpSphereRepShape.members + local_members
+
+    radius: hkReal
+
+
+class hkpCollidable(hkpCdBody):
+    alignment = 8
+    byte_size = 112
+    tag_type_flags = 7
+
+    __tag_format_flags = 45
+    __version = 2
+
+    local_members = (
+        Member("ownerOffset", hkInt8, offset=32, flags=35),
+        Member("forceCollideOntoPpu", hkUint8, offset=33, flags=32),
+        Member("shapeSizeOnSpu", hkUint16, offset=34, flags=33),
+        Member("broadPhaseHandle", hkpTypedBroadPhaseHandle, offset=36, flags=32),
+        Member("boundingVolumeData", hkpCollidableBoundingVolumeData, offset=48, flags=33),
+        Member("allowedPenetrationDepth", hkReal, offset=104, flags=32),
+    )
+    members = hkpCdBody.members + local_members
+
+    ownerOffset: hkInt8
+    forceCollideOntoPpu: hkUint8
+    shapeSizeOnSpu: hkUint16
+    broadPhaseHandle: hkpTypedBroadPhaseHandle
+    boundingVolumeData: hkpCollidableBoundingVolumeData
+    allowedPenetrationDepth: hkReal
+
+
+class hkpMoppBvTreeShape(hkMoppBvTreeShapeBase):
+    alignment = 16
+    byte_size = 112
+    tag_type_flags = 7
+
+    __tag_format_flags = 41
+    __hsh = 2039906177
+
+    local_members = (
+        Member("child", hkpSingleShapeContainer, offset=80, flags=34),
+        Member("childSize", _int, offset=96, flags=33),
+    )
+    members = hkMoppBvTreeShapeBase.members + local_members
+
+    child: hkpSingleShapeContainer
+    childSize: _int
+
+
+class hkpExtendedMeshShapeShapesSubpart(hkpExtendedMeshShapeSubpart):
+    alignment = 16
+    byte_size = 80
+    tag_type_flags = 7
+
+    __tag_format_flags = 45
+    __version = 1
+    __real_name = "hkpExtendedMeshShape::ShapesSubpart"
+
+    local_members = (
+        Member("childShapes", hkArray(hkRefPtr(hkpConvexShape, hsh=None), hsh=None), offset=32, flags=32),
+        Member("rotation", hkQuaternion, offset=48, flags=34),
+        Member("translation", hkVector4, offset=64, flags=34),
+    )
+    members = hkpExtendedMeshShapeSubpart.members + local_members
+
+    childShapes: list[hkpConvexShape]
+    rotation: hkQuaternion
+    translation: hkVector4
+
+
+class hkpExtendedMeshShape(hkpShapeCollection):
+    alignment = 16
+    byte_size = 320
+    tag_type_flags = 7
+
+    __tag_format_flags = 45
+    __version = 4
+
+    local_members = (
+        Member("embeddedTrianglesSubpart", hkpExtendedMeshShapeTrianglesSubpart, offset=48, flags=34),
+        Member("aabbHalfExtents", hkVector4, offset=192, flags=32),
+        Member("aabbCenter", hkVector4, offset=208, flags=32),
+        Member("materialClass", Ptr(hkReflectDetailOpaque, hsh=None), offset=224, flags=33),
+        Member("numBitsForSubpartIndex", hkInt32, offset=232, flags=32),
+        Member("trianglesSubparts", hkArray(hkpExtendedMeshShapeTrianglesSubpart, hsh=1214306214), offset=240, flags=34),
+        Member("shapesSubparts", hkArray(hkpExtendedMeshShapeShapesSubpart, hsh=None), offset=256, flags=34),
+        Member("weldingInfo", hkArray(hkUint16, hsh=3551656838), offset=272, flags=32),
+        Member("weldingType", hkEnum(hkpWeldingUtilityWeldingType, hkUint8), offset=288, flags=32),
+        Member("defaultCollisionFilterInfo", hkUint32, offset=292, flags=32),
+        Member("cachedNumChildShapes", hkInt32, offset=296, flags=32),
+        Member("triangleRadius", hkReal, offset=300, flags=34),
+        Member("padding", hkInt32, offset=304, flags=35),
+    )
+    members = hkpShapeCollection.members + local_members
+
+    embeddedTrianglesSubpart: hkpExtendedMeshShapeTrianglesSubpart
+    aabbHalfExtents: hkVector4
+    aabbCenter: hkVector4
+    materialClass: hkReflectDetailOpaque
+    numBitsForSubpartIndex: hkInt32
+    trianglesSubparts: list[hkpExtendedMeshShapeTrianglesSubpart]
+    shapesSubparts: list[hkpExtendedMeshShapeShapesSubpart]
+    weldingInfo: list[hkUint16]
+    weldingType: hkpWeldingUtilityWeldingType
+    defaultCollisionFilterInfo: hkUint32
+    cachedNumChildShapes: hkInt32
+    triangleRadius: hkReal
+    padding: hkInt32
+
+
+class hkpWorldObject(hkReferencedObject):
+    alignment = 8
+    byte_size = 200
+    tag_type_flags = 7
+
+    __tag_format_flags = 57
+    __abstract_value = 3
+
+    local_members = (
+        Member("world", Ptr(hkReflectDetailOpaque, hsh=None), offset=16, flags=35),
+        Member("userData", hkUlong, offset=24, flags=34),
+        Member("collidable", hkpLinkedCollidable, offset=32, flags=34),
+        Member("multiThreadCheck", hkMultiThreadCheck, offset=160, flags=34),
+        Member("name", hkStringPtr, offset=176, flags=34),
+        Member("properties", hkArray(hkSimpleProperty, hsh=None), offset=184, flags=32),
+    )
+    members = hkReferencedObject.members + local_members
+
+    world: hkReflectDetailOpaque
+    userData: hkUlong
+    collidable: hkpLinkedCollidable
+    multiThreadCheck: hkMultiThreadCheck
+    name: hkStringPtr
+    properties: list[hkSimpleProperty]
+
+
+class hkpStorageExtendedMeshShape(hkpExtendedMeshShape):
+    alignment = 16
+    byte_size = 352
+    tag_type_flags = 7
+
+    __tag_format_flags = 41
+
+    local_members = (
+        Member("meshstorage", hkArray(Ptr(hkpStorageExtendedMeshShapeMeshSubpartStorage, hsh=502214251), hsh=3469377659), offset=320, flags=34),
+        Member("shapestorage", hkArray(Ptr(hkpStorageExtendedMeshShapeShapeSubpartStorage, hsh=None), hsh=None), offset=336, flags=34),
+    )
+    members = hkpExtendedMeshShape.members + local_members
+
+    meshstorage: list[hkpStorageExtendedMeshShapeMeshSubpartStorage]
+    shapestorage: list[hkpStorageExtendedMeshShapeShapeSubpartStorage]
+
+
+class _CustomParamStorageExtendedMeshShape(hkpStorageExtendedMeshShape):
+    alignment = 16
+    byte_size = 368
+    tag_type_flags = 7
+
+    __tag_format_flags = 41
+    __hsh = 2448234539
+    __real_name = "CustomParamStorageExtendedMeshShape"
+
+    local_members = (
+        Member("materialArray", hkArray(Ptr(_CustomMeshParameter, hsh=927471100), hsh=1999126890), offset=352, flags=36),
+    )
+    members = hkpStorageExtendedMeshShape.members + local_members
+
+    materialArray: list[_CustomMeshParameter]
