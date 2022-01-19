@@ -515,5 +515,158 @@ def test_ragdoll_conversion():
     # print(len(flver.bones))
 
 
+# noinspection PyUnresolvedReferences
+def examine_dsr_ragdolls():
+    ice_king_ragdoll = HKX(r"C:\Steam\steamapps\common\DARK SOULS REMASTERED (Nightfall)\chr\c5600-chrbnd-dcx\c5600.hkx")
+
+    chr_dir = Path(DSR_PATH + "/chr")
+    capra_chrbnd = Binder(chr_dir / "c2240.chrbnd.dcx")
+    capra_ragdoll = HKX(capra_chrbnd[300])
+
+    # capra_chrbnd[300].data = capra_ragdoll.pack()
+    # capra_chrbnd.write()
+
+    # noinspection PyTypeChecker,PyUnresolvedReferences
+    def print_info(ragdoll: HKX):
+        root = ragdoll.root  # type: hk2015.hkRootLevelContainer
+        animation_container = root.namedVariants[0].variant  # type: hk2015.hkaAnimationContainer
+        print("  Animation container:")
+        print(f"    Skeleton 0 bones: {len(animation_container.skeletons[0].bones)}")
+        print(f"    Skeleton 1 bones: {len(animation_container.skeletons[1].bones)}")
+        physics_system = root.namedVariants[1].variant.systems[0]  # type: hk2015.hkpPhysicsSystem
+        print("  Physics system:")
+        print(f"    Rigid bodies: {len(physics_system.rigidBodies)}")
+        mapper_0 = root.namedVariants[3].variant  # type: hk2015.hkaSkeletonMapper
+        print("  Skeleton mapper 0:")
+        print(f"    Simple mappings: {len(mapper_0.mapping.simpleMappings)}")
+        print(f"    Chain mappings: {len(mapper_0.mapping.chainMappings)}")
+        print(f"    Unmapped bones: {mapper_0.mapping.unmappedBones}")
+        mapper_1 = root.namedVariants[4].variant  # type: hk2015.hkaSkeletonMapper
+        print("  Skeleton mapper 1:")
+        print(f"    Simple mappings: {len(mapper_1.mapping.simpleMappings)}")
+        print(f"    Chain mappings: {len(mapper_1.mapping.chainMappings)}")
+        print(f"    Unmapped bones: {mapper_1.mapping.unmappedBones}")
+
+    # noinspection PyPep8Naming
+    def inject_skeleton(source_skel: hk2015.hkaSkeleton, dest_skel: hk2015.hkaSkeleton):
+        dest_skel.name = source_skel.name
+        dest_skel.parentIndices = source_skel.parentIndices.copy()
+        if len(dest_skel.bones) > len(source_skel.bones):
+            dest_skel.bones = dest_skel.bones[:len(source_skel.bones)]
+            dest_skel.referencePose = dest_skel.referencePose[:len(source_skel.referencePose)]
+        else:
+            while len(dest_skel.bones) < len(source_skel.bones):
+                dest_skel.bones.append(hk2015.hkaBone())
+                dest_skel.referencePose.append(hk2015.hkQsTransform())
+        for i, bone in enumerate(source_skel.bones):
+            dest_skel.bones[i].name = bone.name
+            dest_skel.bones[i].lockTranslation = bone.lockTranslation
+            pose = source_skel.referencePose[i]
+            dest_skel.referencePose[i].translation = pose.translation
+            dest_skel.referencePose[i].rotation = pose.rotation
+            dest_skel.referencePose[i].scale = pose.scale
+        for other in ("referenceFloats", "floatSlots", "localFrames", "partitions"):
+            setattr(dest_skel, other, getattr(source_skel, other))
+
+    # noinspection PyTypeChecker,PyUnresolvedReferences
+    def inject_physics(source_physics: hk2015.hkpPhysicsSystem, dest_physics: hk2015.hkpPhysicsSystem):
+        # Assumes all capsules.
+        for i, rigidbody in enumerate(source_physics.rigidBodies):
+            dest_rigidbody = dest_physics.rigidBodies[i]
+            for capsule_attr in ("radius", "vertexA", "vertexB"):
+                setattr(
+                    dest_rigidbody.collidable.shape,
+                    capsule_attr,
+                    getattr(rigidbody.collidable.shape, capsule_attr),
+                )
+            dest_rigidbody.motion.motionState.transform = rigidbody.motion.motionState.transform
+            dest_rigidbody.motion.motionState.sweptTransform = rigidbody.motion.motionState.sweptTransform
+            dest_rigidbody.motion.motionState.objectRadius = rigidbody.motion.motionState.objectRadius
+            dest_rigidbody.name = rigidbody.name
+            # TODO: material
+        dest_physics.constraints = []
+
+    # noinspection PyPep8Naming
+    def inject_skeleton_mapper(source_mapper: hk2015.hkaSkeletonMapper, dest_mapper: hk2015.hkaSkeletonMapper):
+        # Skeletons already changed.
+        dest_mapping = dest_mapper.mapping
+        mapping = source_mapper.mapping
+        if len(dest_mapping.simpleMappings) > len(mapping.simpleMappings):
+            dest_mapping.simpleMappings = dest_mapping.simpleMappings[:len(mapping.simpleMappings)]
+        else:
+            while len(dest_mapping.simpleMappings) < len(mapping.simpleMappings):
+                dest_mapping.simpleMappings.append(hk2015.hkaSkeletonMapperDataSimpleMapping(
+                    aFromBTransform=hk2015.hkQsTransform(),
+                ))
+        for i, simple_mapping in enumerate(mapping.simpleMappings):
+            dest_mapping.simpleMappings[i].boneA = simple_mapping.boneA
+            dest_mapping.simpleMappings[i].boneB = simple_mapping.boneB
+            dest_mapping.simpleMappings[i].aFromBTransform.translation = simple_mapping.aFromBTransform.translation
+            dest_mapping.simpleMappings[i].aFromBTransform.rotation = simple_mapping.aFromBTransform.rotation
+            dest_mapping.simpleMappings[i].aFromBTransform.scale = simple_mapping.aFromBTransform.scale
+
+        if len(dest_mapping.chainMappings) > len(mapping.chainMappings):
+            dest_mapping.chainMappings = dest_mapping.chainMappings[:len(mapping.chainMappings)]
+        else:
+            while len(dest_mapping.chainMappings) < len(mapping.chainMappings):
+                dest_mapping.chainMappings.append(hk2015.hkaSkeletonMapperDataChainMapping(
+                    startAFromBTransform=hk2015.hkQsTransform(),
+                    endAFromBTransform=hk2015.hkQsTransform(),
+                ))
+        for i, chain_mapping in enumerate(mapping.chainMappings):
+            dest_mapping.chainMappings[i].startBoneA = chain_mapping.startBoneA
+            dest_mapping.chainMappings[i].endBoneA = chain_mapping.endBoneA
+            dest_mapping.chainMappings[i].startBoneB = chain_mapping.startBoneB
+            dest_mapping.chainMappings[i].endBoneB = chain_mapping.endBoneB
+            dest_mapping.chainMappings[i].startAFromBTransform.translation = chain_mapping.startAFromBTransform.translation
+            dest_mapping.chainMappings[i].startAFromBTransform.rotation = chain_mapping.startAFromBTransform.rotation
+            dest_mapping.chainMappings[i].startAFromBTransform.scale = chain_mapping.startAFromBTransform.scale
+            dest_mapping.chainMappings[i].endAFromBTransform.translation = chain_mapping.endAFromBTransform.translation
+            dest_mapping.chainMappings[i].endAFromBTransform.rotation = chain_mapping.endAFromBTransform.rotation
+            dest_mapping.chainMappings[i].endAFromBTransform.scale = chain_mapping.endAFromBTransform.scale
+        dest_mapping.unmappedBones = mapping.unmappedBones.copy()
+
+    for skel_i in (0, 1):
+        inject_skeleton(
+            ice_king_ragdoll.root.namedVariants[0].variant.skeletons[skel_i],
+            capra_ragdoll.root.namedVariants[0].variant.skeletons[skel_i],
+        )
+
+    inject_physics(
+        ice_king_ragdoll.root.namedVariants[1].variant.systems[0],
+        capra_ragdoll.root.namedVariants[1].variant.systems[0],
+    )
+
+    inject_skeleton_mapper(
+        ice_king_ragdoll.root.namedVariants[3].variant,
+        capra_ragdoll.root.namedVariants[3].variant,
+    )
+    inject_skeleton_mapper(
+        ice_king_ragdoll.root.namedVariants[4].variant,
+        capra_ragdoll.root.namedVariants[4].variant,
+    )
+
+    # `hkaRagdollInstance` points to same rigidbodies already edited above.
+    capra_ragdoll.root.namedVariants[2].variant.constraints = []
+
+    print("Ice King:")
+    print_info(ice_king_ragdoll)
+    print("Capra Demon:")
+    print_info(capra_ragdoll)
+
+    ice_king_chrbnd = Binder(chr_dir / "c5600.chrbnd.dcx")
+
+    if 300 in ice_king_chrbnd.entries_by_id:
+        ice_king_chrbnd.remove_entry(300)
+    ice_king_chrbnd.add_entry(ice_king_chrbnd.BinderEntry(
+        entry_id=300,
+        path="N:\\FRPG\\data\\INTERROOT_x64\\chr\\c5600\\c5600.hkx",
+        flags=0x2,
+        data=capra_ragdoll.pack(),
+    ))
+    ice_king_chrbnd.write()
+
+
 if __name__ == '__main__':
-    test_ragdoll_conversion()
+    # test_ragdoll_conversion()
+    examine_dsr_ragdolls()

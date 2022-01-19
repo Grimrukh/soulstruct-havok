@@ -2825,3 +2825,85 @@ class hkpPhysicsData(hkReferencedObject):
 
     worldCinfo: hkpWorldCinfo
     systems: list[hkpPhysicsSystem]
+
+
+class hkp2dAngConstraintAtom(hkpConstraintAtom):
+    alignment = 16
+    byte_size = 16
+    tag_type_flags = 7
+
+    __tag_format_flags = 41
+
+    local_members = (
+        Member("freeRotationAxis", hkUint8, offset=2, flags=32),
+        Member("padding", hkStruct(hkUint8, 13), offset=3, flags=32),
+    )
+
+    freeRotationAxis: hkUint8
+    padding: tuple[hkUint8]
+
+
+class hkpAngMotorConstraintAtom(hkpConstraintAtom):
+    alignment = 16
+    byte_size = 32
+    tag_type_flags = 7
+
+    __tag_format_flags = 45
+    __version = 1
+
+    local_members = (
+        Member("isEnabled", hkBool, offset=2, flags=32),
+        Member("motorAxis", hkUint8, offset=3, flags=32),
+        Member("initializedOffset", hkInt16, offset=4, flags=33),
+        Member("previousTargetAngleOffset", hkInt16, offset=6, flags=33),
+        Member("correspondingAngLimitSolverResultOffset", hkInt16, offset=8, flags=32),
+        Member("targetAngle", hkReal, offset=12, flags=32),
+        Member("motor", Ptr(hkpConstraintMotor), offset=16, flags=32),
+    )
+
+
+class hkpAngLimitConstraintAtom(hkpConstraintAtom):
+    alignment = 16
+    byte_size = 16
+    tag_type_flags = 7
+
+    __tag_format_flags = 41
+
+    local_members = (
+        Member("isEnabled", hkUint8, offset=2, flags=32),
+        Member("limitAxis", hkUint8, offset=3, flags=32),
+        Member("minAngle", hkReal, offset=4, flags=32),
+        Member("maxAngle", hkReal, offset=8, flags=32),
+        Member("angularLimitsTauFactor", hkReal, offset=12, flags=32),
+    )
+
+
+class hkpLimitedHingeConstraintDataAtoms(hk):
+    alignment = 16
+    byte_size = 272
+    tag_type_flags = 7
+
+    __tag_format_flags = 45
+    __version = 1
+
+    local_members = (
+        Member("transforms", hkpSetLocalTransformsConstraintAtom, offset=0, flags=32),
+        Member("setupStabilization", hkpSetupStabilizationAtom, offset=144, flags=32),
+        Member("angMotor", hkpAngMotorConstraintAtom, offset=160, flags=32),
+        Member("angFriction", hkpAngFrictionConstraintAtom, offset=192, flags=32),
+        Member("angLimit", hkpAngLimitConstraintAtom, offset=208, flags=32),
+        Member("2dAng", hkp2dAngConstraintAtom, offset=240, flags=32),
+        Member("ballSocket", hkpBallSocketConstraintAtom, offset=256, flags=32),
+    )
+
+
+class hkpLimitedHingeConstraintData(hkpConstraintData):
+    alignment = 16
+    byte_size = 304
+    tag_type_flags = 7
+
+    __tag_format_flags = 41
+
+    local_members = (
+        Member("atoms", hkpLimitedHingeConstraintDataAtoms, offset=32, flags=32),
+    )

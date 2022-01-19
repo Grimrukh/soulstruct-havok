@@ -373,7 +373,7 @@ class hk:
                         f"  # <{instances_shown.index(member_value)}>")
                 else:
                     lines.append(
-                        f"    {member.name} = {member_value.get_tree_string(indent + 4, instances_shown)}"
+                        f"    {member.name} = {member_value.get_tree_string(indent + 4, instances_shown)},"
                         f"  # <{len(instances_shown)}>"
                     )
                     instances_shown.append(member_value)
@@ -388,7 +388,7 @@ class hk:
                         else:
                             element_string = element.get_tree_string(indent + 8, instances_shown)
                             lines.append(
-                                f"        {element_string}  # <{len(instances_shown)}>"
+                                f"        {element_string},  # <{len(instances_shown)}>"
                             )
                             instances_shown.append(element)
                     lines.append(f"    ],")
@@ -409,7 +409,7 @@ class hk:
                             lines.append(f"        {element.__class__.__name__},  # <{instances_shown.index(element)}>")
                         else:
                             lines.append(
-                                f"        {element.get_tree_string(indent + 8, instances_shown)}"
+                                f"        {element.get_tree_string(indent + 8, instances_shown)},"
                                 f"  # <{len(instances_shown)}>"
                             )
                             instances_shown.append(element)
@@ -423,7 +423,7 @@ class hk:
                     lines.append(f"    {member.name} = {repr(member_value)},")
             else:
                 raise TypeError(f"Cannot parse value of member '{member.name}' for tree string: {type(member_value)}")
-        lines.append("),")
+        lines.append(")")
         return f"\n{' ' * indent}".join(lines)
 
     def __repr__(self):

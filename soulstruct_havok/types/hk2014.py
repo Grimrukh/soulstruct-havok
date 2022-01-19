@@ -2588,7 +2588,7 @@ class hkaAnimationContainer(hkReferencedObject):
 class hkpLimitedForceConstraintMotor(hk):
     alignment = 16
     byte_size = 24
-    tag_format_flag = 41
+    tag_format_flags = 41
     tag_type_flag = 7
 
     local_members = (
@@ -2623,7 +2623,7 @@ class hkpAngMotorConstraintAtom(hkpConstraintAtom):
     local_members = (
         Member("isEnabled", hkBool, offset=2, flags=0),
         Member("motorAxis", hkUint8, offset=3, flags=0),
-        Member("initializdOffset", hkInt16, offset=4, flags=0),
+        Member("initializedOffset", hkInt16, offset=4, flags=0),
         Member("previousTargetAngleOffset", hkInt16, offset=6, flags=0),
         Member("correspondingAngLimitSolverResultOffset", hkInt16, offset=8, flags=0),
         Member("targetAngle", hkReal, offset=12, flags=0),
