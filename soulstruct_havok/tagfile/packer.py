@@ -81,7 +81,7 @@ class TagFilePacker:
             with self.pack_section(writer, "DATA"):
 
                 data_start_offset = writer.position
-                self.items = [None]  # item index "0" represents the hkRootLevelContainer and has no data
+                self.items = [None]  # to mimic 1-indexing
                 existing_items = {}
 
                 # Dummy pointer item for root (`hkRootLevelContainer`).
@@ -90,7 +90,7 @@ class TagFilePacker:
                 root_item.writer = BinaryWriter()
                 root_item.value = self.hkx.root
 
-                # Master queue of `hkRetPtr` creation actions.
+                # Master queue of `hkRefPtr` creation actions.
                 ref_queue = deque([root_item])
 
                 def write_item_data(item_):

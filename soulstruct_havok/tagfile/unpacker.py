@@ -6,7 +6,7 @@ from contextlib import contextmanager
 
 from soulstruct.utilities.binary import BinaryReader
 
-from soulstruct_havok.types.core import hk
+from soulstruct_havok.types.core import hk, MissingTypeError
 from soulstruct_havok.types.info import *
 from soulstruct_havok.enums import TagFormatFlags
 from .structs import *
@@ -34,7 +34,6 @@ class TagFileUnpacker:
 
         self.hk_types_module = None
         self.root = None
-        self.all_nodes = []
         self.hk_type_infos = []
         self.items = []
         self.is_compendium = False
@@ -66,6 +65,10 @@ class TagFileUnpacker:
                 if not types_only:
 
                     # Attach Python classes to each non-generic `TypeInfo`.
+
+                    missing_type_names = []
+                    missing_type_py_defs = []
+
                     for type_info in self.hk_type_infos[1:]:
                         if type_info.name in type_info.GENERIC_TYPE_NAMES:
                             continue
@@ -74,9 +77,9 @@ class TagFileUnpacker:
                             type_info.check_py_class_match(py_class)
                             type_info.py_class = py_class
                         except AttributeError:
-                            # TODO: Create?
-                            print(type_info.get_rough_py_def())
-                            raise TypeError(f"No Python type '{type_info.py_name}'. Info:\n{type_info}")
+                            # Create a (possibly rough) Python definition to print.
+                            missing_type_names.append(type_info.name)
+                            missing_type_py_defs.append(type_info.get_rough_py_def())
                         else:
                             # TODO: check member type.
                             pass
@@ -84,6 +87,15 @@ class TagFileUnpacker:
                             #     if py_member.type is None:
                             #         raise TypeError(f"Bad py member: ")
 
+                    if missing_type_names:
+                        # Types are printed in reverse order for copy-pasting to module, as member types are generally
+                        # defined AFTER their owner classes in Havok files, but we need the opposite in Python.
+                        for new_py_def in reversed(missing_type_py_defs):
+                            print(new_py_def + "\n\n")
+                        raise MissingTypeError(
+                            f"Unknown Havok types in file (definitions printed above): "
+                            f"{list(reversed(missing_type_names))}"
+                        )
 
                     self.items = self.unpack_index_section(reader, data_start_offset)
 
@@ -247,6 +259,11 @@ class TagFileUnpacker:
 
             with self.unpack_section(reader, "TPAD"):
                 pass
+
+        # Assign member types.
+        for t in file_hk_types[1:]:
+            for m in t.members:
+                m.deindexify(file_hk_types)
 
         return file_hk_types
 

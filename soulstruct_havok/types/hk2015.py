@@ -1608,7 +1608,9 @@ class hkcdShape(hkReferencedObject):
         Member("type", hkEnum(hkcdShapeTypeShapeTypeEnum, hkUint8), offset=16, flags=33),
         Member("dispatchType", hkEnum(hkcdShapeDispatchTypeShapeDispatchTypeEnum, hkUint8), offset=17, flags=32),
         Member("bitsPerKey", hkUint8, offset=18, flags=32),
-        Member("shapeInfoCodecType", hkEnum(hkcdShapeInfoCodecTypeShapeInfoCodecTypeEnum, hkUint8), offset=19, flags=32),
+        Member(
+            "shapeInfoCodecType", hkEnum(hkcdShapeInfoCodecTypeShapeInfoCodecTypeEnum, hkUint8), offset=19, flags=32
+        ),
     )
     members = hkReferencedObject.members + local_members
 
@@ -1929,7 +1931,10 @@ class hkxMaterial(hkxAttributeHolder):
         Member("ambientColor", hkVector4, offset=80, flags=32),
         Member("specularColor", hkVector4, offset=96, flags=32),
         Member("emissiveColor", hkVector4, offset=112, flags=32),
-        Member("subMaterials", hkArray(hkRefPtr(DefType("hkxMaterial", lambda: hkxMaterial), hsh=None), hsh=None), offset=128, flags=32),
+        Member(
+            "subMaterials", hkArray(hkRefPtr(DefType("hkxMaterial", lambda: hkxMaterial), hsh=None), hsh=None),
+            offset=128, flags=32
+        ),
         Member("extraData", hkRefVariant(hkReferencedObject, hsh=2872857893), offset=144, flags=32),
         Member("uvMapScale", hkStruct(hkReal, 2, TagDataType.IsVariable1), offset=152, flags=32),
         Member("uvMapOffset", hkStruct(hkReal, 2, TagDataType.IsVariable1), offset=160, flags=32),
@@ -1991,7 +1996,9 @@ class hkpWorldCinfo(hkReferencedObject):
         Member("broadPhaseQuerySize", hkInt32, offset=32, flags=32),
         Member("contactRestingVelocity", hkReal, offset=36, flags=32),
         Member("broadPhaseType", hkEnum(hkpWorldCinfoBroadPhaseType, hkInt8), offset=40, flags=32),
-        Member("broadPhaseBorderBehaviour", hkEnum(hkpWorldCinfoBroadPhaseBorderBehaviour, hkInt8), offset=41, flags=32),
+        Member(
+            "broadPhaseBorderBehaviour", hkEnum(hkpWorldCinfoBroadPhaseBorderBehaviour, hkInt8), offset=41, flags=32
+        ),
         Member("mtPostponeAndSortBroadPhaseBorderCallbacks", hkBool, offset=42, flags=32),
         Member("broadPhaseWorldAabb", hkAabb, offset=48, flags=32),
         Member("collisionTolerance", hkReal, offset=80, flags=32),
@@ -2182,8 +2189,14 @@ class hkaSkeletonMapperData(hk):
         Member("skeletonA", hkRefPtr(hkaSkeleton, hsh=1149764379), offset=0, flags=32),
         Member("skeletonB", hkRefPtr(hkaSkeleton, hsh=1149764379), offset=8, flags=32),
         Member("partitionMap", hkArray(hkInt16, hsh=2354433887), offset=16, flags=32),
-        Member("simpleMappingPartitionRanges", hkArray(hkaSkeletonMapperDataPartitionMappingRange, hsh=None), offset=32, flags=32),
-        Member("chainMappingPartitionRanges", hkArray(hkaSkeletonMapperDataPartitionMappingRange, hsh=None), offset=48, flags=32),
+        Member(
+            "simpleMappingPartitionRanges", hkArray(hkaSkeletonMapperDataPartitionMappingRange, hsh=None),
+            offset=32, flags=32
+        ),
+        Member(
+            "chainMappingPartitionRanges", hkArray(hkaSkeletonMapperDataPartitionMappingRange, hsh=None),
+            offset=48, flags=32
+        ),
         Member("simpleMappings", hkArray(hkaSkeletonMapperDataSimpleMapping, hsh=3599982823), offset=64, flags=32),
         Member("chainMappings", hkArray(hkaSkeletonMapperDataChainMapping, hsh=643847644), offset=80, flags=32),
         Member("unmappedBones", hkArray(hkInt16, hsh=2354433887), offset=96, flags=32),
@@ -2219,7 +2232,10 @@ class hkpRagdollMotorConstraintAtom(hkpConstraintAtom):
         Member("initializedOffset", hkInt16, offset=4, flags=33),
         Member("previousTargetAnglesOffset", hkInt16, offset=6, flags=33),
         Member("target_bRca", hkMatrix3, offset=16, flags=32),
-        Member("motors", hkStruct(Ptr(hkpConstraintMotor, hsh=1039430764), 3, TagDataType.IsVariable2), offset=64, flags=32),
+        Member(
+            "motors", hkStruct(Ptr(hkpConstraintMotor, hsh=1039430764), 3, TagDataType.IsVariable2),
+            offset=64, flags=32
+        ),
     )
     members = hkpConstraintAtom.members + local_members
 
@@ -2403,7 +2419,9 @@ class hkxMeshSection(hkReferencedObject):
         Member("vertexBuffer", hkRefPtr(hkxVertexBuffer, hsh=None), offset=16, flags=32),
         Member("indexBuffers", hkArray(hkRefPtr(hkxIndexBuffer, hsh=None), hsh=None), offset=24, flags=32),
         Member("material", hkRefPtr(hkxMaterial, hsh=None), offset=40, flags=32),
-        Member("userChannels", hkArray(hkRefVariant(hkReferencedObject, hsh=2872857893), hsh=None), offset=48, flags=32),
+        Member(
+            "userChannels", hkArray(hkRefVariant(hkReferencedObject, hsh=2872857893), hsh=None), offset=48, flags=32
+        ),
         Member("vertexAnimations", hkArray(hkRefPtr(hkxVertexAnimation, hsh=None), hsh=None), offset=64, flags=32),
         Member("linearKeyFrameHints", hkArray(_float, hsh=None), offset=80, flags=32),
         Member("boneMatrixMap", hkArray(hkMeshBoneIndexMapping, hsh=None), offset=96, flags=32),
@@ -2671,7 +2689,10 @@ class hkpEntity(hkpWorldObject):
         Member("storageIndex", _unsigned_short, offset=244, flags=32),
         Member("contactPointCallbackDelay", hkUint16, offset=246, flags=34),
         Member("constraintsMaster", hkpEntitySmallArraySerializeOverrideType, offset=248, flags=35),
-        Member("constraintsSlave", hkArray(hkViewPtr("hkpConstraintInstance", hsh=3107152142), hsh=None), offset=264, flags=35),
+        Member(
+            "constraintsSlave", hkArray(hkViewPtr("hkpConstraintInstance", hsh=3107152142), hsh=None),
+            offset=264, flags=35
+        ),
         Member("constraintRuntime", hkArray(hkUint8, hsh=None), offset=280, flags=35),
         Member("simulationIsland", Ptr(hkReflectDetailOpaque, hsh=None), offset=296, flags=35),
         Member("autoRemoveLevel", hkInt8, offset=304, flags=32),
@@ -2736,7 +2757,9 @@ class hkpConstraintInstance(hkReferencedObject):
         Member("entities", hkStruct(Ptr(hkpEntity, hsh=476716456), 2, TagDataType.IsVariable1), offset=40, flags=34),
         Member("priority", hkEnum(hkpConstraintInstanceConstraintPriority, hkUint8), offset=56, flags=32),
         Member("wantRuntime", hkBool, offset=57, flags=34),
-        Member("destructionRemapInfo", hkEnum(hkpConstraintInstanceOnDestructionRemapInfo, hkUint8), offset=58, flags=32),
+        Member(
+            "destructionRemapInfo", hkEnum(hkpConstraintInstanceOnDestructionRemapInfo, hkUint8), offset=58, flags=32
+        ),
         Member("listeners", hkpConstraintInstanceSmallArraySerializeOverrideType, offset=64, flags=33),
         Member("name", hkStringPtr, offset=80, flags=32),
         Member("userData", hkUlong, offset=88, flags=32),
@@ -3412,7 +3435,9 @@ class hkpExtendedMeshShape(hkpShapeCollection):
         Member("aabbCenter", hkVector4, offset=208, flags=32),
         Member("materialClass", Ptr(hkReflectDetailOpaque, hsh=None), offset=224, flags=33),
         Member("numBitsForSubpartIndex", hkInt32, offset=232, flags=32),
-        Member("trianglesSubparts", hkArray(hkpExtendedMeshShapeTrianglesSubpart, hsh=1214306214), offset=240, flags=34),
+        Member(
+            "trianglesSubparts", hkArray(hkpExtendedMeshShapeTrianglesSubpart, hsh=1214306214), offset=240, flags=34
+        ),
         Member("shapesSubparts", hkArray(hkpExtendedMeshShapeShapesSubpart, hsh=None), offset=256, flags=34),
         Member("weldingInfo", hkArray(hkUint16, hsh=3551656838), offset=272, flags=32),
         Member("weldingType", hkEnum(hkpWeldingUtilityWeldingType, hkUint8), offset=288, flags=32),
@@ -3472,8 +3497,14 @@ class hkpStorageExtendedMeshShape(hkpExtendedMeshShape):
     __tag_format_flags = 41
 
     local_members = (
-        Member("meshstorage", hkArray(Ptr(hkpStorageExtendedMeshShapeMeshSubpartStorage, hsh=502214251), hsh=3469377659), offset=320, flags=34),
-        Member("shapestorage", hkArray(Ptr(hkpStorageExtendedMeshShapeShapeSubpartStorage, hsh=None), hsh=None), offset=336, flags=34),
+        Member(
+            "meshstorage", hkArray(Ptr(hkpStorageExtendedMeshShapeMeshSubpartStorage, hsh=502214251), hsh=3469377659),
+            offset=320, flags=34
+        ),
+        Member(
+            "shapestorage", hkArray(Ptr(hkpStorageExtendedMeshShapeShapeSubpartStorage, hsh=None), hsh=None),
+            offset=336, flags=34
+        ),
     )
     members = hkpExtendedMeshShape.members + local_members
 
@@ -3491,8 +3522,52 @@ class _CustomParamStorageExtendedMeshShape(hkpStorageExtendedMeshShape):
     __real_name = "CustomParamStorageExtendedMeshShape"
 
     local_members = (
-        Member("materialArray", hkArray(Ptr(_CustomMeshParameter, hsh=927471100), hsh=1999126890), offset=352, flags=36),
+        Member(
+            "materialArray", hkArray(Ptr(_CustomMeshParameter, hsh=927471100), hsh=1999126890), offset=352, flags=36
+        ),
     )
     members = hkpStorageExtendedMeshShape.members + local_members
 
     materialArray: list[_CustomMeshParameter]
+
+
+class hkpSetLocalTranslationsConstraintAtom(hkpConstraintAtom):
+    alignment = 16
+    byte_size = 48
+    tag_type_flags = 7
+
+    __tag_format_flags = 41
+
+    local_members = (
+        Member("translationA", hkVector4, offset=16, flags=32),
+        Member("translationB", hkVector4, offset=32, flags=32),
+    )
+
+
+class hkpBallAndSocketConstraintDataAtoms(hk):
+    alignment = 16
+    byte_size = 80
+    tag_type_flags = 7
+
+    __tag_format_flags = 45
+    __version = 1
+    __real_name = "hkpBallAndSocketConstraintData::Atoms"
+
+    local_members = (
+        Member("pivots", hkpSetLocalTranslationsConstraintAtom, offset=0, flags=32),
+        Member("setupStabilization", hkpSetupStabilizationAtom, offset=48, flags=32),
+        Member("ballSocket", hkpBallSocketConstraintAtom, offset=64, flags=32),
+    )
+
+
+class hkpBallAndSocketConstraintData(hkpConstraintData):
+    alignment = 16
+    byte_size = 112
+    tag_type_flags = 7
+
+    __tag_format_flags = 41
+    __hsh = 3392701812
+
+    local_members = (
+        Member("atoms", hkpBallAndSocketConstraintDataAtoms, offset=32, flags=32),
+    )

@@ -8,8 +8,8 @@ __all__ = [
     "PackFileSectionHeader",
     "PackFileVersion",
     "CHILD_POINTER_STRUCT",
-    "ENTRY_POINTER_STRUCT",
-    "ENTRY_SPEC_STRUCT",
+    "ITEM_POINTER_STRUCT",
+    "ITEM_SPEC_STRUCT",
     "TYPE_NAME_HASHES",
 ]
 
@@ -17,39 +17,37 @@ import abc
 import typing as tp
 from enum import IntEnum
 
-from soulstruct.utilities.binary import BinaryStruct, BinaryObject, BinaryReader
-
-from soulstruct_havok.types.core import hk, hkArray_, Ptr_
+from soulstruct.utilities.binary import BinaryStruct, BinaryObject, BinaryReader, BinaryWriter
 
 if tp.TYPE_CHECKING:
-    from soulstruct.utilities.binary import BinaryWriter
+    from soulstruct_havok.types.core import hk, hkArray_, Ptr_
 
 
 class PackFileBaseEntry(abc.ABC):
-    offset_in_section: int
+    local_data_offset: int
     entry_byte_size: int
     raw_data: bytes
 
     child_pointers: dict[int, int]  # maps source offset to dest offset inside same entry
-    entry_pointers: dict[int, tuple[PackFileBaseEntry, int]]  # maps source offset to dest entry from same section
+    item_pointers: dict[int, tuple[PackFileBaseEntry, int]]  # maps source offset to dest entry from same section
     hk_type: tp.Optional[tp.Type[hk | hkArray_ | Ptr_]]
 
     reader: tp.Optional[BinaryReader]
     writer: tp.Optional[BinaryWriter]
 
     def __init__(self):
-        self.offset_in_section = -1
+        self.local_data_offset = -1
         self.entry_byte_size = -1
         self.raw_data = b""
         self.child_pointers = {}
-        self.entry_pointers = {}
+        self.item_pointers = {}
         self.hk_type = None
         self.reader = None
         self.writer = None
 
     def unpack(self, section_reader: BinaryReader, data_size: int):
         """`reader` should contain the given section data only (so offset 0 is the section start)."""
-        self.offset_in_section = section_reader.position  # offset inside data section
+        self.local_data_offset = section_reader.position  # offset inside data section
         self.entry_byte_size = data_size
         self.raw_data = section_reader.read(data_size)  # parsed later
 
@@ -58,8 +56,8 @@ class PackFileBaseEntry(abc.ABC):
 
         Otherwise, returns -1.
         """
-        if self.offset_in_section <= offset < self.offset_in_section + self.entry_byte_size:
-            return offset - self.offset_in_section
+        if self.local_data_offset <= offset < self.local_data_offset + self.entry_byte_size:
+            return offset - self.local_data_offset
         return -1
 
     def start_reader(self):
@@ -67,6 +65,11 @@ class PackFileBaseEntry(abc.ABC):
         if self.reader is not None:
             raise ValueError(f"`{self.__class__.__name__}` reader was already created.")
         self.reader = BinaryReader(self.raw_data)
+
+    def start_writer(self):
+        if self.writer is not None:
+            raise ValueError(f"`{self.__class__.__name__}` writer was already created.")
+        self.writer = BinaryWriter()
 
 
 class PackFileTypeEntry(PackFileBaseEntry):
@@ -143,7 +146,7 @@ class PackFileTypeEntry(PackFileBaseEntry):
 
     GENERIC_TYPE_NAMES = ["hkArray", "hkEnum", "hkRefPtr", "hkViewPtr", "T*", "T[N]"]
 
-    entry_pointers: dict[int, tuple[PackFileTypeEntry, int]]
+    item_pointers: dict[int, tuple[PackFileTypeEntry, int]]
 
     def __init__(self, class_name: str):
         super().__init__()
@@ -159,8 +162,8 @@ class PackFileTypeEntry(PackFileBaseEntry):
         return BinaryReader(self.raw_data).unpack_value("I", offset=8)
 
     def get_referenced_entry_type(self, offset: int) -> tp.Optional[PackFileTypeEntry]:
-        if offset in self.entry_pointers:
-            type_entry, zero = self.entry_pointers[offset]
+        if offset in self.item_pointers:
+            type_entry, zero = self.item_pointers[offset]
             if zero != 0:
                 raise AssertionError(f"Found type entry pointer placeholder other than zero: {zero}")
             return type_entry
@@ -173,7 +176,7 @@ class PackFileTypeEntry(PackFileBaseEntry):
 
 class PackFileItemEntry(PackFileBaseEntry):
 
-    entry_pointers: dict[int, tuple[PackFileItemEntry, int]]
+    item_pointers: dict[int, tuple[PackFileItemEntry, int]]
     hk_type: tp.Type[hk | hkArray_ | Ptr_]
     value: None | hk | bool | int | float | list | tuple
 
@@ -181,6 +184,18 @@ class PackFileItemEntry(PackFileBaseEntry):
         super().__init__()
         self.hk_type = hk_type
         self.value = None
+
+    def get_class_name(self):
+        """Get (real) Havok class name for packfile class name section."""
+        if self.hk_type.__name__ == "hkRootLevelContainer":
+            return "hkRootLevelContainer"
+        # Otherwise, item type should be a pointer type.
+        try:
+            return type(self.value).get_real_name()
+        except AttributeError:
+            raise ValueError(
+                f"Packfile item type is not `hkRootLevelContainer` or a pointer: {type(self.value).__name__}"
+            )
 
     def __repr__(self):
         return f"PackFileItemEntry({self.hk_type.__name__})"
@@ -257,8 +272,8 @@ class PackFileSectionHeader(BinaryObject):
         ("minus_one", "B", 0xFF),
         ("absolute_data_start", "I"),
         ("child_pointers_offset", "I"),
-        ("entry_pointers_offset", "I"),
-        ("entry_specs_offset", "I"),
+        ("item_pointers_offset", "I"),
+        ("item_specs_offset", "I"),
         ("exports_offset", "I"),
         ("imports_offset", "I"),
         ("end_offset", "I"),
@@ -267,8 +282,8 @@ class PackFileSectionHeader(BinaryObject):
     section_tag: bytes
     absolute_data_start: int
     child_pointers_offset: int
-    entry_pointers_offset: int
-    entry_specs_offset: int
+    item_pointers_offset: int
+    item_specs_offset: int
     exports_offset: int
     imports_offset: int
     end_offset: int
@@ -279,8 +294,8 @@ class PackFileSectionHeader(BinaryObject):
             self,
             absolute_data_start=writer.AUTO_RESERVE,
             child_pointers_offset=writer.AUTO_RESERVE,
-            entry_pointers_offset=writer.AUTO_RESERVE,
-            entry_specs_offset=writer.AUTO_RESERVE,
+            item_pointers_offset=writer.AUTO_RESERVE,
+            item_specs_offset=writer.AUTO_RESERVE,
             exports_offset=writer.AUTO_RESERVE,
             imports_offset=writer.AUTO_RESERVE,
             end_offset=writer.AUTO_RESERVE,
@@ -291,8 +306,8 @@ class PackFileSectionHeader(BinaryObject):
             writer,
             absolute_data_start=absolute_data_start,
             child_pointers_offset=end_offset,
-            entry_pointers_offset=end_offset,
-            entry_specs_offset=end_offset,
+            item_pointers_offset=end_offset,
+            item_specs_offset=end_offset,
             exports_offset=end_offset,
             imports_offset=end_offset,
             end_offset=end_offset,
@@ -304,14 +319,14 @@ CHILD_POINTER_STRUCT = BinaryStruct(
     ("dest_offset", "I"),
 )
 
-ENTRY_POINTER_STRUCT = BinaryStruct(
+ITEM_POINTER_STRUCT = BinaryStruct(
     ("source_offset", "I"),
     ("dest_section_index", "I"),  # usually 2 (__data__)
     ("dest_offset", "I"),  # usually zero
 )
 
-ENTRY_SPEC_STRUCT = BinaryStruct(
-    ("relative_entry_offset", "I"),  # relative offset into "__data__" section
+ITEM_SPEC_STRUCT = BinaryStruct(
+    ("local_data_offset", "I"),  # relative offset into "__data__" section
     ("type_section_index", "I", 0),  # always references type section
     ("type_name_offset", "I"),  # offset into `section_index` above (always type section)
 )

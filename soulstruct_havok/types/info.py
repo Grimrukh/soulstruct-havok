@@ -33,9 +33,13 @@ class TypeMatchError(Exception):
         )
 
 
+# Any type whose real Havok name does not start with one of these will have an underscore prepended to its Python name.
+HAVOK_TYPE_PREFIXES = ("hk", "hcl")
+
+
 def get_py_name(real_name: str) -> str:
     py_name = real_name.replace("::", "").replace(" ", "_").replace("*", "")
-    if not py_name.startswith("hk"):
+    if not any(py_name.startswith(s) for s in HAVOK_TYPE_PREFIXES):
         py_name = "_" + py_name  # for 'int', 'const_char', etc.
     return py_name
 
@@ -96,8 +100,12 @@ class MemberInfo:
         self.offset = offset
         self.type_index = type_index
 
+        # Deindexified attributes.
         self.type_info = type_info
-        self.type_py_name = type_py_name
+
+    @property
+    def type_py_name(self):
+        return self.type_info.py_name
 
     def indexify(self, type_py_names: list[str]):
         try:
@@ -105,8 +113,17 @@ class MemberInfo:
         except ValueError:
             raise ValueError(f"Could not find {self.type_py_name} in types (member \"{self.name}\")")
 
+    def deindexify(self, type_infos: list[TypeInfo]):
+        try:
+            self.type_info = type_infos[self.type_index]
+        except ValueError:
+            raise ValueError(f"Could not assign `TypeInfo` of member '{self.name}' (type index {self.type_index}).")
+
     def __repr__(self):
-        return f"MemberInfo(\"{self.name}\", <{self.type_py_name}>, flags={self.flags}, offset={self.offset})"
+        return (
+            f"MemberInfo(\"{self.name}\", {self.type_py_name} <{self.type_index}>, "
+            f"flags={self.flags}, offset={self.offset})"
+        )
 
 
 class InterfaceInfo:
