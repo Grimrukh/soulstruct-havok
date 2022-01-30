@@ -102,26 +102,24 @@ class TagDataType(IntEnum):
     Array = 0b00001000  # 8
     Struct = 0b00101000  # 40
 
-    # `Struct` subtypes
-    # Three variants of generic "T[N]" structs, with fixed length determined by "vN" template.
-    IsVariable1 = 0b0_00000010 << 8
-    IsVariable2 = 0b0_00000011 << 8
-    IsVariable3 = 0b0_00000101 << 8
-    IsVector4 = 0b0_00000100 << 8  # 4 floats
-    IsTransform = 0b0_00010000 << 8  # first three 4-columns (rotation) + Vector4 (translation) (16 floats total)
-    IsMatrix3Impl = 0b0_00001100 << 8  # first three 4-columns (rotation) (12 floats total) and 'tFT' template (float)
+    NewString = 0b10000011  # 131  # TODO: type of 2018 `hkStringPtr`, rather than `String` above
+
+    # SECOND BYTE
+
+    # NOTE: `Struct` subtypes use the second byte to indicate their length. I assume this means their maximum length is
+    # 255, though they may just continue to use higher bits.
 
     # `Int` subtypes
-    IsSigned = 0b0_00000010 << 8
+    IsSigned = 0b0_00000010 << 8  # combined with one of the four types below
     Int8 = 0b0_00100000 << 8
     Int16 = 0b0_01000000 << 8
     Int32 = 0b0_10000000 << 8
     Int64 = 0b1_00000000 << 8
 
     # `Float` subtypes
-    Float32 = 0b00010111_01000110 << 8
-    Float16 = 0b00000111_01000110 << 8  # has a `hkInt16` member called "value"
     # There is a `hkUFloat8` class as well, but its type flags are actually marked as `Class` here (has "value" member).
+    Float16 = 0b00000111_01000110 << 8  # has a `hkInt16` member called "value"
+    Float32 = 0b00010111_01000110 << 8
 
     def has_flag(self, tagfile_types: int):
         return bool(tagfile_types & self.value)
@@ -169,6 +167,17 @@ class TagDataType(IntEnum):
             raise TypeError(f"Cannot get struct format for node sub-type flags {tagfile_types}.")
         return fmt.lower() if tagfile_types & cls.IsSigned or signed else fmt
 
+    def get_primitive_type_hint(self) -> str:
+        if self == self.Bool:
+            return "bool"
+        if self == self.String:
+            return "str"
+        if self == self.Int:
+            return "int"
+        if self == self.Float:
+            return "float"
+        return ""
+
 
 class TagFormatFlags(IntEnum):
     """Flags indicating which types of data are stored with a `HKXType` in a tagfile, as variable ints."""
@@ -202,3 +211,12 @@ class TagFormatFlags(IntEnum):
         if has_members:
             flags |= cls.Members  # 43
         return flags
+
+
+class TagMemberFlags(IntEnum):
+    """Flags indicating properties of a member. Only specified in tagfiles."""
+
+    NotSerializable = 0b0000_0001  # 1
+    Protected = 0b0000_0010  # 2
+    Private = 0b0000_0100  # 4
+    Default = 0b0010_0000  # 32 (always enabled)

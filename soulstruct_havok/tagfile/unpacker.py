@@ -17,8 +17,13 @@ if tp.TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-_DEBUG_TYPES = False
+_DEBUG_TYPES = True
 _DEBUG_HASH = False
+
+
+def _DEBUG_TYPE_PRINT(*args, **kwargs):
+    if _DEBUG_TYPES:
+        print(*args, **kwargs)
 
 
 class TagFileUnpacker:
@@ -53,7 +58,7 @@ class TagFileUnpacker:
                 self.is_compendium = False
                 with self.unpack_section(reader, "SDKV"):
                     self.hk_version = reader.unpack_string(length=8, encoding="utf-8")
-                    if self.hk_version not in {"20150100", "20160100", "20160200"}:
+                    if self.hk_version not in {"20150100", "20160100", "20160200", "20180100"}:
                         raise ValueError(f"Unsupported HKX tagfile version: {self.hk_version}.")
 
                 with self.unpack_section(reader, "DATA"):
@@ -189,12 +194,18 @@ class TagFileUnpacker:
                 body_section_end = reader.position + body_section_size
                 while reader.position < body_section_end:
 
+                    _DEBUG_TYPE_PRINT("TYPE:")
                     type_index = self.unpack_var_int(reader)
-                    parent_type_index = self.unpack_var_int(reader)
-                    tag_format_flags = self.unpack_var_int(reader)
+                    _DEBUG_TYPE_PRINT(f"    Type index: {type_index}")
 
                     if type_index == 0:
                         continue  # null type
+
+                    _DEBUG_TYPE_PRINT(f"        --> Real name: `{file_hk_types[type_index].name}`")
+                    parent_type_index = self.unpack_var_int(reader)
+                    _DEBUG_TYPE_PRINT(f"    Parent type index: {parent_type_index}")
+                    tag_format_flags = self.unpack_var_int(reader)
+                    _DEBUG_TYPE_PRINT(f"    Tag format flags: {tag_format_flags}")
 
                     type_info = file_hk_types[type_index]
                     if parent_type_index > 0:
@@ -203,35 +214,56 @@ class TagFileUnpacker:
 
                     if tag_format_flags & TagFormatFlags.SubType:
                         type_info.tag_type_flags = tag_type_flags = self.unpack_var_int(reader)
+                        _DEBUG_TYPE_PRINT(f"    Tag type flags: {tag_type_flags}")
 
                     if tag_format_flags & TagFormatFlags.Pointer and tag_type_flags & 0b0000_1111 >= 6:
                         type_info.pointer_type_index = self.unpack_var_int(reader)
+                        _DEBUG_TYPE_PRINT(f"    Pointer type index: {type_info.pointer_type_index}")
                         type_info.pointer_type_info = file_hk_types[type_info.pointer_type_index]
 
                     if tag_format_flags & TagFormatFlags.Version:
                         type_info.version = self.unpack_var_int(reader)
+                        _DEBUG_TYPE_PRINT(f"    Version: {type_info.version}")
 
                     if tag_format_flags & TagFormatFlags.ByteSize:
                         type_info.byte_size = self.unpack_var_int(reader)
+                        _DEBUG_TYPE_PRINT(f"    Byte size: {type_info.byte_size}")
                         type_info.alignment = self.unpack_var_int(reader)
+                        _DEBUG_TYPE_PRINT(f"    Alignment: {type_info.alignment}")
 
                     if tag_format_flags & TagFormatFlags.AbstractValue:
                         type_info.abstract_value = self.unpack_var_int(reader)
+                        _DEBUG_TYPE_PRINT(f"    Abstract value: {type_info.abstract_value}")
 
                     if tag_format_flags & TagFormatFlags.Members:
+                        type_info.members = []
                         member_count = self.unpack_var_int(reader)
-                        type_info.members = [
-                            MemberInfo(
-                                name=member_names[self.unpack_var_int(reader)],
-                                flags=self.unpack_var_int(reader),
-                                offset=self.unpack_var_int(reader),
-                                type_index=(member_type_index := self.unpack_var_int(reader)),
-                                type_info=file_hk_types[member_type_index],
-                            ) for _ in range(member_count)
-                        ]
+                        _DEBUG_TYPE_PRINT(f"    Member count: {member_count}")
+                        for _ in range(member_count):
+                            member_name_index = self.unpack_var_int(reader)
+                            member_name = member_names[member_name_index]
+                            _DEBUG_TYPE_PRINT(f"      Member name index: {member_name_index} ({member_name})")
+                            member_flags = self.unpack_var_int(reader)
+                            _DEBUG_TYPE_PRINT(f"        Flags: {member_flags}")
+                            if member_flags < 32:
+                                raise ValueError(f"Member flags were less than 32, which isn't possible.")
+                            member_offset = self.unpack_var_int(reader)
+                            _DEBUG_TYPE_PRINT(f"        Offset: {member_offset}")
+                            member_type_index = self.unpack_var_int(reader)
+                            _DEBUG_TYPE_PRINT(f"        Type index: {member_type_index}")
+                            type_info.members.append(
+                                MemberInfo(
+                                    name=member_name,
+                                    flags=member_flags,
+                                    offset=member_offset,
+                                    type_index=member_type_index,
+                                    type_info=file_hk_types[member_type_index],
+                                )
+                            )
 
                     if tag_format_flags & TagFormatFlags.Interfaces:
                         interface_count = self.unpack_var_int(reader)
+                        _DEBUG_TYPE_PRINT(f"Interface count: {interface_count}")
                         type_info.interfaces = [
                             InterfaceInfo(
                                 type_index=(interface_type_index := self.unpack_var_int(reader)),
@@ -324,7 +356,7 @@ class TagFileUnpacker:
             reader.seek(data_start_offset + data_size)
 
     @staticmethod
-    def unpack_var_int(reader: BinaryReader, warn_small_size=False) -> int:
+    def unpack_var_int_old(reader: BinaryReader, warn_small_size=False) -> int:
         """Read a variable-sized big-endian integer from `buffer`.
 
         The first three bits determine the size of the integer:
@@ -346,6 +378,12 @@ class TagFileUnpacker:
                         print(f"WARNING: varint {value} could have used less than 27 bits.")
                 else:
                     next_short = reader.unpack_value(">H")
+
+                    bit_21_int = (byte << 16 | next_short) & 0b00011111_11111111_11111111
+                    if bit_21_int == 196609:
+                        # Weird representation of 1 (first eight bits are 11000011, rest are all zeroes except the last)
+                        return 1
+
                     value = (byte << 16 | next_short) & 0b00011111_11111111_11111111
                     if warn_small_size and value < 0b00111111_11111111:
                         print(f"WARNING: varint {value} could have used less than 21 bits.")
@@ -358,3 +396,53 @@ class TagFileUnpacker:
             value = byte & 0b01111111
             # No value is too small to warn about.
         return value
+
+    @staticmethod
+    def read_var_int(reader: BinaryReader, byte_count: int, mask: int):
+        value = 0
+        for bit_shift in range(8 * (byte_count - 1), -1, -8):
+            value |= reader.unpack_value("<B") << bit_shift
+        return value & mask
+
+    @classmethod
+    def unpack_var_int(cls, reader: BinaryReader) -> int:
+        """First 1-5 bits of next byte indicate the size of the packed integer.
+
+        Remaining bits after that marker in the first byte form part of the integer.
+        """
+        marker_byte = reader.peek_value("B")
+
+        if marker_byte & 0b10000000 == 0:
+            # Use last 7/8 bits.
+            return cls.read_var_int(reader, 1, 0b01111111)
+
+        # TODO: Special cases that have been found (in Elden Ring).
+        if marker_byte == 0b11000011:
+            # Use last 16/24 bits. TODO: Only observed value so far is 1, so the real bit count may be smaller.
+            return cls.read_var_int(reader, 3, 0b11111111_11111111)
+
+        marker = marker_byte >> 3  # examine first five bits
+
+        if marker in range(0b00010000, 0b00011000):
+            # Use last 14/16 bits.
+            return cls.read_var_int(reader, 2, 0b00111111_11111111)
+
+        if marker in range(0b00011000, 0b00011100):
+            # Use last 21/24 bits.
+            return cls.read_var_int(reader, 3, 0b00011111_11111111_11111111)
+
+        if marker == 0b00011100:
+            # Use last 27/32 bits.
+            return cls.read_var_int(reader, 4, 0b00000111_11111111_11111111_11111111)
+
+        if marker == 0b00011101:
+            # Use last 35/40 bits.
+            return cls.read_var_int(reader, 5, 0b00000111_11111111_11111111_11111111_11111111)
+
+        if marker == 0b00011110:
+            # Use last 59/64 bits.
+            return cls.read_var_int(
+                reader, 8, 0b00000111_11111111_11111111_11111111_11111111_11111111_11111111_11111111
+            )
+
+        raise ValueError(f"Unrecognized marker byte for Havok variable int: {format(marker_byte, '#010b')}")

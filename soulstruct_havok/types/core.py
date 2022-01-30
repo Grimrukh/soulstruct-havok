@@ -8,10 +8,12 @@ __all__ = [
     "Member",
     "Interface",
     "hk",
+    "hkBasePointer",
     "hkArray_",
     "hkArray",
     "hkStruct_",
     "hkStruct",
+    "hkGenericStruct",
     "hkEnum_",
     "hkEnum",
     "Ptr_",
@@ -32,6 +34,8 @@ __all__ = [
     "SET_DEBUG_PRINT",
 ]
 
+import inspect
+import sys
 import typing as tp
 from collections import deque
 from pathlib import Path
@@ -41,13 +45,16 @@ from colorama import init as colorama_init, Fore
 from soulstruct.utilities.binary import BinaryReader, BinaryWriter
 from soulstruct.utilities.inspection import get_hex_repr
 
-from soulstruct_havok.enums import TagDataType
+from soulstruct_havok.enums import TagDataType, TagMemberFlags
 from soulstruct_havok.packfile.structs import PackFileItemEntry
 from soulstruct_havok.tagfile.structs import TagFileItem
 from soulstruct_havok.types.info import *
 
 if tp.TYPE_CHECKING:
     from soulstruct_havok.packfile.structs import PackFileItemEntry
+
+
+# TODO: hard-coded pointer byte size/alignment is long (8 bits). They should respect some global pointer size.
 
 
 colorama_init()
@@ -116,10 +123,10 @@ class TemplateValue(tp.NamedTuple):
 
 class Member(tp.NamedTuple):
     """Simple container for member information."""
+    offset: int
     name: str
     type: tp.Union[tp.Type[hk], DefType]
-    offset: int
-    flags: int
+    flags: int = TagMemberFlags.Default
 
 
 class Interface(tp.NamedTuple):
@@ -178,7 +185,9 @@ class hk:
 
     @classmethod
     def get_tag_data_type(cls):
-        return TagDataType(cls.tag_type_flags & 0xFF)
+        # TODO: Testing out ignoring the first bit, because `hkStringPtr` in 2018 seems to have a 1 in its MSB but no
+        #  other functional difference I can see...
+        return TagDataType(cls.tag_type_flags & 0b01111111)
 
     @classmethod
     def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
@@ -203,6 +212,17 @@ class hk:
         """
         reader.seek(offset)
         _debug_print_unpack(f"Unpacking `{cls.__name__}`... ({cls.get_tag_data_type().name}) <{hex(offset)}>")
+
+        if cls.__name__ == "hkRootLevelContainerNamedVariant":
+            # Retrieve other classes from subclass's module, as they will be dynamically attached to the root container.
+            all_types = {
+                hk_type.__name__: hk_type
+                for hk_type in inspect.getmembers(
+                    sys.modules[cls.__module__], lambda x: inspect.isclass(x) and issubclass(x, hk)
+                )
+            }
+            return unpack_named_variant(cls, reader, items, all_types)
+
         tag_data_type = cls.get_tag_data_type()
         if tag_data_type == TagDataType.Invalid:
             # Cannot unpack opaque type (and there shouldn't be anything to unpack in the file).
@@ -233,6 +253,17 @@ class hk:
         """
         offset = entry.reader.seek(offset) if offset is not None else entry.reader.position
         _debug_print_unpack(f"Unpacking `{cls.__name__}`... ({cls.get_tag_data_type().name}) <{hex(offset)}>")
+
+        if cls.__name__ == "hkRootLevelContainerNamedVariant":
+            # Retrieve other classes from subclass's module, as they will be dynamically attached to the root container.
+            all_types = {
+                hk_type.__name__: hk_type
+                for hk_type in inspect.getmembers(
+                    sys.modules[cls.__module__], lambda x: inspect.isclass(x) and issubclass(x, hk)
+                )
+            }
+            return unpack_named_variant_packfile(cls, entry, pointer_size, all_types)
+
         tag_data_type = cls.get_tag_data_type()
         if tag_data_type == TagDataType.Invalid:
             # Cannot unpack opaque type (and there shouldn't be anything to unpack in the file).
@@ -271,6 +302,10 @@ class hk:
         in its `data` attribute, and all items' data can be assembled in order at the end.
         """
         _debug_print_pack(f"Packing `{cls.__name__}` with value {repr(value)}... ({cls.get_tag_data_type().name})")
+
+        if cls.__name__ == "hkRootLevelContainerNamedVariant":
+            return pack_named_variant(cls, item, value, items, existing_items, item_creation_queue)
+
         tag_data_type = cls.get_tag_data_type()
         if tag_data_type == TagDataType.Invalid:
             # Cannot pack opaque type (and the file expects no data).
@@ -306,6 +341,10 @@ class hk:
         in its `data` attribute, and all items' data can be assembled in order at the end.
         """
         _debug_print_pack(f"Packing `{cls.__name__}` with value {repr(value)}... ({cls.get_tag_data_type().name})")
+
+        if cls.__name__ == "hkRootLevelContainerNamedVariant":
+            return pack_named_variant_packfile(cls, item, value, existing_items, data_pack_queue, pointer_size)
+
         tag_data_type = cls.get_tag_data_type()
         if tag_data_type == TagDataType.Invalid:
             # Cannot pack opaque type (and the file expects no data).
@@ -350,11 +389,6 @@ class hk:
             MemberInfo(member.name, member.flags, member.offset, type_py_name=member.type.__name__)
             for member in cls.local_members
         ]
-
-        for member in cls.members:
-            if member.name == "ptr":  # e.g. `hkRefVariant`
-                # noinspection PyUnresolvedReferences
-                type_info.pointer_type_py_name = member.type.get_data_type().__name__
 
         type_info.interfaces = [
             InterfaceInfo(interface.flags, type_py_name=interface.type.__name__)
@@ -503,6 +537,18 @@ class hkBasePointer(hk):
             cls._data_type = cls._data_type.action()
             return cls._data_type
         return cls._data_type
+
+    @classmethod
+    def get_type_info(cls) -> TypeInfo:
+        """Default implementation for pointer classes."""
+        type_info = super().get_type_info()
+        type_info.pointer_type_py_name = cls.get_data_type().__name__
+        return type_info
+
+    @classmethod
+    def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
+        # noinspection PyTypeChecker
+        return list(cls.__mro__[:-3])  # exclude this, `hk`, and `object`
 
 
 class TypeInfoGenerator:
@@ -725,7 +771,7 @@ class hkArray_(hkBasePointer):
     @classmethod
     def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
         # noinspection PyTypeChecker
-        return list(cls.__mro__[:-4])  # exclude this, `hkDataWrapper`, `hk`, and `object`
+        return list(cls.__mro__[:-4])  # exclude this, `hkBasePointer`, `hk`, and `object`
 
 
 def hkArray(data_type: tp.Type[hk] | hkRefPtr | hkViewPtr, hsh: int = None) -> tp.Type[hkArray_]:
@@ -811,6 +857,9 @@ class hkStruct_(hkBasePointer):
     """Simple wrapper type for both 'T[N]' types and built-in tuple types like `hkVector4f`.
 
     These types store a fixed amount of data locally (e.g., within the same item) rather than separately, like arrays.
+
+    NOTE: For generic 'T[N]' tuples, length is actually stored twice: in the 'vN' template, and in the second most
+    significant byte of `tag_type_flags`. (In non-generic tuples, there is no 'vN' template, just the `tag_type_flags`.)
     """
     length = 0
     is_generic = False
@@ -873,7 +922,7 @@ class hkStruct_(hkBasePointer):
                 TemplateInfo("vN", value=cls.length),
             ]
             type_info.tag_format_flags = 11
-            type_info.tag_type_flags = cls.tag_type_flags  # already set to correct subtype
+            type_info.tag_type_flags = cls.tag_type_flags  # already set to correct subtype (including length)
             type_info.byte_size = cls.get_data_type().byte_size * cls.length
             type_info.alignment = cls.get_data_type().alignment
             # TODO: Some generic T[N] types have hashes. Could find it here from XML...
@@ -894,29 +943,42 @@ class hkStruct_(hkBasePointer):
     def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
         if cls.is_generic:
             # noinspection PyTypeChecker
-            return list(cls.__mro__[:-4])  # exclude this, `hkDataWrapper`, `hk`, and `object`
+            return list(cls.__mro__[:-4])  # exclude this, `hkBasePointer`, `hk`, and `object`
         else:
-            # exclude `_hkStruct[type, length]` subclass, this, `hkDataWrapper`, `hk`, and `object`
+            # exclude `_hkStruct[type, length]` subclass, this, `hkBasePointer`, `hk`, and `object`
             # noinspection PyTypeChecker
             return list(cls.__mro__[:-5])
 
 
-def hkStruct(
-    data_type: tp.Type[hk], length: int, generic_tag_subtype: TagDataType = None
-) -> tp.Type[hkStruct_]:
+def hkStruct(data_type: tp.Type[hk], length: int) -> tp.Type[hkStruct_]:
     """Generates a `_hkStruct` subclass dynamically.
 
     Needs all the basic `hk` information, unfortunately, as it can vary (except `tag_format_flags`, which is always 11).
     """
     # noinspection PyTypeChecker
     struct_type = type(f"hkStruct[{data_type.__name__}, {length}]", (hkStruct_,), {})  # type: tp.Type[hkStruct_]
-    if generic_tag_subtype:
-        struct_type.tag_type_flags = TagDataType.Struct | generic_tag_subtype
-        struct_type.is_generic = True
-    else:
-        struct_type.is_generic = False
+    struct_type.is_generic = False
     struct_type._data_type = data_type
+    if length > 255:
+        raise ValueError(f"Maximum `hkStruct` (`T[N]`) length is 255. Invalid: {length}")
     struct_type.length = length
+    struct_type.tag_type_flags = TagDataType.Struct | length << 8
+    return struct_type
+
+
+def hkGenericStruct(data_type: tp.Type[hk], length: int) -> tp.Type[hkStruct_]:
+    """Generates a `_hkStruct` subclass dynamically.
+
+    Needs all the basic `hk` information, unfortunately, as it can vary (except `tag_format_flags`, which is always 11).
+    """
+    # noinspection PyTypeChecker
+    struct_type = type(f"hkStruct[{data_type.__name__}, {length}]", (hkStruct_,), {})  # type: tp.Type[hkStruct_]
+    struct_type.is_generic = True
+    struct_type._data_type = data_type
+    if length > 255:
+        raise ValueError(f"Maximum `hkStruct` (`T[N]`) length is 255. Invalid: {length}")
+    struct_type.length = length
+    struct_type.tag_type_flags = TagDataType.Struct | length << 8
     return struct_type
 
 
@@ -1005,7 +1067,7 @@ class Ptr_(hkBasePointer):
     @classmethod
     def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
         # noinspection PyTypeChecker
-        return list(cls.__mro__[:-4])  # exclude this, `hkDataWrapper`, `hk`, and `object`
+        return list(cls.__mro__[:-4])  # exclude this, `hkBasePointer`, `hk`, and `object`
 
 
 def Ptr(data_type: tp.Type[hk] | DefType, hsh: int = None) -> tp.Type[Ptr_]:
@@ -1016,6 +1078,46 @@ def Ptr(data_type: tp.Type[hk] | DefType, hsh: int = None) -> tp.Type[Ptr_]:
     ptr_type._data_type = data_type
     ptr_type.__hsh = hsh
     return ptr_type
+
+
+class hkReflectQualifiedType_(Ptr_):
+    """Simple wrapper for a special pointer type that has a `tTYPE` template with type `hkReflectType` and a `type`
+    member that always points to `hkReflectType`.
+    
+    This pointer never actually varies, and presumably just indicates some reflective member that doesn't matter for
+    our purposes here.
+    """
+    alignment = 8
+    byte_size = 8
+    tag_type_flags = 6
+
+    __tag_format_flags = 43
+
+    @classmethod
+    def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
+        # noinspection PyTypeChecker
+        return list(cls.__mro__[:-5])  # exclude this, `_Ptr`, `hkBasePointer`, `hk`, and `object`
+
+    @classmethod
+    def get_type_info(cls) -> TypeInfo:
+        type_info = TypeInfo("hkReflect::QualifiedType")
+        type_info.py_class = cls
+
+        type_info.templates = [
+            TemplateInfo("tTYPE", type_py_name="hkReflectType"),
+        ]
+        type_info.tag_format_flags = 43
+        type_info.tag_type_flags = 6
+        type_info.byte_size = 8
+        type_info.alignment = 8
+        if (hsh := cls.__dict__.get("__hsh")) is not None:
+            type_info.hsh = hsh
+        type_info.pointer_type_py_name = "hkReflectType"
+        type_info.members = [
+            MemberInfo("type", flags=36, offset=0, type_py_name=f"Ptr[hkReflectType]"),
+        ]
+
+        return type_info
 
 
 class hkRefPtr_(Ptr_):
@@ -1039,7 +1141,7 @@ class hkRefPtr_(Ptr_):
     @classmethod
     def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
         # noinspection PyTypeChecker
-        return list(cls.__mro__[:-5])  # exclude this, `_Ptr`, `hkDataWrapper`, `hk`, and `object`
+        return list(cls.__mro__[:-5])  # exclude this, `_Ptr`, `hkBasePointer`, `hk`, and `object`
 
     @classmethod
     def get_type_info(cls) -> TypeInfo:
@@ -1080,7 +1182,7 @@ class hkRefVariant_(Ptr_):
     @classmethod
     def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
         # noinspection PyTypeChecker
-        return list(cls.__mro__[:-5])  # exclude this, `Ptr_`, `hkDataWrapper`, `hk`, and `object`
+        return list(cls.__mro__[:-5])  # exclude this, `Ptr_`, `hkBasePointer`, `hk`, and `object`
 
     @classmethod
     def get_type_info(cls) -> TypeInfo:
@@ -1242,7 +1344,7 @@ class NewStruct_(hkBasePointer):
     @classmethod
     def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
         # noinspection PyTypeChecker
-        return list(cls.__mro__[:-4])  # exclude this, `hk`, `hkDataWrapper`, and `object`
+        return list(cls.__mro__[:-4])  # exclude this, `hk`, `hkBasePointer`, and `object`
 
 
 def NewStruct(data_type: tp.Type[hk]):
@@ -1377,8 +1479,6 @@ def pack_class_packfile(
     pointer_size: int,
 ):
     member_start_offset = item.writer.position
-
-    # TODO: pack_named_variant_packfile
 
     if "hkBaseObject" in [parent_type.__name__ for parent_type in hk_type.get_type_hierarchy()]:
         # Pointer for the mysterious base object type.
@@ -1950,32 +2050,17 @@ def pack_named_variant_packfile(
 
 def create_module_from_files(version="2015", *file_paths: str | Path, is_tagfile=True, module_path: Path = None):
     """Create an actual Python module with a real class hierarchy that fully captures Havok types."""
+    if not file_paths:
+        raise ValueError("At least one file path must be given to create Havok types module.")
+
     if module_path is None:
         module_path = Path(__file__).parent / f"hk{version}.py"
 
-    module_str = ""
-
-    # First, some very primitive types.
-    module_str += f"""\"\"\"Auto-generated types for Havok {version}.
-
-Generated from files:
-"""
+    module_str = f"\"\"\"Auto-generated types for Havok {version}.\n\nGenerated from files:"
     for file_path in file_paths:
-        module_str += f"    {file_path.name}\n"
+        module_str += f"\n    {file_path.name}"
+    module_str += "\n\"\"\"\nfrom __future__ import annotations\n\nfrom soulstruct_havok.types.core import *\n"
 
-    module_str += """
-\"\"\"
-from __future__ import annotations
-import typing as tp
-
-from soulstruct_havok.enums import TagDataType
-from soulstruct_havok.types.core import *
-
-if tp.TYPE_CHECKING:
-    from soulstruct.utilities.binary import BinaryReader
-    from soulstruct_havok.tagfile.structs import TagFileItem
-    from soulstruct_havok.packfile.structs import PackFileItemEntry
-"""
     # TODO: Detect if file is tag/pack, then open it, but extract `TypeInfo` list only. (Don't need any generic types.)
     #  Things to consider:
     #   - Only tagfiles have (and use) the "tag_format_flags" type attribute; it just indicates which other type
@@ -2006,54 +2091,60 @@ if tp.TYPE_CHECKING:
     for type_info in raw_type_infos:
         if type_info.name in generic_types or type_info.py_name in type_info_dict:  # always skipped
             continue
-        print(type_info.py_name)
-        for member in type_info.members:
-            print(f"    {member.type_info}")
         type_info_dict[type_info.py_name] = type_info
 
     defined_py_names = ["hk"]
 
-    def define(_type_info: TypeInfo):
+    def define(_name: str, optional=False) -> str:
+        if _name not in type_info_dict and optional:
+            return ""
+        _type_info = type_info_dict[_name]
         _py_name = _type_info.py_name
         if _py_name in defined_py_names:
+            print(f"ALREADY DEFINED: {_py_name}")
             return ""
-        class_str = "\n\n" + _type_info.get_py_class_def(defined_py_names)
+        class_str = "\n\n" + _type_info.get_class_py_def(defined_py_names)
         defined_py_names.append(_py_name)
+        print(f"    BUILT: {_py_name}")
         return class_str
 
-    def define_all(_type_infos: list[TypeInfo]):
+    def define_all(_names: list[str]):
         """Keep iterating over filtered type list, attempting to define them, until they can all be defined."""
-        if not _type_infos:
+        _names = [_name for _name in _names if _name not in defined_py_names]
+        if not _names:
             return ""
-        class_str = ""
+        class_strs = []
         while True:
             new_definitions = []
             exceptions = []
-            for _type_info in _type_infos:
+            for _name in _names:
+                _type_info = type_info_dict[_name]
                 try:
-                    class_str += define(_type_info)
-                    new_definitions.append(_type_info)
+                    class_str = define(_name)
+                    class_strs.append(class_str)
+                    new_definitions.append(_name)
                 except TypeNotDefinedError as ex:
-                    exceptions.append(str(ex))
+                    exceptions.append(f"{_name}: {str(ex)}")
                     continue  # try next type
             if not new_definitions:
+                # Could not define anything on this pass. Raise all exceptions from this pass.
                 ex_str = "\n    ".join(exceptions)
-                print(defined_py_names)
-                raise ValueError(
-                    f"Could not define any types remaining in list: {[_t.name for _t in _type_infos]}.\n\n"
+                print(f"Defined py names: {defined_py_names}")
+                raise HavokTypeError(
+                    f"Could not define any types remaining in list: {[_name for _name in _names]}.\n\n"
                     f"Last errors:\n    {ex_str}"
                 )
-            for _type_info in new_definitions:
-                _type_infos.remove(_type_info)
-            if not _type_infos:
+            for _name in new_definitions:
+                _names.remove(_name)
+            if not _names:
                 break
-        return class_str
+        return "".join(class_strs)
 
     print("Defining Invalid Types")
 
     module_str += f"\n\n# --- Invalid Types --- #\n"
     module_str += define_all([
-        type_info for name, type_info in type_info_dict.items()
+        name for name, type_info in type_info_dict.items()
         if type_info.tag_data_type == TagDataType.Invalid
     ])
 
@@ -2061,8 +2152,8 @@ if tp.TYPE_CHECKING:
 
     module_str += f"\n\n# --- Primitive Types --- #\n"
     module_str += define_all([
-        type_info for name, type_info in type_info_dict.items()
-        if not type_info.name.startswith("hk") and not type_info.name.startswith("Custom")
+        name for name, type_info in type_info_dict.items()
+        if not any(type_info.name.startswith(s) for s in HAVOK_TYPE_PREFIXES)
     ])
 
     print("Defining Havok Struct Types")
@@ -2070,20 +2161,18 @@ if tp.TYPE_CHECKING:
     # Basic 'Struct' types.
     module_str += f"\n\n# --- Havok Struct Types --- #\n"
     module_str += define_all([
-        type_info for name, type_info in type_info_dict.items()
+        name for name, type_info in type_info_dict.items()
         if type_info.get_parent_value("tag_data_type") == TagDataType.Struct
     ])
-    if "hkQsTransformf" in type_info_dict:
-        module_str += define(type_info_dict["hkQsTransformf"])  # bundles other structs together
-    if "hkQsTransform" in type_info_dict:
-        module_str += define(type_info_dict["hkQsTransform"])  # alias for above
+    module_str += define("hkQsTransformf", optional=True)  # bundles other structs together
+    module_str += define("hkQsTransform", optional=True)  # alias for above
 
     print("Defining Havok Wrappers")
 
     # Other shallow wrappers.
     module_str += f"\n\n# --- Havok Wrappers --- #\n"
     module_str += define_all([
-        type_info for name, type_info in type_info_dict.items()
+        name for name, type_info in type_info_dict.items()
         if type_info.tag_type_flags is None
     ])
 
@@ -2091,12 +2180,12 @@ if tp.TYPE_CHECKING:
 
     # Core classes.
     module_str += f"\n\n# --- Havok Core Types --- #\n"
-    module_str += define(type_info_dict["hkBaseObject"])
-    module_str += define(type_info_dict["hkReferencedObject"])
+    module_str += define("hkBaseObject")
+    # `hkReferencedObject` is left to its own devices, as in 2016 onwards, it has other `hkPropertyBag` dependencies.
 
     # Everything else.
     module_str += define_all([
-        type_info for name, type_info in type_info_dict.items()
+        name for name, type_info in type_info_dict.items()
         if name not in defined_py_names
     ])
 
@@ -2104,19 +2193,27 @@ if tp.TYPE_CHECKING:
         f.write(module_str)
 
 
-if __name__ == '__main__':
+def create_2015_module():
     create_module_from_files(
         "2015",
-        # Path(r"C:\Dark Souls\soulstruct-havok\tests\resources\BB\c2310\c2310-chrbnd-dcx\chr\c2310\c2310.HKX"),
-        # Path("../../tests/resources/BB/c2800/c2800.hkx").resolve(),
-        Path("C:/Dark Souls/Projects/NightfallMod/Nightfall/RES/Interroot/map/m12_00_00_00/h0535B0A12.hkx"),
+        Path("../../tests/resources/DSR/c2240/Skeleton.HKX"),
+        Path("../../tests/resources/DSR/c2240/c2240.hkx"),
+        Path("../../tests/resources/DSR/c2240/a00_3000.hkx"),
         is_tagfile=True,
-        module_path=Path(__file__).parent / f"hk2015_collision.py"
+        module_path=Path(__file__).parent / f"hk2015_new.py"
     )
 
-    # create_module_from_files(
-    #     "2015",
-    #     # Path("../../tests/resources/DSR/c2240/Skeleton.HKX").resolve(),
-    #     Path("../../tests/resources/DSR/c2240/c2240.hkx").resolve(),
-    #     # Path("../../tests/resources/DSR/c2240/a00_3000.hkx").resolve(),
-    # )
+
+def create_2018_module():
+    create_module_from_files(
+        "2018",
+        Path(r"C:\Dark Souls\c2180-anibnd-dcx\GR\data\INTERROOT_ps4\chr\c2180\hkx\skeleton.hkx"),
+        Path(r"C:\Dark Souls\c2180-chrbnd-dcx\GR\data\INTERROOT_ps4\chr\c2180\c2180_c.hkx"),
+        is_tagfile=True,
+        module_path=Path(__file__).parent / f"hk2018.py"
+    )
+
+
+if __name__ == '__main__':
+    create_2015_module()
+    # create_2018_module()

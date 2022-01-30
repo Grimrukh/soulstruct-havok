@@ -15,18 +15,25 @@ def ptde_c2500_test():
 
 def ds3_c1430_test():
 
-    # c1430_anibnd_path = Path(DS3_PATH + "/chr/c1430.anibnd_vanilla.dcx")
-    # c1430_anibnd = Binder(c1430_anibnd_path, from_bak=True)
-    # c1430_skeleton = HKX(c1430_anibnd[1000000])
-    # c1430_anibnd[1000000].data = c1430_skeleton.pack()
-    # c1430_anibnd.write(Path(DS3_PATH + "/chr/c1430.anibnd.dcx"))  # WORKS
+    c1430_anibnd_path = Path(DS3_PATH + "/chr/c1430.anibnd_vanilla.dcx")
+    c1430_anibnd = Binder(c1430_anibnd_path, from_bak=True)
+    c1430_skeleton = HKX(c1430_anibnd[1000000])
+    c1430_anibnd[1000000].data = c1430_skeleton.pack()
 
     c1430_chrbnd_path = Path(DS3_PATH + "/chr/c1430.chrbnd_vanilla.dcx")
     c1430_chrbnd = Binder(c1430_chrbnd_path)
+
     c1430_ragdoll = HKX(c1430_chrbnd[300])
     print("Unpacked ragdoll successfully.")
-    c1430_cloth = HKX(c1430_chrbnd[700])
-    print("Unpacked cloth successfully.")
+    c1430_chrbnd[300].data = c1430_ragdoll.pack()
+    print("    --> Repacked ragdoll successfully.")
+
+    # TODO: I don't have `hcl` cloth classes yet.
+    # c1430_cloth = HKX(c1430_chrbnd[700])
+    # print("Unpacked cloth successfully.")
+
+    c1430_anibnd.write(Path(DS3_PATH + "/chr/c1430.anibnd.dcx"))  # WORKS (but only has skeleton)
+    c1430_chrbnd.write(Path(DS3_PATH + "/chr/c1430.chrbnd.dcx"))  # TODO: works?
 
 
 def bb_cloth_test():
@@ -36,6 +43,14 @@ def bb_cloth_test():
 def dsr_cloth_test():
     silver_knight_cloth = HKX.from_binder(DSR_PATH + "/chr/c2410.chrbnd.dcx", 700)
     print(silver_knight_cloth)
+
+
+def er_cloth_test():
+    c2180_skeleton = HKX(r"C:\Dark Souls\c2180-anibnd-dcx\GR\data\INTERROOT_ps4\chr\c2180\hkx\skeleton.hkx")
+    print(c2180_skeleton.get_root_tree_string())
+
+    # c2180_cloth = HKX(r"C:\Dark Souls\c2180-chrbnd-dcx\GR\data\INTERROOT_ps4\chr\c2180\c2180_c.hkx")
+    # print(c2180_cloth.get_root_tree_string())
 
 
 def packfile_test():
@@ -64,5 +79,4 @@ def packfile_test():
 
 if __name__ == '__main__':
     # ds3_c1430_test()
-    # bb_cloth_test()
-    dsr_cloth_test()
+    er_cloth_test()
