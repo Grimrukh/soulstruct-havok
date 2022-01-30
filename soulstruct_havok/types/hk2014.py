@@ -148,7 +148,7 @@ class hkQuaternionf(hkStruct(_float, 4)):
     tag_type_flags = 1064
 
     local_members = (
-        Member("vec", hkVector4f, offset=0, flags=32),
+        Member(0, "vec", hkVector4f, flags=32),
     )
     members = local_members
 
@@ -191,10 +191,10 @@ class hkMatrix4f(hkStruct(_float, 16)):
     tag_type_flags = 4136
 
     local_members = (
-        Member("col0", hkVector4f, offset=0, flags=34),
-        Member("col1", hkVector4f, offset=16, flags=34),
-        Member("col2", hkVector4f, offset=32, flags=34),
-        Member("col3", hkVector4f, offset=48, flags=34),
+        Member(0, "col0", hkVector4f, flags=34),
+        Member(16, "col1", hkVector4f, flags=34),
+        Member(32, "col2", hkVector4f, flags=34),
+        Member(48, "col3", hkVector4f, flags=34),
     )
     members = local_members
 
@@ -226,8 +226,8 @@ class hkTransformf(hkStruct(_float, 16)):
     tag_type_flags = 4136
 
     local_members = (
-        Member("rotation", hkRotationf, offset=0, flags=34),
-        Member("translation", hkVector4f, offset=48, flags=34),
+        Member(0, "rotation", hkRotationf, flags=34),
+        Member(48, "translation", hkVector4f, flags=34),
     )
     members = local_members
 
@@ -252,9 +252,9 @@ class hkQsTransformf(hk):
     tag_type_flags = 7
 
     local_members = (
-        Member("translation", hkVector4f, offset=0, flags=32),
-        Member("rotation", hkQuaternionf, offset=16, flags=32),
-        Member("scale", hkVector4f, offset=32, flags=32),
+        Member(0, "translation", hkVector4f, flags=32),
+        Member(16, "rotation", hkQuaternionf, flags=32),
+        Member(32, "scale", hkVector4f, flags=32),
     )
     members = local_members
 
@@ -341,7 +341,7 @@ class hkReferencedObject(hkBaseObject):
     tag_type_flags = 7
 
     local_members = (
-        Member("memSizeAndRefCount", hkUint32, offset=8, flags=1024),
+        Member(8, "memSizeAndRefCount", hkUint32, flags=1024),
     )
     members = hkBaseObject.members + local_members
 
@@ -357,7 +357,7 @@ class hkRefVariant(hk):
     __hsh = 2872857893
 
     local_members = (
-        Member("ptr", Ptr(hkReferencedObject), offset=0, flags=36),
+        Member(0, "ptr", Ptr(hkReferencedObject), flags=36),
     )
     members = local_members
 
@@ -379,7 +379,7 @@ class hkaAnimatedReferenceFrame(hkReferencedObject):
     tag_type_flags = 7
 
     local_members = (
-        Member("frameType", hkInt8, offset=12, flags=33),
+        Member(12, "frameType", hkInt8, flags=33),
     )
     members = hkReferencedObject.members + local_members
 
@@ -395,17 +395,17 @@ class hkxVertexBufferVertexData(hk):
     __version = 2
 
     local_members = (
-        Member("vectorData", hkArray(hkUint32), offset=0, flags=32),
-        Member("floatData", hkArray(hkUint32), offset=16, flags=32),
-        Member("uint32Data", hkArray(hkUint32), offset=32, flags=32),
-        Member("uint16Data", hkArray(hkUint16), offset=48, flags=32),
-        Member("uint8Data", hkArray(hkUint8), offset=64, flags=32),
-        Member("numVerts", hkUint32, offset=80, flags=32),
-        Member("vectorStride", hkUint32, offset=84, flags=32),
-        Member("floatStride", hkUint32, offset=88, flags=32),
-        Member("uint32Stride", hkUint32, offset=92, flags=32),
-        Member("uint16Stride", hkUint32, offset=96, flags=32),
-        Member("uint8Stride", hkUint32, offset=100, flags=32),
+        Member(0, "vectorData", hkArray(hkUint32), flags=32),
+        Member(16, "floatData", hkArray(hkUint32), flags=32),
+        Member(32, "uint32Data", hkArray(hkUint32), flags=32),
+        Member(48, "uint16Data", hkArray(hkUint16), flags=32),
+        Member(64, "uint8Data", hkArray(hkUint8), flags=32),
+        Member(80, "numVerts", hkUint32, flags=32),
+        Member(84, "vectorStride", hkUint32, flags=32),
+        Member(88, "floatStride", hkUint32, flags=32),
+        Member(92, "uint32Stride", hkUint32, flags=32),
+        Member(96, "uint16Stride", hkUint32, flags=32),
+        Member(100, "uint8Stride", hkUint32, flags=32),
     )
     members = local_members
 
@@ -429,8 +429,8 @@ class hkxMaterialProperty(hk):
     tag_type_flags = 7
 
     local_members = (
-        Member("key", hkUint32, offset=0, flags=32),
-        Member("value", hkUint32, offset=4, flags=32),
+        Member(0, "key", hkUint32, flags=32),
+        Member(4, "value", hkUint32, flags=32),
     )
     members = local_members
 
@@ -445,7 +445,7 @@ class hkMeshBoneIndexMapping(hk):
     tag_type_flags = 7
 
     local_members = (
-        Member("mapping", hkArray(hkInt16), offset=0, flags=32),
+        Member(0, "mapping", hkArray(hkInt16), flags=32),
     )
     members = local_members
 
@@ -459,7 +459,7 @@ class hkaMeshBindingMapping(hk):
     tag_type_flags = 7
 
     local_members = (
-        Member("mapping", hkArray(hkInt16), offset=0, flags=32),
+        Member(0, "mapping", hkArray(hkInt16), flags=32),
     )
     members = local_members
 
@@ -473,11 +473,11 @@ class hkCompressedMassProperties(hk):
     tag_type_flags = 7
 
     local_members = (
-        Member("centerOfMass", hkStruct(hkInt16, 4, is_generic=True), offset=0, flags=0),
-        Member("inertia", hkStruct(hkInt16, 4, is_generic=True), offset=8, flags=0),
-        Member("majorAxisSpace", hkStruct(hkInt16, 4, is_generic=True), offset=16, flags=0),
-        Member("mass", hkReal, offset=24, flags=0),
-        Member("volume", hkReal, offset=28, flags=0),
+        Member(0, "centerOfMass", hkGenericStruct(hkInt16, 4), flags=0),
+        Member(8, "inertia", hkGenericStruct(hkInt16, 4), flags=0),
+        Member(16, "majorAxisSpace", hkGenericStruct(hkInt16, 4), flags=0),
+        Member(24, "mass", hkReal, flags=0),
+        Member(28, "volume", hkReal, flags=0),
     )
     members = local_members
 
@@ -495,9 +495,9 @@ class hkRefCountedPropertiesEntry(hk):
     tag_type_flags = 7
 
     local_members = (
-        Member("object", Ptr(hkReferencedObject), offset=0, flags=0),
-        Member("key", hkUint16, offset=8, flags=0),
-        Member("flags", hkUint16, offset=10, flags=0),
+        Member(0, "object", Ptr(hkReferencedObject), flags=0),
+        Member(8, "key", hkUint16, flags=0),
+        Member(10, "flags", hkUint16, flags=0),
     )
     members = local_members
 
@@ -513,9 +513,9 @@ class hknpConvexPolytopeShapeFace(hk):
     tag_type_flags = 7
 
     local_members = (
-        Member("firstIndex", hkUint16, offset=0, flags=0),
-        Member("numIndices", hkUint8, offset=2, flags=0),
-        Member("minHalfAngle", hkUint8, offset=3, flags=0),
+        Member(0, "firstIndex", hkUint16, flags=0),
+        Member(2, "numIndices", hkUint8, flags=0),
+        Member(3, "minHalfAngle", hkUint8, flags=0),
     )
     members = local_members
 
@@ -531,7 +531,7 @@ class hkpConstraintData(hkReferencedObject):
     tag_type_flags = 7
 
     local_members = (
-        Member("userData", hkUlong, offset=16, flags=32),
+        Member(16, "userData", hkUlong, flags=32),
     )
     members = hkReferencedObject.members + local_members
 
@@ -545,7 +545,7 @@ class hkUFloat8(hk):
     tag_type_flags = 7
 
     local_members = (
-        Member("value", hkUint8, offset=0, flags=32),
+        Member(0, "value", hkUint8, flags=32),
     )
     members = local_members
 
@@ -567,8 +567,8 @@ class hkAabb(hk):
     tag_type_flags = 7
 
     local_members = (
-        Member("min", hkVector4, offset=0, flags=32),
-        Member("max", hkVector4, offset=16, flags=32),
+        Member(0, "min", hkVector4, flags=32),
+        Member(16, "max", hkVector4, flags=32),
     )
     members = local_members
 
@@ -591,8 +591,8 @@ class hkaSkeletonMapperDataPartitionMappingRange(hk):
     tag_type_flags = 7
 
     local_members = (
-        Member("startMappingIndex", hkInt32, offset=0, flags=32),
-        Member("numMappings", hkInt32, offset=4, flags=32),
+        Member(0, "startMappingIndex", hkInt32, flags=32),
+        Member(4, "numMappings", hkInt32, flags=32),
     )
     members = local_members
 
@@ -607,9 +607,9 @@ class hkaSkeletonMapperDataSimpleMapping(hk):
     tag_type_flags = 7
 
     local_members = (
-        Member("boneA", hkInt16, offset=0, flags=32),
-        Member("boneB", hkInt16, offset=2, flags=32),
-        Member("aFromBTransform", hkQsTransform, offset=16, flags=32),
+        Member(0, "boneA", hkInt16, flags=32),
+        Member(2, "boneB", hkInt16, flags=32),
+        Member(16, "aFromBTransform", hkQsTransform, flags=32),
     )
     members = local_members
 
@@ -625,12 +625,12 @@ class hkaSkeletonMapperDataChainMapping(hk):
     tag_type_flags = 7
 
     local_members = (
-        Member("startBoneA", hkInt16, offset=0, flags=32),
-        Member("endBoneA", hkInt16, offset=2, flags=32),
-        Member("startBoneB", hkInt16, offset=4, flags=32),
-        Member("endBoneB", hkInt16, offset=6, flags=32),
-        Member("startAFromBTransform", hkQsTransform, offset=16, flags=32),
-        Member("endAFromBTransform", hkQsTransform, offset=64, flags=32),
+        Member(0, "startBoneA", hkInt16, flags=32),
+        Member(2, "endBoneA", hkInt16, flags=32),
+        Member(4, "startBoneB", hkInt16, flags=32),
+        Member(6, "endBoneB", hkInt16, flags=32),
+        Member(16, "startAFromBTransform", hkQsTransform, flags=32),
+        Member(64, "endAFromBTransform", hkQsTransform, flags=32),
     )
     members = local_members
 
@@ -661,7 +661,7 @@ class hkStringPtr(hk):
     __hsh = 2837000324
 
     local_members = (
-        Member("stringAndFlag", _const_char, offset=0, flags=36),
+        Member(0, "stringAndFlag", _const_char, flags=36),
     )
     members = local_members
 
@@ -675,7 +675,7 @@ class hkBool(hk):
     tag_type_flags = 8194
 
     local_members = (
-        Member("bool", _char, offset=0, flags=36),
+        Member(0, "bool", _char, flags=36),
     )
     members = local_members
 
@@ -689,7 +689,7 @@ class hkHalf16(hk):
     tag_type_flags = 476677
 
     local_members = (
-        Member("value", hkInt16, offset=0, flags=36),
+        Member(0, "value", hkInt16, flags=36),
     )
     members = local_members
 
@@ -939,10 +939,10 @@ class hkaDefaultAnimatedReferenceFrame(hkaAnimatedReferenceFrame):
     __hsh = 1626923192
 
     local_members = (
-        Member("up", hkVector4, offset=32, flags=32),
-        Member("forward", hkVector4, offset=48, flags=32),
-        Member("duration", hkReal, offset=64, flags=32),
-        Member("referenceFrameSamples", hkArray(hkVector4), offset=72, flags=32),
+        Member(32, "up", hkVector4, flags=32),
+        Member(48, "forward", hkVector4, flags=32),
+        Member(64, "duration", hkReal, flags=32),
+        Member(72, "referenceFrameSamples", hkArray(hkVector4), flags=32),
     )
     members = hkaAnimatedReferenceFrame.members + local_members
 
@@ -959,8 +959,8 @@ class hkaBone(hk):
     tag_type_flags = 7
 
     local_members = (
-        Member("name", hkStringPtr, offset=0, flags=32),
-        Member("lockTranslation", hkBool, offset=8, flags=32),
+        Member(0, "name", hkStringPtr, flags=32),
+        Member(8, "lockTranslation", hkBool, flags=32),
     )
     members = local_members
 
@@ -975,8 +975,8 @@ class hkaSkeletonLocalFrameOnBone(hk):
     tag_type_flags = 7
 
     local_members = (
-        Member("localFrame", Ptr(hkLocalFrame), offset=0, flags=32),
-        Member("boneIndex", hkInt16, offset=8, flags=32),
+        Member(0, "localFrame", Ptr(hkLocalFrame), flags=32),
+        Member(8, "boneIndex", hkInt16, flags=32),
     )
     members = local_members
 
@@ -993,9 +993,9 @@ class hkaSkeletonPartition(hk):
     __version = 1
 
     local_members = (
-        Member("name", hkStringPtr, offset=0, flags=32),
-        Member("startBoneIndex", hkInt16, offset=8, flags=32),
-        Member("numBones", hkInt16, offset=10, flags=32),
+        Member(0, "name", hkStringPtr, flags=32),
+        Member(8, "startBoneIndex", hkInt16, flags=32),
+        Member(10, "numBones", hkInt16, flags=32),
     )
     members = local_members
 
@@ -1011,8 +1011,8 @@ class hkaAnnotationTrackAnnotation(hk):
     tag_type_flags = 7
 
     local_members = (
-        Member("time", hkReal, offset=0, flags=32),
-        Member("text", hkStringPtr, offset=8, flags=32),
+        Member(0, "time", hkReal, flags=32),
+        Member(8, "text", hkStringPtr, flags=32),
     )
     members = local_members
 
@@ -1029,11 +1029,11 @@ class hkaBoneAttachment(hkReferencedObject):
     __version = 2
 
     local_members = (
-        Member("originalSkeletonName", hkStringPtr, offset=16, flags=32),
-        Member("boneFromAttachment", hkMatrix4, offset=32, flags=32),
-        Member("attachment", Ptr(hkReferencedObject), offset=96, flags=32),
-        Member("name", hkStringPtr, offset=104, flags=32),
-        Member("boneIndex", hkInt16, offset=112, flags=32),
+        Member(16, "originalSkeletonName", hkStringPtr, flags=32),
+        Member(32, "boneFromAttachment", hkMatrix4, flags=32),
+        Member(96, "attachment", Ptr(hkReferencedObject), flags=32),
+        Member(104, "name", hkStringPtr, flags=32),
+        Member(112, "boneIndex", hkInt16, flags=32),
     )
     members = hkReferencedObject.members + local_members
 
@@ -1053,12 +1053,12 @@ class hkxVertexDescriptionElementDecl(hk):
     __version = 4
 
     local_members = (
-        Member("byteOffset", hkUint32, offset=0, flags=32),
-        Member("type", hkEnum(hkxVertexDescriptionElementDeclDataType, hkUint16), offset=4, flags=32),
-        Member("usage", hkEnum(hkxVertexDescriptionElementDeclDataUsage, hkUint16), offset=6, flags=32),
-        Member("byteStride", hkUint32, offset=8, flags=32),
-        Member("numElements", hkUint8, offset=12, flags=32),
-        Member("channelID", hkStringPtr, offset=16, flags=32),
+        Member(0, "byteOffset", hkUint32, flags=32),
+        Member(4, "type", hkEnum(hkxVertexDescriptionElementDeclDataType, hkUint16), flags=32),
+        Member(6, "usage", hkEnum(hkxVertexDescriptionElementDeclDataUsage, hkUint16), flags=32),
+        Member(8, "byteStride", hkUint32, flags=32),
+        Member(12, "numElements", hkUint8, flags=32),
+        Member(16, "channelID", hkStringPtr, flags=32),
     )
     members = local_members
 
@@ -1079,11 +1079,11 @@ class hkxIndexBuffer(hkReferencedObject):
     __version = 1
 
     local_members = (
-        Member("indexType", hkEnum(hkxIndexBufferIndexType, hkInt8), offset=12, flags=32),
-        Member("indices16", hkArray(hkUint16), offset=16, flags=32),
-        Member("indices32", hkArray(hkUint32), offset=32, flags=32),
-        Member("vertexBaseOffset", hkUint32, offset=48, flags=32),
-        Member("length", hkUint32, offset=52, flags=32),
+        Member(12, "indexType", hkEnum(hkxIndexBufferIndexType, hkInt8), flags=32),
+        Member(16, "indices16", hkArray(hkUint16), flags=32),
+        Member(32, "indices32", hkArray(hkUint32), flags=32),
+        Member(48, "vertexBaseOffset", hkUint32, flags=32),
+        Member(52, "length", hkUint32, flags=32),
     )
     members = hkReferencedObject.members + local_members
 
@@ -1103,8 +1103,8 @@ class hkxAttribute(hk):
     __version = 1
 
     local_members = (
-        Member("name", hkStringPtr, offset=0, flags=32),
-        Member("value", Ptr(hkReferencedObject), offset=8, flags=32),
+        Member(0, "name", hkStringPtr, flags=32),
+        Member(8, "value", Ptr(hkReferencedObject), flags=32),
     )
     members = local_members
 
@@ -1121,9 +1121,9 @@ class hkxMaterialTextureStage(hk):
     __version = 1
 
     local_members = (
-        Member("texture", Ptr(hkReferencedObject), offset=0, flags=32),
-        Member("usageHint", hkEnum(hkxMaterialTextureStageTextureType, hkInt32), offset=8, flags=32),
-        Member("tcoordChannel", hkInt32, offset=12, flags=32),
+        Member(0, "texture", Ptr(hkReferencedObject), flags=32),
+        Member(8, "usageHint", hkEnum(hkxMaterialTextureStageTextureType, hkInt32), flags=32),
+        Member(12, "tcoordChannel", hkInt32, flags=32),
     )
     members = local_members
 
@@ -1139,9 +1139,9 @@ class hkxVertexAnimationUsageMap(hk):
     tag_type_flags = 7
 
     local_members = (
-        Member("use", hkEnum(hkxVertexDescriptionElementDeclDataUsage, hkUint16), offset=0, flags=32),
-        Member("useIndexOrig", hkUint8, offset=2, flags=32),
-        Member("useIndexLocal", hkUint8, offset=3, flags=32),
+        Member(0, "use", hkEnum(hkxVertexDescriptionElementDeclDataUsage, hkUint16), flags=32),
+        Member(2, "useIndexOrig", hkUint8, flags=32),
+        Member(3, "useIndexLocal", hkUint8, flags=32),
     )
     members = local_members
 
@@ -1159,7 +1159,7 @@ class hknpShapeMassProperties(hkReferencedObject):
     __hsh = 3910735656
 
     local_members = (
-        Member("compressedMassProperties", hkCompressedMassProperties, offset=16, flags=128),
+        Member(16, "compressedMassProperties", hkCompressedMassProperties, flags=128),
     )
     members = hkReferencedObject.members + local_members
 
@@ -1176,7 +1176,7 @@ class hkRefCountedProperties(hk):
     __version = 1
 
     local_members = (
-        Member("entries", hkArray(hkRefCountedPropertiesEntry), offset=0, flags=0),
+        Member(0, "entries", hkArray(hkRefCountedPropertiesEntry), flags=0),
     )
     members = local_members
 
@@ -1192,12 +1192,12 @@ class hknpShape(hkReferencedObject):
     __version = 2
 
     local_members = (
-        Member("flags", hkEnum(hknpShapeFlagsEnum, hkUint16), offset=16, flags=256),
-        Member("numShapeKeyBits", hkUint8, offset=18, flags=0),
-        Member("dispatchType", hkEnum(hknpShapeEnum, hkUint8), offset=19, flags=0),
-        Member("convexRadius", hkReal, offset=20, flags=0),
-        Member("userData", hkUint64, offset=24, flags=0),
-        Member("properties", Ptr(hkRefCountedProperties), offset=32, flags=0),
+        Member(16, "flags", hkEnum(hknpShapeFlagsEnum, hkUint16), flags=256),
+        Member(18, "numShapeKeyBits", hkUint8, flags=0),
+        Member(19, "dispatchType", hkEnum(hknpShapeEnum, hkUint8), flags=0),
+        Member(20, "convexRadius", hkReal, flags=0),
+        Member(24, "userData", hkUint64, flags=0),
+        Member(32, "properties", Ptr(hkRefCountedProperties), flags=0),
     )
     members = hkReferencedObject.members + local_members
 
@@ -1216,7 +1216,7 @@ class hkpConstraintMotor(hkReferencedObject):
     tag_type_flags = 7
 
     local_members = (
-        Member("type", hkEnum(hkpConstraintMotorMotorType, hkInt8), offset=12, flags=32),
+        Member(12, "type", hkEnum(hkpConstraintMotorMotorType, hkInt8), flags=32),
     )
     members = hkReferencedObject.members + local_members
 
@@ -1230,7 +1230,7 @@ class hkpConstraintAtom(hk):
     tag_type_flags = 7
 
     local_members = (
-        Member("type", hkEnum(hkpConstraintAtomAtomType, hkUint16), offset=0, flags=32),
+        Member(0, "type", hkEnum(hkpConstraintAtomAtomType, hkUint16), flags=32),
     )
     members = local_members
 
@@ -1246,11 +1246,11 @@ class hkpSetupStabilizationAtom(hkpConstraintAtom):
     __version = 3
 
     local_members = (
-        Member("enabled", hkBool, offset=2, flags=32),
-        Member("padding", hkStruct(hkUint8, 1, is_generic=True), offset=3, flags=1024),
-        Member("maxLinImpulse", hkReal, offset=4, flags=32),
-        Member("maxAngImpulse", hkReal, offset=8, flags=32),
-        Member("maxAngle", hkReal, offset=12, flags=32),
+        Member(2, "enabled", hkBool, flags=32),
+        Member(3, "padding", hkGenericStruct(hkUint8, 1), flags=1024),
+        Member(4, "maxLinImpulse", hkReal, flags=32),
+        Member(8, "maxAngImpulse", hkReal, flags=32),
+        Member(12, "maxAngle", hkReal, flags=32),
     )
     members = hkpConstraintAtom.members + local_members
 
@@ -1270,11 +1270,11 @@ class hkpRagdollMotorConstraintAtom(hkpConstraintAtom):
     __version = 1
 
     local_members = (
-        Member("isEnabled", hkBool, offset=2, flags=32),
-        Member("initializedOffset", hkInt16, offset=4, flags=33),
-        Member("previousTargetAnglesOffset", hkInt16, offset=6, flags=33),
-        Member("target_bRca", hkMatrix3, offset=16, flags=32),
-        Member("motors", hkStruct(Ptr(hkpConstraintMotor), 3, is_generic=True), offset=64, flags=32),
+        Member(2, "isEnabled", hkBool, flags=32),
+        Member(4, "initializedOffset", hkInt16, flags=33),
+        Member(6, "previousTargetAnglesOffset", hkInt16, flags=33),
+        Member(16, "target_bRca", hkMatrix3, flags=32),
+        Member(64, "motors", hkGenericStruct(Ptr(hkpConstraintMotor), 3), flags=32),
     )
     members = hkpConstraintAtom.members + local_members
 
@@ -1292,11 +1292,11 @@ class hkpAngFrictionConstraintAtom(hkpConstraintAtom):
     tag_type_flags = 7
 
     local_members = (
-        Member("isEnabled", hkUint8, offset=2, flags=32),
-        Member("firstFrictionAxis", hkUint8, offset=3, flags=32),
-        Member("numFrictionAxes", hkUint8, offset=4, flags=32),
-        Member("maxFrictionTorque", hkReal, offset=8, flags=32),
-        Member("padding", hkStruct(hkUint8, 4, is_generic=True), offset=12, flags=1024),
+        Member(2, "isEnabled", hkUint8, flags=32),
+        Member(3, "firstFrictionAxis", hkUint8, flags=32),
+        Member(4, "numFrictionAxes", hkUint8, flags=32),
+        Member(8, "maxFrictionTorque", hkReal, flags=32),
+        Member(12, "padding", hkGenericStruct(hkUint8, 4), flags=1024),
     )
     members = hkpConstraintAtom.members + local_members
 
@@ -1314,13 +1314,13 @@ class hkpTwistLimitConstraintAtom(hkpConstraintAtom):
     tag_type_flags = 7
 
     local_members = (
-        Member("isEnabled", hkUint8, offset=2, flags=32),
-        Member("twistAxis", hkUint8, offset=3, flags=32),
-        Member("refAxis", hkUint8, offset=4, flags=32),
-        Member("minAngle", hkReal, offset=8, flags=32),
-        Member("maxAngle", hkReal, offset=12, flags=32),
-        Member("angularLimitsTauFactor", hkReal, offset=16, flags=32),
-        Member("padding", hkStruct(hkUint8, 12, is_generic=True), offset=20, flags=1024),
+        Member(2, "isEnabled", hkUint8, flags=32),
+        Member(3, "twistAxis", hkUint8, flags=32),
+        Member(4, "refAxis", hkUint8, flags=32),
+        Member(8, "minAngle", hkReal, flags=32),
+        Member(12, "maxAngle", hkReal, flags=32),
+        Member(16, "angularLimitsTauFactor", hkReal, flags=32),
+        Member(20, "padding", hkGenericStruct(hkUint8, 12), flags=1024),
     )
     members = hkpConstraintAtom.members + local_members
 
@@ -1340,15 +1340,15 @@ class hkpConeLimitConstraintAtom(hkpConstraintAtom):
     tag_type_flags = 7
 
     local_members = (
-        Member("isEnabled", hkUint8, offset=2, flags=32),
-        Member("twistAxisInA", hkUint8, offset=3, flags=32),
-        Member("refAxisInB", hkUint8, offset=4, flags=32),
-        Member("angleMeasurementMode", hkEnum(hkpConeLimitConstraintAtomMeasurementMode, hkUint8), offset=5, flags=32),
-        Member("memOffsetToAngleOffset", hkUint8, offset=6, flags=32),
-        Member("minAngle", hkReal, offset=8, flags=32),
-        Member("maxAngle", hkReal, offset=12, flags=32),
-        Member("angularLimitsTauFactor", hkReal, offset=16, flags=32),
-        Member("padding", hkStruct(hkUint8, 12, is_generic=True), offset=20, flags=1024),
+        Member(2, "isEnabled", hkUint8, flags=32),
+        Member(3, "twistAxisInA", hkUint8, flags=32),
+        Member(4, "refAxisInB", hkUint8, flags=32),
+        Member(5, "angleMeasurementMode", hkEnum(hkpConeLimitConstraintAtomMeasurementMode, hkUint8), flags=32),
+        Member(6, "memOffsetToAngleOffset", hkUint8, flags=32),
+        Member(8, "minAngle", hkReal, flags=32),
+        Member(12, "maxAngle", hkReal, flags=32),
+        Member(16, "angularLimitsTauFactor", hkReal, flags=32),
+        Member(20, "padding", hkGenericStruct(hkUint8, 12), flags=1024),
     )
     members = hkpConstraintAtom.members + local_members
 
@@ -1372,12 +1372,12 @@ class hkpBallSocketConstraintAtom(hkpConstraintAtom):
     __version = 5
 
     local_members = (
-        Member("solvingMethod", hkEnum(hkpBallSocketConstraintAtomSolvingMethod, hkUint8), offset=2, flags=32),
-        Member("bodiesToNotify", hkUint8, offset=3, flags=32),
-        Member("velocityStabilizationFactor", hkUFloat8, offset=4, flags=34),
-        Member("enableLinearImpulseLimit", hkBool, offset=5, flags=32),
-        Member("breachImpulse", hkReal, offset=8, flags=32),
-        Member("inertiaStabilizationFactor", hkReal, offset=12, flags=34),
+        Member(2, "solvingMethod", hkEnum(hkpBallSocketConstraintAtomSolvingMethod, hkUint8), flags=32),
+        Member(3, "bodiesToNotify", hkUint8, flags=32),
+        Member(4, "velocityStabilizationFactor", hkUFloat8, flags=34),
+        Member(5, "enableLinearImpulseLimit", hkBool, flags=32),
+        Member(8, "breachImpulse", hkReal, flags=32),
+        Member(12, "inertiaStabilizationFactor", hkReal, flags=34),
     )
     members = hkpConstraintAtom.members + local_members
 
@@ -1398,28 +1398,28 @@ class hknpMaterial(hk):
     __version = 1
 
     local_members = (
-        Member("name", hkStringPtr, offset=0, flags=256),
-        Member("isExclusive", hkUint32, offset=8, flags=0),
-        Member("flags", hkInt32, offset=12, flags=0),
-        Member("triggerType", hkEnum(hknpMaterialTriggerType, hkUint8), offset=16, flags=0),
-        Member("triggerManifoldTolerance", hkUFloat8, offset=17, flags=0),
-        Member("dynamicFriction", hkHalf16, offset=18, flags=0),
-        Member("staticFriction", hkHalf16, offset=20, flags=0),
-        Member("restitution", hkHalf16, offset=22, flags=0),
-        Member("frictionCombinePolicy", hkEnum(hknpMaterialCombinePolicy, hkUint8), offset=24, flags=0),
-        Member("restitutionCombinePolicy", hkEnum(hknpMaterialCombinePolicy, hkUint8), offset=25, flags=0),
-        Member("weldingTolerance", hkHalf16, offset=26, flags=0),
-        Member("maxContactImpulse", hkReal, offset=28, flags=0),
-        Member("fractionOfClippedImpulseToApply", hkReal, offset=32, flags=0),
-        Member("massChangerCategory", hkEnum(hknpMaterialMassChangerCategory, hkUint8), offset=36, flags=0),
-        Member("massChangerHeavyObjectFactor", hkHalf16, offset=38, flags=0),
-        Member("softContactForceFactor", hkHalf16, offset=40, flags=0),
-        Member("softContactDampFactor", hkHalf16, offset=42, flags=0),
-        Member("softContactSeperationVelocity", hkUFloat8, offset=44, flags=0),
-        Member("surfaceVelocity", Ptr(hknpSurfaceVelocity), offset=48, flags=0),
-        Member("disablingCollisionsBetweenCvxCvxDynamicObjectsDistance", hkHalf16, offset=56, flags=0),
-        Member("userData", hkUint64, offset=64, flags=128),
-        Member("isShared", hkBool, offset=72, flags=0),
+        Member(0, "name", hkStringPtr, flags=256),
+        Member(8, "isExclusive", hkUint32, flags=0),
+        Member(12, "flags", hkInt32, flags=0),
+        Member(16, "triggerType", hkEnum(hknpMaterialTriggerType, hkUint8), flags=0),
+        Member(17, "triggerManifoldTolerance", hkUFloat8, flags=0),
+        Member(18, "dynamicFriction", hkHalf16, flags=0),
+        Member(20, "staticFriction", hkHalf16, flags=0),
+        Member(22, "restitution", hkHalf16, flags=0),
+        Member(24, "frictionCombinePolicy", hkEnum(hknpMaterialCombinePolicy, hkUint8), flags=0),
+        Member(25, "restitutionCombinePolicy", hkEnum(hknpMaterialCombinePolicy, hkUint8), flags=0),
+        Member(26, "weldingTolerance", hkHalf16, flags=0),
+        Member(28, "maxContactImpulse", hkReal, flags=0),
+        Member(32, "fractionOfClippedImpulseToApply", hkReal, flags=0),
+        Member(36, "massChangerCategory", hkEnum(hknpMaterialMassChangerCategory, hkUint8), flags=0),
+        Member(38, "massChangerHeavyObjectFactor", hkHalf16, flags=0),
+        Member(40, "softContactForceFactor", hkHalf16, flags=0),
+        Member(42, "softContactDampFactor", hkHalf16, flags=0),
+        Member(44, "softContactSeperationVelocity", hkUFloat8, flags=0),
+        Member(48, "surfaceVelocity", Ptr(hknpSurfaceVelocity), flags=0),
+        Member(56, "disablingCollisionsBetweenCvxCvxDynamicObjectsDistance", hkHalf16, flags=0),
+        Member(64, "userData", hkUint64, flags=128),
+        Member(72, "isShared", hkBool, flags=0),
     )
     members = local_members
 
@@ -1456,26 +1456,26 @@ class hknpMotionProperties(hk):
     __version = 3
 
     local_members = (
-        Member("isExclusive", hkUint32, offset=0, flags=256),
-        Member("flags", hkEnum(hknpMotionPropertiesFlagsEnum, hkUint32), offset=4, flags=0),
-        Member("gravityFactor", hkReal, offset=8, flags=0),
-        Member("timeFactor", hkReal, offset=12, flags=0),
-        Member("maxLinearSpeed", hkReal, offset=16, flags=0),
-        Member("maxAngularSpeed", hkReal, offset=20, flags=0),
-        Member("linearDamping", hkReal, offset=24, flags=0),
-        Member("angularDamping", hkReal, offset=28, flags=0),
-        Member("solverStabilizationSpeedThreshold", hkReal, offset=32, flags=0),
-        Member("solverStabilizationSpeedReduction", hkReal, offset=36, flags=0),
-        Member("maxDistSqrd", hkReal, offset=40, flags=0),
-        Member("maxRotSqrd", hkReal, offset=44, flags=0),
-        Member("invBlockSize", hkReal, offset=48, flags=0),
-        Member("pathingUpperThreshold", hkInt16, offset=52, flags=0),
-        Member("pathingLowerThreshold", hkInt16, offset=54, flags=0),
-        Member("numDeactivationFrequencyPasses", hkUint8, offset=56, flags=0),
-        Member("deactivationVelocityScaleSquare", hkUint8, offset=57, flags=0),
-        Member("minimumPathingVelocityScaleSquare", hkUint8, offset=58, flags=0),
-        Member("spikingVelocityScaleThresholdSquared", hkUint8, offset=59, flags=0),
-        Member("minimumSpikingVelocityScaleSquared", hkUint8, offset=60, flags=0),
+        Member(0, "isExclusive", hkUint32, flags=256),
+        Member(4, "flags", hkEnum(hknpMotionPropertiesFlagsEnum, hkUint32), flags=0),
+        Member(8, "gravityFactor", hkReal, flags=0),
+        Member(12, "timeFactor", hkReal, flags=0),
+        Member(16, "maxLinearSpeed", hkReal, flags=0),
+        Member(20, "maxAngularSpeed", hkReal, flags=0),
+        Member(24, "linearDamping", hkReal, flags=0),
+        Member(28, "angularDamping", hkReal, flags=0),
+        Member(32, "solverStabilizationSpeedThreshold", hkReal, flags=0),
+        Member(36, "solverStabilizationSpeedReduction", hkReal, flags=0),
+        Member(40, "maxDistSqrd", hkReal, flags=0),
+        Member(44, "maxRotSqrd", hkReal, flags=0),
+        Member(48, "invBlockSize", hkReal, flags=0),
+        Member(52, "pathingUpperThreshold", hkInt16, flags=0),
+        Member(54, "pathingLowerThreshold", hkInt16, flags=0),
+        Member(56, "numDeactivationFrequencyPasses", hkUint8, flags=0),
+        Member(57, "deactivationVelocityScaleSquare", hkUint8, flags=0),
+        Member(58, "minimumPathingVelocityScaleSquare", hkUint8, flags=0),
+        Member(59, "spikingVelocityScaleThresholdSquared", hkUint8, flags=0),
+        Member(60, "minimumSpikingVelocityScaleSquared", hkUint8, flags=0),
     )
     members = local_members
 
@@ -1510,17 +1510,17 @@ class hknpMotionCinfo(hk):
     __version = 1
 
     local_members = (
-        Member("motionPropertiesId", hkUint16, offset=0, flags=0),
-        Member("enableDeactivation", hkBool, offset=2, flags=0),
-        Member("inverseMass", hkReal, offset=4, flags=0),
-        Member("massFactor", hkReal, offset=8, flags=0),
-        Member("maxLinearAccelerationDistancePerStep", hkReal, offset=12, flags=0),
-        Member("maxRotationToPreventTunneling", hkReal, offset=16, flags=0),
-        Member("inverseInertiaLocal", hkVector4, offset=32, flags=0),
-        Member("centerOfMassWorld", hkVector4, offset=48, flags=0),
-        Member("orientation", hkQuaternionf, offset=64, flags=0),
-        Member("linearVelocity", hkVector4, offset=80, flags=0),
-        Member("angularVelocity", hkVector4, offset=96, flags=0),
+        Member(0, "motionPropertiesId", hkUint16, flags=0),
+        Member(2, "enableDeactivation", hkBool, flags=0),
+        Member(4, "inverseMass", hkReal, flags=0),
+        Member(8, "massFactor", hkReal, flags=0),
+        Member(12, "maxLinearAccelerationDistancePerStep", hkReal, flags=0),
+        Member(16, "maxRotationToPreventTunneling", hkReal, flags=0),
+        Member(32, "inverseInertiaLocal", hkVector4, flags=0),
+        Member(48, "centerOfMassWorld", hkVector4, flags=0),
+        Member(64, "orientation", hkQuaternionf, flags=0),
+        Member(80, "linearVelocity", hkVector4, flags=0),
+        Member(96, "angularVelocity", hkVector4, flags=0),
     )
     members = local_members
 
@@ -1546,20 +1546,20 @@ class hknpBodyCinfo(hk):
     __version = 2
 
     local_members = (
-        Member("shape", Ptr(hknpShape), offset=0, flags=512),
-        Member("reservedBodyId", hkUint32, offset=8, flags=0),
-        Member("motionId", hkUint32, offset=12, flags=0),
-        Member("qualityId", hkUint8, offset=16, flags=0),
-        Member("materialId", hkUint16, offset=18, flags=0),
-        Member("collisionFilterInfo", hkUint32, offset=20, flags=0),
-        Member("flags", hkInt32, offset=24, flags=0),
-        Member("collisionLookAheadDistance", hkReal, offset=28, flags=0),
-        Member("name", hkStringPtr, offset=32, flags=0),
-        Member("userData", hkUint64, offset=40, flags=0),
-        Member("position", hkVector4, offset=48, flags=0),
-        Member("orientation", hkQuaternionf, offset=64, flags=0),
-        Member("spuFlags", hkEnum(hknpBodyCinfoSpuFlagsEnum, hkUint8), offset=80, flags=0),
-        Member("localFrame", Ptr(hkLocalFrame), offset=88, flags=0),
+        Member(0, "shape", Ptr(hknpShape), flags=512),
+        Member(8, "reservedBodyId", hkUint32, flags=0),
+        Member(12, "motionId", hkUint32, flags=0),
+        Member(16, "qualityId", hkUint8, flags=0),
+        Member(18, "materialId", hkUint16, flags=0),
+        Member(20, "collisionFilterInfo", hkUint32, flags=0),
+        Member(24, "flags", hkInt32, flags=0),
+        Member(28, "collisionLookAheadDistance", hkReal, flags=0),
+        Member(32, "name", hkStringPtr, flags=0),
+        Member(40, "userData", hkUint64, flags=0),
+        Member(48, "position", hkVector4, flags=0),
+        Member(64, "orientation", hkQuaternionf, flags=0),
+        Member(80, "spuFlags", hkEnum(hknpBodyCinfoSpuFlagsEnum, hkUint8), flags=0),
+        Member(88, "localFrame", Ptr(hkLocalFrame), flags=0),
     )
     members = local_members
 
@@ -1588,10 +1588,10 @@ class hknpConstraintCinfo(hk):
     __version = 2
 
     local_members = (
-        Member("constraintData", Ptr(hkpConstraintData), offset=0, flags=0),
-        Member("bodyA", hkUint32, offset=8, flags=0),
-        Member("bodyB", hkUint32, offset=12, flags=0),
-        Member("flags", hkEnum(hknpConstraintCinfoFlagsEnum, hkUint8), offset=16, flags=0),
+        Member(0, "constraintData", Ptr(hkpConstraintData), flags=0),
+        Member(8, "bodyA", hkUint32, flags=0),
+        Member(12, "bodyB", hkUint32, flags=0),
+        Member(16, "flags", hkEnum(hknpConstraintCinfoFlagsEnum, hkUint8), flags=0),
     )
     members = local_members
 
@@ -1608,8 +1608,8 @@ class hkFreeListArrayhknpMaterialhknpMaterialId8hknpMaterialFreeListArrayOperati
     tag_type_flags = 7
 
     local_members = (
-        Member("elements", hkArray(hknpMaterial), offset=0, flags=0),
-        Member("firstFree", hkInt32, offset=16, flags=0),
+        Member(0, "elements", hkArray(hknpMaterial), flags=0),
+        Member(16, "firstFree", hkInt32, flags=0),
     )
     members = local_members
 
@@ -1624,8 +1624,8 @@ class hkFreeListArrayhknpMotionPropertieshknpMotionPropertiesId8hknpMotionProper
     tag_type_flags = 7
 
     local_members = (
-        Member("elements", hkArray(hknpMotionProperties), offset=0, flags=0),
-        Member("firstFree", hkInt32, offset=16, flags=0),
+        Member(0, "elements", hkArray(hknpMotionProperties), flags=0),
+        Member(16, "firstFree", hkInt32, flags=0),
     )
     members = local_members
 
@@ -1642,10 +1642,10 @@ class hknpBodyQuality(hk):
     __version = 1
 
     local_members = (
-        Member("priority", hkInt32, offset=0, flags=0),
-        Member("supportedFlags", hkEnum(hknpBodyQualityFlagsEnum, hkUint32), offset=4, flags=0),
-        Member("requestedFlags", hkEnum(hknpBodyQualityFlagsEnum, hkUint32), offset=8, flags=0),
-        Member("contactCachingRelativeMovementThreshold", hkReal, offset=12, flags=0),
+        Member(0, "priority", hkInt32, flags=0),
+        Member(4, "supportedFlags", hkEnum(hknpBodyQualityFlagsEnum, hkUint32), flags=0),
+        Member(8, "requestedFlags", hkEnum(hknpBodyQualityFlagsEnum, hkUint32), flags=0),
+        Member(12, "contactCachingRelativeMovementThreshold", hkReal, flags=0),
     )
     members = local_members
 
@@ -1662,7 +1662,7 @@ class hknpCollisionFilter(hkReferencedObject):
     tag_type_flags = 7
 
     local_members = (
-        Member("type", hkEnum(hknpCollisionFilterType, hkUint8), offset=12, flags=0),
+        Member(12, "type", hkEnum(hknpCollisionFilterType, hkUint8), flags=0),
     )
     members = hkReferencedObject.members + local_members
 
@@ -1678,7 +1678,7 @@ class hknpShapeTagCodec(hkReferencedObject):
     __version = 1
 
     local_members = (
-        Member("type", hkEnum(hknpShapeTagCodecType, hkUint8), offset=12, flags=0),
+        Member(12, "type", hkEnum(hknpShapeTagCodecType, hkUint8), flags=0),
     )
     members = hkReferencedObject.members + local_members
 
@@ -1694,9 +1694,9 @@ class hkRootLevelContainerNamedVariant(hk):
     __version = 1
 
     local_members = (
-        Member("name", hkStringPtr, offset=0, flags=36),
-        Member("className", hkStringPtr, offset=8, flags=36),
-        Member("variant", Ptr(hkReferencedObject), offset=16, flags=36),
+        Member(0, "name", hkStringPtr, flags=36),
+        Member(8, "className", hkStringPtr, flags=36),
+        Member(16, "variant", Ptr(hkReferencedObject), flags=36),
     )
     members = local_members
 
@@ -1726,14 +1726,14 @@ class hkaSkeleton(hkReferencedObject):
     __version = 5
 
     local_members = (
-        Member("name", hkStringPtr, offset=16, flags=32),
-        Member("parentIndices", hkArray(hkInt16), offset=24, flags=32),
-        Member("bones", hkArray(hkaBone), offset=40, flags=32),
-        Member("referencePose", hkArray(hkQsTransform), offset=56, flags=32),
-        Member("referenceFloats", hkArray(hkReal), offset=72, flags=32),
-        Member("floatSlots", hkArray(hkStringPtr), offset=88, flags=32),
-        Member("localFrames", hkArray(hkaSkeletonLocalFrameOnBone), offset=104, flags=32),
-        Member("partitions", hkArray(hkaSkeletonPartition), offset=120, flags=32),
+        Member(16, "name", hkStringPtr, flags=32),
+        Member(24, "parentIndices", hkArray(hkInt16), flags=32),
+        Member(40, "bones", hkArray(hkaBone), flags=32),
+        Member(56, "referencePose", hkArray(hkQsTransform), flags=32),
+        Member(72, "referenceFloats", hkArray(hkReal), flags=32),
+        Member(88, "floatSlots", hkArray(hkStringPtr), flags=32),
+        Member(104, "localFrames", hkArray(hkaSkeletonLocalFrameOnBone), flags=32),
+        Member(120, "partitions", hkArray(hkaSkeletonPartition), flags=32),
     )
     members = hkReferencedObject.members + local_members
 
@@ -1754,8 +1754,8 @@ class hkaAnnotationTrack(hk):
     tag_type_flags = 7
 
     local_members = (
-        Member("trackName", hkStringPtr, offset=0, flags=32),
-        Member("annotations", hkArray(hkaAnnotationTrackAnnotation), offset=8, flags=32),
+        Member(0, "trackName", hkStringPtr, flags=32),
+        Member(8, "annotations", hkArray(hkaAnnotationTrackAnnotation), flags=32),
     )
     members = local_members
 
@@ -1772,7 +1772,7 @@ class hkxVertexDescription(hk):
     __version = 1
 
     local_members = (
-        Member("decls", hkArray(hkxVertexDescriptionElementDecl), offset=0, flags=32),
+        Member(0, "decls", hkArray(hkxVertexDescriptionElementDecl), flags=32),
     )
     members = local_members
 
@@ -1786,8 +1786,8 @@ class hkxAttributeGroup(hk):
     tag_type_flags = 7
 
     local_members = (
-        Member("name", hkStringPtr, offset=0, flags=32),
-        Member("attributes", hkArray(hkxAttribute), offset=8, flags=32),
+        Member(0, "name", hkStringPtr, flags=32),
+        Member(8, "attributes", hkArray(hkxAttribute), flags=32),
     )
     members = local_members
 
@@ -1802,7 +1802,7 @@ class hknpConvexShape(hknpShape):
     tag_type_flags = 7
 
     local_members = (
-        Member("vertices", NewStruct(hkVector4), offset=40, flags=0),
+        Member(40, "vertices", NewStruct(hkVector4), flags=0),
     )
     members = hknpShape.members + local_members
 
@@ -1816,8 +1816,8 @@ class hkpLimitedForceConstraintMotor(hkpConstraintMotor):
     tag_type_flags = 7
 
     local_members = (
-        Member("minForce", hkReal, offset=16, flags=32),
-        Member("maxForce", hkReal, offset=20, flags=32),
+        Member(16, "minForce", hkReal, flags=32),
+        Member(20, "maxForce", hkReal, flags=32),
     )
     members = hkpConstraintMotor.members + local_members
 
@@ -1832,8 +1832,8 @@ class hkpSetLocalTransformsConstraintAtom(hkpConstraintAtom):
     tag_type_flags = 7
 
     local_members = (
-        Member("transformA", hkTransform, offset=16, flags=32),
-        Member("transformB", hkTransform, offset=80, flags=32),
+        Member(16, "transformA", hkTransform, flags=32),
+        Member(80, "transformB", hkTransform, flags=32),
     )
     members = hkpConstraintAtom.members + local_members
 
@@ -1848,13 +1848,13 @@ class hknpPhysicsSystemData(hkReferencedObject):
     tag_type_flags = 7
 
     local_members = (
-        Member("materials", hkArray(hknpMaterial), offset=16, flags=0),
-        Member("motionProperties", hkArray(hknpMotionProperties), offset=32, flags=0),
-        Member("motionCinfos", hkArray(hknpMotionCinfo), offset=48, flags=0),
-        Member("bodyCinfos", hkArray(hknpBodyCinfo), offset=64, flags=0),
-        Member("constraintCinfos", hkArray(hknpConstraintCinfo), offset=80, flags=0),
-        Member("referencedObjects", hkArray(Ptr(hkReferencedObject)), offset=96, flags=0),
-        Member("name", hkStringPtr, offset=112, flags=0),
+        Member(16, "materials", hkArray(hknpMaterial), flags=0),
+        Member(32, "motionProperties", hkArray(hknpMotionProperties), flags=0),
+        Member(48, "motionCinfos", hkArray(hknpMotionCinfo), flags=0),
+        Member(64, "bodyCinfos", hkArray(hknpBodyCinfo), flags=0),
+        Member(80, "constraintCinfos", hkArray(hknpConstraintCinfo), flags=0),
+        Member(96, "referencedObjects", hkArray(Ptr(hkReferencedObject)), flags=0),
+        Member(112, "name", hkStringPtr, flags=0),
     )
     members = hkReferencedObject.members + local_members
 
@@ -1874,12 +1874,14 @@ class hknpMaterialLibrary(hkReferencedObject):
     tag_type_flags = 7
 
     local_members = (
-        Member("materialAddedSignal", Ptr(_void), offset=16, flags=1024),
-        Member("materialModifiedSignal", Ptr(_void), offset=24, flags=1024),
-        Member("materialRemovedSignal", Ptr(_void), offset=32, flags=1024),
+        Member(16, "materialAddedSignal", Ptr(_void), flags=1024),
+        Member(24, "materialModifiedSignal", Ptr(_void), flags=1024),
+        Member(32, "materialRemovedSignal", Ptr(_void), flags=1024),
         Member(
-            "entries", hkFreeListArrayhknpMaterialhknpMaterialId8hknpMaterialFreeListArrayOperations,
-            offset=40, flags=0
+            40,
+            "entries",
+            hkFreeListArrayhknpMaterialhknpMaterialId8hknpMaterialFreeListArrayOperations,
+            flags=0,
         ),
     )
     members = hkReferencedObject.members + local_members
@@ -1897,13 +1899,14 @@ class hknpMotionPropertiesLibrary(hkReferencedObject):
     tag_type_flags = 7
 
     local_members = (
-        Member("entryAddedSignal", Ptr(_void), offset=16, flags=1024),
-        Member("entryModifiedSignal", Ptr(_void), offset=24, flags=1024),
-        Member("entryRemovedSignal", Ptr(_void), offset=32, flags=1024),
+        Member(16, "entryAddedSignal", Ptr(_void), flags=1024),
+        Member(24, "entryModifiedSignal", Ptr(_void), flags=1024),
+        Member(32, "entryRemovedSignal", Ptr(_void), flags=1024),
         Member(
+            40,
             "entries",
             hkFreeListArrayhknpMotionPropertieshknpMotionPropertiesId8hknpMotionPropertiesFreeListArrayOperations,
-            offset=40, flags=0
+            flags=0,
         ),
     )
     members = hkReferencedObject.members + local_members
@@ -1921,8 +1924,8 @@ class hknpBodyQualityLibrary(hkReferencedObject):
     tag_type_flags = 7
 
     local_members = (
-        Member("qualityModifiedSignal", Ptr(_void), offset=16, flags=1024),
-        Member("qualities", hkStruct(hknpBodyQuality, 32, is_generic=True), offset=32, flags=256),
+        Member(16, "qualityModifiedSignal", Ptr(_void), flags=1024),
+        Member(32, "qualities", hkGenericStruct(hknpBodyQuality, 32), flags=256),
     )
     members = hkReferencedObject.members + local_members
 
@@ -1939,19 +1942,22 @@ class hkaSkeletonMapperData(hk):
     __version = 2
 
     local_members = (
-        Member("skeletonA", Ptr(hkaSkeleton), offset=0, flags=32),
-        Member("skeletonB", Ptr(hkaSkeleton), offset=8, flags=32),
-        Member("partitionMap", hkArray(hkInt16), offset=16, flags=32),
+        Member(0, "skeletonA", Ptr(hkaSkeleton), flags=32),
+        Member(8, "skeletonB", Ptr(hkaSkeleton), flags=32),
+        Member(16, "partitionMap", hkArray(hkInt16), flags=32),
         Member(
-            "simpleMappingPartitionRanges", hkArray(hkaSkeletonMapperDataPartitionMappingRange), offset=32, flags=32
+            32,
+            "simpleMappingPartitionRanges",
+            hkArray(hkaSkeletonMapperDataPartitionMappingRange),
+            flags=32,
         ),
-        Member("chainMappingPartitionRanges", hkArray(hkaSkeletonMapperDataPartitionMappingRange), offset=48, flags=32),
-        Member("simpleMappings", hkArray(hkaSkeletonMapperDataSimpleMapping), offset=64, flags=32),
-        Member("chainMappings", hkArray(hkaSkeletonMapperDataChainMapping), offset=80, flags=32),
-        Member("unmappedBones", hkArray(hkInt16), offset=96, flags=32),
-        Member("extractedMotionMapping", hkQsTransform, offset=112, flags=32),
-        Member("keepUnmappedLocal", hkBool, offset=160, flags=32),
-        Member("mappingType", hkEnum(hkaSkeletonMapperDataMappingType, hkInt32), offset=164, flags=32),
+        Member(48, "chainMappingPartitionRanges", hkArray(hkaSkeletonMapperDataPartitionMappingRange), flags=32),
+        Member(64, "simpleMappings", hkArray(hkaSkeletonMapperDataSimpleMapping), flags=32),
+        Member(80, "chainMappings", hkArray(hkaSkeletonMapperDataChainMapping), flags=32),
+        Member(96, "unmappedBones", hkArray(hkInt16), flags=32),
+        Member(112, "extractedMotionMapping", hkQsTransform, flags=32),
+        Member(160, "keepUnmappedLocal", hkBool, flags=32),
+        Member(164, "mappingType", hkEnum(hkaSkeletonMapperDataMappingType, hkInt32), flags=32),
     )
     members = local_members
 
@@ -1977,7 +1983,7 @@ class hkRootLevelContainer(hk):
     __hsh = 661831966
 
     local_members = (
-        Member("namedVariants", hkArray(hkRootLevelContainerNamedVariant), offset=0, flags=32),
+        Member(0, "namedVariants", hkArray(hkRootLevelContainerNamedVariant), flags=32),
     )
     members = local_members
 
@@ -1993,12 +1999,12 @@ class hkaAnimation(hkReferencedObject):
     __version = 3
 
     local_members = (
-        Member("type", hkEnum(hkaAnimationAnimationType, hkInt32), offset=12, flags=34),
-        Member("duration", hkReal, offset=16, flags=32),
-        Member("numberOfTransformTracks", hkInt32, offset=20, flags=32),
-        Member("numberOfFloatTracks", hkInt32, offset=24, flags=32),
-        Member("extractedMotion", Ptr(hkaAnimatedReferenceFrame), offset=32, flags=34),
-        Member("annotationTracks", hkArray(hkaAnnotationTrack), offset=40, flags=32),
+        Member(12, "type", hkEnum(hkaAnimationAnimationType, hkInt32), flags=34),
+        Member(16, "duration", hkReal, flags=32),
+        Member(20, "numberOfTransformTracks", hkInt32, flags=32),
+        Member(24, "numberOfFloatTracks", hkInt32, flags=32),
+        Member(32, "extractedMotion", Ptr(hkaAnimatedReferenceFrame), flags=34),
+        Member(40, "annotationTracks", hkArray(hkaAnnotationTrack), flags=32),
     )
     members = hkReferencedObject.members + local_members
 
@@ -2020,12 +2026,12 @@ class hkaAnimationBinding(hkReferencedObject):
     __version = 3
 
     local_members = (
-        Member("originalSkeletonName", hkStringPtr, offset=16, flags=32),
-        Member("animation", Ptr(hkaAnimation), offset=24, flags=32),
-        Member("transformTrackToBoneIndices", hkArray(hkInt16), offset=32, flags=32),
-        Member("floatTrackToFloatSlotIndices", hkArray(hkInt16), offset=48, flags=32),
-        Member("partitionIndices", hkArray(hkInt16), offset=64, flags=32),
-        Member("blendHint", hkEnum(hkaAnimationBindingBlendHint, hkInt8), offset=80, flags=32),
+        Member(16, "originalSkeletonName", hkStringPtr, flags=32),
+        Member(24, "animation", Ptr(hkaAnimation), flags=32),
+        Member(32, "transformTrackToBoneIndices", hkArray(hkInt16), flags=32),
+        Member(48, "floatTrackToFloatSlotIndices", hkArray(hkInt16), flags=32),
+        Member(64, "partitionIndices", hkArray(hkInt16), flags=32),
+        Member(80, "blendHint", hkEnum(hkaAnimationBindingBlendHint, hkInt8), flags=32),
     )
     members = hkReferencedObject.members + local_members
 
@@ -2046,8 +2052,8 @@ class hkxVertexBuffer(hkReferencedObject):
     __version = 1
 
     local_members = (
-        Member("data", hkxVertexBufferVertexData, offset=16, flags=34),
-        Member("desc", hkxVertexDescription, offset=120, flags=34),
+        Member(16, "data", hkxVertexBufferVertexData, flags=34),
+        Member(120, "desc", hkxVertexDescription, flags=34),
     )
     members = hkReferencedObject.members + local_members
 
@@ -2064,7 +2070,7 @@ class hkxAttributeHolder(hkReferencedObject):
     __version = 2
 
     local_members = (
-        Member("attributeGroups", hkArray(hkxAttributeGroup), offset=16, flags=32),
+        Member(16, "attributeGroups", hkArray(hkxAttributeGroup), flags=32),
     )
     members = hkReferencedObject.members + local_members
 
@@ -2078,10 +2084,10 @@ class hkxVertexAnimation(hkReferencedObject):
     tag_type_flags = 7
 
     local_members = (
-        Member("time", hkReal, offset=12, flags=32),
-        Member("vertData", hkxVertexBuffer, offset=16, flags=32),
-        Member("vertexIndexMap", hkArray(hkInt32), offset=152, flags=32),
-        Member("componentMap", hkArray(hkxVertexAnimationUsageMap), offset=168, flags=32),
+        Member(12, "time", hkReal, flags=32),
+        Member(16, "vertData", hkxVertexBuffer, flags=32),
+        Member(152, "vertexIndexMap", hkArray(hkInt32), flags=32),
+        Member(168, "componentMap", hkArray(hkxVertexAnimationUsageMap), flags=32),
     )
     members = hkReferencedObject.members + local_members
 
@@ -2098,8 +2104,8 @@ class hkxMeshUserChannelInfo(hkxAttributeHolder):
     tag_type_flags = 7
 
     local_members = (
-        Member("name", hkStringPtr, offset=32, flags=32),
-        Member("className", hkStringPtr, offset=40, flags=32),
+        Member(32, "name", hkStringPtr, flags=32),
+        Member(40, "className", hkStringPtr, flags=32),
     )
     members = hkxAttributeHolder.members + local_members
 
@@ -2117,9 +2123,9 @@ class hknpConvexPolytopeShape(hknpConvexShape):
     __version = 1
 
     local_members = (
-        Member("planes", NewStruct(hkVector4), offset=44, flags=0),
-        Member("faces", NewStruct(hknpConvexPolytopeShapeFace), offset=48, flags=0),
-        Member("indices", NewStruct(hkUint8), offset=52, flags=0),
+        Member(44, "planes", NewStruct(hkVector4), flags=0),
+        Member(48, "faces", NewStruct(hknpConvexPolytopeShapeFace), flags=0),
+        Member(52, "indices", NewStruct(hkUint8), flags=0),
     )
     members = hknpConvexShape.members + local_members
 
@@ -2137,8 +2143,8 @@ class hknpCapsuleShape(hknpConvexPolytopeShape):
     __hsh = 1621581644
 
     local_members = (
-        Member("a", hkVector4, offset=64, flags=0),
-        Member("b", hkVector4, offset=80, flags=0),
+        Member(64, "a", hkVector4, flags=0),
+        Member(80, "b", hkVector4, flags=0),
     )
     members = hknpConvexPolytopeShape.members + local_members
 
@@ -2155,10 +2161,10 @@ class hkpPositionConstraintMotor(hkpLimitedForceConstraintMotor):
     __hsh = 339596288
 
     local_members = (
-        Member("tau", hkReal, offset=24, flags=32),
-        Member("damping", hkReal, offset=28, flags=32),
-        Member("proportionalRecoveryVelocity", hkReal, offset=32, flags=32),
-        Member("constantRecoveryVelocity", hkReal, offset=36, flags=32),
+        Member(24, "tau", hkReal, flags=32),
+        Member(28, "damping", hkReal, flags=32),
+        Member(32, "proportionalRecoveryVelocity", hkReal, flags=32),
+        Member(36, "constantRecoveryVelocity", hkReal, flags=32),
     )
     members = hkpLimitedForceConstraintMotor.members + local_members
 
@@ -2177,14 +2183,14 @@ class hkpRagdollConstraintDataAtoms(hk):
     __version = 1
 
     local_members = (
-        Member("transforms", hkpSetLocalTransformsConstraintAtom, offset=0, flags=32),
-        Member("setupStabilization", hkpSetupStabilizationAtom, offset=144, flags=32),
-        Member("ragdollMotors", hkpRagdollMotorConstraintAtom, offset=160, flags=32),
-        Member("angFriction", hkpAngFrictionConstraintAtom, offset=256, flags=32),
-        Member("twistLimit", hkpTwistLimitConstraintAtom, offset=272, flags=32),
-        Member("coneLimit", hkpConeLimitConstraintAtom, offset=304, flags=32),
-        Member("planesLimit", hkpConeLimitConstraintAtom, offset=336, flags=32),
-        Member("ballSocket", hkpBallSocketConstraintAtom, offset=368, flags=32),
+        Member(0, "transforms", hkpSetLocalTransformsConstraintAtom, flags=32),
+        Member(144, "setupStabilization", hkpSetupStabilizationAtom, flags=32),
+        Member(160, "ragdollMotors", hkpRagdollMotorConstraintAtom, flags=32),
+        Member(256, "angFriction", hkpAngFrictionConstraintAtom, flags=32),
+        Member(272, "twistLimit", hkpTwistLimitConstraintAtom, flags=32),
+        Member(304, "coneLimit", hkpConeLimitConstraintAtom, flags=32),
+        Member(336, "planesLimit", hkpConeLimitConstraintAtom, flags=32),
+        Member(368, "ballSocket", hkpBallSocketConstraintAtom, flags=32),
     )
     members = local_members
 
@@ -2207,8 +2213,8 @@ class hknpRagdollData(hknpPhysicsSystemData):
     __hsh = 3700367531
 
     local_members = (
-        Member("skeleton", Ptr(hkaSkeleton), offset=120, flags=0),
-        Member("boneToBodyMap", hkArray(hkInt32), offset=128, flags=0),
+        Member(120, "skeleton", Ptr(hkaSkeleton), flags=0),
+        Member(128, "boneToBodyMap", hkArray(hkInt32), flags=0),
     )
     members = hknpPhysicsSystemData.members + local_members
 
@@ -2225,45 +2231,48 @@ class hknpWorldCinfo(hk):
     __version = 5
 
     local_members = (
-        Member("bodyBufferCapacity", hkInt32, offset=0, flags=0),
-        Member("userBodyBuffer", Ptr(_void), offset=8, flags=1024),
-        Member("motionBufferCapacity", hkInt32, offset=16, flags=0),
-        Member("userMotionBuffer", Ptr(_void), offset=24, flags=1024),
-        Member("constraintBufferCapacity", hkInt32, offset=32, flags=0),
-        Member("userConstraintBuffer", Ptr(_void), offset=40, flags=1024),
-        Member("persistentStreamAllocator", Ptr(_void), offset=48, flags=1024),
-        Member("materialLibrary", Ptr(hknpMaterialLibrary), offset=56, flags=0),
-        Member("motionPropertiesLibrary", Ptr(hknpMotionPropertiesLibrary), offset=64, flags=0),
-        Member("qualityLibrary", Ptr(hknpBodyQualityLibrary), offset=72, flags=0),
-        Member("simulationType", hkEnum(hknpWorldCinfoSimulationType, hkUint8), offset=80, flags=0),
-        Member("numSplitterCells", hkInt32, offset=84, flags=0),
-        Member("gravity", hkVector4, offset=96, flags=0),
-        Member("enableContactCaching", hkBool, offset=112, flags=0),
-        Member("mergeEventsBeforeDispatch", hkBool, offset=113, flags=0),
+        Member(0, "bodyBufferCapacity", hkInt32, flags=0),
+        Member(8, "userBodyBuffer", Ptr(_void), flags=1024),
+        Member(16, "motionBufferCapacity", hkInt32, flags=0),
+        Member(24, "userMotionBuffer", Ptr(_void), flags=1024),
+        Member(32, "constraintBufferCapacity", hkInt32, flags=0),
+        Member(40, "userConstraintBuffer", Ptr(_void), flags=1024),
+        Member(48, "persistentStreamAllocator", Ptr(_void), flags=1024),
+        Member(56, "materialLibrary", Ptr(hknpMaterialLibrary), flags=0),
+        Member(64, "motionPropertiesLibrary", Ptr(hknpMotionPropertiesLibrary), flags=0),
+        Member(72, "qualityLibrary", Ptr(hknpBodyQualityLibrary), flags=0),
+        Member(80, "simulationType", hkEnum(hknpWorldCinfoSimulationType, hkUint8), flags=0),
+        Member(84, "numSplitterCells", hkInt32, flags=0),
+        Member(96, "gravity", hkVector4, flags=0),
+        Member(112, "enableContactCaching", hkBool, flags=0),
+        Member(113, "mergeEventsBeforeDispatch", hkBool, flags=0),
         Member(
-            "leavingBroadPhaseBehavior", hkEnum(hknpWorldCinfoLeavingBroadPhaseBehavior, hkUint8), offset=114, flags=0
+            114,
+            "leavingBroadPhaseBehavior",
+            hkEnum(hknpWorldCinfoLeavingBroadPhaseBehavior, hkUint8),
+            flags=0,
         ),
-        Member("broadPhaseAabb", hkAabb, offset=128, flags=0),
-        Member("broadPhaseConfig", Ptr(hknpBroadPhaseConfig), offset=160, flags=0),
-        Member("collisionFilter", Ptr(hknpCollisionFilter), offset=168, flags=0),
-        Member("shapeTagCodec", Ptr(hknpShapeTagCodec), offset=176, flags=0),
-        Member("collisionTolerance", hkReal, offset=184, flags=0),
-        Member("relativeCollisionAccuracy", hkReal, offset=188, flags=0),
-        Member("enableWeldingForDefaultObjects", hkBool, offset=192, flags=0),
-        Member("enableWeldingForCriticalObjects", hkBool, offset=193, flags=0),
-        Member("solverTau", hkReal, offset=196, flags=0),
-        Member("solverDamp", hkReal, offset=200, flags=0),
-        Member("solverIterations", hkInt32, offset=204, flags=0),
-        Member("solverMicrosteps", hkInt32, offset=208, flags=0),
-        Member("defaultSolverTimestep", hkReal, offset=212, flags=0),
-        Member("maxApproachSpeedForHighQualitySolver", hkReal, offset=216, flags=0),
-        Member("enableDeactivation", hkBool, offset=220, flags=0),
-        Member("deleteCachesOnDeactivation", hkBool, offset=221, flags=0),
-        Member("largeIslandSize", hkInt32, offset=224, flags=0),
-        Member("enableSolverDynamicScheduling", hkBool, offset=228, flags=0),
-        Member("contactSolverType", hkInt32, offset=232, flags=0),
-        Member("unitScale", hkReal, offset=236, flags=0),
-        Member("applyUnitScaleToStaticConstants", hkBool, offset=240, flags=0),
+        Member(128, "broadPhaseAabb", hkAabb, flags=0),
+        Member(160, "broadPhaseConfig", Ptr(hknpBroadPhaseConfig), flags=0),
+        Member(168, "collisionFilter", Ptr(hknpCollisionFilter), flags=0),
+        Member(176, "shapeTagCodec", Ptr(hknpShapeTagCodec), flags=0),
+        Member(184, "collisionTolerance", hkReal, flags=0),
+        Member(188, "relativeCollisionAccuracy", hkReal, flags=0),
+        Member(192, "enableWeldingForDefaultObjects", hkBool, flags=0),
+        Member(193, "enableWeldingForCriticalObjects", hkBool, flags=0),
+        Member(196, "solverTau", hkReal, flags=0),
+        Member(200, "solverDamp", hkReal, flags=0),
+        Member(204, "solverIterations", hkInt32, flags=0),
+        Member(208, "solverMicrosteps", hkInt32, flags=0),
+        Member(212, "defaultSolverTimestep", hkReal, flags=0),
+        Member(216, "maxApproachSpeedForHighQualitySolver", hkReal, flags=0),
+        Member(220, "enableDeactivation", hkBool, flags=0),
+        Member(221, "deleteCachesOnDeactivation", hkBool, flags=0),
+        Member(224, "largeIslandSize", hkInt32, flags=0),
+        Member(228, "enableSolverDynamicScheduling", hkBool, flags=0),
+        Member(232, "contactSolverType", hkInt32, flags=0),
+        Member(236, "unitScale", hkReal, flags=0),
+        Member(240, "applyUnitScaleToStaticConstants", hkBool, flags=0),
     )
     members = local_members
 
@@ -2315,7 +2324,7 @@ class hkaSkeletonMapper(hkReferencedObject):
     __hsh = 2900984988
 
     local_members = (
-        Member("mapping", hkaSkeletonMapperData, offset=16, flags=32),
+        Member(16, "mapping", hkaSkeletonMapperData, flags=32),
     )
     members = hkReferencedObject.members + local_members
 
@@ -2331,19 +2340,19 @@ class hkaSplineCompressedAnimation(hkaAnimation):
     __hsh = 2352701310
 
     local_members = (
-        Member("numFrames", _int, offset=56, flags=36),
-        Member("numBlocks", _int, offset=60, flags=36),
-        Member("maxFramesPerBlock", _int, offset=64, flags=36),
-        Member("maskAndQuantizationSize", _int, offset=68, flags=36),
-        Member("blockDuration", hkReal, offset=72, flags=36),
-        Member("blockInverseDuration", hkReal, offset=76, flags=36),
-        Member("frameDuration", hkReal, offset=80, flags=36),
-        Member("blockOffsets", hkArray(hkUint32), offset=88, flags=36),
-        Member("floatBlockOffsets", hkArray(hkUint32), offset=104, flags=36),
-        Member("transformOffsets", hkArray(hkUint32), offset=120, flags=36),
-        Member("floatOffsets", hkArray(hkUint32), offset=136, flags=36),
-        Member("data", hkArray(hkUint8), offset=152, flags=36),
-        Member("endian", _int, offset=168, flags=36),
+        Member(56, "numFrames", _int, flags=36),
+        Member(60, "numBlocks", _int, flags=36),
+        Member(64, "maxFramesPerBlock", _int, flags=36),
+        Member(68, "maskAndQuantizationSize", _int, flags=36),
+        Member(72, "blockDuration", hkReal, flags=36),
+        Member(76, "blockInverseDuration", hkReal, flags=36),
+        Member(80, "frameDuration", hkReal, flags=36),
+        Member(88, "blockOffsets", hkArray(hkUint32), flags=36),
+        Member(104, "floatBlockOffsets", hkArray(hkUint32), flags=36),
+        Member(120, "transformOffsets", hkArray(hkUint32), flags=36),
+        Member(136, "floatOffsets", hkArray(hkUint32), flags=36),
+        Member(152, "data", hkArray(hkUint8), flags=36),
+        Member(168, "endian", _int, flags=36),
     )
     members = hkaAnimation.members + local_members
 
@@ -2372,8 +2381,8 @@ class hkaInterleavedUncompressedAnimation(hkaAnimation):
     __version = 1
 
     local_members = (
-        Member("transforms", hkArray(hkQsTransform), offset=56, flags=32),
-        Member("floats", hkArray(hkReal), offset=72, flags=32),
+        Member(56, "transforms", hkArray(hkQsTransform), flags=32),
+        Member(72, "floats", hkArray(hkReal), flags=32),
     )
     members = hkaAnimation.members + local_members
 
@@ -2390,9 +2399,9 @@ class hkaQuantizedAnimation(hkaAnimation):
     __hsh = 213316226
 
     local_members = (
-        Member("data", hkArray(hkUint8), offset=56, flags=36),
-        Member("endian", hkUint32, offset=72, flags=36),
-        Member("skeleton", Ptr(hkReflectDetailOpaque), offset=80, flags=37),
+        Member(56, "data", hkArray(hkUint8), flags=36),
+        Member(72, "endian", hkUint32, flags=36),
+        Member(80, "skeleton", Ptr(hkReflectDetailOpaque), flags=37),
     )
     members = hkaAnimation.members + local_members
 
@@ -2410,23 +2419,23 @@ class hkxMaterial(hkxAttributeHolder):
     __version = 5
 
     local_members = (
-        Member("name", hkStringPtr, offset=32, flags=32),
-        Member("stages", hkArray(hkxMaterialTextureStage), offset=40, flags=32),
-        Member("diffuseColor", hkVector4, offset=64, flags=32),
-        Member("ambientColor", hkVector4, offset=80, flags=32),
-        Member("specularColor", hkVector4, offset=96, flags=32),
-        Member("emissiveColor", hkVector4, offset=112, flags=32),
-        Member("subMaterials", hkArray(Ptr(DefType("hkxMaterial", lambda: hkxMaterial))), offset=128, flags=32),
-        Member("extraData", Ptr(hkReferencedObject), offset=144, flags=32),
-        Member("uvMapScale", hkStruct(hkReal, 2, is_generic=True), offset=152, flags=32),
-        Member("uvMapOffset", hkStruct(hkReal, 2, is_generic=True), offset=160, flags=32),
-        Member("uvMapRotation", hkReal, offset=168, flags=32),
-        Member("uvMapAlgorithm", hkEnum(hkxMaterialUVMappingAlgorithm, hkUint32), offset=172, flags=32),
-        Member("specularMultiplier", hkReal, offset=176, flags=32),
-        Member("specularExponent", hkReal, offset=180, flags=32),
-        Member("transparency", hkEnum(hkxMaterialTransparency, hkUint8), offset=184, flags=32),
-        Member("userData", hkUlong, offset=192, flags=32),
-        Member("properties", hkArray(hkxMaterialProperty), offset=200, flags=34),
+        Member(32, "name", hkStringPtr, flags=32),
+        Member(40, "stages", hkArray(hkxMaterialTextureStage), flags=32),
+        Member(64, "diffuseColor", hkVector4, flags=32),
+        Member(80, "ambientColor", hkVector4, flags=32),
+        Member(96, "specularColor", hkVector4, flags=32),
+        Member(112, "emissiveColor", hkVector4, flags=32),
+        Member(128, "subMaterials", hkArray(Ptr(DefType("hkxMaterial", lambda: hkxMaterial))), flags=32),
+        Member(144, "extraData", Ptr(hkReferencedObject), flags=32),
+        Member(152, "uvMapScale", hkGenericStruct(hkReal, 2), flags=32),
+        Member(160, "uvMapOffset", hkGenericStruct(hkReal, 2), flags=32),
+        Member(168, "uvMapRotation", hkReal, flags=32),
+        Member(172, "uvMapAlgorithm", hkEnum(hkxMaterialUVMappingAlgorithm, hkUint32), flags=32),
+        Member(176, "specularMultiplier", hkReal, flags=32),
+        Member(180, "specularExponent", hkReal, flags=32),
+        Member(184, "transparency", hkEnum(hkxMaterialTransparency, hkUint8), flags=32),
+        Member(192, "userData", hkUlong, flags=32),
+        Member(200, "properties", hkArray(hkxMaterialProperty), flags=34),
     )
     members = hkxAttributeHolder.members + local_members
 
@@ -2458,7 +2467,7 @@ class hkpRagdollConstraintData(hkpConstraintData):
     __hsh = 3078430774
 
     local_members = (
-        Member("atoms", hkpRagdollConstraintDataAtoms, offset=32, flags=32),
+        Member(32, "atoms", hkpRagdollConstraintDataAtoms, flags=32),
     )
     members = hkpConstraintData.members + local_members
 
@@ -2472,7 +2481,7 @@ class hknpRefWorldCinfo(hkReferencedObject):
     tag_type_flags = 7
 
     local_members = (
-        Member("info", hknpWorldCinfo, offset=16, flags=0),
+        Member(16, "info", hknpWorldCinfo, flags=0),
     )
     members = hkReferencedObject.members + local_members
 
@@ -2488,13 +2497,13 @@ class hkxMeshSection(hkReferencedObject):
     __version = 5
 
     local_members = (
-        Member("vertexBuffer", Ptr(hkxVertexBuffer), offset=16, flags=32),
-        Member("indexBuffers", hkArray(Ptr(hkxIndexBuffer)), offset=24, flags=32),
-        Member("material", Ptr(hkxMaterial), offset=40, flags=32),
-        Member("userChannels", hkArray(Ptr(hkReferencedObject)), offset=48, flags=32),
-        Member("vertexAnimations", hkArray(Ptr(hkxVertexAnimation)), offset=64, flags=32),
-        Member("linearKeyFrameHints", hkArray(hkReal), offset=80, flags=32),
-        Member("boneMatrixMap", hkArray(hkMeshBoneIndexMapping), offset=96, flags=32),
+        Member(16, "vertexBuffer", Ptr(hkxVertexBuffer), flags=32),
+        Member(24, "indexBuffers", hkArray(Ptr(hkxIndexBuffer)), flags=32),
+        Member(40, "material", Ptr(hkxMaterial), flags=32),
+        Member(48, "userChannels", hkArray(Ptr(hkReferencedObject)), flags=32),
+        Member(64, "vertexAnimations", hkArray(Ptr(hkxVertexAnimation)), flags=32),
+        Member(80, "linearKeyFrameHints", hkArray(hkReal), flags=32),
+        Member(96, "boneMatrixMap", hkArray(hkMeshBoneIndexMapping), flags=32),
     )
     members = hkReferencedObject.members + local_members
 
@@ -2517,8 +2526,8 @@ class hknpPhysicsSceneData(hkReferencedObject):
     __version = 1
 
     local_members = (
-        Member("systemDatas", hkArray(Ptr(hknpPhysicsSystemData)), offset=16, flags=0),
-        Member("worldCinfo", Ptr(hknpRefWorldCinfo), offset=32, flags=0),
+        Member(16, "systemDatas", hkArray(Ptr(hknpPhysicsSystemData)), flags=0),
+        Member(32, "worldCinfo", Ptr(hknpRefWorldCinfo), flags=0),
     )
     members = hkReferencedObject.members + local_members
 
@@ -2535,8 +2544,8 @@ class hkxMesh(hkReferencedObject):
     __version = 1
 
     local_members = (
-        Member("sections", hkArray(Ptr(hkxMeshSection)), offset=16, flags=32),
-        Member("userChannelInfos", hkArray(Ptr(hkxMeshUserChannelInfo)), offset=32, flags=32),
+        Member(16, "sections", hkArray(Ptr(hkxMeshSection)), flags=32),
+        Member(32, "userChannelInfos", hkArray(Ptr(hkxMeshUserChannelInfo)), flags=32),
     )
     members = hkReferencedObject.members + local_members
 
@@ -2553,12 +2562,12 @@ class hkaMeshBinding(hkReferencedObject):
     __version = 3
 
     local_members = (
-        Member("mesh", Ptr(hkxMesh), offset=16, flags=32),
-        Member("originalSkeletonName", hkStringPtr, offset=24, flags=32),
-        Member("name", hkStringPtr, offset=32, flags=32),
-        Member("skeleton", Ptr(hkaSkeleton), offset=40, flags=32),
-        Member("mappings", hkArray(hkaMeshBindingMapping), offset=48, flags=32),
-        Member("boneFromSkinMeshTransforms", hkArray(hkTransform), offset=64, flags=32),
+        Member(16, "mesh", Ptr(hkxMesh), flags=32),
+        Member(24, "originalSkeletonName", hkStringPtr, flags=32),
+        Member(32, "name", hkStringPtr, flags=32),
+        Member(40, "skeleton", Ptr(hkaSkeleton), flags=32),
+        Member(48, "mappings", hkArray(hkaMeshBindingMapping), flags=32),
+        Member(64, "boneFromSkinMeshTransforms", hkArray(hkTransform), flags=32),
     )
     members = hkReferencedObject.members + local_members
 
@@ -2580,11 +2589,11 @@ class hkaAnimationContainer(hkReferencedObject):
     __version = 1
 
     local_members = (
-        Member("skeletons", hkArray(hkRefPtr(hkaSkeleton)), offset=16, flags=32),
-        Member("animations", hkArray(hkRefPtr(hkaAnimation)), offset=32, flags=32),
-        Member("bindings", hkArray(hkRefPtr(hkaAnimationBinding)), offset=48, flags=32),
-        Member("attachments", hkArray(hkRefPtr(hkaBoneAttachment)), offset=64, flags=32),
-        Member("skins", hkArray(hkRefPtr(hkaMeshBinding)), offset=80, flags=32),
+        Member(16, "skeletons", hkArray(hkRefPtr(hkaSkeleton)), flags=32),
+        Member(32, "animations", hkArray(hkRefPtr(hkaAnimation)), flags=32),
+        Member(48, "bindings", hkArray(hkRefPtr(hkaAnimationBinding)), flags=32),
+        Member(64, "attachments", hkArray(hkRefPtr(hkaBoneAttachment)), flags=32),
+        Member(80, "skins", hkArray(hkRefPtr(hkaMeshBinding)), flags=32),
     )
     members = hkReferencedObject.members + local_members
 
@@ -2602,8 +2611,8 @@ class hkpLimitedForceConstraintMotor(hk):
     tag_type_flag = 7
 
     local_members = (
-        Member("minForce", hkReal, offset=16, flags=0),
-        Member("maxForce", hkReal, offset=20, flags=0),
+        Member(16, "minForce", hkReal, flags=0),
+        Member(20, "maxForce", hkReal, flags=0),
     )
 
 
@@ -2614,8 +2623,8 @@ class hkp2dAngConstraintAtom(hkpConstraintAtom):
     tag_type_flags = 7
 
     local_members = (
-        Member("freeRotationAxis", hkUint8, offset=2, flags=0),
-        Member("padding", hkStruct(hkUint8, 13), offset=3, flags=0),
+        Member(2, "freeRotationAxis", hkUint8, flags=0),
+        Member(3, "padding", hkStruct(hkUint8, 13), flags=0),
     )
 
     freeRotationAxis: hkUint8
@@ -2631,14 +2640,14 @@ class hkpAngMotorConstraintAtom(hkpConstraintAtom):
     __version = 1
 
     local_members = (
-        Member("isEnabled", hkBool, offset=2, flags=0),
-        Member("motorAxis", hkUint8, offset=3, flags=0),
-        Member("initializedOffset", hkInt16, offset=4, flags=0),
-        Member("previousTargetAngleOffset", hkInt16, offset=6, flags=0),
-        Member("correspondingAngLimitSolverResultOffset", hkInt16, offset=8, flags=0),
-        Member("targetAngle", hkReal, offset=12, flags=0),
-        Member("motor", Ptr(hkpConstraintMotor), offset=16, flags=0),
-        Member("padding", hkStruct(hkUint8, 20), offset=24, flags=0),
+        Member(2, "isEnabled", hkBool, flags=0),
+        Member(3, "motorAxis", hkUint8, flags=0),
+        Member(4, "initializedOffset", hkInt16, flags=0),
+        Member(6, "previousTargetAngleOffset", hkInt16, flags=0),
+        Member(8, "correspondingAngLimitSolverResultOffset", hkInt16, flags=0),
+        Member(12, "targetAngle", hkReal, flags=0),
+        Member(16, "motor", Ptr(hkpConstraintMotor), flags=0),
+        Member(24, "padding", hkStruct(hkUint8, 20), flags=0),
     )
 
 
@@ -2649,11 +2658,11 @@ class hkpAngLimitConstraintAtom(hkpConstraintAtom):
     tag_type_flags = 7
 
     local_members = (
-        Member("isEnabled", hkUint8, offset=2, flags=0),
-        Member("limitAxis", hkUint8, offset=3, flags=0),
-        Member("minAngle", hkReal, offset=4, flags=0),
-        Member("maxAngle", hkReal, offset=8, flags=0),
-        Member("angularLimitsTauFactor", hkReal, offset=12, flags=0),
+        Member(2, "isEnabled", hkUint8, flags=0),
+        Member(3, "limitAxis", hkUint8, flags=0),
+        Member(4, "minAngle", hkReal, flags=0),
+        Member(8, "maxAngle", hkReal, flags=0),
+        Member(12, "angularLimitsTauFactor", hkReal, flags=0),
     )
 
 
@@ -2666,13 +2675,13 @@ class hkpLimitedHingeConstraintDataAtoms(hk):
     __version = 1
 
     local_members = (
-        Member("transforms", hkpSetLocalTransformsConstraintAtom, offset=0, flags=0),
-        Member("setupStabilization", hkpSetupStabilizationAtom, offset=144, flags=0),
-        Member("angMotor", hkpAngMotorConstraintAtom, offset=160, flags=0),
-        Member("angFriction", hkpAngFrictionConstraintAtom, offset=200, flags=0),
-        Member("angLimit", hkpAngLimitConstraintAtom, offset=216, flags=0),
-        Member("2dAng", hkp2dAngConstraintAtom, offset=232, flags=0),
-        Member("ballSocket", hkpBallSocketConstraintAtom, offset=248, flags=0),
+        Member(0, "transforms", hkpSetLocalTransformsConstraintAtom, flags=0),
+        Member(144, "setupStabilization", hkpSetupStabilizationAtom, flags=0),
+        Member(160, "angMotor", hkpAngMotorConstraintAtom, flags=0),
+        Member(200, "angFriction", hkpAngFrictionConstraintAtom, flags=0),
+        Member(216, "angLimit", hkpAngLimitConstraintAtom, flags=0),
+        Member(232, "2dAng", hkp2dAngConstraintAtom, flags=0),
+        Member(248, "ballSocket", hkpBallSocketConstraintAtom, flags=0),
     )
 
 
@@ -2683,5 +2692,5 @@ class hkpLimitedHingeConstraintData(hkpConstraintData):
     tag_type_flags = 7
 
     local_members = (
-        Member("atoms", hkpLimitedHingeConstraintDataAtoms, offset=32, flags=256),
+        Member(32, "atoms", hkpLimitedHingeConstraintDataAtoms, flags=256),
     )

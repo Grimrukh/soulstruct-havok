@@ -142,7 +142,7 @@ class hkQuaternionf(hkStruct(_float, 4)):
     tag_type_flags = 1064
 
     local_members = (
-        Member("vec", hkVector4f, offset=0, flags=32),
+        Member(0, "vec", hkVector4f, flags=32),
     )
     members = local_members
 
@@ -185,10 +185,10 @@ class hkMatrix4f(hkStruct(_float, 16)):
     tag_type_flags = 4136
 
     local_members = (
-        Member("col0", hkVector4f, offset=0, flags=34),
-        Member("col1", hkVector4f, offset=16, flags=34),
-        Member("col2", hkVector4f, offset=32, flags=34),
-        Member("col3", hkVector4f, offset=48, flags=34),
+        Member(0, "col0", hkVector4f, flags=34),
+        Member(16, "col1", hkVector4f, flags=34),
+        Member(32, "col2", hkVector4f, flags=34),
+        Member(48, "col3", hkVector4f, flags=34),
     )
     members = local_members
 
@@ -220,8 +220,8 @@ class hkTransformf(hkStruct(_float, 16)):
     tag_type_flags = 4136
 
     local_members = (
-        Member("rotation", hkRotationf, offset=0, flags=34),
-        Member("translation", hkVector4f, offset=48, flags=34),
+        Member(0, "rotation", hkRotationf, flags=34),
+        Member(48, "translation", hkVector4f, flags=34),
     )
     members = local_members
 
@@ -246,9 +246,9 @@ class hkQsTransformf(hk):
     tag_type_flags = 7
 
     local_members = (
-        Member("translation", hkVector4f, offset=0, flags=32),
-        Member("rotation", hkQuaternionf, offset=16, flags=32),
-        Member("scale", hkVector4f, offset=32, flags=32),
+        Member(0, "translation", hkVector4f, flags=32),
+        Member(16, "rotation", hkQuaternionf, flags=32),
+        Member(32, "scale", hkVector4f, flags=32),
     )
     members = local_members
 
@@ -335,7 +335,7 @@ class hkReferencedObject(hkBaseObject):
     tag_type_flags = 7
 
     local_members = (
-        Member("memSizeAndRefCount", hkUint32, offset=8, flags=1024),
+        Member(8, "memSizeAndRefCount", hkUint32, flags=1024),
     )
     members = hkBaseObject.members + local_members
 
@@ -351,7 +351,7 @@ class hkRefVariant(hk):
     __hsh = 2872857893
 
     local_members = (
-        Member("ptr", Ptr(hkReferencedObject), offset=0, flags=36),
+        Member(0, "ptr", Ptr(hkReferencedObject), flags=36),
     )
     members = local_members
 
@@ -365,7 +365,7 @@ class hkUFloat8(hk):
     tag_type_flags = 7
 
     local_members = (
-        Member("value", hkUint8, offset=0, flags=32),
+        Member(0, "value", hkUint8, flags=32),
     )
     members = local_members
 
@@ -391,7 +391,7 @@ class hkStringPtr(hk):
     __hsh = 2837000324
 
     local_members = (
-        Member("stringAndFlag", _const_char, offset=0, flags=36),
+        Member(0, "stringAndFlag", _const_char, flags=36),
     )
     members = local_members
 
@@ -405,7 +405,7 @@ class hkBool(hk):
     tag_type_flags = 8194
 
     local_members = (
-        Member("bool", _char, offset=0, flags=36),
+        Member(0, "bool", _char, flags=36),
     )
     members = local_members
 
@@ -419,7 +419,7 @@ class hkHalf16(hk):
     tag_type_flags = 476677
 
     local_members = (
-        Member("value", hkInt16, offset=0, flags=36),
+        Member(0, "value", hkInt16, flags=36),
     )
     members = local_members
 
