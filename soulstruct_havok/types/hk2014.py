@@ -3,7 +3,6 @@ from __future__ import annotations
 import typing as tp
 
 from soulstruct_havok.types.core import *
-from soulstruct_havok.enums import TagDataType
 
 if tp.TYPE_CHECKING:
     from soulstruct.utilities.binary import BinaryReader
@@ -474,9 +473,9 @@ class hkCompressedMassProperties(hk):
     tag_type_flags = 7
 
     local_members = (
-        Member("centerOfMass", hkStruct(hkInt16, 4, TagDataType.IsVariable1), offset=0, flags=0),
-        Member("inertia", hkStruct(hkInt16, 4, TagDataType.IsVariable1), offset=8, flags=0),
-        Member("majorAxisSpace", hkStruct(hkInt16, 4, TagDataType.IsVariable1), offset=16, flags=0),
+        Member("centerOfMass", hkStruct(hkInt16, 4, is_generic=True), offset=0, flags=0),
+        Member("inertia", hkStruct(hkInt16, 4, is_generic=True), offset=8, flags=0),
+        Member("majorAxisSpace", hkStruct(hkInt16, 4, is_generic=True), offset=16, flags=0),
         Member("mass", hkReal, offset=24, flags=0),
         Member("volume", hkReal, offset=28, flags=0),
     )
@@ -1248,7 +1247,7 @@ class hkpSetupStabilizationAtom(hkpConstraintAtom):
 
     local_members = (
         Member("enabled", hkBool, offset=2, flags=32),
-        Member("padding", hkStruct(hkUint8, 1, TagDataType.IsVariable1), offset=3, flags=1024),
+        Member("padding", hkStruct(hkUint8, 1, is_generic=True), offset=3, flags=1024),
         Member("maxLinImpulse", hkReal, offset=4, flags=32),
         Member("maxAngImpulse", hkReal, offset=8, flags=32),
         Member("maxAngle", hkReal, offset=12, flags=32),
@@ -1275,7 +1274,7 @@ class hkpRagdollMotorConstraintAtom(hkpConstraintAtom):
         Member("initializedOffset", hkInt16, offset=4, flags=33),
         Member("previousTargetAnglesOffset", hkInt16, offset=6, flags=33),
         Member("target_bRca", hkMatrix3, offset=16, flags=32),
-        Member("motors", hkStruct(Ptr(hkpConstraintMotor), 3, TagDataType.IsVariable1), offset=64, flags=32),
+        Member("motors", hkStruct(Ptr(hkpConstraintMotor), 3, is_generic=True), offset=64, flags=32),
     )
     members = hkpConstraintAtom.members + local_members
 
@@ -1297,7 +1296,7 @@ class hkpAngFrictionConstraintAtom(hkpConstraintAtom):
         Member("firstFrictionAxis", hkUint8, offset=3, flags=32),
         Member("numFrictionAxes", hkUint8, offset=4, flags=32),
         Member("maxFrictionTorque", hkReal, offset=8, flags=32),
-        Member("padding", hkStruct(hkUint8, 4, TagDataType.IsVariable1), offset=12, flags=1024),
+        Member("padding", hkStruct(hkUint8, 4, is_generic=True), offset=12, flags=1024),
     )
     members = hkpConstraintAtom.members + local_members
 
@@ -1321,7 +1320,7 @@ class hkpTwistLimitConstraintAtom(hkpConstraintAtom):
         Member("minAngle", hkReal, offset=8, flags=32),
         Member("maxAngle", hkReal, offset=12, flags=32),
         Member("angularLimitsTauFactor", hkReal, offset=16, flags=32),
-        Member("padding", hkStruct(hkUint8, 12, TagDataType.IsVariable1), offset=20, flags=1024),
+        Member("padding", hkStruct(hkUint8, 12, is_generic=True), offset=20, flags=1024),
     )
     members = hkpConstraintAtom.members + local_members
 
@@ -1349,7 +1348,7 @@ class hkpConeLimitConstraintAtom(hkpConstraintAtom):
         Member("minAngle", hkReal, offset=8, flags=32),
         Member("maxAngle", hkReal, offset=12, flags=32),
         Member("angularLimitsTauFactor", hkReal, offset=16, flags=32),
-        Member("padding", hkStruct(hkUint8, 12, TagDataType.IsVariable1), offset=20, flags=1024),
+        Member("padding", hkStruct(hkUint8, 12, is_generic=True), offset=20, flags=1024),
     )
     members = hkpConstraintAtom.members + local_members
 
@@ -1878,7 +1877,10 @@ class hknpMaterialLibrary(hkReferencedObject):
         Member("materialAddedSignal", Ptr(_void), offset=16, flags=1024),
         Member("materialModifiedSignal", Ptr(_void), offset=24, flags=1024),
         Member("materialRemovedSignal", Ptr(_void), offset=32, flags=1024),
-        Member("entries", hkFreeListArrayhknpMaterialhknpMaterialId8hknpMaterialFreeListArrayOperations, offset=40, flags=0),
+        Member(
+            "entries", hkFreeListArrayhknpMaterialhknpMaterialId8hknpMaterialFreeListArrayOperations,
+            offset=40, flags=0
+        ),
     )
     members = hkReferencedObject.members + local_members
 
@@ -1898,7 +1900,11 @@ class hknpMotionPropertiesLibrary(hkReferencedObject):
         Member("entryAddedSignal", Ptr(_void), offset=16, flags=1024),
         Member("entryModifiedSignal", Ptr(_void), offset=24, flags=1024),
         Member("entryRemovedSignal", Ptr(_void), offset=32, flags=1024),
-        Member("entries", hkFreeListArrayhknpMotionPropertieshknpMotionPropertiesId8hknpMotionPropertiesFreeListArrayOperations, offset=40, flags=0),
+        Member(
+            "entries",
+            hkFreeListArrayhknpMotionPropertieshknpMotionPropertiesId8hknpMotionPropertiesFreeListArrayOperations,
+            offset=40, flags=0
+        ),
     )
     members = hkReferencedObject.members + local_members
 
@@ -1916,7 +1922,7 @@ class hknpBodyQualityLibrary(hkReferencedObject):
 
     local_members = (
         Member("qualityModifiedSignal", Ptr(_void), offset=16, flags=1024),
-        Member("qualities", hkStruct(hknpBodyQuality, 32, TagDataType.IsVariable1), offset=32, flags=256),
+        Member("qualities", hkStruct(hknpBodyQuality, 32, is_generic=True), offset=32, flags=256),
     )
     members = hkReferencedObject.members + local_members
 
@@ -1936,7 +1942,9 @@ class hkaSkeletonMapperData(hk):
         Member("skeletonA", Ptr(hkaSkeleton), offset=0, flags=32),
         Member("skeletonB", Ptr(hkaSkeleton), offset=8, flags=32),
         Member("partitionMap", hkArray(hkInt16), offset=16, flags=32),
-        Member("simpleMappingPartitionRanges", hkArray(hkaSkeletonMapperDataPartitionMappingRange), offset=32, flags=32),
+        Member(
+            "simpleMappingPartitionRanges", hkArray(hkaSkeletonMapperDataPartitionMappingRange), offset=32, flags=32
+        ),
         Member("chainMappingPartitionRanges", hkArray(hkaSkeletonMapperDataPartitionMappingRange), offset=48, flags=32),
         Member("simpleMappings", hkArray(hkaSkeletonMapperDataSimpleMapping), offset=64, flags=32),
         Member("chainMappings", hkArray(hkaSkeletonMapperDataChainMapping), offset=80, flags=32),
@@ -2232,7 +2240,9 @@ class hknpWorldCinfo(hk):
         Member("gravity", hkVector4, offset=96, flags=0),
         Member("enableContactCaching", hkBool, offset=112, flags=0),
         Member("mergeEventsBeforeDispatch", hkBool, offset=113, flags=0),
-        Member("leavingBroadPhaseBehavior", hkEnum(hknpWorldCinfoLeavingBroadPhaseBehavior, hkUint8), offset=114, flags=0),
+        Member(
+            "leavingBroadPhaseBehavior", hkEnum(hknpWorldCinfoLeavingBroadPhaseBehavior, hkUint8), offset=114, flags=0
+        ),
         Member("broadPhaseAabb", hkAabb, offset=128, flags=0),
         Member("broadPhaseConfig", Ptr(hknpBroadPhaseConfig), offset=160, flags=0),
         Member("collisionFilter", Ptr(hknpCollisionFilter), offset=168, flags=0),
@@ -2408,8 +2418,8 @@ class hkxMaterial(hkxAttributeHolder):
         Member("emissiveColor", hkVector4, offset=112, flags=32),
         Member("subMaterials", hkArray(Ptr(DefType("hkxMaterial", lambda: hkxMaterial))), offset=128, flags=32),
         Member("extraData", Ptr(hkReferencedObject), offset=144, flags=32),
-        Member("uvMapScale", hkStruct(hkReal, 2, TagDataType.IsVariable1), offset=152, flags=32),
-        Member("uvMapOffset", hkStruct(hkReal, 2, TagDataType.IsVariable1), offset=160, flags=32),
+        Member("uvMapScale", hkStruct(hkReal, 2, is_generic=True), offset=152, flags=32),
+        Member("uvMapOffset", hkStruct(hkReal, 2, is_generic=True), offset=160, flags=32),
         Member("uvMapRotation", hkReal, offset=168, flags=32),
         Member("uvMapAlgorithm", hkEnum(hkxMaterialUVMappingAlgorithm, hkUint32), offset=172, flags=32),
         Member("specularMultiplier", hkReal, offset=176, flags=32),

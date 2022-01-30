@@ -7,7 +7,6 @@ Generated from files:
 from __future__ import annotations
 import typing as tp
 
-from soulstruct_havok.enums import TagDataType
 from soulstruct_havok.types.core import *
 
 if tp.TYPE_CHECKING:
@@ -1018,11 +1017,11 @@ class hkpCollidableBoundingVolumeData(hk):
     __real_name = "hkpCollidable::BoundingVolumeData"
 
     local_members = (
-        Member("min", hkStruct(hkUint32, 3, TagDataType.IsVariable2), offset=0, flags=32),
-        Member("expansionMin", hkStruct(hkUint8, 3, TagDataType.IsVariable2), offset=12, flags=32),
+        Member("min", hkStruct(hkUint32, 3, is_generic=True), offset=0, flags=32),
+        Member("expansionMin", hkStruct(hkUint8, 3, is_generic=True), offset=12, flags=32),
         Member("expansionShift", hkUint8, offset=15, flags=32),
-        Member("max", hkStruct(hkUint32, 3, TagDataType.IsVariable2), offset=16, flags=32),
-        Member("expansionMax", hkStruct(hkUint8, 3, TagDataType.IsVariable2), offset=28, flags=32),
+        Member("max", hkStruct(hkUint32, 3, is_generic=True), offset=16, flags=32),
+        Member("expansionMax", hkStruct(hkUint8, 3, is_generic=True), offset=28, flags=32),
         Member("padding", hkUint8, offset=31, flags=33),
         Member("numChildShapeAabbs", hkUint16, offset=32, flags=33),
         Member("capacityChildShapeAabbs", hkUint16, offset=34, flags=33),
@@ -1467,9 +1466,9 @@ class hkpCollisionFilter(hkReferencedObject):
     __abstract_value = 3
 
     local_members = (
-        Member("prepad", hkStruct(hkUint32, 2, TagDataType.IsVariable1), offset=48, flags=32),
+        Member("prepad", hkStruct(hkUint32, 2, is_generic=True), offset=48, flags=32),
         Member("type", hkEnum(hkpCollisionFilterhkpFilterType, hkUint32), offset=56, flags=32),
-        Member("postpad", hkStruct(hkUint32, 3, TagDataType.IsVariable2), offset=60, flags=32),
+        Member("postpad", hkStruct(hkUint32, 3, is_generic=True), offset=60, flags=32),
     )
     members = hkReferencedObject.members + local_members
 
@@ -1573,7 +1572,7 @@ class hkMotionState(hk):
 
     local_members = (
         Member("transform", hkTransform, offset=0, flags=34),
-        Member("sweptTransform", hkStruct(hkVector4f, 5, TagDataType.IsVariable3), offset=64, flags=34),
+        Member("sweptTransform", hkStruct(hkVector4f, 5, is_generic=True), offset=64, flags=34),
         Member("deltaAngle", hkVector4, offset=144, flags=32),
         Member("objectRadius", hkReal, offset=160, flags=32),
         Member("linearDamping", hkHalf16, offset=164, flags=32),
@@ -1936,8 +1935,8 @@ class hkxMaterial(hkxAttributeHolder):
             offset=128, flags=32
         ),
         Member("extraData", hkRefVariant(hkReferencedObject, hsh=2872857893), offset=144, flags=32),
-        Member("uvMapScale", hkStruct(hkReal, 2, TagDataType.IsVariable1), offset=152, flags=32),
-        Member("uvMapOffset", hkStruct(hkReal, 2, TagDataType.IsVariable1), offset=160, flags=32),
+        Member("uvMapScale", hkStruct(hkReal, 2, is_generic=True), offset=152, flags=32),
+        Member("uvMapOffset", hkStruct(hkReal, 2, is_generic=True), offset=160, flags=32),
         Member("uvMapRotation", hkReal, offset=168, flags=32),
         Member("uvMapAlgorithm", hkEnum(hkxMaterialUVMappingAlgorithm, hkUint32), offset=172, flags=32),
         Member("specularMultiplier", hkReal, offset=176, flags=32),
@@ -2119,7 +2118,7 @@ class hkpModifierConstraintAtom(hkpConstraintAtom):
         Member("modifierAtomSize", hkUint16, offset=16, flags=32),
         Member("childSize", hkUint16, offset=18, flags=32),
         Member("child", Ptr(hkpConstraintAtom, hsh=None), offset=24, flags=32),
-        Member("pad", hkStruct(hkUint32, 2, TagDataType.IsVariable1), offset=32, flags=33),
+        Member("pad", hkStruct(hkUint32, 2, is_generic=True), offset=32, flags=33),
     )
     members = hkpConstraintAtom.members + local_members
 
@@ -2141,13 +2140,13 @@ class hkpMotion(hkReferencedObject):
     local_members = (
         Member("type", hkEnum(hkpMotionMotionType, hkUint8), offset=16, flags=32),
         Member("deactivationIntegrateCounter", hkUint8, offset=17, flags=32),
-        Member("deactivationNumInactiveFrames", hkStruct(hkUint16, 2, TagDataType.IsVariable1), offset=18, flags=32),
+        Member("deactivationNumInactiveFrames", hkStruct(hkUint16, 2, is_generic=True), offset=18, flags=32),
         Member("motionState", hkMotionState, offset=32, flags=32),
         Member("inertiaAndMassInv", hkVector4, offset=208, flags=32),
         Member("linearVelocity", hkVector4, offset=224, flags=32),
         Member("angularVelocity", hkVector4, offset=240, flags=32),
-        Member("deactivationRefPosition", hkStruct(hkVector4, 2, TagDataType.IsVariable1), offset=256, flags=32),
-        Member("deactivationRefOrientation", hkStruct(hkUint32, 2, TagDataType.IsVariable1), offset=288, flags=32),
+        Member("deactivationRefPosition", hkStruct(hkVector4, 2, is_generic=True), offset=256, flags=32),
+        Member("deactivationRefOrientation", hkStruct(hkUint32, 2, is_generic=True), offset=288, flags=32),
         Member("savedMotion", Ptr(DefType("hkpMotion", lambda: hkpMotion), hsh=None), offset=296, flags=32),
         Member("savedQualityTypeIndex", hkUint16, offset=304, flags=32),
         Member("gravityFactor", hkHalf16, offset=306, flags=32),
@@ -2233,7 +2232,7 @@ class hkpRagdollMotorConstraintAtom(hkpConstraintAtom):
         Member("previousTargetAnglesOffset", hkInt16, offset=6, flags=33),
         Member("target_bRca", hkMatrix3, offset=16, flags=32),
         Member(
-            "motors", hkStruct(Ptr(hkpConstraintMotor, hsh=1039430764), 3, TagDataType.IsVariable2),
+            "motors", hkStruct(Ptr(hkpConstraintMotor, hsh=1039430764), 3, is_generic=True),
             offset=64, flags=32
         ),
     )
@@ -2754,7 +2753,7 @@ class hkpConstraintInstance(hkReferencedObject):
         Member("owner", Ptr(hkReflectDetailOpaque, hsh=None), offset=16, flags=35),
         Member("data", Ptr(hkpConstraintData, hsh=525862446), offset=24, flags=34),
         Member("constraintModifiers", Ptr(hkpModifierConstraintAtom, hsh=None), offset=32, flags=34),
-        Member("entities", hkStruct(Ptr(hkpEntity, hsh=476716456), 2, TagDataType.IsVariable1), offset=40, flags=34),
+        Member("entities", hkStruct(Ptr(hkpEntity, hsh=476716456), 2, is_generic=True), offset=40, flags=34),
         Member("priority", hkEnum(hkpConstraintInstanceConstraintPriority, hkUint8), offset=56, flags=32),
         Member("wantRuntime", hkBool, offset=57, flags=34),
         Member(
