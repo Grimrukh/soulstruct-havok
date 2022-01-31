@@ -1,6 +1,14 @@
 from __future__ import annotations
 
-__all__ = ["PackMemberType", "HKXTagFileType", "TagDataType", "TagFormatFlags"]
+__all__ = [
+    "PackMemberType",
+    "PackMemberFlags",
+    "PACK_MEMBER_TYPE_PY_TYPE_NAMES",
+    "HKXTagFileType",
+    "TagDataType",
+    "TagFormatFlags",
+    "MemberFlags",
+]
 
 from enum import IntEnum
 from pathlib import Path
@@ -18,48 +26,157 @@ class PackMemberType(IntEnum):
 
     For `hkRefPtr`, `hkArray`, and `hkEnum` types, a second byte will indicate the type of that pointer/array or the
     size of that enum.
+
+    See: https://code.botw.link/uking/uking/lib/hkStubs/Havok/Common/Base/Reflection/hkClassMember.h.html
     """
+    TYPE_VOID = 0
+    TYPE_BOOL = 1  # hkBool
+    TYPE_CHAR = 2
+    TYPE_INT8 = 3  # hkInt8
+    TYPE_UINT8 = 4  # hkUint8
+    TYPE_INT16 = 5  # hkInt16
+    TYPE_UINT16 = 6  # hkUint16
+    TYPE_INT32 = 7  # hkInt32
+    TYPE_UINT32 = 8  # hkUint32
+    TYPE_INT64 = 9  # hkInt64
+    TYPE_UINT64 = 10  # hkUint64
+    TYPE_REAL = 11  # hkReal  # TODO: `float` itself used by non-primitive: hkxMeshSection["linearKeyFrameHints"]
+    TYPE_VECTOR4 = 12  # hkVector4
+    TYPE_QUATERNION = 13  # hkQuaternionf
+    TYPE_MATRIX3 = 14  # hkMatrix3
+    TYPE_ROTATION = 15  # TODO: Not observed.
+    TYPE_QSTRANSFORM = 16  # hkQsTransform (translation, rotation, scale)
+    TYPE_MATRIX4 = 17  # hkMatrix4
+    TYPE_TRANSFORM = 18  # hkTransform (rotation, translation)
+    TYPE_ZERO = 19  # TODO: Not observed.
+    TYPE_POINTER = 20  # Ptr (single object, either Class or Void)
+    TYPE_FUNCTIONPOINTER = 21  # TODO: Not observed.
+    TYPE_ARRAY = 22  # hkArray[T], T in second byte
+    TYPE_INPLACEARRAY = 23  # hkInplaceArray[T, N]  # TODO: Not observed.
+    TYPE_ENUM = 24  # hkEnum[ENUM, STORAGE], always has a `hkClassEnum` entry pointer, enum size in second byte
+    TYPE_STRUCT = 25  # hkClass, always has a `hkClass` entry pointer, no subtype
+    TYPE_SIMPLEARRAY = 26  # TODO: Not observed.
+    TYPE_HOMOGENOUSARRAY = 27  # TODO: Not observed.
+    TYPE_VARIANT = 28  # TODO: Not observed?
+    TYPE_CSTRING = 29  # TODO: Not observed.
+    TYPE_ULONG = 30  # hkUlong, distinct from `hkUInt64` and "guaranteed to be the same size as a pointer" (rare)
+    TYPE_FLAGS = 31  # hkFlags[SOTRAGE]  # TODO: storage size in second byte?
+    TYPE_HALF = 32  # hkHalf16
+    TYPE_STRINGPTR = 33  # hkStringPtr
+    TYPE_RELARRAY = 34  # hkRelArray, stores packed array data at a relative offset
+    TYPE_MAX = 35  # TODO: Not observed.
 
-    void = 0b00000000
-    hkBool = 0b00000001
-    # TODO: 0b00000010 has not appeared.
-    hkInt8 = 0b00000011
-    hkUint8 = 0b00000100
-    hkInt16 = 0b00000101
-    hkUint16 = 0b00000110
-    hkInt32 = 0b00000111
-    hkUint32 = 0b00001000
-    hkInt64 = 0b00001001  # TODO: has not appeared in any file, but seems very likely
-    hkUint64 = 0b00001010
-    hkReal = 0b00001011  # TODO: `float` itself also used once by non-primitive: hkxMeshSection["linearKeyFrameHints"]
-    hkVector4 = 0b00001100
-    hkQuaternionf = 0b00001101
-    hkMatrix3 = 0b00001110
-    hkQsTransform = 0b00010000  # translation, rotation, and scale
-    hkTransform = 0b00010010  # rotation and translation
-    hkMatrix4 = 0b00010001
+    def get_py_type_name(self):
+        try:
+            return PACK_MEMBER_TYPE_PY_TYPE_NAMES[self]
+        except KeyError:
+            raise KeyError(f"Python type name for packfile member type {self.name} is unknown.")
 
-    Ptr = 0b00010100  # pointer to a single object (either Class or Void)
-    hkArray = 0b00010110  # array subtype is in second byte
-    hkEnum = 0b00011000  # always has a "hkClassEnum" entry pointer - enum int size in second byte
-    hkClass = 0b00011001  # always has a "hkClass" entry pointer - no subtype
-    hkUlong = 0b00011110  # distinct from UInt64 and "guaranteed to be the same size as a pointer" (rare)
-    hkHalf16 = 0b00100000  # used by `hkpMaterial["rollingFrictionMultiplier"]`. Name found in DSR ragdoll file.
-    hkStringPtr = 0b00100001
-
-    # TODO: These appear in BB/DS3 (2014).
-
-    NewStruct = 0b00100010  # name by me
-    hkFlags = 0b00011111  # TODO: e.g. member "flags" of `hknpShape`, subtype `hkUint16`
-    # 0b00000110_00011111
+    def get_true_py_type_name(self):
+        try:
+            return PACK_MEMBER_TYPE_PY_TYPES[self]
+        except KeyError:
+            try:
+                return self.get_py_type_name()
+            except KeyError:
+                raise KeyError(f"Python true type name for packfile member type {self.name} is unknown.")
 
     @classmethod
-    def get_data_type(cls, type_int: int) -> PackMemberType:
-        return cls(type_int & 0xFF)
+    def is_builtin_type(cls, py_type_name: str):
+        return py_type_name.split("[")[0] in {"hkStruct"} | set(PACK_MEMBER_TYPE_PY_TYPE_NAMES.values())
 
-    @classmethod
-    def get_pointer_type(cls, type_int: int) -> PackMemberType:
-        return cls(type_int >> 8)
+
+PACK_MEMBER_TYPE_PY_TYPE_NAMES = {
+    PackMemberType.TYPE_VOID: "_void",
+    PackMemberType.TYPE_BOOL: "hkBool",
+    PackMemberType.TYPE_CHAR: "hkChar",
+    PackMemberType.TYPE_INT8: "hkInt8",
+    PackMemberType.TYPE_UINT8: "hkUint8",
+    PackMemberType.TYPE_INT16: "hkInt16",
+    PackMemberType.TYPE_UINT16: "hkUint16",
+    PackMemberType.TYPE_INT32: "hkInt32",
+    PackMemberType.TYPE_UINT32: "hkUint32",
+    PackMemberType.TYPE_INT64: "hkInt64",
+    PackMemberType.TYPE_UINT64: "hkUint64",
+    PackMemberType.TYPE_REAL: "hkReal",
+    PackMemberType.TYPE_VECTOR4: "hkVector4",
+    PackMemberType.TYPE_QUATERNION: "hkQuaternionf",
+    PackMemberType.TYPE_MATRIX3: "hkMatrix3",
+    # PackMemberType.TYPE_ROTATION: "",
+    PackMemberType.TYPE_QSTRANSFORM: "hkQsTransform",
+    PackMemberType.TYPE_MATRIX4: "hkMatrix4",
+    PackMemberType.TYPE_TRANSFORM: "hkTransform",
+    # PackMemberType.TYPE_ZERO: "",
+    PackMemberType.TYPE_POINTER: "Ptr",
+    # PackMemberType.TYPE_FUNCTIONPOINTER: "",
+    PackMemberType.TYPE_ARRAY: "hkArray",
+    # PackMemberType.TYPE_INPLACEARRAY: "",
+    PackMemberType.TYPE_ENUM: "hkEnum",
+    # PackMemberType.TYPE_STRUCT: "hkClass",
+    # PackMemberType.TYPE_SIMPLEARRAY: "",
+    # PackMemberType.TYPE_HOMOGENOUSARRAY: "",
+    # PackMemberType.TYPE_VARIANT: "",
+    # PackMemberType.TYPE_CSTRING: "",
+    PackMemberType.TYPE_ULONG: "hkUlong",
+    PackMemberType.TYPE_FLAGS: "hkFlags",
+    PackMemberType.TYPE_HALF: "hkHalf16",
+    PackMemberType.TYPE_STRINGPTR: "hkStringPtr",
+    PackMemberType.TYPE_RELARRAY: "hkRelArray",
+    # PackMemberType.TYPE_MAX: "",
+}
+
+PACK_MEMBER_TYPE_PY_TYPES = {
+    # PackMemberType.TYPE_VOID: "_void",
+    PackMemberType.TYPE_BOOL: "bool",
+    PackMemberType.TYPE_CHAR: "int",
+    PackMemberType.TYPE_INT8: "int",
+    PackMemberType.TYPE_UINT8: "int",
+    PackMemberType.TYPE_INT16: "int",
+    PackMemberType.TYPE_UINT16: "int",
+    PackMemberType.TYPE_INT32: "int",
+    PackMemberType.TYPE_UINT32: "int",
+    PackMemberType.TYPE_INT64: "int",
+    PackMemberType.TYPE_UINT64: "int",
+    PackMemberType.TYPE_REAL: "float",
+    # PackMemberType.TYPE_VECTOR4: "hkVector4",
+    # PackMemberType.TYPE_QUATERNION: "hkQuaternionf",
+    # PackMemberType.TYPE_MATRIX3: "hkMatrix3",
+    # PackMemberType.TYPE_ROTATION: "",
+    # PackMemberType.TYPE_QSTRANSFORM: "hkQsTransform",
+    # PackMemberType.TYPE_MATRIX4: "hkMatrix4",
+    # PackMemberType.TYPE_TRANSFORM: "hkTransform",
+    # PackMemberType.TYPE_ZERO: "",
+    # PackMemberType.TYPE_POINTER: "Ptr",
+    # PackMemberType.TYPE_FUNCTIONPOINTER: "",
+    PackMemberType.TYPE_ARRAY: "list",
+    # PackMemberType.TYPE_INPLACEARRAY: "",
+    # PackMemberType.TYPE_ENUM: "hkEnum",
+    # PackMemberType.TYPE_STRUCT: "hkClass",
+    # PackMemberType.TYPE_SIMPLEARRAY: "",
+    # PackMemberType.TYPE_HOMOGENOUSARRAY: "",
+    # PackMemberType.TYPE_VARIANT: "",
+    # PackMemberType.TYPE_CSTRING: "",
+    PackMemberType.TYPE_ULONG: "int",
+    # PackMemberType.TYPE_FLAGS: "hkFlags",
+    PackMemberType.TYPE_HALF: "hkHalf16",
+    PackMemberType.TYPE_STRINGPTR: "str",
+    PackMemberType.TYPE_RELARRAY: "list",
+    # PackMemberType.TYPE_MAX: "",
+}
+
+
+class PackMemberFlags(IntEnum):
+    """Flags for members in packfiles.
+
+    See: https://code.botw.link/uking/uking/lib/hkStubs/Havok/Common/Base/Reflection/hkClassMember.h.html
+    """
+    FLAGS_NONE = 0
+    ALIGN_8 = 1 << 7
+    ALIGN_16 = 1 << 8
+    NOT_OWNED = 1 << 9
+    SERIALIZED_IGNORED = 1 << 10
+    ALIGN_32 = 1 << 11
+    # TODO: ALIGN_REAL = ALIGN_32 if HK_REAL_IS_DOUBLE else ALIGN_16
 
 
 class HKXTagFileType(IntEnum):
@@ -91,23 +208,25 @@ class TagDataType(IntEnum):
     Note that the lowest byte values are UNIQUE. `Pointer`, `Class`, `Array`, and `Tuple` types indicate the data type
     of the thing they point to or store using the `HKXType.pointer` attribute.
     """
+
+    # LOWEST BYTE
+
     Void = 0b00000000  # 0
     Invalid = 0b00000001  # 1
     Bool = 0b00000010  # 2
-    String = 0b00000011  # 3
+    CharArray = 0b00000011  # 3  # `char*`; also type of `const char*` and `hkStringPtr` in older Havok
     Int = 0b00000100  # 4
     Float = 0b00000101  # 5
     Pointer = 0b00000110  # 6
     Class = 0b00000111  # 7
-    Array = 0b00001000  # 8
+    Array = 0b00001000  # 8  # also type of `hkPropertyBag` and `hkReflect::Type` in newer Havok
     Struct = 0b00101000  # 40
+    ConstCharArray = 0b10000011  # 131  # type of `const char*` and `hkStringPtr` in newer Havok
 
-    NewString = 0b10000011  # 131  # TODO: type of 2018 `hkStringPtr`, rather than `String` above
-
-    # SECOND BYTE
+    # HIGHER BYTES
 
     # NOTE: `Struct` subtypes use the second byte to indicate their length. I assume this means their maximum length is
-    # 255, though they may just continue to use higher bits.
+    # 255, though they may also just continue to use higher bits.
 
     # `Int` subtypes
     IsSigned = 0b0_00000010 << 8  # combined with one of the four types below
@@ -130,21 +249,21 @@ class TagDataType(IntEnum):
 
         Raises a `TypeError` if called on non-integer type.
         """
-        if packfile_type == PackMemberType.hkUint8:
+        if packfile_type == PackMemberType.TYPE_UINT8:
             return cls.Int | cls.Int8
-        elif packfile_type == PackMemberType.hkInt8:
+        elif packfile_type == PackMemberType.TYPE_INT8:
             return cls.Int | cls.Int8 | cls.IsSigned
-        elif packfile_type == PackMemberType.hkUint16:
+        elif packfile_type == PackMemberType.TYPE_UINT16:
             return cls.Int | cls.Int16
-        elif packfile_type == PackMemberType.hkInt16:
+        elif packfile_type == PackMemberType.TYPE_INT16:
             return cls.Int | cls.Int16 | cls.IsSigned
-        elif packfile_type == PackMemberType.hkUint32:
+        elif packfile_type == PackMemberType.TYPE_UINT32:
             return cls.Int | cls.Int32
-        elif packfile_type == PackMemberType.hkInt32:
+        elif packfile_type == PackMemberType.TYPE_INT32:
             return cls.Int | cls.Int32 | cls.IsSigned
-        elif packfile_type == PackMemberType.hkUint64:
+        elif packfile_type == PackMemberType.TYPE_UINT64:
             return cls.Int | cls.Int64
-        elif packfile_type == PackMemberType.hkInt64:
+        elif packfile_type == PackMemberType.TYPE_INT64:
             return cls.Int | cls.Int64 | cls.IsSigned
         else:
             raise TypeError(f"Given `PackMemberType` is not an integer type: {packfile_type.name}")
@@ -170,7 +289,7 @@ class TagDataType(IntEnum):
     def get_primitive_type_hint(self) -> str:
         if self == self.Bool:
             return "bool"
-        if self == self.String:
+        if self == self.CharArray:
             return "str"
         if self == self.Int:
             return "int"
@@ -180,7 +299,7 @@ class TagDataType(IntEnum):
 
 
 class TagFormatFlags(IntEnum):
-    """Flags indicating which types of data are stored with a `HKXType` in a tagfile, as variable ints."""
+    """Flags indicating which types of data are stored in a tagfile `TypeInfo` as variable ints."""
 
     SubType = 0b0000_0001  # everything except Void (hk primitives)
     Pointer = 0b0000_0010  # pointers, arrays, and tuples (versus everything else)
@@ -213,10 +332,22 @@ class TagFormatFlags(IntEnum):
         return flags
 
 
-class TagMemberFlags(IntEnum):
-    """Flags indicating properties of a member. Only specified in tagfiles."""
+class MemberFlags(IntEnum):
+    """Flags indicating properties of a member.
+
+    These are TAGFILE flags. Old packfiles use a different member flag enum, `PackMemberFlags`, whose options do not
+    overlap perfectly with this newer class.
+    """
 
     NotSerializable = 0b0000_0001  # 1
     Protected = 0b0000_0010  # 2
     Private = 0b0000_0100  # 4
     Default = 0b0010_0000  # 32 (always enabled)
+
+    @classmethod
+    def from_packfile_member_flags(cls, packfile_member_flags: int):
+        flags = cls.Default
+        if packfile_member_flags & PackMemberFlags.SERIALIZED_IGNORED:
+            flags |= cls.NotSerializable
+        # TODO: Not sure if `Protected` and `Private` have any analogous options in `PackMemberFlags`.
+        return flags

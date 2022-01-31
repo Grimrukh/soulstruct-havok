@@ -7,7 +7,8 @@ import typing as tp
 
 from soulstruct.utilities.binary import BinaryReader
 
-from soulstruct_havok.types.core import hk, MissingTypeError
+from soulstruct_havok.types.core import hk
+from soulstruct_havok.types.exceptions import VersionModuleError, TypeNotDefinedError
 from soulstruct_havok.types.info import TypeInfo, get_py_name
 from .structs import *
 from .type_unpacker import PackFileTypeUnpacker
@@ -46,8 +47,8 @@ class PackFileUnpacker:
         self.header = None  # type: tp.Optional[PackFileHeader]
         self.header_extension = None  # type: tp.Optional[PackFileHeaderExtension]
 
-        self.type_entries = []  # type: list[PackFileTypeEntry]
-        self.hk_type_infos = []  # type: list[TypeInfo]
+        self.type_entries = []  # type: list[PackFileTypeItem]
+        self.hk_type_infos = []  # type: list[None | TypeInfo]
         self.class_names = {}  # type: dict[int, str]  # maps class name offsets to names
         self.class_hashes = {}  # type: dict[str, int]  # maps class names to hashes
         self.items = []  # type: list[PackFileItemEntry]
@@ -102,41 +103,25 @@ class PackFileUnpacker:
             # Types defined inside file, minus some primitive types that are supplied manually.
             self.hk_type_infos = PackFileTypeUnpacker(
                 self.type_entries, self.class_hashes, self.header.pointer_size, self.hk_types_module
-            ).hk_type_infos
+            ).type_infos
         else:
             self.hk_type_infos = []
             print("NO type entries in packfile.")
 
         if types_only:
-            # All missing (primitive) types must be present in `hk2014_base`.
-            from soulstruct_havok.types import hk2014_base
-            for type_info in self.hk_type_infos:
-                for member in type_info.members:
-                    try:
-                        member_hk_type = [t for t in self.hk_type_infos if t.py_name == member.type_py_name][0]
-                    except IndexError:
-                        try:
-                            member_hk_type = getattr(hk2014_base, member.type_py_name)
-                        except AttributeError:
-                            raise AttributeError(f"Could not find Havok 2014 type `{member.type_py_name}`.")
-                    member.type_info = member_hk_type.get_type_info()
             return
 
-        # TODO: Just loading 2014 for now.
-        from soulstruct_havok.types import hk2014
-        self.hk_types_module = hk2014
-
-        # for type_info in self.hk_type_infos:
-        #     for member in type_info.members:
-        #         try:
-        #             member_hk_type = getattr(self.hk_type_infos, member.type_py_name)
-        #         except AttributeError:
-        #             # Use `hk2014_base` as a backup.
-        #             try:
-        #                 member_hk_type = getattr(hk2014_base, member.type_py_name)
-        #             except AttributeError:
-        #                 raise AttributeError(f"Could not find Havok 2014 type `{member.type_py_name}`.")
-        #         member.type_info = member_hk_type.get_type_info()
+        if self.hk_version == "2014":
+            from soulstruct_havok.types import hk2014
+            self.hk_types_module = hk2014
+        elif self.hk_version == "2015":
+            from soulstruct_havok.types import hk2015
+            self.hk_types_module = hk2015
+        elif self.hk_version == "2018":
+            from soulstruct_havok.types import hk2018
+            self.hk_types_module = hk2018
+        else:
+            raise VersionModuleError(f"No Havok type module for version: {self.hk_version}")
 
         self.items = self.unpack_item_entries(
             BinaryReader(data_section_info.raw_data),
@@ -159,7 +144,7 @@ class PackFileUnpacker:
 
     @staticmethod
     def localize_pointers(
-        items: tp.Union[list[PackFileTypeEntry], list[PackFileItemEntry]],
+        items: tp.Union[list[PackFileTypeItem], list[PackFileItemEntry]],
         child_pointers: list[dict[str, int]],
         item_pointers: list[dict[str, int]],
     ):
@@ -247,15 +232,17 @@ class PackFileUnpacker:
             type_name = class_name_reader.unpack_string(encoding="ascii")
             self.class_names[type_name_offset] = type_name
             self.class_hashes[type_name] = hsh
-
             # TODO: Hashes are checked in `TypeInfo` with everything else.
+
+        # for name, hsh in self.class_hashes.items():
+        #     print(name, hsh)
 
     def unpack_type_entries(
         self,
         type_section_reader: BinaryReader,
         entry_specs: list[dict[str, int]],
         section_end_offset: int,
-    ) -> list[PackFileTypeEntry]:
+    ) -> list[PackFileTypeItem]:
         """Meow's "virtual fixups" are really just offsets to class names. I don't track them, because they only need
         to be reconstructed again on `pack()`.
         """
@@ -269,7 +256,7 @@ class PackFileUnpacker:
                 data_size = section_end_offset - entry_spec["local_data_offset"]
 
             type_section_reader.seek(entry_spec["local_data_offset"])
-            type_entry = PackFileTypeEntry(class_name)
+            type_entry = PackFileTypeItem(class_name)
             type_entry.unpack(type_section_reader, data_size=data_size)
             type_entries.append(type_entry)
 
@@ -294,18 +281,17 @@ class PackFileUnpacker:
                 hk_type = getattr(self.hk_types_module, type_py_name)
             except AttributeError:
                 # Missing type. Print `TypeInfo`.
-                type_info_matches = [t for t in self.hk_type_infos if t.name == type_name]
-                if type_info_matches:
-                    print(type_info_matches[0])
-                else:
+                type_info_matches = [t for t in self.hk_type_infos[1:] if t.name == type_name]
+                if not type_info_matches:
                     # No type info in file.
                     if type_py_name == type_name:
-                        raise MissingTypeError(
+                        raise TypeNotDefinedError(
                             f"Type `{type_py_name}` is unknown and not defined in this file."
                             if type_py_name == type_name else
                             f"Type `{type_py_name}` (real name `{type_name}`) is unknown and not defined in this file."
                         )
-                raise MissingTypeError(
+                print(type_info_matches[0])
+                raise TypeNotDefinedError(
                     f"Type `{type_py_name}` is unknown, but its info was found in this file."
                     if type_py_name == type_name else
                     f"Type `{type_py_name}` (real name `{type_name}`) is unknown, but its info was found in this file."

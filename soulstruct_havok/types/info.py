@@ -3,9 +3,6 @@ from __future__ import annotations
 
 __all__ = [
     "HAVOK_TYPE_PREFIXES",
-    "HavokTypeError",
-    "TypeNotDefinedError",
-    "TypeMatchError",
     "TemplateInfo",
     "MemberInfo",
     "InterfaceInfo",
@@ -16,27 +13,12 @@ __all__ = [
 import re
 import typing as tp
 
-from soulstruct_havok.enums import TagDataType
+from soulstruct_havok.enums import TagDataType, MemberFlags
+
+from .exceptions import HavokTypeError, TypeNotDefinedError, TypeMatchError
 
 if tp.TYPE_CHECKING:
     from .core import hk
-
-
-class HavokTypeError(Exception):
-    """Raised by any error caused by missing, invalid, or malformed Havok types."""
-
-
-class TypeNotDefinedError(HavokTypeError):
-    """Raised when an undefined parent or member is encountered."""
-
-
-class TypeMatchError(HavokTypeError):
-    """Raised when a Python class's information clashes with a new `TypeInfo`."""
-    def __init__(self, py_class: tp.Type[hk], field_name: str, py_value, new_value):
-        super().__init__(
-            f"Python type `{py_class.__name__}` has {field_name} = {py_value}, but this `TypeInfo` has "
-            f"{field_name} = {new_value}."
-        )
 
 
 # Any type whose real Havok name does not start with one of these will have an underscore prepended to its Python name.
@@ -44,9 +26,9 @@ HAVOK_TYPE_PREFIXES = ("hk", "hcl", "Custom")
 
 
 def get_py_name(real_name: str) -> str:
-    py_name = real_name.replace("::", "").replace(" ", "_").replace("*", "")
+    py_name = real_name.replace("::", "").replace(" ", "_").replace("*", "STAR")
     if not any(py_name.startswith(s) for s in HAVOK_TYPE_PREFIXES):
-        py_name = "_" + py_name  # for 'int', 'const_char', etc.
+        py_name = "_" + py_name  # for 'int', 'const_charSTAR', etc.
     return py_name
 
 
@@ -123,6 +105,24 @@ class MemberInfo:
             raise ValueError(f"Could not assign `TypeInfo` of member '{self.name}' (type index {self.type_index}).")
         self.type_py_name = self.type_info.py_name
 
+    def get_tag_member_flags_repr(self, exclude_default=True) -> str:
+        """Get a bitwise-OR combination of `MemberFlags` values."""
+        if self.flags == MemberFlags.Default:
+            return "MemberFlags.Default"
+        string = ""
+        remaining_flags = self.flags
+        if exclude_default:
+            remaining_flags -= MemberFlags.Default
+        for flag in MemberFlags:
+            if (not exclude_default or flag != MemberFlags.Default) and self.flags & flag:
+                if string:
+                    string += " | "
+                string += f"MemberFlags.{flag.name}"
+                remaining_flags -= flag
+        if remaining_flags:
+            raise ValueError(f"Unknown member flags detected: {self.flags}")
+        return string
+
     def __repr__(self):
         return (
             f"MemberInfo(\"{self.name}\", {self.type_py_name} <{self.type_index}>, "
@@ -159,7 +159,10 @@ class TypeInfo:
     against known types, and to help add to those known types if new.
     """
 
-    GENERIC_TYPE_NAMES = ["hkArray", "hkEnum", "hkRefPtr", "hkRefVariant", "hkViewPtr", "T*", "T[N]"]
+    GENERIC_TYPE_NAMES = [
+        "hkArray", "hkEnum", "hkRefPtr", "hkRefVariant", "hkViewPtr", "T*", "T[N]", "hkRelArray", "hkFlags",
+        "hkFreeListArray", "hkFreeListArrayElement",
+    ]
 
     def __init__(self, name: str):
         self.name = name
@@ -235,6 +238,25 @@ class TypeInfo:
             return None
         return TagDataType(self.tag_type_flags & 0xFF)
 
+    def get_tag_type_flags_repr(self) -> str:
+        """Get a bitwise-OR combination of `TagDataType` values."""
+        data_type = self.tag_data_type
+        if data_type == TagDataType.Struct:
+            struct_length = (self.tag_type_flags & 0xFFFFFF00) >> 8
+            return f"TagDataType.{data_type.name} | {struct_length} << 8"
+        elif data_type == TagDataType.Int:
+            is_signed = TagDataType(self.tag_type_flags & 0x200)
+            int_size = TagDataType(self.tag_type_flags & 0xFFFFFC00)
+            if int_size != TagDataType.Void:
+                if is_signed:
+                    return f"TagDataType.{data_type.name} | TagDataType.{is_signed.name} | TagDataType.{int_size.name}"
+                return f"TagDataType.{data_type.name} | TagDataType.{int_size.name}"
+            return f"TagDataType.{data_type.name}"
+        data_sub_type = TagDataType(self.tag_type_flags & 0xFFFFFF00)
+        if not data_sub_type:
+            return f"TagDataType.{data_type.name}"
+        return f"TagDataType.{data_type.name} | TagDataType.{data_sub_type.name}"
+
     @property
     def py_name(self) -> str:
         return get_py_name(self.name)
@@ -253,7 +275,7 @@ class TypeInfo:
             py_value = getattr(py_class, field)
             new_value = self.get_parent_value(field)
             if py_value != new_value:
-                raise TypeMatchError(py_class, field, py_value, new_value)
+                raise TypeMatchError(py_class, field, py_value, new_value, binary=field == "tag_type_flags")
         for non_inherited_field in ("tag_format_flags", "hsh", "abstract_value", "version"):
             py_value = getattr(py_class, f"get_{non_inherited_field}")()
             new_value = getattr(self, non_inherited_field)
@@ -267,11 +289,17 @@ class TypeInfo:
         if (py_member_count := len(py_class.local_members)) != (new_member_count := len(self.members)):
             raise TypeMatchError(py_class, "len(local_members)", py_member_count, new_member_count)
         for i, (py_member, new_member) in enumerate(zip(py_class.local_members, self.members)):
-            for member_field in ("name", "flags", "offset"):
-                if (py_value := getattr(py_member, member_field)) != (new_value := getattr(new_member, member_field)):
-                    raise TypeMatchError(py_class, f"member {py_member.name}.{member_field}", py_value, new_value)
-                if py_member.type is None:
-                    raise ValueError(f"Defined Member {py_member.name} has type None. TypeInfo: {self}")
+            if py_member.offset != new_member.offset:
+                raise TypeMatchError(py_class, f"member {py_member.name}.offset", py_member.offset, new_member.offset)
+            if py_member.name != new_member.name:
+                raise TypeMatchError(py_class, f"member {py_member.name}.name", py_member.name, new_member.name)
+            if MemberFlags.Default | py_member.extra_flags != new_member.flags:
+                raise TypeMatchError(
+                    py_class, f"member {py_member.name}.flags",
+                    MemberFlags.Default | py_member.extra_flags, new_member.flags,
+                )
+            if py_member.type is None:
+                raise ValueError(f"Defined Member {py_member.name} has type `None`. TypeInfo: {self}")
 
             # TODO: Should also check member type, but that's a little more complex with the array/enum wrappers, etc.
 
@@ -317,8 +345,8 @@ class TypeInfo:
             py_def += f"\n\n    local_members = (\n"
             for member in self.members:
                 py_def += (
-                    f"        Member(\"{member.name}\", {member.type_py_name}, "
-                    f"offset={member.offset}, flags={member.flags}),\n"
+                    f"        Member({member.offset}, \"{member.name}\", {member.type_py_name}, "
+                    f"{member.get_tag_member_flags_repr()}),\n"
                 )
             py_def += "    )"
 
@@ -372,10 +400,10 @@ class PyDefBuilder:
     def tag_data_type(self) -> TagDataType:
         return self.info.tag_data_type
 
-    def build_new_struct_type(self, new_struct_type: TypeInfo) -> tuple[str, str]:
-        struct_data_type = new_struct_type.pointer_type_info
-        py_name, type_hint = self.build_type_name(struct_data_type)
-        return f"NewStruct({py_name})", f"tuple[{type_hint}]"
+    def build_rel_array_type(self, rel_array_type: TypeInfo) -> tuple[str, str]:
+        array_data_type = rel_array_type.pointer_type_info
+        py_name, type_hint = self.build_type_name(array_data_type)
+        return f"hkRelArray({py_name})", f"list[{type_hint}]"
 
     def build_array_type(self, array_type: TypeInfo, allow_undefined=False) -> tuple[str, str]:
         array_data_type = array_type.pointer_type_info
@@ -477,6 +505,48 @@ class PyDefBuilder:
             raise TypeNotDefinedError(f"Undefined storage type for `hkEnum`: {t_storage_type.py_name}`")
         return f"hkEnum({t_enum_type.py_name}, {t_storage_type.py_name})", t_enum_type.py_name
 
+    def build_free_list_array_element_type(self, element_type: TypeInfo) -> tuple[str, str]:
+        element_parent_type = element_type.parent_type_info
+        if element_parent_type.py_name not in self.defined_type_names:
+            raise TypeNotDefinedError(
+                f"Undefined parent type for `hkFreeListArrayElement`: {element_parent_type.py_name}"
+            )
+        return f"hkFreeListArrayElement({element_parent_type})", element_parent_type.py_name
+
+    def build_free_list_array_type(self, free_list_array_type: TypeInfo) -> tuple[str, str]:
+        elements_data_type = free_list_array_type.members[0].type_info.pointer_type_info
+        hsh = elements_data_type.hsh
+        first_free_type = free_list_array_type.members[1].type_info
+        if elements_data_type.py_name != "hkFreeListArrayElement":
+            raise HavokTypeError(
+                f"Expected 'elements' data type for `hkFreeListArray` to be `hkFreeListArrayElement`, "
+                f"not: {elements_data_type.py_name}"
+            )
+        elements_data_parent_type = elements_data_type.parent_type_info
+        if elements_data_parent_type.py_name not in self.defined_type_names:
+            raise TypeNotDefinedError(
+                f"Undefined 'elements' parent type for `hkFreeListArray`: {elements_data_parent_type.py_name}"
+            )
+        if first_free_type.py_name not in self.defined_type_names:
+            raise TypeNotDefinedError(
+                f"Undefined 'firstFree' type for `hkFreeListArray: {first_free_type.py_name}"
+            )
+        if hsh is not None:
+            return (
+                f"hkFreeListArray({elements_data_parent_type.py_name}, {first_free_type.py_name}, hsh={hsh})",
+                f"list[{elements_data_parent_type.py_name}]",
+            )
+        return (
+            f"hkFreeListArray({elements_data_parent_type.py_name}, {first_free_type.py_name})",
+            f"list[{elements_data_parent_type.py_name}]",
+        )
+
+    def build_flags_type(self, flags_type: TypeInfo) -> tuple[str, str]:
+        storage_type = flags_type.members[0].type_info
+        if storage_type.py_name not in self.defined_type_names:
+            raise TypeNotDefinedError(f"Undefined storage type for `hkFlags`: {storage_type.py_name}")
+        return f"hkFlags({storage_type.py_name})", storage_type.py_name
+
     def build_type_name(self, type_info: TypeInfo, allow_undefined=False) -> tuple[str, str]:
         """Determine Python type for member definition.
 
@@ -484,13 +554,16 @@ class PyDefBuilder:
         for the Python object that will actually represent this member, e.g. `list[hkaSkeleton]`.
         """
 
-        # TODO: Determine how 'NewStruct' will be detected properly from 2014 packfiles.
-        if self.py_name in {"hknpConvexShape", "hknpConvexPolytopeShape"}:
-            # All members are `NewStruct` but are incorrectly stored as `hkArray` in the XML.
-            return self.build_new_struct_type(type_info)
-
-        if type_info.name == "hkArray":
+        if type_info.name == "hkFreeListArrayElement":
+            return self.build_free_list_array_element_type(type_info)
+        elif type_info.name == "hkFreeListArray":
+            return self.build_free_list_array_type(type_info)
+        elif type_info.name == "hkFlags":
+            return self.build_flags_type(type_info)
+        elif type_info.name == "hkArray":
             return self.build_array_type(type_info)
+        elif type_info.name == "hkRelArray":
+            return self.build_rel_array_type(type_info)
         elif type_info.name == "T[N]":
             return self.build_struct_type(type_info)
         elif type_info.name == "hkEnum":
@@ -568,16 +641,20 @@ class PyDefBuilder:
             # Bare alias wrapper. Just define hash and empty members.
             assert (self.info.alignment is None)
             assert (self.info.byte_size is None)
-            assert (self.info.tag_format_flags == 0)
             py_string += "    \"\"\"Havok alias.\"\"\"\n"
+            py_string += f"    __tag_format_flags = {self.info.tag_format_flags}\n"
             if self.info.hsh:
                 py_string += f"    __hsh = {self.info.hsh}\n"
-            py_string += "    __tag_format_flags = 0\n"
+            if self.info.version:
+                py_string += f"    __version = {self.info.version}\n"
+            if self.py_name != self.name:
+                py_string += f"    __real_name = \"{self.name}\"\n"
             py_string += "    local_members = ()\n"
             return py_string
 
-        for field in ("alignment", "byte_size", "tag_type_flags"):
-            py_string += f"    {field} = {getattr(self.info, field)}\n"
+        py_string += f"    alignment = {self.info.alignment}\n"
+        py_string += f"    byte_size = {self.info.byte_size}\n"
+        py_string += f"    tag_type_flags = {self.info.get_tag_type_flags_repr()}\n"
 
         newline_done = False
         for not_inherited_field in ("tag_format_flags", "hsh", "abstract_value", "version"):
@@ -599,11 +676,22 @@ class PyDefBuilder:
 
             py_string += f"\n    local_members = (\n"  # new line before members
             for member in self.info.members:
-                print(f"  Member {member.name} (type {member.type_info.name})")
-                py_name, type_hint = self.build_type_name(member.type_info)
-                print(f"    --> {py_name} | {type_hint}")
+                if member.type_info is None:
+                    # TODO: Trying to use packfile information only.
+                    py_name = member.member_py_name
+                    type_hint = member.type_hint
+                    if any(name not in self.defined_type_names for name in member.required_types):
+                        raise TypeNotDefinedError(f"Packfile type(s) not defined: {member.required_types}")
+                    # raise ValueError(f"Member '{member.name}' of `{self.py_name}` has no `TypeInfo` assigned.")
+                else:
+                    print(f"  Member {member.name} (type {member.type_info.name})")
+                    py_name, type_hint = self.build_type_name(member.type_info)
+                    print(f"    --> {py_name} | {type_hint}")
                 member_string = f"        Member({member.offset}, \"{member.name}\", {py_name}"
-                member_string += f", flags={member.flags}),\n" if member.flags != 32 else "),\n"
+                if member.flags != MemberFlags.Default:
+                    member_string += f", {member.get_tag_member_flags_repr()}),\n"
+                else:
+                    member_string += "),\n"
                 if len(member_string) > self.MAX_LINE_LENGTH - 8:  # account for indent
                     # Reformat with line breaks.
                     member_string = (
@@ -612,7 +700,8 @@ class PyDefBuilder:
                         f"            \"{member.name}\",\n"
                         f"            {py_name},\n"
                     )
-                    member_string += f"            flags={member.flags},\n" if member.flags != 32 else ""
+                    if member.flags != MemberFlags.Default:
+                        member_string += f"            {member.get_tag_member_flags_repr()},\n"
                     member_string += f"        ),\n"
                 py_string += member_string
                 member_attr_hints[member.name] = type_hint

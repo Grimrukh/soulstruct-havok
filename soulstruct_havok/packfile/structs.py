@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 __all__ = [
-    "PackFileTypeEntry",
+    "PackFileTypeItem",
     "PackFileItemEntry",
     "PackFileHeader",
     "PackFileHeaderExtension",
@@ -20,6 +20,7 @@ from enum import IntEnum
 from soulstruct.utilities.binary import BinaryStruct, BinaryObject, BinaryReader, BinaryWriter
 
 if tp.TYPE_CHECKING:
+    from collections import deque
     from soulstruct_havok.types.core import hk, hkArray_, Ptr_
 
 
@@ -72,9 +73,9 @@ class PackFileBaseEntry(abc.ABC):
         self.writer = BinaryWriter()
 
 
-class PackFileTypeEntry(PackFileBaseEntry):
+class PackFileTypeItem(PackFileBaseEntry):
 
-    NODE_TYPE_STRUCT_32 = BinaryStruct(
+    TYPE_STRUCT_32 = BinaryStruct(
         ("type_name_pointer", "I", 0),  # child pointer
         ("parent_type_pointer", "I", 0),  # entry pointer
         ("byte_size", "I"),
@@ -88,9 +89,9 @@ class PackFileTypeEntry(PackFileBaseEntry):
         ("version", "I"),  # always zero so far in packfiles (could be padding!)
     )
 
-    NODE_TYPE_STRUCT_64 = BinaryStruct(
-        ("type_name_pointer", "Q", 0),  # child pointer
-        ("parent_type_pointer", "Q", 0),  # entry pointer
+    TYPE_STRUCT_64 = BinaryStruct(
+        ("name_pointer", "Q", 0),  # child pointer
+        ("parent_pointer", "Q", 0),  # entry pointer
         ("byte_size", "I"),
         ("interface_count", "I"),
         ("enums_pointer", "Q", 0),  # child pointer (NOT an entry pointer to the actual enum!)
@@ -104,49 +105,51 @@ class PackFileTypeEntry(PackFileBaseEntry):
         ("version", "I"),  # always zero in 2010
     )
 
-    NODE_TYPE_ENUM_STRUCT_32 = BinaryStruct(
-        ("enum_name_pointer", "I", 0),  # child pointer
+    ENUM_TYPE_STRUCT_32 = BinaryStruct(
+        ("name_pointer", "I", 0),  # child pointer
         ("items_pointer", "I", 0),  # child pointer
         ("items_count", "I"),
-        ("custom_attributes_pointer", "I"),
+        ("attributes_pointer", "I"),
         ("flags", "I"),
         # 12 bytes of padding here in actual type entries (16 align), but no padding in "embedded" enums inside types.
     )
 
-    NODE_TYPE_ENUM_STRUCT_64 = BinaryStruct(
+    ENUM_TYPE_STRUCT_64 = BinaryStruct(
         ("enum_name_pointer", "Q", 0),  # child pointer
         ("items_pointer", "Q", 0),  # child pointer
         ("items_count", "I"),
-        ("custom_attributes_pointer", "Q"),
+        ("attributes_pointer", "Q"),
         ("flags", "I"),
         # 12 bytes of padding here in actual type entries (16 align), but no padding in "embedded" enums inside types.
     )
 
-    NODE_TYPE_MEMBER_STRUCT_32 = BinaryStruct(
-        ("member_name_pointer", "I", 0),  # child pointer
-        ("member_type_pointer", "I", 0),  # entry pointer
+    MEMBER_TYPE_STRUCT_32 = BinaryStruct(
+        ("name_pointer", "I", 0),  # child pointer
+        ("type_pointer", "I", 0),  # entry pointer
         ("enum_pointer", "I", 0),  # entry pointer
-        ("member_super_and_data_types", "H"),  # two `(data_type, pointer_type)` bytes interpreted together
+        ("member_type", "B"),
+        ("member_subtype", "B"),
         ("c_array_size", "H"),  # usually zero
         ("flags", "H"),
-        ("member_byte_offset", "H"),
-        ("custom_attributes_pointer", "I"),  # never observed; assuming this never occurs
+        ("offset", "H"),
+        ("attributes_pointer", "I"),  # never observed; assuming this never occurs
     )
 
-    NODE_TYPE_MEMBER_STRUCT_64 = BinaryStruct(
-        ("member_name_pointer", "Q", 0),  # child pointer
-        ("member_type_pointer", "Q", 0),  # entry pointer
+    MEMBER_TYPE_STRUCT_64 = BinaryStruct(
+        ("name_pointer", "Q", 0),  # child pointer
+        ("type_pointer", "Q", 0),  # entry pointer
         ("enum_pointer", "Q", 0),  # entry pointer
-        ("member_super_and_data_types", "H"),  # two `(data_type, pointer_type)` bytes interpreted together
+        ("member_type", "B"),
+        ("member_subtype", "B"),
         ("c_array_size", "H"),  # size of tuple T[N]; usually zero
         ("flags", "H"),
-        ("member_byte_offset", "H"),
-        ("custom_attributes_pointer", "Q"),  # never observed; assuming this never occurs
+        ("offset", "H"),
+        ("attributes_pointer", "Q"),  # never observed; assuming this never occurs
     )
 
     GENERIC_TYPE_NAMES = ["hkArray", "hkEnum", "hkRefPtr", "hkViewPtr", "T*", "T[N]"]
 
-    item_pointers: dict[int, tuple[PackFileTypeEntry, int]]
+    item_pointers: dict[int, tuple[PackFileTypeItem, int]]
 
     def __init__(self, class_name: str):
         super().__init__()
@@ -161,12 +164,13 @@ class PackFileTypeEntry(PackFileBaseEntry):
     def get_byte_size(self) -> int:
         return BinaryReader(self.raw_data).unpack_value("I", offset=8)
 
-    def get_referenced_entry_type(self, offset: int) -> tp.Optional[PackFileTypeEntry]:
+    def get_referenced_type_item(self, offset: int) -> tp.Optional[PackFileTypeItem]:
+        """Look for `self.item_pointers[offset]` and recover the pointed `PackFileTypeItem`."""
         if offset in self.item_pointers:
-            type_entry, zero = self.item_pointers[offset]
+            type_item, zero = self.item_pointers[offset]
             if zero != 0:
-                raise AssertionError(f"Found type entry pointer placeholder other than zero: {zero}")
-            return type_entry
+                raise AssertionError(f"Found type item pointer placeholder other than zero: {zero}")
+            return type_item
         # Member is not a class or pointer.
         return None
 
@@ -179,11 +183,13 @@ class PackFileItemEntry(PackFileBaseEntry):
     item_pointers: dict[int, tuple[PackFileItemEntry, int]]
     hk_type: tp.Type[hk | hkArray_ | Ptr_]
     value: None | hk | bool | int | float | list | tuple
+    pending_rel_arrays: list[deque[tp.Callable]]  # Class-pushed lists of functions that fill in jumps
 
     def __init__(self, hk_type: tp.Type[hk | hkArray_ | Ptr_]):
         super().__init__()
         self.hk_type = hk_type
         self.value = None
+        self.pending_rel_arrays = []
 
     def get_class_name(self):
         """Get (real) Havok class name for packfile class name section."""

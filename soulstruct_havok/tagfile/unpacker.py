@@ -6,7 +6,8 @@ from contextlib import contextmanager
 
 from soulstruct.utilities.binary import BinaryReader
 
-from soulstruct_havok.types.core import hk, MissingTypeError
+from soulstruct_havok.types.core import hk
+from soulstruct_havok.types.exceptions import VersionModuleError, TypeNotDefinedError
 from soulstruct_havok.types.info import *
 from soulstruct_havok.enums import TagFormatFlags
 from .structs import *
@@ -17,7 +18,7 @@ if tp.TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-_DEBUG_TYPES = True
+_DEBUG_TYPES = False
 _DEBUG_HASH = False
 
 
@@ -47,10 +48,6 @@ class TagFileUnpacker:
 
     def unpack(self, reader: BinaryReader, compendium: tp.Optional[HKX] = None, types_only=False):
 
-        if not types_only:
-            from soulstruct_havok.types import hk2015
-            self.hk_types_module = hk2015
-
         with self.unpack_section(reader, "TAG0", "TCM0") as (_, root_magic):
 
             if root_magic == "TAG0":
@@ -58,8 +55,14 @@ class TagFileUnpacker:
                 self.is_compendium = False
                 with self.unpack_section(reader, "SDKV"):
                     self.hk_version = reader.unpack_string(length=8, encoding="utf-8")
-                    if self.hk_version not in {"20150100", "20160100", "20160200", "20180100"}:
-                        raise ValueError(f"Unsupported HKX tagfile version: {self.hk_version}.")
+                    if self.hk_version.startswith("2015") and not types_only:
+                        from soulstruct_havok.types import hk2015
+                        self.hk_types_module = hk2015
+                    elif self.hk_version.startswith("2018") and not types_only:
+                        from soulstruct_havok.types import hk2018
+                        self.hk_types_module = hk2018
+                    else:
+                        raise VersionModuleError(f"No Havok type module for version: {self.hk_version}")
 
                 with self.unpack_section(reader, "DATA"):
                     data_start_offset = reader.position
@@ -79,25 +82,20 @@ class TagFileUnpacker:
                             continue
                         try:
                             py_class = getattr(self.hk_types_module, type_info.py_name)  # type: tp.Type[hk]
-                            type_info.check_py_class_match(py_class)
-                            type_info.py_class = py_class
                         except AttributeError:
-                            # Create a (possibly rough) Python definition to print.
+                            # Missing Python definition. Create a (possibly rough) Python definition to print.
                             missing_type_names.append(type_info.name)
                             missing_type_py_defs.append(type_info.get_rough_py_def())
                         else:
-                            # TODO: check member type.
-                            pass
-                            # for py_member, info_member in zip(py_class.local_members, type_info.members):
-                            #     if py_member.type is None:
-                            #         raise TypeError(f"Bad py member: ")
+                            type_info.check_py_class_match(py_class)
+                            type_info.py_class = py_class
 
                     if missing_type_names:
                         # Types are printed in reverse order for copy-pasting to module, as member types are generally
                         # defined AFTER their owner classes in Havok files, but we need the opposite in Python.
                         for new_py_def in reversed(missing_type_py_defs):
                             print(new_py_def + "\n\n")
-                        raise MissingTypeError(
+                        raise TypeNotDefinedError(
                             f"Unknown Havok types in file (definitions printed above): "
                             f"{list(reversed(missing_type_names))}"
                         )
@@ -203,7 +201,12 @@ class TagFileUnpacker:
 
                     _DEBUG_TYPE_PRINT(f"        --> Real name: `{file_hk_types[type_index].name}`")
                     parent_type_index = self.unpack_var_int(reader)
-                    _DEBUG_TYPE_PRINT(f"    Parent type index: {parent_type_index}")
+                    if parent_type_index > 0:
+                        _DEBUG_TYPE_PRINT(
+                            f"    Parent type: {parent_type_index} ({file_hk_types[parent_type_index].name})"
+                        )
+                    else:
+                        _DEBUG_TYPE_PRINT("    Parent type: None")
                     tag_format_flags = self.unpack_var_int(reader)
                     _DEBUG_TYPE_PRINT(f"    Tag format flags: {tag_format_flags}")
 
@@ -218,7 +221,13 @@ class TagFileUnpacker:
 
                     if tag_format_flags & TagFormatFlags.Pointer and tag_type_flags & 0b0000_1111 >= 6:
                         type_info.pointer_type_index = self.unpack_var_int(reader)
-                        _DEBUG_TYPE_PRINT(f"    Pointer type index: {type_info.pointer_type_index}")
+                        if type_info.pointer_type_index > 0:
+                            _DEBUG_TYPE_PRINT(
+                                f"    Pointer type: {type_info.pointer_type_index} "
+                                f"({file_hk_types[type_info.pointer_type_index].name})"
+                            )
+                        else:
+                            _DEBUG_TYPE_PRINT("    Pointer type: None")
                         type_info.pointer_type_info = file_hk_types[type_info.pointer_type_index]
 
                     if tag_format_flags & TagFormatFlags.Version:
@@ -250,7 +259,8 @@ class TagFileUnpacker:
                             member_offset = self.unpack_var_int(reader)
                             _DEBUG_TYPE_PRINT(f"        Offset: {member_offset}")
                             member_type_index = self.unpack_var_int(reader)
-                            _DEBUG_TYPE_PRINT(f"        Type index: {member_type_index}")
+                            member_type_info = file_hk_types[member_type_index]
+                            _DEBUG_TYPE_PRINT(f"        Type index: {member_type_index} ({member_type_info.name})")
                             type_info.members.append(
                                 MemberInfo(
                                     name=member_name,

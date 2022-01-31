@@ -52,7 +52,7 @@ class TagFileItem:
 
     def get_item_hk_type(self, hk_types_module):
         tag_data_type = self.hk_type.get_tag_data_type()
-        if tag_data_type == TagDataType.String:
+        if tag_data_type == TagDataType.CharArray:
             return getattr(hk_types_module, "_char")
         elif tag_data_type == TagDataType.Array:
             self.hk_type: hkArray_

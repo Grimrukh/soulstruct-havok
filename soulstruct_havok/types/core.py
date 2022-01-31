@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 __all__ = [
-    "MissingTypeError",
     "DefType",
     "TemplateType",
     "TemplateValue",
@@ -24,12 +23,14 @@ __all__ = [
     "hkRefVariant",
     "hkViewPtr_",
     "hkViewPtr",
-    "NewStruct_",
-    "NewStruct",
+    "hkRelArray_",
+    "hkRelArray",
+    "hkFreeListArrayElement",
+    "hkFreeListArray_",
+    "hkFreeListArray",
+    "hkFlags_",
+    "hkFlags",
     "pack_string",
-    "unpack_named_variant",
-    "unpack_named_variant_packfile",
-    "pack_named_variant",
     "TypeInfoGenerator",
     "SET_DEBUG_PRINT",
 ]
@@ -45,9 +46,10 @@ from colorama import init as colorama_init, Fore
 from soulstruct.utilities.binary import BinaryReader, BinaryWriter
 from soulstruct.utilities.inspection import get_hex_repr
 
-from soulstruct_havok.enums import TagDataType, TagMemberFlags
+from soulstruct_havok.enums import TagDataType, MemberFlags
 from soulstruct_havok.packfile.structs import PackFileItemEntry
 from soulstruct_havok.tagfile.structs import TagFileItem
+from soulstruct_havok.types.exceptions import HavokTypeError, TypeNotDefinedError, VersionModuleError
 from soulstruct_havok.types.info import *
 
 if tp.TYPE_CHECKING:
@@ -94,10 +96,6 @@ def _decrement_debug_indent():
     _INDENT -= 4
 
 
-class MissingTypeError(Exception):
-    pass
-
-
 class DefType:
 
     def __init__(self, type_name: str, action: tp.Callable[[], tp.Type[hk]]):
@@ -126,7 +124,7 @@ class Member(tp.NamedTuple):
     offset: int
     name: str
     type: tp.Union[tp.Type[hk], DefType]
-    flags: int = TagMemberFlags.Default
+    extra_flags: int = 0  # in addition to `MemberFlags.Default`
 
 
 class Interface(tp.NamedTuple):
@@ -144,16 +142,20 @@ class hk:
     # This field is used by tagfiles to indicate which of these other attributes should be read/written.
     __tag_format_flags = 0
 
-    # These fields are optional (defaulting to `None`), not inherited, and readable via property.
-    __hsh = None  # type: tp.Optional[int]  # not used by some types
+    # These fields are optional (defaulting to `None`), not inherited (hence the double udnerscore), and have class
+    # methods for getting and setting.
+    __hsh = None  # type: tp.Optional[int]  # only used by some types
     __abstract_value = None  # type: tp.Optional[int]  # only used by some Classes
     __version = None  # type: tp.Optional[int]  # only used by some Classes
 
-    __real_name = ""  # if different to type name (e.g., may contain colons, spaces, or clash with a Python type)
+    __real_name = ""  # if different to type name (e.g., may contain colons, asterisk, or clash with a Python type)
 
     local_members: tuple[Member, ...] = ()  # only members added by this class
     members: tuple[Member, ...] = ()  # includes all parent class members
+
     # We only care about local, mangled templates/interfaces, since they are never used in unpacking.
+    # NOTE: I don't think it's possible for a type with templates/interfaces to be subclassed (with ADDITIONAL templates
+    # or interfaces, at least), but these are mangled just to be safe.
     __templates: tuple[TemplateValue | TemplateType, ...] = ()
     __interfaces: tuple[TemplateValue | TemplateType, ...] = ()
 
@@ -167,8 +169,10 @@ class hk:
                 setattr(self, member_name, member_value)
 
     @classmethod
-    def get_type_name(cls):
+    def get_type_name(cls, lstrip_underscore=False):
         """Easier way (especially for instances) to get Python class name."""
+        if lstrip_underscore:
+            return cls.__name__.lstrip("_")
         return cls.__name__
 
     @classmethod
@@ -185,9 +189,7 @@ class hk:
 
     @classmethod
     def get_tag_data_type(cls):
-        # TODO: Testing out ignoring the first bit, because `hkStringPtr` in 2018 seems to have a 1 in its MSB but no
-        #  other functional difference I can see...
-        return TagDataType(cls.tag_type_flags & 0b01111111)
+        return TagDataType(cls.tag_type_flags & 0b1111_1111)
 
     @classmethod
     def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
@@ -216,8 +218,8 @@ class hk:
         if cls.__name__ == "hkRootLevelContainerNamedVariant":
             # Retrieve other classes from subclass's module, as they will be dynamically attached to the root container.
             all_types = {
-                hk_type.__name__: hk_type
-                for hk_type in inspect.getmembers(
+                name: hk_type
+                for name, hk_type in inspect.getmembers(
                     sys.modules[cls.__module__], lambda x: inspect.isclass(x) and issubclass(x, hk)
                 )
             }
@@ -229,7 +231,7 @@ class hk:
             value = None
         elif tag_data_type == TagDataType.Bool:
             value = unpack_bool(cls, reader)
-        elif tag_data_type == TagDataType.String:
+        elif tag_data_type in {TagDataType.CharArray, TagDataType.ConstCharArray}:
             value = unpack_string(reader, items)  # `cls` not needed
         elif tag_data_type == TagDataType.Int:
             value = unpack_int(cls, reader)
@@ -237,9 +239,13 @@ class hk:
             value = unpack_float32(reader)  # `cls` not needed
         elif tag_data_type in {TagDataType.Class, TagDataType.Float}:  # non-32-bit floats have members
             value = unpack_class(cls, reader, items)
+        elif tag_data_type == TagDataType.Array and cls.__name__ in {"hkPropertyBag", "hkReflectAny"}:
+            # TODO: These two newer types are marked as Arrays, for some reason.
+            #  Probably indicates that 'Array' actually means some kind of 'Pointer'?
+            value = unpack_class(cls, reader, items)
         else:
             # Note that 'Pointer', 'Array', and 'Struct' types have their own explicit subclasses.
-            raise ValueError(f"Cannot unpack `hk` subclass `{cls.__name__}` with tag data type {tag_data_type}.")
+            raise ValueError(f"Cannot unpack `hk` subclass `{cls.__name__}` with tag data type {tag_data_type.name}.")
         _debug_print_unpack(f"-> {repr(value)}")
         return value
 
@@ -257,8 +263,8 @@ class hk:
         if cls.__name__ == "hkRootLevelContainerNamedVariant":
             # Retrieve other classes from subclass's module, as they will be dynamically attached to the root container.
             all_types = {
-                hk_type.__name__: hk_type
-                for hk_type in inspect.getmembers(
+                name: hk_type
+                for name, hk_type in inspect.getmembers(
                     sys.modules[cls.__module__], lambda x: inspect.isclass(x) and issubclass(x, hk)
                 )
             }
@@ -270,7 +276,7 @@ class hk:
             value = None
         elif tag_data_type == TagDataType.Bool:
             value = unpack_bool(cls, entry.reader)
-        elif tag_data_type == TagDataType.String:
+        elif tag_data_type in {TagDataType.CharArray, TagDataType.ConstCharArray}:
             value = unpack_string_packfile(entry, pointer_size=pointer_size)  # `cls` not needed
         elif tag_data_type == TagDataType.Int:
             value = unpack_int(cls, entry.reader)
@@ -312,13 +318,17 @@ class hk:
             pass
         elif tag_data_type == TagDataType.Bool:
             pack_bool(cls, item, value)
-        elif tag_data_type == TagDataType.String:
+        elif tag_data_type in {TagDataType.CharArray, TagDataType.ConstCharArray}:
             pack_string(cls, item, value, items, item_creation_queue)
         elif tag_data_type == TagDataType.Int:
             pack_int(cls, item, value)
         elif tag_data_type == TagDataType.Float:
             pack_float(cls, item, value)
         elif tag_data_type == TagDataType.Class:
+            pack_class(cls, item, value, items, existing_items, item_creation_queue)
+        elif tag_data_type == TagDataType.Array and cls.__name__ in {"hkPropertyBag", "hkReflectAny"}:
+            # TODO: These two newer types are marked as Arrays, for some reason.
+            #  Probably indicates that 'Array' actually means some kind of 'Pointer'?
             pack_class(cls, item, value, items, existing_items, item_creation_queue)
         else:
             # 'Pointer' and 'Array' types are handled by `Ptr_` and `hkArray_` subclasses, respectively.
@@ -351,7 +361,7 @@ class hk:
             pass
         elif tag_data_type == TagDataType.Bool:
             pack_bool(cls, item, value)
-        elif tag_data_type == TagDataType.String:
+        elif tag_data_type in {TagDataType.CharArray, TagDataType.ConstCharArray}:
             pack_string_packfile(item, value, data_pack_queue, pointer_size)  # `cls` not needed
         elif tag_data_type == TagDataType.Int:
             pack_int(cls, item, value)
@@ -368,7 +378,7 @@ class hk:
         """Construct a `TypeInfo` with all information except references to other `TypeInfo`s, which is done later."""
         type_info = TypeInfo(cls.get_real_name())
         type_info.py_class = cls
-        if (parent_type := cls.__base__) != hk:
+        if (parent_type := cls.__base__) not in {hk, hkBasePointer}:
             type_info.parent_type_py_name = parent_type.__name__
         type_info.tag_format_flags = cls.get_tag_format_flags()
         type_info.tag_type_flags = cls.tag_type_flags
@@ -386,7 +396,12 @@ class hk:
                 type_info.templates.append(TemplateInfo(template.name, type_py_name=template.type.__name__))
 
         type_info.members = [
-            MemberInfo(member.name, member.flags, member.offset, type_py_name=member.type.__name__)
+            MemberInfo(
+                member.name,
+                MemberFlags.Default | member.extra_flags,
+                member.offset,
+                type_py_name=member.type.__name__,
+            )
             for member in cls.local_members
         ]
 
@@ -406,31 +421,59 @@ class hk:
 
     @classmethod
     def get_real_name(cls) -> str:
-        return getattr(cls, f"_{cls.__name__.lstrip('_')}__real_name", cls.__name__)
+        return getattr(cls, f"_{cls.get_type_name(True)}__real_name", cls.__name__)
+
+    @classmethod
+    def set_real_name(cls, real_name: str):
+        setattr(cls, f"_{cls.get_type_name(True)}__real_name", real_name)
 
     @classmethod
     def get_tag_format_flags(cls) -> tp.Optional[int]:
-        return getattr(cls, f"_{cls.__name__.lstrip('_')}__tag_format_flags", None)
+        return getattr(cls, f"_{cls.get_type_name(True)}__tag_format_flags", None)
+
+    @classmethod
+    def set_tag_format_flags(cls, tag_format_flags: int):
+        setattr(cls, f"_{cls.get_type_name(True)}__tag_format_flags", tag_format_flags)
 
     @classmethod
     def get_hsh(cls) -> tp.Optional[int]:
-        return getattr(cls, f"_{cls.__name__.lstrip('_')}__hsh", None)
+        return getattr(cls, f"_{cls.get_type_name(True)}__hsh", None)
+
+    @classmethod
+    def set_hsh(cls, hsh: int):
+        setattr(cls, f"_{cls.get_type_name(True)}__hsh", hsh)
 
     @classmethod
     def get_abstract_value(cls) -> tp.Optional[int]:
-        return getattr(cls, f"_{cls.__name__.lstrip('_')}__abstract_value", None)
+        return getattr(cls, f"_{cls.get_type_name(True)}__abstract_value", None)
+
+    @classmethod
+    def set_abstract_value(cls, abstract_value: int):
+        setattr(cls, f"_{cls.get_type_name(True)}__abstract_value", abstract_value)
 
     @classmethod
     def get_version(cls) -> tp.Optional[int]:
-        return getattr(cls, f"_{cls.__name__.lstrip('_')}__version", None)
+        return getattr(cls, f"_{cls.get_type_name(True)}__version", None)
+
+    @classmethod
+    def set_version(cls, version: int):
+        setattr(cls, f"_{cls.get_type_name(True)}__version", version)
 
     @classmethod
     def get_templates(cls) -> list[TemplateType | TemplateValue]:
-        return getattr(cls, f"_{cls.__name__.lstrip('_')}__templates", [])
+        return getattr(cls, f"_{cls.get_type_name(True)}__templates", [])
+
+    @classmethod
+    def set_templates(cls, templates: list[TemplateType | TemplateValue]):
+        setattr(cls, f"_{cls.get_type_name(True)}__templates", templates)
 
     @classmethod
     def get_interfaces(cls) -> list[Interface]:
-        return getattr(cls, f"_{cls.__name__.lstrip('_')}__interfaces", [])
+        return getattr(cls, f"_{cls.get_type_name(True)}__interfaces", [])
+
+    @classmethod
+    def set_interfaces(cls, interfaces: list[Interface]):
+        setattr(cls, f"_{cls.get_type_name(True)}__interfaces", interfaces)
 
     @classmethod
     def get_member(cls, member_name: str) -> Member:
@@ -537,6 +580,10 @@ class hkBasePointer(hk):
             cls._data_type = cls._data_type.action()
             return cls._data_type
         return cls._data_type
+
+    @classmethod
+    def set_data_type(cls, data_type: tp.Type[hk] | DefType):
+        cls._data_type = data_type
 
     @classmethod
     def get_type_info(cls) -> TypeInfo:
@@ -778,8 +825,8 @@ def hkArray(data_type: tp.Type[hk] | hkRefPtr | hkViewPtr, hsh: int = None) -> t
     """Generates an array class with given `data_type` and (optionally) hash."""
     # noinspection PyTypeChecker
     array_type = type(f"hkArray[{data_type.__name__}]", (hkArray_,), {})  # type: tp.Type[hkArray_]
-    array_type._data_type = data_type
-    array_type.__hsh = hsh
+    array_type.set_data_type(data_type)
+    array_type.set_hsh(hsh)
     return array_type
 
 
@@ -958,7 +1005,7 @@ def hkStruct(data_type: tp.Type[hk], length: int) -> tp.Type[hkStruct_]:
     # noinspection PyTypeChecker
     struct_type = type(f"hkStruct[{data_type.__name__}, {length}]", (hkStruct_,), {})  # type: tp.Type[hkStruct_]
     struct_type.is_generic = False
-    struct_type._data_type = data_type
+    struct_type.set_data_type(data_type)
     if length > 255:
         raise ValueError(f"Maximum `hkStruct` (`T[N]`) length is 255. Invalid: {length}")
     struct_type.length = length
@@ -974,7 +1021,7 @@ def hkGenericStruct(data_type: tp.Type[hk], length: int) -> tp.Type[hkStruct_]:
     # noinspection PyTypeChecker
     struct_type = type(f"hkStruct[{data_type.__name__}, {length}]", (hkStruct_,), {})  # type: tp.Type[hkStruct_]
     struct_type.is_generic = True
-    struct_type._data_type = data_type
+    struct_type.set_data_type(data_type)
     if length > 255:
         raise ValueError(f"Maximum `hkStruct` (`T[N]`) length is 255. Invalid: {length}")
     struct_type.length = length
@@ -996,10 +1043,6 @@ class Ptr_(hkBasePointer):
     tag_type_flags = 6
 
     __tag_format_flags = 11
-
-    @classmethod
-    def set_data_type(cls, data_type: tp.Type[hk]):
-        cls._data_type = data_type
 
     @classmethod
     def unpack(
@@ -1075,8 +1118,8 @@ def Ptr(data_type: tp.Type[hk] | DefType, hsh: int = None) -> tp.Type[Ptr_]:
     data_type_name = data_type.type_name if isinstance(data_type, DefType) else data_type.__name__
     # noinspection PyTypeChecker
     ptr_type = type(f"Ptr[{data_type_name}]", (Ptr_,), {})  # type: tp.Type[Ptr_]
-    ptr_type._data_type = data_type
-    ptr_type.__hsh = hsh
+    ptr_type.set_data_type(data_type)
+    ptr_type.set_hsh(hsh)
     return ptr_type
 
 
@@ -1170,8 +1213,8 @@ def hkRefPtr(data_type: tp.Type[hk] | DefType, hsh: int = None) -> tp.Type[hkRef
     data_type_name = data_type.type_name if isinstance(data_type, DefType) else data_type.__name__
     # noinspection PyTypeChecker
     ptr_type = type(f"hkRefPtr[{data_type_name}]", (hkRefPtr_,), {})  # type: tp.Type[hkRefPtr_]
-    ptr_type._data_type = data_type
-    ptr_type.__hsh = hsh
+    ptr_type.set_data_type(data_type)
+    ptr_type.set_hsh(hsh)
     return ptr_type
 
 
@@ -1215,8 +1258,8 @@ def hkRefVariant(data_type: tp.Type[hk] | DefType, hsh: int = None) -> tp.Type[h
         )
     # noinspection PyTypeChecker
     ptr_type = type(f"hkRefVariant[{data_type_name}]", (hkRefVariant_,), {})  # type: tp.Type[hkRefVariant_]
-    ptr_type._data_type = data_type
-    ptr_type.__hsh = hsh
+    ptr_type.set_data_type(data_type)
+    ptr_type.set_hsh(hsh)
     return ptr_type
 
 
@@ -1269,43 +1312,63 @@ def hkViewPtr(data_type_name: str, hsh: int = None):
     # noinspection PyTypeChecker
     ptr_type = type(f"hkViewPtr[{data_type_name}]", (hkViewPtr_,), {})  # type: tp.Type[hkViewPtr_]
     ptr_type.data_type_name = data_type_name
-    ptr_type.__hsh = hsh
+    ptr_type.set_hsh(hsh)
     return ptr_type
 
 
-class NewStruct_(hkBasePointer):
-    """Wrapper for a new type of pointer that only appears in `hknp` classes. (Name chosen by me.)
+class hkRelArray_(hkBasePointer):
+    """Wrapper for a rare type of pointer that only appears in some `hknp` classes.
 
     It reads `length` and `jump` shorts, and uses that offset to make a jump ahead (from just before `length`) to
-    tightly packed struct value of some data type, which is unpacked into a tuple like regular `hkStruct` (`T[N`)
-    structs.
+    a tightly packed array of some data type, which is unpacked into a list like regular `hkArray` types.
     """
-    # TODO: No idea what these values should be (except `byte_size = 4`).
-    alignment = 4
     byte_size = 4
+    alignment = 2
     tag_type_flags = 6
 
-    __tag_format_flags = 11
-
-    @classmethod
-    def set_data_type(cls, data_type: tp.Type[hk]):
-        cls._data_type = data_type
+    __tag_format_flags = 43
 
     @classmethod
     def unpack(
         cls, reader: BinaryReader, offset: int, items: list[TagFileItem] = None
-    ) -> hk:
-        raise TypeError("Have not encountered `NewStruct` types in tagfiles before. Cannot unpack them.")
+    ) -> list:
+        offset = reader.seek(offset) if offset is not None else reader.position
+        _debug_print_unpack(f"Unpacking `{cls.__name__}`... ({cls.get_data_type().__name__}) <{hex(offset)}>")
+
+        source_offset = reader.position
+        length, jump = reader.unpack("<HH")
+        with reader.temp_offset(source_offset + jump):
+            _increment_debug_indent()
+            array_start_offset = reader.position
+            value = [
+                cls.get_data_type().unpack(
+                    reader,
+                    offset=array_start_offset + i * cls.get_data_type().byte_size,
+                    items=items,
+                ) for i in range(length)
+            ]
+            _decrement_debug_indent()
+        _debug_print_unpack(f"-> {value}")
+        reader.seek(offset + cls.byte_size)
+        return value
 
     @classmethod
-    def unpack_packfile(cls, entry: PackFileItemEntry, offset: int = None, pointer_size=8) -> tuple:
+    def unpack_packfile(cls, entry: PackFileItemEntry, offset: int = None, pointer_size=8) -> list:
         offset = entry.reader.seek(offset) if offset is not None else entry.reader.position
         _debug_print_unpack(f"Unpacking `{cls.__name__}`... ({cls.get_data_type().__name__}) <{hex(offset)}>")
 
         source_offset = entry.reader.position
         length, jump = entry.reader.unpack("<HH")
         with entry.reader.temp_offset(source_offset + jump):
-            value = unpack_struct_packfile(cls.get_data_type(), entry, pointer_size=pointer_size, length=length)
+            array_start_offset = entry.reader.position
+            data_type = cls.get_data_type()
+            value = [
+                data_type.unpack_packfile(
+                    entry,
+                    offset=array_start_offset + i * data_type.byte_size,
+                    pointer_size=pointer_size,
+                ) for i in range(length)
+            ]
         _debug_print_unpack(f"-> {value}")
         entry.reader.seek(offset + cls.byte_size)
         return value
@@ -1319,7 +1382,9 @@ class NewStruct_(hkBasePointer):
         existing_items: dict[hk, TagFileItem],
         item_creation_queue: dict[str, deque[tp.Callable]],
     ):
-        raise TypeError("Have not encountered `NewStruct` types in tagfiles before. Cannot pack them.")
+        # TODO: This DOES appear in tagfiles that use classes like `hknpConvexShape`.
+        #  Examine those classes closely to find out where the relative array is written (and the jump size).
+        raise TypeError("Have not encountered `hkRelArray` types in tagfiles before. Cannot pack them.")
 
     @classmethod
     def pack_packfile(
@@ -1330,16 +1395,37 @@ class NewStruct_(hkBasePointer):
         data_pack_queue: dict[str, deque[tp.Callable]],
         pointer_size: int,
     ):
-        """TODO: Just using a `jump` of 4 for now (skipping `length` and `jump` shorts)."""
+        """Registers a function that will write the `hkRelArray` contents, and fill its length/jump where appropriate.
+
+        This function will be called when the current list (pushed by last `pack_class_packfile()` call) is popped. That
+        is, once class members have all been done.
+        """
         _debug_print_pack(f"Packing `{cls.__name__}`...")
-        item.writer.pack("<HH", len(value), 4)
-        pack_struct_packfile(cls, item, value, existing_items, data_pack_queue, pointer_size, length=len(value))
+        rel_array_header_pos = item.writer.position
+        item.writer.pack("<HH", len(value), 0)
+
+        if len(value) == 0:
+            return
+
+        def delayed_rel_array():
+            print(item.writer.position, rel_array_header_pos, cls.__name__)  # todo
+            jump = item.writer.position - rel_array_header_pos
+            _debug_print_pack(f"Writing `hkRelArray` and writing jump {jump} at offset {rel_array_header_pos}.")
+            item.writer.pack_at(rel_array_header_pos, "<HH", len(value), jump)
+            data_type = cls.get_data_type()
+            array_start_offset = item.writer.position
+            for i, element in enumerate(value):
+                item.writer.pad_to_offset(array_start_offset + i * data_type.byte_size)
+                data_type.pack_packfile(item, element, existing_items, data_pack_queue, pointer_size)
+
+        item.pending_rel_arrays[-1].append(delayed_rel_array)
+
         if _REQUIRE_INPUT:
             input("Continue?")
 
     @classmethod
     def get_type_info(cls) -> TypeInfo:
-        raise TypeError("Cannot convert `_NewStruct` to `TypeInfo` yet for packing packfiles.")
+        raise TypeError("Cannot convert `hkRelArray_` to `TypeInfo` yet for packing packfiles.")
 
     @classmethod
     def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
@@ -1347,13 +1433,83 @@ class NewStruct_(hkBasePointer):
         return list(cls.__mro__[:-4])  # exclude this, `hk`, `hkBasePointer`, and `object`
 
 
-def NewStruct(data_type: tp.Type[hk]):
-    """Create a `_NewStruct` subclass dynamically."""
+def hkRelArray(data_type: tp.Type[hk]):
+    """Create a `hkRelArray_` subclass dynamically."""
     data_type_name = data_type.type_name if isinstance(data_type, DefType) else data_type.__name__
     # noinspection PyTypeChecker
-    struct_type = type(f"NewStruct[{data_type_name}]", (NewStruct_,), {})  # type: tp.Type[NewStruct_]
-    struct_type._data_type = data_type
-    return struct_type
+    rel_array_type = type(f"hkRelArray[{data_type_name}]", (hkRelArray_,), {})  # type: tp.Type[hkRelArray_]
+    rel_array_type.set_data_type(data_type)
+    return rel_array_type
+
+
+def hkFreeListArrayElement(parent_type: tp.Type[hk]):
+    # noinspection PyTypeChecker
+    element_type = type(f"hkFreeListArrayElement[{parent_type.__name__}]", (parent_type,), {})  # type: tp.Type[hk]
+    element_type.set_tag_format_flags(0)  # shallow subclass
+    return element_type  # nothing else to change
+
+
+class hkFreeListArray_(hk):
+    """Generic name for a class with an 'elements' member that is a `hkArray[hkFreeListArrayElement]` instance.
+
+    Multiple types with this name can be defined, uniquely identified by their 'elements' array data type.
+    """
+    byte_size = 24
+    alignment = 8
+    tag_type_flags = TagDataType.Class
+
+    __tag_format_flags = 45
+    __version = 1
+    # `__hsh` is set dynamically.
+
+    # `local_members` (and `members`) defined by class creation function.
+
+
+def hkFreeListArray(
+    elements_data_type: tp.Type[hk],
+    first_free_data_type: tp.Type[hk],
+    elements_hsh: int = None,
+) -> tp.Type[hkFreeListArray_]:
+    if isinstance(elements_data_type, DefType):
+        elements_data_type_name = elements_data_type.type_name
+    else:
+        elements_data_type_name = elements_data_type.__name__
+    first_free_data_type_name = first_free_data_type.__name__  # e.g., `hkInt32`
+    # noinspection PyTypeChecker
+    hk_free_list_array_type = type(
+        f"hkFreeListArray[{elements_data_type_name}, {first_free_data_type_name}]",
+        (hkFreeListArray_,),
+        {},
+    )  # type: tp.Type[hkFreeListArray_]
+    hk_free_list_array_type.local_members = (
+        Member(0, "elements", hkArray(elements_data_type, hsh=elements_hsh), MemberFlags.Protected),
+        Member(16, "firstFree", first_free_data_type, MemberFlags.Protected),
+    )
+    hk_free_list_array_type.members = hk_free_list_array_type.local_members
+    return hk_free_list_array_type
+
+
+class hkFlags_(hk):
+    """Generic flags type that is basically a shallow enum-like wrapper around a certain 'storage' int type."""
+    # `byte_size`, `alignment`, and `tag_type_flags` are set dynamically from 'storage' type.
+    __tag_format_flags = 41
+    # `__hsh` is set dynamically (probably never used).
+
+    # `local_members` and `members` (lone 'storage' member) are set dynamically.
+
+
+def hkFlags(storage_type: tp.Type[hk], hsh: int = None) -> tp.Type[hkFlags_]:
+    # noinspection PyTypeChecker
+    flags_type = type(f"hkFlags[{storage_type.__name__}]", (hkFlags_,), {})  # type: tp.Type[hkFlags_]
+    flags_type.alignment = storage_type.alignment
+    flags_type.byte_size = storage_type.byte_size
+    flags_type.tag_type_flags = storage_type.tag_type_flags
+    flags_type.set_hsh(hsh)
+    flags_type.local_members = (
+        Member(0, "storage", storage_type, MemberFlags.Protected),
+    )
+    flags_type.members = flags_type.local_members
+    return flags_type
 
 
 # --- UNPACKING/PACKING FUNCTIONS --- #
@@ -1436,9 +1592,13 @@ def unpack_class_packfile(hk_type: tp.Type[hk], entry: PackFileItemEntry, pointe
         instance = hk_type()
     member_start_offset = entry.reader.position
 
+    if hk_type.__name__ == "hknpCapsuleShape":
+        from soulstruct.utilities.inspection import get_hex_repr
+        print(get_hex_repr(entry.raw_data))
+
     _increment_debug_indent()
     for member in hk_type.members:
-        _debug_print_unpack(f"Member '{member.name}' (type `{member.type.__name__}`):")
+        _debug_print_unpack(f"Member '{member.name}' at offset {entry.reader.position_hex} (`{member.type.__name__}`):")
         member_value = member.type.unpack_packfile(
             entry,
             offset=member_start_offset + member.offset,
@@ -1485,20 +1645,25 @@ def pack_class_packfile(
         item.writer.pad(pointer_size)
 
     _increment_debug_indent()
+    item.pending_rel_arrays.append(deque())
     for member in hk_type.members:
         _debug_print_pack(
             f"Member '{member.name}' (type `{type(value[member.name]).__name__} : {member.type.__name__}`):"
         )
         # Member offsets may not be perfectly packed together, so we always pad up to the proper offset.
         item.writer.pad_to_offset(member_start_offset + member.offset)
+        print("   ", item.writer.position_hex)
         # TODO: with_flag = member.name != "partitions" ?
         member.type.pack_packfile(item, value[member.name], existing_items, data_pack_queue, pointer_size)
-        # TODO: Needed?
-        # if member.type.alignment > 0:
-        #     item.writer.pad_align(member.type.alignment)
-    _decrement_debug_indent()
-
+        # TODO: Used to pad to member alignment here, but seems redundant.
     item.writer.pad_to_offset(member_start_offset + hk_type.byte_size)
+    _decrement_debug_indent()
+    print(item.writer.position_hex)
+
+    # `hkRelArray` data is written after all members have been checked/written.
+    for pending_rel_array in item.pending_rel_arrays.pop():
+        pending_rel_array()
+        exit()
 
 
 def unpack_pointer(data_hk_type: tp.Type[hk], reader: BinaryReader, items: list[TagFileItem]) -> hk | None:
@@ -1576,7 +1741,7 @@ def unpack_pointer_packfile(data_hk_type: tp.Type[hk], item: PackFileItemEntry, 
 
 
 def pack_pointer(
-    ptr_hk_type: tp.Union[tp.Type[Ptr_], tp.Type[NewStruct_]],
+    ptr_hk_type: tp.Union[tp.Type[Ptr_], tp.Type[hkRelArray_]],
     item: TagFileItem,
     value: hk,
     items: list[TagFileItem],
@@ -1633,6 +1798,11 @@ def pack_pointer_packfile(
     data_pack_queue: dict[str, deque[tp.Callable]],
     pointer_size: int,
 ):
+    if value is None:
+        # Null pointer. Space is left for a global fixup, but it will never have a fixup.
+        item.writer.pad(pointer_size)  # global item fixup
+        return
+
     if value in existing_items:
         item.item_pointers[item.writer.position] = (existing_items[value], 0)
         item.writer.pad(pointer_size)  # global item fixup
@@ -1868,6 +2038,7 @@ def unpack_string_packfile(entry: PackFileItemEntry, pointer_size: int) -> str:
         string_offset = entry.child_pointers[pointer_offset]
     except KeyError:
         return ""
+    _debug_print_unpack(f"Unpacking string at offset {hex(string_offset)}")
     return entry.reader.unpack_string(offset=string_offset, encoding="shift_jis_2004")
 
 
@@ -2001,8 +2172,7 @@ def pack_named_variant(
     name_member = hk_type.members[0]
     item.writer.pad_to_offset(member_start_offset + name_member.offset)
     _debug_print_pack(f"Member 'name' (type `{name_member.type.__name__}`):")
-    # noinspection PyArgumentList
-    name_member.type.pack(item, value["name"], items, existing_items, item_creation_queue, is_variant_name=True)
+    pack_string(item.hk_type, item, value["name"], items, item_creation_queue, is_variant_name=True)
 
     class_name_member = hk_type.members[1]
     item.writer.pad_to_offset(member_start_offset + class_name_member.offset)
@@ -2046,174 +2216,3 @@ def pack_named_variant_packfile(
     variant_member.type.pack_packfile(item, value["variant"], existing_items, data_pack_queue, pointer_size)
 
     _decrement_debug_indent()
-
-
-def create_module_from_files(version="2015", *file_paths: str | Path, is_tagfile=True, module_path: Path = None):
-    """Create an actual Python module with a real class hierarchy that fully captures Havok types."""
-    if not file_paths:
-        raise ValueError("At least one file path must be given to create Havok types module.")
-
-    if module_path is None:
-        module_path = Path(__file__).parent / f"hk{version}.py"
-
-    module_str = f"\"\"\"Auto-generated types for Havok {version}.\n\nGenerated from files:"
-    for file_path in file_paths:
-        module_str += f"\n    {file_path.name}"
-    module_str += "\n\"\"\"\nfrom __future__ import annotations\n\nfrom soulstruct_havok.types.core import *\n"
-
-    # TODO: Detect if file is tag/pack, then open it, but extract `TypeInfo` list only. (Don't need any generic types.)
-    #  Things to consider:
-    #   - Only tagfiles have (and use) the "tag_format_flags" type attribute; it just indicates which other type
-    #     attributes are present in the tagfile (as varints). These will need to be generated accurately if/when
-    #     converting packfiles to tagfiles.
-
-    # Next, we iterate over our types list, but we don't generate them in the random order in the XML. Instead, we use
-    # `tag_type_flags` to load more primitive types first, then load classes afterwards.
-
-    raw_type_infos = []  # type: list[TypeInfo]
-    from soulstruct_havok.packfile.unpacker import PackFileUnpacker
-    from soulstruct_havok.tagfile.unpacker import TagFileUnpacker
-    for file_path in file_paths:
-        # TODO: Detect tagfile vs. packfile.
-        file_reader = BinaryReader(file_path)
-        if is_tagfile:
-            unpacker = TagFileUnpacker()
-            unpacker.unpack(file_reader, compendium=None, types_only=True)
-            raw_type_infos += unpacker.hk_type_infos[1:]  # skip `None` pad at index 0
-        else:
-            unpacker = PackFileUnpacker()
-            unpacker.unpack(file_reader, types_only=True)
-            raw_type_infos += unpacker.hk_type_infos  # skip `None` pad at index 0
-
-    # Remove duplicate types (probably many).
-    generic_types = {"hkArray", "hkEnum", "hkRefPtr", "hkRefVariant", "hkViewPtr", "T*", "T[N]"}
-    type_info_dict = {}
-    for type_info in raw_type_infos:
-        if type_info.name in generic_types or type_info.py_name in type_info_dict:  # always skipped
-            continue
-        type_info_dict[type_info.py_name] = type_info
-
-    defined_py_names = ["hk"]
-
-    def define(_name: str, optional=False) -> str:
-        if _name not in type_info_dict and optional:
-            return ""
-        _type_info = type_info_dict[_name]
-        _py_name = _type_info.py_name
-        if _py_name in defined_py_names:
-            print(f"ALREADY DEFINED: {_py_name}")
-            return ""
-        class_str = "\n\n" + _type_info.get_class_py_def(defined_py_names)
-        defined_py_names.append(_py_name)
-        print(f"    BUILT: {_py_name}")
-        return class_str
-
-    def define_all(_names: list[str]):
-        """Keep iterating over filtered type list, attempting to define them, until they can all be defined."""
-        _names = [_name for _name in _names if _name not in defined_py_names]
-        if not _names:
-            return ""
-        class_strs = []
-        while True:
-            new_definitions = []
-            exceptions = []
-            for _name in _names:
-                _type_info = type_info_dict[_name]
-                try:
-                    class_str = define(_name)
-                    class_strs.append(class_str)
-                    new_definitions.append(_name)
-                except TypeNotDefinedError as ex:
-                    exceptions.append(f"{_name}: {str(ex)}")
-                    continue  # try next type
-            if not new_definitions:
-                # Could not define anything on this pass. Raise all exceptions from this pass.
-                ex_str = "\n    ".join(exceptions)
-                print(f"Defined py names: {defined_py_names}")
-                raise HavokTypeError(
-                    f"Could not define any types remaining in list: {[_name for _name in _names]}.\n\n"
-                    f"Last errors:\n    {ex_str}"
-                )
-            for _name in new_definitions:
-                _names.remove(_name)
-            if not _names:
-                break
-        return "".join(class_strs)
-
-    print("Defining Invalid Types")
-
-    module_str += f"\n\n# --- Invalid Types --- #\n"
-    module_str += define_all([
-        name for name, type_info in type_info_dict.items()
-        if type_info.tag_data_type == TagDataType.Invalid
-    ])
-
-    print("Defining Primitive Types")
-
-    module_str += f"\n\n# --- Primitive Types --- #\n"
-    module_str += define_all([
-        name for name, type_info in type_info_dict.items()
-        if not any(type_info.name.startswith(s) for s in HAVOK_TYPE_PREFIXES)
-    ])
-
-    print("Defining Havok Struct Types")
-
-    # Basic 'Struct' types.
-    module_str += f"\n\n# --- Havok Struct Types --- #\n"
-    module_str += define_all([
-        name for name, type_info in type_info_dict.items()
-        if type_info.get_parent_value("tag_data_type") == TagDataType.Struct
-    ])
-    module_str += define("hkQsTransformf", optional=True)  # bundles other structs together
-    module_str += define("hkQsTransform", optional=True)  # alias for above
-
-    print("Defining Havok Wrappers")
-
-    # Other shallow wrappers.
-    module_str += f"\n\n# --- Havok Wrappers --- #\n"
-    module_str += define_all([
-        name for name, type_info in type_info_dict.items()
-        if type_info.tag_type_flags is None
-    ])
-
-    print("Defining Havok Core Types")
-
-    # Core classes.
-    module_str += f"\n\n# --- Havok Core Types --- #\n"
-    module_str += define("hkBaseObject")
-    # `hkReferencedObject` is left to its own devices, as in 2016 onwards, it has other `hkPropertyBag` dependencies.
-
-    # Everything else.
-    module_str += define_all([
-        name for name, type_info in type_info_dict.items()
-        if name not in defined_py_names
-    ])
-
-    with module_path.open("w") as f:
-        f.write(module_str)
-
-
-def create_2015_module():
-    create_module_from_files(
-        "2015",
-        Path("../../tests/resources/DSR/c2240/Skeleton.HKX"),
-        Path("../../tests/resources/DSR/c2240/c2240.hkx"),
-        Path("../../tests/resources/DSR/c2240/a00_3000.hkx"),
-        is_tagfile=True,
-        module_path=Path(__file__).parent / f"hk2015_new.py"
-    )
-
-
-def create_2018_module():
-    create_module_from_files(
-        "2018",
-        Path(r"C:\Dark Souls\c2180-anibnd-dcx\GR\data\INTERROOT_ps4\chr\c2180\hkx\skeleton.hkx"),
-        Path(r"C:\Dark Souls\c2180-chrbnd-dcx\GR\data\INTERROOT_ps4\chr\c2180\c2180_c.hkx"),
-        is_tagfile=True,
-        module_path=Path(__file__).parent / f"hk2018.py"
-    )
-
-
-if __name__ == '__main__':
-    create_2015_module()
-    # create_2018_module()

@@ -165,9 +165,12 @@ class PackFilePacker:
         for member in instance.members:
             member_value = getattr(instance, member.name)
             if issubclass(member.type, Ptr_):
-                member_data_class_name = type(member_value).get_real_name()
-                if member_data_class_name not in class_names:
-                    class_names.append(member_data_class_name)
+                # Class names are NOT collected for "null pointers". Such class names (and their hashes) are not
+                # included in the packfile.
+                if member_value is not None:
+                    member_data_class_name = type(member_value).get_real_name()
+                    if member_data_class_name not in class_names:
+                        class_names.append(member_data_class_name)
             if isinstance(member_value, hk):
                 self.collect_class_names(member_value, class_names)
             elif isinstance(member_value, (list, tuple)):

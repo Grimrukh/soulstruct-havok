@@ -15,20 +15,28 @@ def ptde_c2500_test():
 
 def ds3_c1430_test():
 
-    c1430_anibnd_path = Path(DS3_PATH + "/chr/c1430.anibnd_vanilla.dcx")
-    c1430_anibnd = Binder(c1430_anibnd_path, from_bak=True)
-    c1430_skeleton = HKX(c1430_anibnd[1000000])
-    c1430_anibnd[1000000].data = c1430_skeleton.pack()
+    SET_DEBUG_PRINT(True, False)
+
+    # c1430_anibnd_path = Path(DS3_PATH + "/chr/c1430.anibnd_vanilla.dcx")
+    # c1430_anibnd = Binder(c1430_anibnd_path, from_bak=True)
+
+    # with contextlib.redirect_stdout(open("ds3_c1430_skeleton_unpack.txt", "w")):
+    #     c1430_skeleton = HKX(c1430_anibnd[1000000])
+    # print("Unpacked skeleton successfully.")
+    # c1430_anibnd[1000000].data = c1430_skeleton.pack()
+    # print("    --> Repacked skeleton successfully.")
 
     c1430_chrbnd_path = Path(DS3_PATH + "/chr/c1430.chrbnd_vanilla.dcx")
     c1430_chrbnd = Binder(c1430_chrbnd_path)
 
-    c1430_ragdoll = HKX(c1430_chrbnd[300])
+    with contextlib.redirect_stdout(open("ds3_c1430_ragdoll_unpack.txt", "w")):
+        c1430_ragdoll = HKX(c1430_chrbnd[300])
     print("Unpacked ragdoll successfully.")
+    exit()
     c1430_chrbnd[300].data = c1430_ragdoll.pack()
     print("    --> Repacked ragdoll successfully.")
 
-    # TODO: I don't have `hcl` cloth classes yet.
+    # TODO: I don't have 2014 `hcl` cloth classes yet.
     # c1430_cloth = HKX(c1430_chrbnd[700])
     # print("Unpacked cloth successfully.")
 
@@ -47,10 +55,14 @@ def dsr_cloth_test():
 
 def er_cloth_test():
     c2180_skeleton = HKX(r"C:\Dark Souls\c2180-anibnd-dcx\GR\data\INTERROOT_ps4\chr\c2180\hkx\skeleton.hkx")
-    print(c2180_skeleton.get_root_tree_string())
+    # print(c2180_skeleton.get_root_tree_string())
 
-    # c2180_cloth = HKX(r"C:\Dark Souls\c2180-chrbnd-dcx\GR\data\INTERROOT_ps4\chr\c2180\c2180_c.hkx")
-    # print(c2180_cloth.get_root_tree_string())
+    c2180_ragdoll = HKX(r"C:\Dark Souls\c2180-chrbnd-dcx\GR\data\INTERROOT_ps4\chr\c2180\c2180.hkx")
+    Path("c2180_ragdoll.hkx.txt").write_text(c2180_ragdoll.get_root_tree_string())
+
+    c2180_cloth = HKX(r"C:\Dark Souls\c2180-chrbnd-dcx\GR\data\INTERROOT_ps4\chr\c2180\c2180_c.hkx")
+    Path("c2180_c.hkx.txt").write_text(c2180_cloth.get_root_tree_string())
+    # c2180_cloth.write("c2180_c_repack.hkx")
 
 
 def packfile_test():
@@ -77,6 +89,11 @@ def packfile_test():
     print("Unpacked repacked HKX successfully.")
 
 
+def ptde_packfile_test():
+    capra_ragdoll = HKX("resources/PTDE/c2240/c2240.hkx")
+
+
 if __name__ == '__main__':
-    # ds3_c1430_test()
-    er_cloth_test()
+    ds3_c1430_test()
+    # er_cloth_test()
+    # ptde_packfile_test()

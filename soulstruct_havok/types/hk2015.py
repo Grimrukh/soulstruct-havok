@@ -7,6 +7,7 @@ Generated from files:
 """
 from __future__ import annotations
 
+from soulstruct_havok.enums import TagDataType, MemberFlags
 from soulstruct_havok.types.core import *
 
 
@@ -16,7 +17,7 @@ from soulstruct_havok.types.core import *
 class hkReflectDetailOpaque(hk):
     alignment = 0
     byte_size = 0
-    tag_type_flags = 1
+    tag_type_flags = TagDataType.Invalid
 
     __tag_format_flags = 9
     __real_name = "hkReflect::Detail::Opaque"
@@ -29,17 +30,17 @@ class hkReflectDetailOpaque(hk):
 class _int(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 33284
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "int"
     local_members = ()
 
 
-class _const_char(hk):
+class _const_charSTAR(hk):
     alignment = 8
     byte_size = 8
-    tag_type_flags = 3
+    tag_type_flags = TagDataType.CharArray
 
     __tag_format_flags = 9
     __real_name = "const char*"
@@ -49,7 +50,7 @@ class _const_char(hk):
 class _unsigned_short(hk):
     alignment = 2
     byte_size = 2
-    tag_type_flags = 16388
+    tag_type_flags = TagDataType.Int | TagDataType.Int16
 
     __tag_format_flags = 9
     __real_name = "unsigned short"
@@ -59,7 +60,7 @@ class _unsigned_short(hk):
 class _char(hk):
     alignment = 1
     byte_size = 1
-    tag_type_flags = 8196
+    tag_type_flags = TagDataType.Int | TagDataType.Int8
 
     __tag_format_flags = 9
     __hsh = 4184862313
@@ -70,7 +71,7 @@ class _char(hk):
 class _float(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 1525253
+    tag_type_flags = TagDataType.Float | TagDataType.Float32
 
     __tag_format_flags = 9
     __real_name = "float"
@@ -80,7 +81,7 @@ class _float(hk):
 class _short(hk):
     alignment = 2
     byte_size = 2
-    tag_type_flags = 16900
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int16
 
     __tag_format_flags = 9
     __real_name = "short"
@@ -90,7 +91,7 @@ class _short(hk):
 class _signed_char(hk):
     alignment = 1
     byte_size = 1
-    tag_type_flags = 8708
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int8
 
     __tag_format_flags = 9
     __real_name = "signed char"
@@ -100,7 +101,7 @@ class _signed_char(hk):
 class _unsigned_long_long(hk):
     alignment = 8
     byte_size = 8
-    tag_type_flags = 65540
+    tag_type_flags = TagDataType.Int | TagDataType.Int64
 
     __tag_format_flags = 9
     __real_name = "unsigned long long"
@@ -110,7 +111,7 @@ class _unsigned_long_long(hk):
 class _unsigned_int(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 32772
+    tag_type_flags = TagDataType.Int | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "unsigned int"
@@ -120,7 +121,7 @@ class _unsigned_int(hk):
 class _unsigned_char(hk):
     alignment = 1
     byte_size = 1
-    tag_type_flags = 8196
+    tag_type_flags = TagDataType.Int | TagDataType.Int8
 
     __tag_format_flags = 9
     __real_name = "unsigned char"
@@ -130,7 +131,7 @@ class _unsigned_char(hk):
 class _void(hk):
     alignment = 0
     byte_size = 0
-    tag_type_flags = 0
+    tag_type_flags = TagDataType.Void
 
     __tag_format_flags = 25
     __abstract_value = 1
@@ -144,7 +145,7 @@ class _void(hk):
 class hkVector4f(hkStruct(_float, 4)):
     alignment = 16
     byte_size = 16
-    tag_type_flags = 1064
+    tag_type_flags = TagDataType.Struct | 4 << 8
 
     __tag_format_flags = 11
     local_members = ()
@@ -153,7 +154,7 @@ class hkVector4f(hkStruct(_float, 4)):
 class hkQuaternionf(hkStruct(_float, 4)):
     alignment = 16
     byte_size = 16
-    tag_type_flags = 1064
+    tag_type_flags = TagDataType.Struct | 4 << 8
 
     __tag_format_flags = 43
 
@@ -168,7 +169,7 @@ class hkQuaternionf(hkStruct(_float, 4)):
 class hkRotationImpl(hkStruct(_float, 12)):
     alignment = 16
     byte_size = 48
-    tag_type_flags = 3112
+    tag_type_flags = TagDataType.Struct | 12 << 8
 
     __tag_format_flags = 11
     local_members = ()
@@ -181,13 +182,14 @@ class hkRotationImpl(hkStruct(_float, 12)):
 class hkVector4(hkVector4f):
     """Havok alias."""
     __tag_format_flags = 0
+    __hsh = 3266831369
     local_members = ()
 
 
 class hkMatrix3Impl(hkStruct(_float, 12)):
     alignment = 16
     byte_size = 48
-    tag_type_flags = 3112
+    tag_type_flags = TagDataType.Struct | 12 << 8
 
     __tag_format_flags = 11
     local_members = ()
@@ -200,15 +202,15 @@ class hkMatrix3Impl(hkStruct(_float, 12)):
 class hkMatrix4f(hkStruct(_float, 16)):
     alignment = 16
     byte_size = 64
-    tag_type_flags = 4136
+    tag_type_flags = TagDataType.Struct | 16 << 8
 
     __tag_format_flags = 43
 
     local_members = (
-        Member(0, "col0", hkVector4f, flags=34),
-        Member(16, "col1", hkVector4f, flags=34),
-        Member(32, "col2", hkVector4f, flags=34),
-        Member(48, "col3", hkVector4f, flags=34),
+        Member(0, "col0", hkVector4f, MemberFlags.Protected),
+        Member(16, "col1", hkVector4f, MemberFlags.Protected),
+        Member(32, "col2", hkVector4f, MemberFlags.Protected),
+        Member(48, "col3", hkVector4f, MemberFlags.Protected),
     )
     members = local_members
 
@@ -239,13 +241,13 @@ class hkMatrix4(hkMatrix4f):
 class hkTransformf(hkStruct(_float, 16)):
     alignment = 16
     byte_size = 64
-    tag_type_flags = 4136
+    tag_type_flags = TagDataType.Struct | 16 << 8
 
     __tag_format_flags = 43
 
     local_members = (
-        Member(0, "rotation", hkRotationf, flags=34),
-        Member(48, "translation", hkVector4f, flags=34),
+        Member(0, "rotation", hkRotationf, MemberFlags.Protected),
+        Member(48, "translation", hkVector4f, MemberFlags.Protected),
     )
     members = local_members
 
@@ -268,7 +270,7 @@ class hkTransform(hkTransformf):
 class hkQsTransformf(hk):
     alignment = 16
     byte_size = 48
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
 
@@ -286,8 +288,14 @@ class hkQsTransformf(hk):
 
 class hkQsTransform(hkQsTransformf):
     """Havok alias."""
-    __hsh = 3766916239
     __tag_format_flags = 0
+    local_members = ()
+
+
+class hkUint32(_unsigned_int):
+    """Havok alias."""
+    __tag_format_flags = 0
+    __hsh = 1716249908
     local_members = ()
 
 
@@ -308,8 +316,8 @@ class hkReal(_float):
 
 class hkInt16(_short):
     """Havok alias."""
-    __hsh = 1556469994
     __tag_format_flags = 0
+    __hsh = 1556469994
     local_members = ()
 
 
@@ -331,15 +339,10 @@ class hkUlong(_unsigned_long_long):
     local_members = ()
 
 
-class hkUint32(_unsigned_int):
-    """Havok alias."""
-    __tag_format_flags = 0
-    local_members = ()
-
-
 class hkUint8(_unsigned_char):
     """Havok alias."""
     __tag_format_flags = 0
+    __hsh = 3721671547
     local_members = ()
 
 
@@ -355,7 +358,7 @@ class hkUint64(_unsigned_long_long):
 class hkBaseObject(hk):
     alignment = 8
     byte_size = 8
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 57
     __abstract_value = 144
@@ -365,7 +368,7 @@ class hkBaseObject(hk):
 class hkContainerHeapAllocator(hk):
     alignment = 1
     byte_size = 1
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 57
     __abstract_value = 16
@@ -375,13 +378,13 @@ class hkContainerHeapAllocator(hk):
 class hkStringPtr(hk):
     alignment = 8
     byte_size = 8
-    tag_type_flags = 3
+    tag_type_flags = TagDataType.CharArray
 
     __tag_format_flags = 41
     __hsh = 2837000324
 
     local_members = (
-        Member(0, "stringAndFlag", _const_char, flags=36),
+        Member(0, "stringAndFlag", _const_charSTAR, MemberFlags.Private),
     )
     members = local_members
 
@@ -391,13 +394,13 @@ class hkStringPtr(hk):
 class hkReferencedObject(hkBaseObject):
     alignment = 8
     byte_size = 16
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
 
     local_members = (
-        Member(8, "memSizeAndFlags", hkUint16, flags=37),
-        Member(10, "refCount", hkUint16, flags=37),
+        Member(8, "memSizeAndFlags", hkUint16, MemberFlags.NotSerializable | MemberFlags.Private),
+        Member(10, "refCount", hkUint16, MemberFlags.NotSerializable | MemberFlags.Private),
     )
     members = hkBaseObject.members + local_members
 
@@ -408,7 +411,7 @@ class hkReferencedObject(hkBaseObject):
 class hkaBoneAttachment(hkReferencedObject):
     alignment = 16
     byte_size = 128
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 2
@@ -432,7 +435,7 @@ class hkaBoneAttachment(hkReferencedObject):
 class hkaSkeletonPartition(hk):
     alignment = 8
     byte_size = 16
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 1
@@ -453,7 +456,7 @@ class hkaSkeletonPartition(hk):
 class hkaAnimationAnimationType(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 33284
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "hkaAnimation::AnimationType"
@@ -463,7 +466,7 @@ class hkaAnimationAnimationType(hk):
 class hkaAnimationBindingBlendHint(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 33284
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "hkaAnimationBinding::BlendHint"
@@ -473,7 +476,7 @@ class hkaAnimationBindingBlendHint(hk):
 class hkaMeshBindingMapping(hk):
     alignment = 8
     byte_size = 16
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     __real_name = "hkaMeshBinding::Mapping"
@@ -489,12 +492,12 @@ class hkaMeshBindingMapping(hk):
 class hkBool(hk):
     alignment = 1
     byte_size = 1
-    tag_type_flags = 8194
+    tag_type_flags = TagDataType.Bool | TagDataType.Int8
 
     __tag_format_flags = 41
 
     local_members = (
-        Member(0, "bool", _char, flags=36),
+        Member(0, "bool", _char, MemberFlags.Private),
     )
     members = local_members
 
@@ -504,7 +507,7 @@ class hkBool(hk):
 class hkLocalFrame(hkReferencedObject):
     alignment = 8
     byte_size = 16
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 57
     __abstract_value = 3
@@ -514,7 +517,7 @@ class hkLocalFrame(hkReferencedObject):
 class hkaAnimatedReferenceFramehkaReferenceFrameTypeEnum(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 33284
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "hkaAnimatedReferenceFrame::hkaReferenceFrameTypeEnum"
@@ -524,7 +527,7 @@ class hkaAnimatedReferenceFramehkaReferenceFrameTypeEnum(hk):
 class hkaAnnotationTrackAnnotation(hk):
     alignment = 8
     byte_size = 16
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     __real_name = "hkaAnnotationTrack::Annotation"
@@ -542,7 +545,7 @@ class hkaAnnotationTrackAnnotation(hk):
 class hkMeshBoneIndexMapping(hk):
     alignment = 8
     byte_size = 16
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
 
@@ -557,7 +560,7 @@ class hkMeshBoneIndexMapping(hk):
 class hkxVertexBufferVertexData(hk):
     alignment = 8
     byte_size = 104
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 2
@@ -566,9 +569,9 @@ class hkxVertexBufferVertexData(hk):
     local_members = (
         Member(0, "vectorData", hkArray(_unsigned_int)),
         Member(16, "floatData", hkArray(_unsigned_int)),
-        Member(32, "uint32Data", hkArray(hkUint32)),
+        Member(32, "uint32Data", hkArray(hkUint32, hsh=4255738572)),
         Member(48, "uint16Data", hkArray(hkUint16)),
-        Member(64, "uint8Data", hkArray(hkUint8)),
+        Member(64, "uint8Data", hkArray(hkUint8, hsh=2877151166)),
         Member(80, "numVerts", hkUint32),
         Member(84, "vectorStride", hkUint32),
         Member(88, "floatStride", hkUint32),
@@ -594,7 +597,7 @@ class hkxVertexBufferVertexData(hk):
 class hkxMaterialUVMappingAlgorithm(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 33284
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "hkxMaterial::UVMappingAlgorithm"
@@ -604,7 +607,7 @@ class hkxMaterialUVMappingAlgorithm(hk):
 class hkxMaterialTransparency(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 33284
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "hkxMaterial::Transparency"
@@ -614,7 +617,7 @@ class hkxMaterialTransparency(hk):
 class hkxMaterialProperty(hk):
     alignment = 4
     byte_size = 8
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     __real_name = "hkxMaterial::Property"
@@ -632,7 +635,7 @@ class hkxMaterialProperty(hk):
 class hkxIndexBufferIndexType(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 33284
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "hkxIndexBuffer::IndexType"
@@ -642,7 +645,7 @@ class hkxIndexBufferIndexType(hk):
 class hkxAttribute(hk):
     alignment = 8
     byte_size = 16
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 1
@@ -660,7 +663,7 @@ class hkxAttribute(hk):
 class hkxMaterialTextureType(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 33284
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "hkxMaterial::TextureType"
@@ -670,7 +673,7 @@ class hkxMaterialTextureType(hk):
 class hkxVertexDescriptionDataType(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 33284
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "hkxVertexDescription::DataType"
@@ -680,7 +683,7 @@ class hkxVertexDescriptionDataType(hk):
 class hkxVertexDescriptionDataUsage(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 33284
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "hkxVertexDescription::DataUsage"
@@ -690,7 +693,7 @@ class hkxVertexDescriptionDataUsage(hk):
 class hkAabb(hk):
     alignment = 16
     byte_size = 32
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
 
@@ -707,7 +710,7 @@ class hkAabb(hk):
 class hkpWorldCinfoBroadPhaseType(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 33284
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "hkpWorldCinfo::BroadPhaseType"
@@ -717,7 +720,7 @@ class hkpWorldCinfoBroadPhaseType(hk):
 class hkpWorldCinfoBroadPhaseBorderBehaviour(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 33284
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "hkpWorldCinfo::BroadPhaseBorderBehaviour"
@@ -727,7 +730,7 @@ class hkpWorldCinfoBroadPhaseBorderBehaviour(hk):
 class hkpConvexListFilter(hkReferencedObject):
     alignment = 8
     byte_size = 16
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 57
     __abstract_value = 3
@@ -737,7 +740,7 @@ class hkpConvexListFilter(hkReferencedObject):
 class hkWorldMemoryAvailableWatchDog(hkReferencedObject):
     alignment = 8
     byte_size = 16
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 61
     __abstract_value = 3
@@ -748,7 +751,7 @@ class hkWorldMemoryAvailableWatchDog(hkReferencedObject):
 class hkpWorldCinfoContactPointGeneration(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 33284
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "hkpWorldCinfo::ContactPointGeneration"
@@ -758,7 +761,7 @@ class hkpWorldCinfoContactPointGeneration(hk):
 class hkpWorldCinfoSimulationType(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 33284
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "hkpWorldCinfo::SimulationType"
@@ -768,7 +771,7 @@ class hkpWorldCinfoSimulationType(hk):
 class hkpCollidableCollidableFilter(hk):
     alignment = 8
     byte_size = 8
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 57
     __abstract_value = 147
@@ -778,7 +781,7 @@ class hkpCollidableCollidableFilter(hk):
 class hkpShapeCollectionFilter(hk):
     alignment = 8
     byte_size = 8
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 57
     __abstract_value = 147
@@ -788,7 +791,7 @@ class hkpShapeCollectionFilter(hk):
 class hkpRayShapeCollectionFilter(hk):
     alignment = 8
     byte_size = 8
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 57
     __abstract_value = 147
@@ -798,7 +801,7 @@ class hkpRayShapeCollectionFilter(hk):
 class hkpRayCollidableFilter(hk):
     alignment = 8
     byte_size = 8
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 57
     __abstract_value = 147
@@ -808,7 +811,7 @@ class hkpRayCollidableFilter(hk):
 class hkpCollisionFilterhkpFilterType(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 33284
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "hkpCollisionFilter::hkpFilterType"
@@ -818,16 +821,16 @@ class hkpCollisionFilterhkpFilterType(hk):
 class hkpAction(hkReferencedObject):
     alignment = 8
     byte_size = 48
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 57
     __abstract_value = 3
 
     local_members = (
-        Member(16, "world", Ptr(hkReflectDetailOpaque), flags=37),
-        Member(24, "island", Ptr(hkReflectDetailOpaque), flags=37),
-        Member(32, "userData", hkUlong, flags=34),
-        Member(40, "name", hkStringPtr, flags=34),
+        Member(16, "world", Ptr(hkReflectDetailOpaque), MemberFlags.NotSerializable | MemberFlags.Private),
+        Member(24, "island", Ptr(hkReflectDetailOpaque), MemberFlags.NotSerializable | MemberFlags.Private),
+        Member(32, "userData", hkUlong, MemberFlags.Protected),
+        Member(40, "name", hkStringPtr, MemberFlags.Protected),
     )
     members = hkReferencedObject.members + local_members
 
@@ -840,14 +843,14 @@ class hkpAction(hkReferencedObject):
 class hkpConstraintInstanceSmallArraySerializeOverrideType(hk):
     alignment = 8
     byte_size = 16
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 1
     __real_name = "hkpConstraintInstance::SmallArraySerializeOverrideType"
 
     local_members = (
-        Member(0, "data", Ptr(_void), flags=33),
+        Member(0, "data", Ptr(_void), MemberFlags.NotSerializable),
         Member(8, "size", hkUint16),
         Member(10, "capacityAndFlags", hkUint16),
     )
@@ -861,14 +864,14 @@ class hkpConstraintInstanceSmallArraySerializeOverrideType(hk):
 class hkpEntitySmallArraySerializeOverrideType(hk):
     alignment = 8
     byte_size = 16
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 1
     __real_name = "hkpEntity::SmallArraySerializeOverrideType"
 
     local_members = (
-        Member(0, "data", Ptr(_void), flags=33),
+        Member(0, "data", Ptr(_void), MemberFlags.NotSerializable),
         Member(8, "size", hkUint16),
         Member(10, "capacityAndFlags", hkUint16),
     )
@@ -882,14 +885,14 @@ class hkpEntitySmallArraySerializeOverrideType(hk):
 class hkpEntitySpuCollisionCallback(hk):
     alignment = 8
     byte_size = 16
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     __real_name = "hkpEntity::SpuCollisionCallback"
 
     local_members = (
-        Member(0, "util", Ptr(hkReflectDetailOpaque), flags=33),
-        Member(8, "capacity", hkUint16, flags=33),
+        Member(0, "util", Ptr(hkReflectDetailOpaque), MemberFlags.NotSerializable),
+        Member(8, "capacity", hkUint16, MemberFlags.NotSerializable),
         Member(10, "eventFilter", hkUint8),
         Member(11, "userFilter", hkUint8),
     )
@@ -904,7 +907,7 @@ class hkpEntitySpuCollisionCallback(hk):
 class hkpConstraintData(hkReferencedObject):
     alignment = 8
     byte_size = 24
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 57
     __abstract_value = 3
@@ -920,7 +923,7 @@ class hkpConstraintData(hkReferencedObject):
 class hkpConstraintInstanceConstraintPriority(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 33284
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "hkpConstraintInstance::ConstraintPriority"
@@ -930,7 +933,7 @@ class hkpConstraintInstanceConstraintPriority(hk):
 class hkpConstraintInstanceOnDestructionRemapInfo(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 33284
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "hkpConstraintInstance::OnDestructionRemapInfo"
@@ -940,15 +943,15 @@ class hkpConstraintInstanceOnDestructionRemapInfo(hk):
 class hkMultiThreadCheck(hk):
     alignment = 4
     byte_size = 12
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
 
     local_members = (
-        Member(0, "threadId", hkUint32, flags=33),
-        Member(4, "stackTraceId", _int, flags=33),
-        Member(8, "markCount", hkUint16, flags=33),
-        Member(10, "markBitStack", hkUint16, flags=35),
+        Member(0, "threadId", hkUint32, MemberFlags.NotSerializable),
+        Member(4, "stackTraceId", _int, MemberFlags.NotSerializable),
+        Member(8, "markCount", hkUint16, MemberFlags.NotSerializable),
+        Member(10, "markBitStack", hkUint16, MemberFlags.NotSerializable | MemberFlags.Protected),
     )
     members = local_members
 
@@ -961,12 +964,12 @@ class hkMultiThreadCheck(hk):
 class hkHalf16(hk):
     alignment = 2
     byte_size = 2
-    tag_type_flags = 476677
+    tag_type_flags = TagDataType.Float | TagDataType.Float16
 
     __tag_format_flags = 41
 
     local_members = (
-        Member(0, "value", hkInt16, flags=36),
+        Member(0, "value", hkInt16, MemberFlags.Private),
     )
     members = local_members
 
@@ -976,14 +979,14 @@ class hkHalf16(hk):
 class hkpEntityExtendedListeners(hk):
     alignment = 8
     byte_size = 32
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     __real_name = "hkpEntity::ExtendedListeners"
 
     local_members = (
-        Member(0, "activationListeners", hkpEntitySmallArraySerializeOverrideType, flags=33),
-        Member(16, "entityListeners", hkpEntitySmallArraySerializeOverrideType, flags=33),
+        Member(0, "activationListeners", hkpEntitySmallArraySerializeOverrideType, MemberFlags.NotSerializable),
+        Member(16, "entityListeners", hkpEntitySmallArraySerializeOverrideType, MemberFlags.NotSerializable),
     )
     members = local_members
 
@@ -994,7 +997,7 @@ class hkpEntityExtendedListeners(hk):
 class hkpMaterialResponseType(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 33284
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "hkpMaterial::ResponseType"
@@ -1004,7 +1007,7 @@ class hkpMaterialResponseType(hk):
 class hkpCollidableBoundingVolumeData(hk):
     alignment = 8
     byte_size = 56
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 1
@@ -1016,11 +1019,11 @@ class hkpCollidableBoundingVolumeData(hk):
         Member(15, "expansionShift", hkUint8),
         Member(16, "max", hkGenericStruct(hkUint32, 3)),
         Member(28, "expansionMax", hkGenericStruct(hkUint8, 3)),
-        Member(31, "padding", hkUint8, flags=33),
-        Member(32, "numChildShapeAabbs", hkUint16, flags=33),
-        Member(34, "capacityChildShapeAabbs", hkUint16, flags=33),
-        Member(40, "childShapeAabbs", Ptr(hkReflectDetailOpaque), flags=33),
-        Member(48, "childShapeKeys", Ptr(hkReflectDetailOpaque), flags=33),
+        Member(31, "padding", hkUint8, MemberFlags.NotSerializable),
+        Member(32, "numChildShapeAabbs", hkUint16, MemberFlags.NotSerializable),
+        Member(34, "capacityChildShapeAabbs", hkUint16, MemberFlags.NotSerializable),
+        Member(40, "childShapeAabbs", Ptr(hkReflectDetailOpaque), MemberFlags.NotSerializable),
+        Member(48, "childShapeKeys", Ptr(hkReflectDetailOpaque), MemberFlags.NotSerializable),
     )
     members = local_members
 
@@ -1039,7 +1042,7 @@ class hkpCollidableBoundingVolumeData(hk):
 class hkSimplePropertyValue(hk):
     alignment = 8
     byte_size = 8
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 1
@@ -1055,7 +1058,7 @@ class hkSimplePropertyValue(hk):
 class hkpConstraintAtomAtomType(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 33284
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "hkpConstraintAtom::AtomType"
@@ -1065,12 +1068,12 @@ class hkpConstraintAtomAtomType(hk):
 class hkpBroadPhaseHandle(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
 
     local_members = (
-        Member(0, "id", hkUint32, flags=33),
+        Member(0, "id", hkUint32, MemberFlags.NotSerializable),
     )
     members = local_members
 
@@ -1080,7 +1083,7 @@ class hkpBroadPhaseHandle(hk):
 class hkpMotionMotionType(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 33284
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "hkpMotion::MotionType"
@@ -1090,7 +1093,7 @@ class hkpMotionMotionType(hk):
 class hkUFloat8(hk):
     alignment = 1
     byte_size = 1
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
 
@@ -1105,7 +1108,7 @@ class hkUFloat8(hk):
 class hkcdShapeTypeShapeTypeEnum(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 33284
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "hkcdShapeType::ShapeTypeEnum"
@@ -1115,7 +1118,7 @@ class hkcdShapeTypeShapeTypeEnum(hk):
 class hkcdShapeDispatchTypeShapeDispatchTypeEnum(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 33284
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "hkcdShapeDispatchType::ShapeDispatchTypeEnum"
@@ -1125,7 +1128,7 @@ class hkcdShapeDispatchTypeShapeDispatchTypeEnum(hk):
 class hkcdShapeInfoCodecTypeShapeInfoCodecTypeEnum(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 33284
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "hkcdShapeInfoCodecType::ShapeInfoCodecTypeEnum"
@@ -1135,7 +1138,7 @@ class hkcdShapeInfoCodecTypeShapeInfoCodecTypeEnum(hk):
 class hkaSkeletonMapperDataPartitionMappingRange(hk):
     alignment = 4
     byte_size = 8
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     __real_name = "hkaSkeletonMapperData::PartitionMappingRange"
@@ -1153,7 +1156,7 @@ class hkaSkeletonMapperDataPartitionMappingRange(hk):
 class hkaSkeletonMapperDataSimpleMapping(hk):
     alignment = 16
     byte_size = 64
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __hsh = 483849271
@@ -1175,7 +1178,7 @@ class hkaSkeletonMapperDataSimpleMapping(hk):
 class hkaSkeletonMapperDataChainMapping(hk):
     alignment = 16
     byte_size = 112
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __hsh = 1095861039
@@ -1203,7 +1206,7 @@ class hkaSkeletonMapperDataChainMapping(hk):
 class hkaSkeletonMapperDataMappingType(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 33284
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "hkaSkeletonMapperData::MappingType"
@@ -1213,7 +1216,7 @@ class hkaSkeletonMapperDataMappingType(hk):
 class hkpConeLimitConstraintAtomMeasurementMode(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 33284
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "hkpConeLimitConstraintAtom::MeasurementMode"
@@ -1223,7 +1226,7 @@ class hkpConeLimitConstraintAtomMeasurementMode(hk):
 class hkpConstraintAtomSolvingMethod(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 33284
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "hkpConstraintAtom::SolvingMethod"
@@ -1233,7 +1236,7 @@ class hkpConstraintAtomSolvingMethod(hk):
 class hkpConstraintMotorMotorType(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = 33284
+    tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
     __real_name = "hkpConstraintMotor::MotorType"
@@ -1243,7 +1246,7 @@ class hkpConstraintMotorMotorType(hk):
 class hkRootLevelContainerNamedVariant(hk):
     alignment = 8
     byte_size = 24
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __hsh = 3786125824
@@ -1251,9 +1254,9 @@ class hkRootLevelContainerNamedVariant(hk):
     __real_name = "hkRootLevelContainer::NamedVariant"
 
     local_members = (
-        Member(0, "name", hkStringPtr, flags=36),
-        Member(8, "className", hkStringPtr, flags=36),
-        Member(16, "variant", hkRefVariant(hkReferencedObject, hsh=2872857893), flags=36),
+        Member(0, "name", hkStringPtr, MemberFlags.Private),
+        Member(8, "className", hkStringPtr, MemberFlags.Private),
+        Member(16, "variant", hkRefVariant(hkReferencedObject, hsh=2872857893), MemberFlags.Private),
     )
     members = local_members
 
@@ -1265,10 +1268,9 @@ class hkRootLevelContainerNamedVariant(hk):
 class hkaBone(hk):
     alignment = 8
     byte_size = 16
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
-    __hsh = 3855471743
 
     local_members = (
         Member(0, "name", hkStringPtr),
@@ -1283,7 +1285,7 @@ class hkaBone(hk):
 class hkaSkeletonLocalFrameOnBone(hk):
     alignment = 8
     byte_size = 16
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     __real_name = "hkaSkeleton::LocalFrameOnBone"
@@ -1301,13 +1303,18 @@ class hkaSkeletonLocalFrameOnBone(hk):
 class hkaAnimatedReferenceFrame(hkReferencedObject):
     alignment = 8
     byte_size = 24
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 57
     __abstract_value = 3
 
     local_members = (
-        Member(16, "frameType", hkEnum(hkaAnimatedReferenceFramehkaReferenceFrameTypeEnum, hkInt8), flags=33),
+        Member(
+            16,
+            "frameType",
+            hkEnum(hkaAnimatedReferenceFramehkaReferenceFrameTypeEnum, hkInt8),
+            MemberFlags.NotSerializable,
+        ),
     )
     members = hkReferencedObject.members + local_members
 
@@ -1317,9 +1324,10 @@ class hkaAnimatedReferenceFrame(hkReferencedObject):
 class hkaAnnotationTrack(hk):
     alignment = 8
     byte_size = 24
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
+    __hsh = 826888163
 
     local_members = (
         Member(0, "trackName", hkStringPtr),
@@ -1334,7 +1342,7 @@ class hkaAnnotationTrack(hk):
 class hkxIndexBuffer(hkReferencedObject):
     alignment = 8
     byte_size = 64
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 1
@@ -1342,7 +1350,7 @@ class hkxIndexBuffer(hkReferencedObject):
     local_members = (
         Member(16, "indexType", hkEnum(hkxIndexBufferIndexType, hkInt8)),
         Member(24, "indices16", hkArray(hkUint16)),
-        Member(40, "indices32", hkArray(hkUint32)),
+        Member(40, "indices32", hkArray(hkUint32, hsh=4255738572)),
         Member(56, "vertexBaseOffset", hkUint32),
         Member(60, "length", hkUint32),
     )
@@ -1358,7 +1366,7 @@ class hkxIndexBuffer(hkReferencedObject):
 class hkxAttributeGroup(hk):
     alignment = 8
     byte_size = 24
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
 
@@ -1375,7 +1383,7 @@ class hkxAttributeGroup(hk):
 class hkxMaterialTextureStage(hk):
     alignment = 8
     byte_size = 16
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 1
@@ -1396,7 +1404,7 @@ class hkxMaterialTextureStage(hk):
 class hkxVertexDescriptionElementDecl(hk):
     alignment = 8
     byte_size = 24
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 4
@@ -1423,7 +1431,7 @@ class hkxVertexDescriptionElementDecl(hk):
 class hkxVertexAnimationUsageMap(hk):
     alignment = 2
     byte_size = 4
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     __real_name = "hkxVertexAnimation::UsageMap"
@@ -1443,7 +1451,7 @@ class hkxVertexAnimationUsageMap(hk):
 class hkpCollisionFilter(hkReferencedObject):
     alignment = 8
     byte_size = 72
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 121
     __abstract_value = 3
@@ -1470,16 +1478,16 @@ class hkpCollisionFilter(hkReferencedObject):
 class hkpMaterial(hk):
     alignment = 4
     byte_size = 12
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 2
 
     local_members = (
-        Member(0, "responseType", hkEnum(hkpMaterialResponseType, hkInt8), flags=36),
-        Member(2, "rollingFrictionMultiplier", hkHalf16, flags=36),
-        Member(4, "friction", hkReal, flags=36),
-        Member(8, "restitution", hkReal, flags=36),
+        Member(0, "responseType", hkEnum(hkpMaterialResponseType, hkInt8), MemberFlags.Private),
+        Member(2, "rollingFrictionMultiplier", hkHalf16, MemberFlags.Private),
+        Member(4, "friction", hkReal, MemberFlags.Private),
+        Member(8, "restitution", hkReal, MemberFlags.Private),
     )
     members = local_members
 
@@ -1492,7 +1500,7 @@ class hkpMaterial(hk):
 class hkpConstraintAtom(hk):
     alignment = 61456
     byte_size = 16
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
 
@@ -1507,14 +1515,14 @@ class hkpConstraintAtom(hk):
 class hkSimpleProperty(hk):
     alignment = 8
     byte_size = 16
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 2
 
     local_members = (
         Member(0, "key", hkUint32),
-        Member(4, "alignmentPadding", hkUint32, flags=33),
+        Member(4, "alignmentPadding", hkUint32, MemberFlags.NotSerializable),
         Member(8, "value", hkSimplePropertyValue),
     )
     members = local_members
@@ -1527,13 +1535,13 @@ class hkSimpleProperty(hk):
 class hkpTypedBroadPhaseHandle(hkpBroadPhaseHandle):
     alignment = 4
     byte_size = 12
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
 
     local_members = (
-        Member(4, "type", hkInt8, flags=34),
-        Member(5, "ownerOffset", hkInt8, flags=35),
+        Member(4, "type", hkInt8, MemberFlags.Protected),
+        Member(5, "ownerOffset", hkInt8, MemberFlags.NotSerializable | MemberFlags.Protected),
         Member(6, "objectQualityType", hkInt8),
         Member(8, "collisionFilterInfo", hkUint32),
     )
@@ -1548,14 +1556,14 @@ class hkpTypedBroadPhaseHandle(hkpBroadPhaseHandle):
 class hkMotionState(hk):
     alignment = 16
     byte_size = 176
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 3
 
     local_members = (
-        Member(0, "transform", hkTransform, flags=34),
-        Member(64, "sweptTransform", hkGenericStruct(hkVector4f, 5), flags=34),
+        Member(0, "transform", hkTransform, MemberFlags.Protected),
+        Member(64, "sweptTransform", hkGenericStruct(hkVector4f, 5), MemberFlags.Protected),
         Member(144, "deltaAngle", hkVector4),
         Member(160, "objectRadius", hkReal),
         Member(164, "linearDamping", hkHalf16),
@@ -1582,12 +1590,12 @@ class hkMotionState(hk):
 class hkcdShape(hkReferencedObject):
     alignment = 8
     byte_size = 24
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
 
     local_members = (
-        Member(16, "type", hkEnum(hkcdShapeTypeShapeTypeEnum, hkUint8), flags=33),
+        Member(16, "type", hkEnum(hkcdShapeTypeShapeTypeEnum, hkUint8), MemberFlags.NotSerializable),
         Member(17, "dispatchType", hkEnum(hkcdShapeDispatchTypeShapeDispatchTypeEnum, hkUint8)),
         Member(18, "bitsPerKey", hkUint8),
         Member(19, "shapeInfoCodecType", hkEnum(hkcdShapeInfoCodecTypeShapeInfoCodecTypeEnum, hkUint8)),
@@ -1603,7 +1611,7 @@ class hkcdShape(hkReferencedObject):
 class hkpSetLocalTransformsConstraintAtom(hkpConstraintAtom):
     alignment = 16
     byte_size = 144
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
 
@@ -1620,7 +1628,7 @@ class hkpSetLocalTransformsConstraintAtom(hkpConstraintAtom):
 class hkpSetupStabilizationAtom(hkpConstraintAtom):
     alignment = 16
     byte_size = 16
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 3
@@ -1642,7 +1650,7 @@ class hkpSetupStabilizationAtom(hkpConstraintAtom):
 class hkpAngFrictionConstraintAtom(hkpConstraintAtom):
     alignment = 16
     byte_size = 16
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
 
@@ -1663,7 +1671,7 @@ class hkpAngFrictionConstraintAtom(hkpConstraintAtom):
 class hkpTwistLimitConstraintAtom(hkpConstraintAtom):
     alignment = 16
     byte_size = 32
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 1
@@ -1691,7 +1699,7 @@ class hkpTwistLimitConstraintAtom(hkpConstraintAtom):
 class hkpConeLimitConstraintAtom(hkpConstraintAtom):
     alignment = 16
     byte_size = 32
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 1
@@ -1723,7 +1731,7 @@ class hkpConeLimitConstraintAtom(hkpConstraintAtom):
 class hkpBallSocketConstraintAtom(hkpConstraintAtom):
     alignment = 16
     byte_size = 16
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 5
@@ -1731,10 +1739,10 @@ class hkpBallSocketConstraintAtom(hkpConstraintAtom):
     local_members = (
         Member(2, "solvingMethod", hkEnum(hkpConstraintAtomSolvingMethod, hkUint8)),
         Member(3, "bodiesToNotify", hkUint8),
-        Member(4, "velocityStabilizationFactor", hkUFloat8, flags=34),
+        Member(4, "velocityStabilizationFactor", hkUFloat8, MemberFlags.Protected),
         Member(5, "enableLinearImpulseLimit", hkBool),
         Member(8, "breachImpulse", hkReal),
-        Member(12, "inertiaStabilizationFactor", hkReal, flags=34),
+        Member(12, "inertiaStabilizationFactor", hkReal, MemberFlags.Protected),
     )
     members = hkpConstraintAtom.members + local_members
 
@@ -1749,7 +1757,7 @@ class hkpBallSocketConstraintAtom(hkpConstraintAtom):
 class hkpConstraintMotor(hkReferencedObject):
     alignment = 8
     byte_size = 24
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 57
     __abstract_value = 3
@@ -1765,7 +1773,7 @@ class hkpConstraintMotor(hkReferencedObject):
 class hkpLimitedForceConstraintMotor(hkpConstraintMotor):
     alignment = 8
     byte_size = 32
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 57
     __abstract_value = 3
@@ -1783,7 +1791,7 @@ class hkpLimitedForceConstraintMotor(hkpConstraintMotor):
 class hkaDefaultAnimatedReferenceFrame(hkaAnimatedReferenceFrame):
     alignment = 16
     byte_size = 96
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     __hsh = 2816999057
@@ -1805,7 +1813,7 @@ class hkaDefaultAnimatedReferenceFrame(hkaAnimatedReferenceFrame):
 class hkRootLevelContainer(hk):
     alignment = 8
     byte_size = 16
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     __hsh = 2517046881
@@ -1821,17 +1829,16 @@ class hkRootLevelContainer(hk):
 class hkaSkeleton(hkReferencedObject):
     alignment = 8
     byte_size = 136
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
-    __hsh = 390835893
     __version = 6
 
     local_members = (
         Member(16, "name", hkStringPtr),
         Member(24, "parentIndices", hkArray(hkInt16, hsh=2354433887)),
-        Member(40, "bones", hkArray(hkaBone, hsh=1864192719)),
-        Member(56, "referencePose", hkArray(hkQsTransform, hsh=1618709037)),
+        Member(40, "bones", hkArray(hkaBone)),
+        Member(56, "referencePose", hkArray(hkQsTransform)),
         Member(72, "referenceFloats", hkArray(hkReal)),
         Member(88, "floatSlots", hkArray(hkStringPtr)),
         Member(104, "localFrames", hkArray(hkaSkeletonLocalFrameOnBone)),
@@ -1852,19 +1859,24 @@ class hkaSkeleton(hkReferencedObject):
 class hkaAnimation(hkReferencedObject):
     alignment = 8
     byte_size = 56
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 61
     __abstract_value = 3
     __version = 3
 
     local_members = (
-        Member(16, "type", hkEnum(hkaAnimationAnimationType, hkInt32), flags=34),
+        Member(16, "type", hkEnum(hkaAnimationAnimationType, hkInt32), MemberFlags.Protected),
         Member(20, "duration", hkReal),
         Member(24, "numberOfTransformTracks", _int),
         Member(28, "numberOfFloatTracks", _int),
-        Member(32, "extractedMotion", hkRefPtr(hkaAnimatedReferenceFrame), flags=34),
-        Member(40, "annotationTracks", hkArray(hkaAnnotationTrack)),
+        Member(
+            32,
+            "extractedMotion",
+            hkRefPtr(hkaAnimatedReferenceFrame, hsh=686995507),
+            MemberFlags.Protected,
+        ),
+        Member(40, "annotationTracks", hkArray(hkaAnnotationTrack, hsh=409807455)),
     )
     members = hkReferencedObject.members + local_members
 
@@ -1879,14 +1891,15 @@ class hkaAnimation(hkReferencedObject):
 class hkaAnimationBinding(hkReferencedObject):
     alignment = 8
     byte_size = 88
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
+    __hsh = 1548920428
     __version = 3
 
     local_members = (
         Member(16, "originalSkeletonName", hkStringPtr),
-        Member(24, "animation", hkRefPtr(hkaAnimation)),
+        Member(24, "animation", hkRefPtr(hkaAnimation, hsh=835592334)),
         Member(32, "transformTrackToBoneIndices", hkArray(hkInt16, hsh=2354433887)),
         Member(48, "floatTrackToFloatSlotIndices", hkArray(hkInt16, hsh=2354433887)),
         Member(64, "partitionIndices", hkArray(hkInt16, hsh=2354433887)),
@@ -1905,7 +1918,7 @@ class hkaAnimationBinding(hkReferencedObject):
 class hkxAttributeHolder(hkReferencedObject):
     alignment = 8
     byte_size = 32
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 2
@@ -1921,7 +1934,7 @@ class hkxAttributeHolder(hkReferencedObject):
 class hkxMaterial(hkxAttributeHolder):
     alignment = 16
     byte_size = 224
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 5
@@ -1943,7 +1956,7 @@ class hkxMaterial(hkxAttributeHolder):
         Member(180, "specularExponent", hkReal),
         Member(184, "transparency", hkEnum(hkxMaterialTransparency, hkUint8)),
         Member(192, "userData", hkUlong),
-        Member(200, "properties", hkArray(hkxMaterialProperty), flags=34),
+        Member(200, "properties", hkArray(hkxMaterialProperty), MemberFlags.Protected),
     )
     members = hkxAttributeHolder.members + local_members
 
@@ -1969,7 +1982,7 @@ class hkxMaterial(hkxAttributeHolder):
 class hkxVertexDescription(hk):
     alignment = 8
     byte_size = 16
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 1
@@ -1985,7 +1998,7 @@ class hkxVertexDescription(hk):
 class hkpWorldCinfo(hkReferencedObject):
     alignment = 16
     byte_size = 256
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 18
@@ -2107,7 +2120,7 @@ class hkpWorldCinfo(hkReferencedObject):
 class hkpModifierConstraintAtom(hkpConstraintAtom):
     alignment = 16
     byte_size = 48
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 1
@@ -2116,7 +2129,7 @@ class hkpModifierConstraintAtom(hkpConstraintAtom):
         Member(16, "modifierAtomSize", hkUint16),
         Member(18, "childSize", hkUint16),
         Member(24, "child", Ptr(hkpConstraintAtom)),
-        Member(32, "pad", hkGenericStruct(hkUint32, 2), flags=33),
+        Member(32, "pad", hkGenericStruct(hkUint32, 2), MemberFlags.NotSerializable),
     )
     members = hkpConstraintAtom.members + local_members
 
@@ -2129,7 +2142,7 @@ class hkpModifierConstraintAtom(hkpConstraintAtom):
 class hkpMotion(hkReferencedObject):
     alignment = 16
     byte_size = 320
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 61
     __abstract_value = 3
@@ -2168,7 +2181,7 @@ class hkpMotion(hkReferencedObject):
 class hkpShapeBase(hkcdShape):
     alignment = 8
     byte_size = 24
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     local_members = ()
@@ -2177,7 +2190,7 @@ class hkpShapeBase(hkcdShape):
 class hkaSkeletonMapperData(hk):
     alignment = 16
     byte_size = 176
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 3
@@ -2213,15 +2226,15 @@ class hkaSkeletonMapperData(hk):
 class hkpRagdollMotorConstraintAtom(hkpConstraintAtom):
     alignment = 16
     byte_size = 96
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 1
 
     local_members = (
         Member(2, "isEnabled", hkBool),
-        Member(4, "initializedOffset", hkInt16, flags=33),
-        Member(6, "previousTargetAnglesOffset", hkInt16, flags=33),
+        Member(4, "initializedOffset", hkInt16, MemberFlags.NotSerializable),
+        Member(6, "previousTargetAnglesOffset", hkInt16, MemberFlags.NotSerializable),
         Member(16, "target_bRca", hkMatrix3),
         Member(64, "motors", hkGenericStruct(Ptr(hkpConstraintMotor, hsh=1039430764), 3)),
     )
@@ -2237,7 +2250,7 @@ class hkpRagdollMotorConstraintAtom(hkpConstraintAtom):
 class hkpPositionConstraintMotor(hkpLimitedForceConstraintMotor):
     alignment = 8
     byte_size = 48
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     __hsh = 1057998472
@@ -2259,25 +2272,25 @@ class hkpPositionConstraintMotor(hkpLimitedForceConstraintMotor):
 class hkaSplineCompressedAnimation(hkaAnimation):
     alignment = 8
     byte_size = 176
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     __hsh = 469459246
 
     local_members = (
-        Member(56, "numFrames", _int, flags=36),
-        Member(60, "numBlocks", _int, flags=36),
-        Member(64, "maxFramesPerBlock", _int, flags=36),
-        Member(68, "maskAndQuantizationSize", _int, flags=36),
-        Member(72, "blockDuration", hkReal, flags=36),
-        Member(76, "blockInverseDuration", hkReal, flags=36),
-        Member(80, "frameDuration", hkReal, flags=36),
-        Member(88, "blockOffsets", hkArray(hkUint32, hsh=4255738572), flags=36),
-        Member(104, "floatBlockOffsets", hkArray(hkUint32, hsh=4255738572), flags=36),
-        Member(120, "transformOffsets", hkArray(hkUint32, hsh=4255738572), flags=36),
-        Member(136, "floatOffsets", hkArray(hkUint32, hsh=4255738572), flags=36),
-        Member(152, "data", hkArray(hkUint8, hsh=2877151166), flags=36),
-        Member(168, "endian", _int, flags=36),
+        Member(56, "numFrames", _int, MemberFlags.Private),
+        Member(60, "numBlocks", _int, MemberFlags.Private),
+        Member(64, "maxFramesPerBlock", _int, MemberFlags.Private),
+        Member(68, "maskAndQuantizationSize", _int, MemberFlags.Private),
+        Member(72, "blockDuration", hkReal, MemberFlags.Private),
+        Member(76, "blockInverseDuration", hkReal, MemberFlags.Private),
+        Member(80, "frameDuration", hkReal, MemberFlags.Private),
+        Member(88, "blockOffsets", hkArray(hkUint32, hsh=4255738572), MemberFlags.Private),
+        Member(104, "floatBlockOffsets", hkArray(hkUint32, hsh=4255738572), MemberFlags.Private),
+        Member(120, "transformOffsets", hkArray(hkUint32, hsh=4255738572), MemberFlags.Private),
+        Member(136, "floatOffsets", hkArray(hkUint32, hsh=4255738572), MemberFlags.Private),
+        Member(152, "data", hkArray(hkUint8, hsh=2877151166), MemberFlags.Private),
+        Member(168, "endian", _int, MemberFlags.Private),
     )
     members = hkaAnimation.members + local_members
 
@@ -2299,7 +2312,7 @@ class hkaSplineCompressedAnimation(hkaAnimation):
 class hkxMeshUserChannelInfo(hkxAttributeHolder):
     alignment = 8
     byte_size = 48
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     __real_name = "hkxMesh::UserChannelInfo"
@@ -2317,14 +2330,14 @@ class hkxMeshUserChannelInfo(hkxAttributeHolder):
 class hkxVertexBuffer(hkReferencedObject):
     alignment = 8
     byte_size = 136
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 1
 
     local_members = (
-        Member(16, "data", hkxVertexBufferVertexData, flags=34),
-        Member(120, "desc", hkxVertexDescription, flags=34),
+        Member(16, "data", hkxVertexBufferVertexData, MemberFlags.Protected),
+        Member(120, "desc", hkxVertexDescription, MemberFlags.Protected),
     )
     members = hkReferencedObject.members + local_members
 
@@ -2335,7 +2348,7 @@ class hkxVertexBuffer(hkReferencedObject):
 class hkxVertexAnimation(hkReferencedObject):
     alignment = 8
     byte_size = 192
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 0
@@ -2357,7 +2370,7 @@ class hkxVertexAnimation(hkReferencedObject):
 class hkpKeyframedRigidMotion(hkpMotion):
     alignment = 16
     byte_size = 320
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     local_members = ()
@@ -2366,7 +2379,7 @@ class hkpKeyframedRigidMotion(hkpMotion):
 class hkpShape(hkpShapeBase):
     alignment = 8
     byte_size = 32
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 1
@@ -2382,7 +2395,7 @@ class hkpShape(hkpShapeBase):
 class hkaSkeletonMapper(hkReferencedObject):
     alignment = 16
     byte_size = 192
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     __hsh = 2757630080
@@ -2398,7 +2411,7 @@ class hkaSkeletonMapper(hkReferencedObject):
 class hkpSphereRepShape(hkpShape):
     alignment = 8
     byte_size = 32
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     local_members = ()
@@ -2407,7 +2420,7 @@ class hkpSphereRepShape(hkpShape):
 class hkpRagdollConstraintDataAtoms(hk):
     alignment = 16
     byte_size = 384
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 1
@@ -2438,7 +2451,7 @@ class hkpRagdollConstraintDataAtoms(hk):
 class hkxMeshSection(hkReferencedObject):
     alignment = 8
     byte_size = 112
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 5
@@ -2466,7 +2479,7 @@ class hkxMeshSection(hkReferencedObject):
 class hkpMaxSizeMotion(hkpKeyframedRigidMotion):
     alignment = 16
     byte_size = 320
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     local_members = ()
@@ -2475,7 +2488,7 @@ class hkpMaxSizeMotion(hkpKeyframedRigidMotion):
 class hkpCdBody(hk):
     alignment = 8
     byte_size = 32
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 2
@@ -2483,8 +2496,8 @@ class hkpCdBody(hk):
     local_members = (
         Member(0, "shape", Ptr(hkpShape, hsh=1200505464)),
         Member(8, "shapeKey", _unsigned_int),
-        Member(16, "motion", Ptr(hkReflectDetailOpaque), flags=37),
-        Member(24, "parent", Ptr(DefType("hkpCdBody", lambda: hkpCdBody)), flags=33),
+        Member(16, "motion", Ptr(hkReflectDetailOpaque), MemberFlags.NotSerializable | MemberFlags.Private),
+        Member(24, "parent", Ptr(DefType("hkpCdBody", lambda: hkpCdBody)), MemberFlags.NotSerializable),
     )
     members = local_members
 
@@ -2497,13 +2510,13 @@ class hkpCdBody(hk):
 class hkpConvexShape(hkpSphereRepShape):
     alignment = 8
     byte_size = 40
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 57
     __abstract_value = 3
 
     local_members = (
-        Member(32, "radius", hkReal, flags=34),
+        Member(32, "radius", hkReal, MemberFlags.Protected),
     )
     members = hkpSphereRepShape.members + local_members
 
@@ -2513,7 +2526,7 @@ class hkpConvexShape(hkpSphereRepShape):
 class hkpRagdollConstraintData(hkpConstraintData):
     alignment = 16
     byte_size = 416
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     __hsh = 1832134166
@@ -2529,7 +2542,7 @@ class hkpRagdollConstraintData(hkpConstraintData):
 class hkxMesh(hkReferencedObject):
     alignment = 8
     byte_size = 48
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 1
@@ -2547,17 +2560,17 @@ class hkxMesh(hkReferencedObject):
 class hkpCollidable(hkpCdBody):
     alignment = 8
     byte_size = 112
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 2
 
     local_members = (
-        Member(32, "ownerOffset", hkInt8, flags=35),
+        Member(32, "ownerOffset", hkInt8, MemberFlags.NotSerializable | MemberFlags.Protected),
         Member(33, "forceCollideOntoPpu", hkUint8),
-        Member(34, "shapeSizeOnSpu", hkUint16, flags=33),
+        Member(34, "shapeSizeOnSpu", hkUint16, MemberFlags.NotSerializable),
         Member(36, "broadPhaseHandle", hkpTypedBroadPhaseHandle),
-        Member(48, "boundingVolumeData", hkpCollidableBoundingVolumeData, flags=33),
+        Member(48, "boundingVolumeData", hkpCollidableBoundingVolumeData, MemberFlags.NotSerializable),
         Member(104, "allowedPenetrationDepth", hkReal),
     )
     members = hkpCdBody.members + local_members
@@ -2573,14 +2586,14 @@ class hkpCollidable(hkpCdBody):
 class hkpCapsuleShape(hkpConvexShape):
     alignment = 16
     byte_size = 80
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     __hsh = 276111070
 
     local_members = (
-        Member(48, "vertexA", hkVector4, flags=34),
-        Member(64, "vertexB", hkVector4, flags=34),
+        Member(48, "vertexA", hkVector4, MemberFlags.Protected),
+        Member(64, "vertexB", hkVector4, MemberFlags.Protected),
     )
     members = hkpConvexShape.members + local_members
 
@@ -2591,7 +2604,7 @@ class hkpCapsuleShape(hkpConvexShape):
 class hkaMeshBinding(hkReferencedObject):
     alignment = 8
     byte_size = 80
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 3
@@ -2600,7 +2613,7 @@ class hkaMeshBinding(hkReferencedObject):
         Member(16, "mesh", hkRefPtr(hkxMesh)),
         Member(24, "originalSkeletonName", hkStringPtr),
         Member(32, "name", hkStringPtr),
-        Member(40, "skeleton", hkRefPtr(hkaSkeleton, hsh=1149764379)),
+        Member(40, "skeleton", hkRefPtr(hkaSkeleton)),
         Member(48, "mappings", hkArray(hkaMeshBindingMapping)),
         Member(64, "boneFromSkinMeshTransforms", hkArray(hkTransform)),
     )
@@ -2617,12 +2630,17 @@ class hkaMeshBinding(hkReferencedObject):
 class hkpLinkedCollidable(hkpCollidable):
     alignment = 8
     byte_size = 128
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
 
     local_members = (
-        Member(112, "collisionEntries", hkArray(hkReflectDetailOpaque), flags=35),
+        Member(
+            112,
+            "collisionEntries",
+            hkArray(hkReflectDetailOpaque),
+            MemberFlags.NotSerializable | MemberFlags.Protected,
+        ),
     )
     members = hkpCollidable.members + local_members
 
@@ -2632,16 +2650,16 @@ class hkpLinkedCollidable(hkpCollidable):
 class hkaAnimationContainer(hkReferencedObject):
     alignment = 8
     byte_size = 96
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __hsh = 3294833177
     __version = 1
 
     local_members = (
-        Member(16, "skeletons", hkArray(hkRefPtr(hkaSkeleton, hsh=1149764379), hsh=343024117)),
-        Member(32, "animations", hkArray(hkRefPtr(hkaAnimation))),
-        Member(48, "bindings", hkArray(hkRefPtr(hkaAnimationBinding))),
+        Member(16, "skeletons", hkArray(hkRefPtr(hkaSkeleton))),
+        Member(32, "animations", hkArray(hkRefPtr(hkaAnimation, hsh=835592334), hsh=2995419249)),
+        Member(48, "bindings", hkArray(hkRefPtr(hkaAnimationBinding, hsh=2009438005), hsh=2651098392)),
         Member(64, "attachments", hkArray(hkRefPtr(hkaBoneAttachment))),
         Member(80, "skins", hkArray(hkRefPtr(hkaMeshBinding))),
     )
@@ -2657,17 +2675,17 @@ class hkaAnimationContainer(hkReferencedObject):
 class hkpWorldObject(hkReferencedObject):
     alignment = 8
     byte_size = 200
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 57
     __abstract_value = 3
 
     local_members = (
-        Member(16, "world", Ptr(hkReflectDetailOpaque), flags=35),
-        Member(24, "userData", hkUlong, flags=34),
-        Member(32, "collidable", hkpLinkedCollidable, flags=34),
-        Member(160, "multiThreadCheck", hkMultiThreadCheck, flags=34),
-        Member(176, "name", hkStringPtr, flags=34),
+        Member(16, "world", Ptr(hkReflectDetailOpaque), MemberFlags.NotSerializable | MemberFlags.Protected),
+        Member(24, "userData", hkUlong, MemberFlags.Protected),
+        Member(32, "collidable", hkpLinkedCollidable, MemberFlags.Protected),
+        Member(160, "multiThreadCheck", hkMultiThreadCheck, MemberFlags.Protected),
+        Member(176, "name", hkStringPtr, MemberFlags.Protected),
         Member(184, "properties", hkArray(hkSimpleProperty)),
     )
     members = hkReferencedObject.members + local_members
@@ -2683,14 +2701,24 @@ class hkpWorldObject(hkReferencedObject):
 class hkpPhantom(hkpWorldObject):
     alignment = 8
     byte_size = 232
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 57
     __abstract_value = 3
 
     local_members = (
-        Member(200, "overlapListeners", hkArray(hkReflectDetailOpaque), flags=35),
-        Member(216, "phantomListeners", hkArray(hkReflectDetailOpaque), flags=35),
+        Member(
+            200,
+            "overlapListeners",
+            hkArray(hkReflectDetailOpaque),
+            MemberFlags.NotSerializable | MemberFlags.Protected,
+        ),
+        Member(
+            216,
+            "phantomListeners",
+            hkArray(hkReflectDetailOpaque),
+            MemberFlags.NotSerializable | MemberFlags.Protected,
+        ),
     )
     members = hkpWorldObject.members + local_members
 
@@ -2701,33 +2729,63 @@ class hkpPhantom(hkpWorldObject):
 class hkpEntity(hkpWorldObject):
     alignment = 16
     byte_size = 704
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __version = 5
 
     local_members = (
-        Member(200, "material", hkpMaterial, flags=34),
-        Member(216, "limitContactImpulseUtilAndFlag", Ptr(_void), flags=33),
+        Member(200, "material", hkpMaterial, MemberFlags.Protected),
+        Member(216, "limitContactImpulseUtilAndFlag", Ptr(_void), MemberFlags.NotSerializable),
         Member(224, "damageMultiplier", hkReal),
-        Member(232, "breakableBody", Ptr(hkReflectDetailOpaque), flags=33),
-        Member(240, "solverData", hkUint32, flags=33),
+        Member(232, "breakableBody", Ptr(hkReflectDetailOpaque), MemberFlags.NotSerializable),
+        Member(240, "solverData", hkUint32, MemberFlags.NotSerializable),
         Member(244, "storageIndex", _unsigned_short),
-        Member(246, "contactPointCallbackDelay", hkUint16, flags=34),
-        Member(248, "constraintsMaster", hkpEntitySmallArraySerializeOverrideType, flags=35),
-        Member(264, "constraintsSlave", hkArray(hkViewPtr("hkpConstraintInstance", hsh=3107152142)), flags=35),
-        Member(280, "constraintRuntime", hkArray(hkUint8), flags=35),
-        Member(296, "simulationIsland", Ptr(hkReflectDetailOpaque), flags=35),
+        Member(246, "contactPointCallbackDelay", hkUint16, MemberFlags.Protected),
+        Member(
+            248,
+            "constraintsMaster",
+            hkpEntitySmallArraySerializeOverrideType,
+            MemberFlags.NotSerializable | MemberFlags.Protected,
+        ),
+        Member(
+            264,
+            "constraintsSlave",
+            hkArray(hkViewPtr("hkpConstraintInstance", hsh=3107152142)),
+            MemberFlags.NotSerializable | MemberFlags.Protected,
+        ),
+        Member(280, "constraintRuntime", hkArray(hkUint8), MemberFlags.NotSerializable | MemberFlags.Protected),
+        Member(
+            296,
+            "simulationIsland",
+            Ptr(hkReflectDetailOpaque),
+            MemberFlags.NotSerializable | MemberFlags.Protected,
+        ),
         Member(304, "autoRemoveLevel", hkInt8),
         Member(305, "numShapeKeysInContactPointProperties", hkUint8),
         Member(306, "responseModifierFlags", hkUint8),
         Member(308, "uid", hkUint32),
         Member(312, "spuCollisionCallback", hkpEntitySpuCollisionCallback),
         Member(336, "motion", hkpMaxSizeMotion),
-        Member(656, "contactListeners", hkpEntitySmallArraySerializeOverrideType, flags=35),
-        Member(672, "actions", hkpEntitySmallArraySerializeOverrideType, flags=35),
+        Member(
+            656,
+            "contactListeners",
+            hkpEntitySmallArraySerializeOverrideType,
+            MemberFlags.NotSerializable | MemberFlags.Protected,
+        ),
+        Member(
+            672,
+            "actions",
+            hkpEntitySmallArraySerializeOverrideType,
+            MemberFlags.NotSerializable | MemberFlags.Protected,
+        ),
         Member(688, "localFrame", hkRefPtr(hkLocalFrame)),
-        Member(696, "extendedListeners", Ptr(hkpEntityExtendedListeners), flags=35),
+        Member(
+            696,
+            "extendedListeners",
+            Ptr(hkpEntityExtendedListeners),
+            MemberFlags.NotSerializable | MemberFlags.Protected,
+        ),
     )
     members = hkpWorldObject.members + local_members
 
@@ -2757,7 +2815,7 @@ class hkpEntity(hkpWorldObject):
 class hkpRigidBody(hkpEntity):
     alignment = 16
     byte_size = 704
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     __hsh = 74815750
@@ -2767,25 +2825,30 @@ class hkpRigidBody(hkpEntity):
 class hkpConstraintInstance(hkReferencedObject):
     alignment = 8
     byte_size = 112
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
     __hsh = 2242967661
     __version = 1
 
     local_members = (
-        Member(16, "owner", Ptr(hkReflectDetailOpaque), flags=35),
-        Member(24, "data", Ptr(hkpConstraintData, hsh=525862446), flags=34),
-        Member(32, "constraintModifiers", Ptr(hkpModifierConstraintAtom), flags=34),
-        Member(40, "entities", hkGenericStruct(Ptr(hkpEntity, hsh=476716456), 2), flags=34),
+        Member(16, "owner", Ptr(hkReflectDetailOpaque), MemberFlags.NotSerializable | MemberFlags.Protected),
+        Member(24, "data", Ptr(hkpConstraintData, hsh=525862446), MemberFlags.Protected),
+        Member(32, "constraintModifiers", Ptr(hkpModifierConstraintAtom), MemberFlags.Protected),
+        Member(40, "entities", hkGenericStruct(Ptr(hkpEntity, hsh=476716456), 2), MemberFlags.Protected),
         Member(56, "priority", hkEnum(hkpConstraintInstanceConstraintPriority, hkUint8)),
-        Member(57, "wantRuntime", hkBool, flags=34),
+        Member(57, "wantRuntime", hkBool, MemberFlags.Protected),
         Member(58, "destructionRemapInfo", hkEnum(hkpConstraintInstanceOnDestructionRemapInfo, hkUint8)),
-        Member(64, "listeners", hkpConstraintInstanceSmallArraySerializeOverrideType, flags=33),
+        Member(
+            64,
+            "listeners",
+            hkpConstraintInstanceSmallArraySerializeOverrideType,
+            MemberFlags.NotSerializable,
+        ),
         Member(80, "name", hkStringPtr),
         Member(88, "userData", hkUlong),
-        Member(96, "internal", Ptr(hkReflectDetailOpaque), flags=33),
-        Member(104, "uid", hkUint32, flags=33),
+        Member(96, "internal", Ptr(hkReflectDetailOpaque), MemberFlags.NotSerializable),
+        Member(104, "uid", hkUint32, MemberFlags.NotSerializable),
     )
     members = hkReferencedObject.members + local_members
 
@@ -2806,7 +2869,7 @@ class hkpConstraintInstance(hkReferencedObject):
 class hkaRagdollInstance(hkReferencedObject):
     alignment = 8
     byte_size = 72
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     __hsh = 2652690323
@@ -2828,24 +2891,29 @@ class hkaRagdollInstance(hkReferencedObject):
 class hkpPhysicsSystem(hkReferencedObject):
     alignment = 8
     byte_size = 104
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     __hsh = 4219313043
 
     local_members = (
-        Member(16, "rigidBodies", hkArray(Ptr(hkpRigidBody, hsh=2417329070), hsh=1736666912), flags=34),
+        Member(
+            16,
+            "rigidBodies",
+            hkArray(Ptr(hkpRigidBody, hsh=2417329070), hsh=1736666912),
+            MemberFlags.Protected,
+        ),
         Member(
             32,
             "constraints",
             hkArray(Ptr(hkpConstraintInstance, hsh=3107152142), hsh=3091539382),
-            flags=34,
+            MemberFlags.Protected,
         ),
-        Member(48, "actions", hkArray(Ptr(hkpAction)), flags=34),
-        Member(64, "phantoms", hkArray(Ptr(hkpPhantom)), flags=34),
-        Member(80, "name", hkStringPtr, flags=34),
-        Member(88, "userData", hkUlong, flags=34),
-        Member(96, "active", hkBool, flags=34),
+        Member(48, "actions", hkArray(Ptr(hkpAction)), MemberFlags.Protected),
+        Member(64, "phantoms", hkArray(Ptr(hkpPhantom)), MemberFlags.Protected),
+        Member(80, "name", hkStringPtr, MemberFlags.Protected),
+        Member(88, "userData", hkUlong, MemberFlags.Protected),
+        Member(96, "active", hkBool, MemberFlags.Protected),
     )
     members = hkReferencedObject.members + local_members
 
@@ -2861,14 +2929,19 @@ class hkpPhysicsSystem(hkReferencedObject):
 class hkpPhysicsData(hkReferencedObject):
     alignment = 8
     byte_size = 40
-    tag_type_flags = 7
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     __hsh = 3659538096
 
     local_members = (
-        Member(16, "worldCinfo", Ptr(hkpWorldCinfo), flags=34),
-        Member(24, "systems", hkArray(Ptr(hkpPhysicsSystem, hsh=339365373), hsh=4005313520), flags=34),
+        Member(16, "worldCinfo", Ptr(hkpWorldCinfo), MemberFlags.Protected),
+        Member(
+            24,
+            "systems",
+            hkArray(Ptr(hkpPhysicsSystem, hsh=339365373), hsh=4005313520),
+            MemberFlags.Protected,
+        ),
     )
     members = hkReferencedObject.members + local_members
 
