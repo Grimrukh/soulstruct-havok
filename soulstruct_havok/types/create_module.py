@@ -216,7 +216,7 @@ def create_2014_module():
         "2014",
         Path("../../tests/resources/DS3/c1430/c1430.HKX"),
         # Path("../../tests/resources/DS3/c1430/c1430_c.hkx"),
-        Path("../../tests/resources/DS3/c1240/a00_3000.hkx"),
+        # Path("../../tests/resources/DS3/c1240/a00_3000.hkx"),
         is_tagfile=False,
         module_path=Path(__file__).parent / f"hk2014_new.py"
     )

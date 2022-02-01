@@ -39,7 +39,6 @@ import inspect
 import sys
 import typing as tp
 from collections import deque
-from pathlib import Path
 
 from colorama import init as colorama_init, Fore
 
@@ -49,7 +48,6 @@ from soulstruct.utilities.inspection import get_hex_repr
 from soulstruct_havok.enums import TagDataType, MemberFlags
 from soulstruct_havok.packfile.structs import PackFileItemEntry
 from soulstruct_havok.tagfile.structs import TagFileItem
-from soulstruct_havok.types.exceptions import HavokTypeError, TypeNotDefinedError, VersionModuleError
 from soulstruct_havok.types.info import *
 
 if tp.TYPE_CHECKING:
@@ -1408,7 +1406,6 @@ class hkRelArray_(hkBasePointer):
             return
 
         def delayed_rel_array():
-            print(item.writer.position, rel_array_header_pos, cls.__name__)  # todo
             jump = item.writer.position - rel_array_header_pos
             _debug_print_pack(f"Writing `hkRelArray` and writing jump {jump} at offset {rel_array_header_pos}.")
             item.writer.pack_at(rel_array_header_pos, "<HH", len(value), jump)
@@ -1592,10 +1589,6 @@ def unpack_class_packfile(hk_type: tp.Type[hk], entry: PackFileItemEntry, pointe
         instance = hk_type()
     member_start_offset = entry.reader.position
 
-    if hk_type.__name__ == "hknpCapsuleShape":
-        from soulstruct.utilities.inspection import get_hex_repr
-        print(get_hex_repr(entry.raw_data))
-
     _increment_debug_indent()
     for member in hk_type.members:
         _debug_print_unpack(f"Member '{member.name}' at offset {entry.reader.position_hex} (`{member.type.__name__}`):")
@@ -1652,18 +1645,15 @@ def pack_class_packfile(
         )
         # Member offsets may not be perfectly packed together, so we always pad up to the proper offset.
         item.writer.pad_to_offset(member_start_offset + member.offset)
-        print("   ", item.writer.position_hex)
         # TODO: with_flag = member.name != "partitions" ?
         member.type.pack_packfile(item, value[member.name], existing_items, data_pack_queue, pointer_size)
         # TODO: Used to pad to member alignment here, but seems redundant.
     item.writer.pad_to_offset(member_start_offset + hk_type.byte_size)
     _decrement_debug_indent()
-    print(item.writer.position_hex)
 
     # `hkRelArray` data is written after all members have been checked/written.
     for pending_rel_array in item.pending_rel_arrays.pop():
         pending_rel_array()
-        exit()
 
 
 def unpack_pointer(data_hk_type: tp.Type[hk], reader: BinaryReader, items: list[TagFileItem]) -> hk | None:

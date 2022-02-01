@@ -13,8 +13,6 @@ from .structs import *
 if tp.TYPE_CHECKING:
     from soulstruct_havok.core import HKX
 
-_DEBUG_PACK_PRINT = []
-
 
 class PackFilePacker:
 

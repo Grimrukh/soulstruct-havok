@@ -234,9 +234,6 @@ class PackFileUnpacker:
             self.class_hashes[type_name] = hsh
             # TODO: Hashes are checked in `TypeInfo` with everything else.
 
-        # for name, hsh in self.class_hashes.items():
-        #     print(name, hsh)
-
     def unpack_type_entries(
         self,
         type_section_reader: BinaryReader,

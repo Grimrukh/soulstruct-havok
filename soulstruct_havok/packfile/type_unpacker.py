@@ -9,7 +9,7 @@ if tp.TYPE_CHECKING:
     from .unpacker import PackFileTypeItem
 
 
-_DEBUG_MSG = True
+_DEBUG_MSG = False
 _DEBUG_ENUMS = False
 
 
@@ -289,12 +289,6 @@ class PackFileTypeUnpacker:
                         type_py_name = f"hkStruct[{type_py_name}]"
                         member_py_name = f"hkStruct({member_py_name}, {member['c_array_size']})"
                         type_hint = f"tuple[{type_hint}, ...]"
-
-                    # TODO: Use enum dict to define Python classes for enums.
-
-                    if required_types[0] == "hkClass":
-                        print(member_type_item.get_type_name())
-                        exit()
 
                     member_info = MemberInfo(
                         name=member_name,

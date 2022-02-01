@@ -15,16 +15,17 @@ def ptde_c2500_test():
 
 def ds3_c1430_test():
 
-    SET_DEBUG_PRINT(True, False)
+    # SET_DEBUG_PRINT(True, False)
 
-    # c1430_anibnd_path = Path(DS3_PATH + "/chr/c1430.anibnd_vanilla.dcx")
-    # c1430_anibnd = Binder(c1430_anibnd_path, from_bak=True)
+    c1430_anibnd_path = Path(DS3_PATH + "/chr/c1430.anibnd_vanilla.dcx")
+    c1430_anibnd = Binder(c1430_anibnd_path, from_bak=True)
 
-    # with contextlib.redirect_stdout(open("ds3_c1430_skeleton_unpack.txt", "w")):
-    #     c1430_skeleton = HKX(c1430_anibnd[1000000])
-    # print("Unpacked skeleton successfully.")
-    # c1430_anibnd[1000000].data = c1430_skeleton.pack()
-    # print("    --> Repacked skeleton successfully.")
+    with contextlib.redirect_stdout(open("ds3_c1430_skeleton_unpack.txt", "w")):
+        c1430_skeleton = HKX(c1430_anibnd[1000000])
+    print("Unpacked skeleton successfully.")
+    Path("ds3_c1430_skeleton.hkx.txt").write_text(c1430_skeleton.get_root_tree_string())
+    c1430_anibnd[1000000].data = c1430_skeleton.pack()
+    print("    --> Repacked skeleton successfully.")
 
     c1430_chrbnd_path = Path(DS3_PATH + "/chr/c1430.chrbnd_vanilla.dcx")
     c1430_chrbnd = Binder(c1430_chrbnd_path)
@@ -32,7 +33,11 @@ def ds3_c1430_test():
     with contextlib.redirect_stdout(open("ds3_c1430_ragdoll_unpack.txt", "w")):
         c1430_ragdoll = HKX(c1430_chrbnd[300])
     print("Unpacked ragdoll successfully.")
-    exit()
+    Path("ds3_c1430_ragdoll.hkx.txt").write_text(c1430_ragdoll.get_root_tree_string())
+    c1430_ragdoll.write("repack.hkx")
+    with contextlib.redirect_stdout(open("ds3_c1430_ragdoll_repack_unpack.txt", "w")):
+        c1430_ragdoll_repack = HKX("repack.hkx")
+    Path("ds3_c1430_ragdoll_repack.hkx.txt").write_text(c1430_ragdoll_repack.get_root_tree_string())
     c1430_chrbnd[300].data = c1430_ragdoll.pack()
     print("    --> Repacked ragdoll successfully.")
 
