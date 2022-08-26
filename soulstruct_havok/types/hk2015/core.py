@@ -43,9 +43,15 @@ __all__ = [
     "hkStringPtr",
     "hkReferencedObject",
 ]
+import typing as tp
 
+from soulstruct.utilities.maths import Vector4
 from soulstruct_havok.enums import TagDataType, MemberFlags
 from soulstruct_havok.types.core import *
+
+if tp.TYPE_CHECKING:
+    from soulstruct.utilities.binary import BinaryReader
+    from soulstruct_havok.tagfile.structs import TagFileItem
 
 
 # --- Invalid Types --- #
@@ -187,6 +193,15 @@ class hkVector4f(hkStruct(_float, 4)):
     __tag_format_flags = 11
     local_members = ()
 
+    @classmethod
+    def unpack(cls, reader: BinaryReader, offset: int, items: list[TagFileItem] = None) -> Vector4:
+        cls.debug_print_unpack(f"Unpacking `{cls.__name__}`... (hkVector4f) <{hex(offset)}>")
+        cls.increment_debug_indent()
+        value = Vector4(super().unpack(reader, offset, items))
+        cls.decrement_debug_indent()
+        cls.debug_print_unpack(f"-> {repr(value)}")
+        return value
+
 
 class hkQuaternionf(hkStruct(_float, 4)):
     alignment = 16
@@ -200,7 +215,7 @@ class hkQuaternionf(hkStruct(_float, 4)):
     )
     members = local_members
 
-    vec: hkVector4f
+    vec: Vector4
 
 
 class hkRotationImpl(hkStruct(_float, 12)):
@@ -251,10 +266,10 @@ class hkMatrix4f(hkStruct(_float, 16)):
     )
     members = local_members
 
-    col0: hkVector4f
-    col1: hkVector4f
-    col2: hkVector4f
-    col3: hkVector4f
+    col0: Vector4
+    col1: Vector4
+    col2: Vector4
+    col3: Vector4
 
 
 class hkRotationf(hkRotationImpl):
@@ -289,7 +304,7 @@ class hkTransformf(hkStruct(_float, 16)):
     members = local_members
 
     rotation: hkRotationf
-    translation: hkVector4f
+    translation: Vector4
 
 
 class hkMatrix3(hkMatrix3f):
@@ -318,9 +333,9 @@ class hkQsTransformf(hk):
     )
     members = local_members
 
-    translation: hkVector4f
+    translation: Vector4
     rotation: hkQuaternionf
-    scale: hkVector4f
+    scale: Vector4
 
 
 # --- Havok Wrappers --- #

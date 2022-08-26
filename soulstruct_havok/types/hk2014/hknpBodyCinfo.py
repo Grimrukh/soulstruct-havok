@@ -43,7 +43,7 @@ class hknpBodyCinfo(hk):
     collisionLookAheadDistance: float
     name: str
     userData: int
-    position: hkVector4
+    position: Vector4
     orientation: hkQuaternionf
     spuFlags: int
     localFrame: hkLocalFrame

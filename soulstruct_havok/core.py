@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-__all__ = ["HKX", "AnimationHKX", "SkeletonHKX", "RagdollHKX", "ClothHKX"]
+__all__ = ["HKX"]
 
 import io
 import logging
@@ -8,26 +8,28 @@ import typing as tp
 from pathlib import Path
 
 from soulstruct.base.game_file import GameFile, InvalidGameFileTypeError
-from soulstruct.containers import Binder
-from soulstruct.containers.bnd import BaseBND
 from soulstruct.containers.dcx import DCXType
 from soulstruct.containers.bnd.entry import BNDEntry
-from soulstruct.utilities.maths import QuatTransform, Vector4
 from soulstruct.utilities.binary import BinaryReader
 
 from .packfile.packer import PackFilePacker
 from .packfile.structs import PackFileHeaderExtension, PackFileVersion
 from .packfile.unpacker import PackFileUnpacker
-from .spline_compression import SplineCompressedAnimationData
 from .tagfile.packer import TagFilePacker
 from .tagfile.unpacker import TagFileUnpacker
-from .types import hk
+from .types import hk, hk2010, hk2014, hk2015, hk2018
 from .types.info import TypeInfo
 
-from .objects.hka import *
-from .objects.hkp import PhysicsData
 
 _LOGGER = logging.getLogger(__name__)
+
+ROOT_TYPING = (
+    None
+    | hk2010.hkRootLevelContainer
+    | hk2014.hkRootLevelContainer
+    | hk2015.hkRootLevelContainer
+    | hk2018.hkRootLevelContainer
+)
 
 
 class HKX(GameFile):
@@ -43,7 +45,7 @@ class HKX(GameFile):
     PACKFILE = "packfile"
     TAGFILE = "tagfile"
 
-    root: None | hk
+    root: ROOT_TYPING
     hk_format: str  # "packfile" or "tagfile"
     unpacker: None | TagFileUnpacker | PackFileUnpacker
     is_compendium: bool
@@ -199,6 +201,14 @@ class HKX(GameFile):
     def write_tagfile(self, file_path: tp.Union[None, str, Path] = None, make_dirs=True, check_hash=False):
         self.write(file_path, make_dirs=make_dirs, check_hash=check_hash, hk_format="tagfile")
 
+    def set_variant_attribute(self, attr_name: str, hk_type: tp.Type[hk], variant_index: int):
+        variant = self.root.namedVariants[variant_index].variant
+        if not isinstance(variant, hk_type):
+            raise TypeError(
+                f"HKX variant index {variant_index} did not have type {hk_type.__name__} ({variant.__class__.__name__})"
+            )
+        setattr(self, attr_name, variant)
+
     def get_root_tree_string(self, max_primitive_sequence_size=-1) -> str:
         return self.root.get_tree_string(max_primitive_sequence_size=max_primitive_sequence_size)
 
@@ -338,319 +348,3 @@ class HKX(GameFile):
                     value={"value": uint8_node},
                 )
                 self.all_nodes.append(node.value["velocityStabilizationFactor"])
-
-
-class SkeletonHKX(HKX):
-    """Loads HKX objects that are found in a "Skeleton" HKX file (inside `anibnd` binder, usually `Skeleton.HKX`)."""
-
-    animation_container: tp.Optional[AnimationContainer]
-    skeleton: Skeleton
-
-    def __init__(
-        self,
-        file_source: HKX.Typing = None,
-        dcx_magic: tuple[int, int] = (),
-        compendium: tp.Optional[HKX] = None,
-    ):
-        super().__init__(file_source, dcx_magic, compendium)
-        self.animation_container = self.get_variant_node(0).get_py_object(AnimationContainer)
-        self.skeleton = self.animation_container.skeletons[0]
-
-    def scale(self, factor: float):
-        """Scale all bone translations in place by `factor`."""
-        for pose in self.skeleton.reference_pose:
-            pose.node.value["translation"].value = tuple(x * factor for x in pose.translation)
-
-    @classmethod
-    def from_anibnd(cls, anibnd_path: tp.Union[Path, str], prefer_bak=False) -> SkeletonHKX:
-        anibnd_path = Path(anibnd_path)
-        anibnd = Binder(anibnd_path, from_bak=prefer_bak)
-        return cls(anibnd[1000000])
-
-
-class AnimationHKX(HKX):
-    """Loads HKX objects that are found in an "Animation" HKX file (inside `anibnd` binder, e.g. `a00_3000.hkx`).
-
-    Currently assumes the animation is spline-compressed; will fail to initialize for other animation types.
-    """
-
-    animation_container: tp.Optional[AnimationContainer]
-    animation: tp.Optional[SplineCompressedAnimation]
-    animation_binding: tp.Optional[AnimationBinding]
-    reference_frame_samples: tp.Optional[list[Vector4]]
-
-    _anibnd: tp.Optional[BaseBND]
-
-    def __init__(
-        self,
-        file_source: HKX.Typing = None,
-        dcx_magic: tuple[int, int] = (),
-        compendium: tp.Optional[HKX] = None,
-    ):
-        super().__init__(file_source, dcx_magic, compendium)
-        self.animation_container = self.get_variant_node(0).get_py_object(AnimationContainer)
-        self.animation = self.animation_container.animations[0]
-        self.animation_binding = self.animation_container.bindings[0]
-        if self.animation.extracted_motion:
-            self.reference_frame_samples = self.animation.extracted_motion.reference_frame_samples
-        self._base_bnd = None
-
-    def get_spline_compressed_animation_data(self) -> SplineCompressedAnimationData:
-        return SplineCompressedAnimationData(
-            data=self.animation.data,
-            transform_track_count=self.animation.number_of_transform_tracks,
-            block_count=self.animation.num_blocks,
-        )
-
-    def decompress_spline_animation_data(self) -> list[list[QuatTransform]]:
-        """Convert spline-compressed animation data to a list of lists (per track) of `QuatTransform` instances."""
-        return self.get_spline_compressed_animation_data().to_transform_track_lists(
-            frame_count=self.animation.num_frames,
-            max_frames_per_block=self.animation.max_frames_per_block
-        )
-
-    def scale(self, factor: float):
-        """Modifies all spline/static animation tracks, and also root motion (reference frame samples)."""
-        scaled_data = self.get_spline_compressed_animation_data().get_scaled_animation_data(factor)
-        self.animation.node.value["data"].value = scaled_data
-
-        # Root motion (if present), sans W.
-        if extracted_motion := self.animation.extracted_motion:
-            for sample_node in extracted_motion.node.value["referenceFrameSamples"].value:
-                # Scale X, Y, and Z only, not W.
-                vec = sample_node.value
-                sample_node.value = (vec[0] * factor, vec[1] * factor, vec[2] * factor, vec[3])
-
-    def reverse(self):
-        """Reverses all control points in all spline tracks, and also root motion (reference frame samples)."""
-        reversed_data = self.get_spline_compressed_animation_data().get_reversed_animation_data()
-        self.animation.node.value["data"].value = reversed_data
-
-        # Root motion (if present).
-        if extracted_motion := self.animation.extracted_motion:
-            reversed_motion = tuple(reversed(extracted_motion.node.value["referenceFrameSamples"].value))
-            extracted_motion.node.value["referenceFrameSamples"].value = reversed_motion
-
-    @property
-    def root_motion(self):
-        """Usual modding alias for reference frame samples."""
-        return self.reference_frame_samples
-
-    @classmethod
-    def from_anibnd(
-        cls, anibnd_path: tp.Union[Path, str], animation_id: tp.Union[int, str], prefer_bak=False
-    ) -> AnimationHKX:
-        if isinstance(animation_id, int):
-            prefix = animation_id // 10000 * 10000
-            base_id = animation_id % 10000
-            animation_path = f"a{prefix:02d}_{base_id:04d}.hkx"
-        else:
-            animation_path = animation_id
-            if not animation_path.endswith(".hkx"):
-                animation_path += ".hkx"
-        anibnd_path = Path(anibnd_path)
-        anibnd = Binder(anibnd_path, from_bak=prefer_bak)
-        return cls(anibnd[animation_path])
-
-
-class RagdollHKX(HKX):
-    """Loads HKX objects that are found in a "Ragdoll" HKX file (inside `chrbnd` binder, e.g. `c0000.hkx`)."""
-
-    animation_container: tp.Optional[AnimationContainer]
-    standard_skeleton: tp.Optional[Skeleton]
-    ragdoll_skeleton: tp.Optional[Skeleton]
-    physics_data: tp.Optional[PhysicsData]
-    ragdoll_instance: tp.Optional[RagdollInstance]
-    standard_to_ragdoll_skeleton_mapper: tp.Optional[SkeletonMapper]
-    ragdoll_to_standard_skeleton_mapper: tp.Optional[SkeletonMapper]
-
-    def __init__(
-        self,
-        file_source: HKX.Typing = None,
-        dcx_type: None | DCXType = DCXType.Null,
-        compendium: tp.Optional[HKX] = None,
-    ):
-        super().__init__(file_source, dcx_type=dcx_type, compendium=compendium)
-        self.animation_container = self.get_variant_node(0).get_py_object(AnimationContainer)
-        self.standard_skeleton = self.animation_container.skeletons[0]
-        self.ragdoll_skeleton = self.animation_container.skeletons[1]
-        self.physics_data = self.get_variant_node(1).get_py_object(PhysicsData)
-        self.ragdoll_instance = self.get_variant_node(2).get_py_object(RagdollInstance)
-        self.ragdoll_to_standard_skeleton_mapper = self.get_variant_node(3).get_py_object(SkeletonMapper)
-        self.standard_to_ragdoll_skeleton_mapper = self.get_variant_node(4).get_py_object(SkeletonMapper)
-
-    def scale(self, factor: float):
-        """Scale all translation information, including:
-            - bones in both the standard and ragdoll skeletons
-            - rigid body collidables
-            - motion state transforms and swept transforms
-            - skeleton mapper transforms in both directions
-
-        This is currently working well, though since actual "ragdoll mode" only occurs when certain enemies die, any
-        mismatched (and probably harmless) physics will be more of an aesthetic issue.
-        """
-        for pose in self.standard_skeleton.reference_pose:
-            pose.node.value["translation"].value = tuple(x * factor for x in pose.translation)
-        for pose in self.ragdoll_skeleton.reference_pose:
-            pose.node.value["translation"].value = tuple(x * factor for x in pose.translation)
-
-        for rigid_body in self.physics_data.systems[0].rigid_bodies:
-            self.scale_shape(rigid_body.collidable.shape, factor)
-
-            # TODO: motion inertiaAndMassInv?
-
-            motion_state = rigid_body.motion.motion_state
-            flat_transform = motion_state.transform.to_flat_column_order()
-            scaled_translate = tuple(x * factor for x in flat_transform[12:15]) + (1.0,)
-            motion_state.node.value["transform"].value = tuple(flat_transform[:12]) + scaled_translate
-            motion_state.node.value["objectRadius"].value *= factor
-
-            swept_transform = rigid_body.motion.motion_state.swept_transform
-            swept_transform.node.value[0].value = tuple(x * factor for x in swept_transform.center_of_mass_0)
-            swept_transform.node.value[1].value = tuple(x * factor for x in swept_transform.center_of_mass_1)
-            # Indices 3 and 4 are rotations.
-            swept_transform.node.value[4].value = tuple(x * factor for x in swept_transform.center_of_mass_local)
-
-        # TODO: constraint instance transforms?
-
-        for mapper in (self.ragdoll_to_standard_skeleton_mapper, self.standard_to_ragdoll_skeleton_mapper):
-            for simple in mapper.mapping.simple_mappings:
-                self.scale_tuple_member(simple.node.value["aFromBTransform"], "translation", factor)
-            for chain in mapper.mapping.chain_mappings:
-                self.scale_tuple_member(chain.node.value["startAFromBTransform"], "translation", factor)
-
-    def scale_shape(self, shape, factor: float):
-        if "radius" in shape.node.value:  # hkpConvexShape
-            shape.node.value["radius"].value = shape.radius * factor
-            if "vertexA" in shape.node.value:  # hkpCapsuleShape
-                self.scale_tuple_member(shape.node, "vertexA", factor)
-                self.scale_tuple_member(shape.node, "vertexB", factor)
-        elif "moppData" in shape.node.value:  # hkpMoppBvTreeShape
-            self.scale_shape(shape.child.child_shape, factor)
-        elif "embeddedTrianglesSubpart" in shape.node.value:  # hkpExtendedMeshShape
-            ets_node = shape.node.value["embeddedTrianglesSubpart"]
-            self.scale_tuple_member(ets_node.value["transform"], "translation", factor)
-            self.scale_tuple_member(shape.node, "aabbHalfExtents", factor)
-            self.scale_tuple_member(shape.node, "aabbCenter", factor)
-            if "meshstorage" in shape.node.value:  # hkpStorageExtendedMeshShape
-                for mesh_node in shape.node.value["meshstorage"].value:
-                    for vertex_node in mesh_node.value["vertices"].value:
-                        vertex_node.value = tuple(v * factor for v in vertex_node.value)
-
-    @staticmethod
-    def scale_tuple_member(node: HKXNode, member_name: str, factor: float):
-        node.value[member_name].value = tuple(x * factor for x in node.value[member_name].value)
-
-    @classmethod
-    def from_chrbnd(cls, chrbnd_path: tp.Union[Path, str], prefer_bak=False) -> RagdollHKX:
-        chrbnd_path = Path(chrbnd_path)
-        if (bak_path := chrbnd_path.with_suffix(chrbnd_path.suffix + ".bak")).is_file() and prefer_bak:
-            chrbnd_path = bak_path
-        chrbnd = Binder(chrbnd_path)
-        model_name = chrbnd_path.name.split(".")[0]  # e.g. "c0000"
-        return cls(chrbnd[f"{model_name}.hkx"])
-
-
-class ClothHKX(HKX):
-    """Loads HKX objects that are found in a "Cloth" HKX file (inside `chrbnd` binder, e.g. `c2410_c.hkx`).
-
-    This file is not used for every character - only those with cloth physics (e.g. capes).
-    """
-
-    physics_data: tp.Optional[PhysicsData]
-
-    def __init__(
-        self,
-        file_source: HKX.Typing = None,
-        dcx_type: None | DCXType = DCXType.Null,
-        compendium: tp.Optional[HKX] = None,
-    ):
-        super().__init__(file_source, dcx_type=dcx_type, compendium=compendium)
-        self.physics_data = self.get_variant_node(0).get_py_object(PhysicsData)
-
-    def scale(self, factor: float):
-        """Scale all translation information, including:
-            - rigid body collidables
-            - motion state transforms and swept transforms
-
-        TODO: Since cloth is always in "ragdoll" mode, forces may need to be updated more cautiously here.
-        """
-        for rigid_body in self.physics_data.systems[0].rigid_bodies:
-            shape = rigid_body.collidable.shape
-            shape.node.value["radius"].value = shape.radius * factor
-            if "vertexA" in shape.node.value:  # capsule
-                shape.node.value["vertexA"].value = tuple(x * factor for x in shape.vertex_A)
-                shape.node.value["vertexB"].value = tuple(x * factor for x in shape.vertex_B)
-
-            # TODO: motion inertiaAndMassInv?
-
-            motion_state = rigid_body.motion.motion_state
-            flat_transform = motion_state.transform.to_flat_column_order()
-            scaled_translate = tuple(x * factor for x in flat_transform[12:15]) + (1.0,)
-            motion_state.node.value["transform"].value = tuple(flat_transform[:12]) + scaled_translate
-            motion_state.node.value["objectRadius"].value *= factor
-
-            swept_transform = rigid_body.motion.motion_state.swept_transform
-            swept_transform.node.value[0].value = tuple(x * factor for x in swept_transform.center_of_mass_0)
-            swept_transform.node.value[1].value = tuple(x * factor for x in swept_transform.center_of_mass_1)
-            # Indices 3 and 4 are rotations.
-            swept_transform.node.value[4].value = tuple(x * factor for x in swept_transform.center_of_mass_local)
-
-        for constraint_instance in self.physics_data.systems[0].constraints:
-
-            try:
-                infos = constraint_instance.data.infos
-            except AttributeError:
-                pass
-            else:
-                for info in infos:
-                    info.pivot_in_a = tuple(x * factor for x in info.pivot_in_a)
-                    info.pivot_in_b = tuple(x * factor for x in info.pivot_in_b)
-                constraint_instance.data.link_0_pivot_b_velocity = tuple(
-                    x * factor for x in constraint_instance.data.link_0_pivot_b_velocity
-                )
-                # TODO: scale tau, damping, cfm?
-                constraint_instance.data.max_error_distance *= factor
-                constraint_instance.data.inertia_per_meter *= factor
-
-            try:
-                atoms = constraint_instance.data.atoms
-            except AttributeError:
-                continue
-
-            if "transforms" in atoms.node.value:
-                transforms = atoms.transforms
-
-                old_transform_A = transforms.transform_a.to_flat_column_order()
-                scaled_translate = tuple(x * factor for x in old_transform_A[12:15]) + (1.0,)
-                transforms.node.value["transformA"].value = tuple(old_transform_A[:12]) + scaled_translate
-
-                old_transform_B = transforms.transform_b.to_flat_column_order()
-                scaled_translate = tuple(x * factor for x in old_transform_B[12:15]) + (1.0,)
-                transforms.node.value["transformB"].value = tuple(old_transform_B[:12]) + scaled_translate
-
-            if "pivots" in atoms.node.value:
-                pivots = atoms.pivots
-
-                scaled_translate = tuple(x * factor for x in pivots.translation_a)
-                pivots.node.value["translationA"].value = scaled_translate
-
-                scaled_translate = tuple(x * factor for x in pivots.translation_b)
-                pivots.node.value["translationB"].value = scaled_translate
-
-            if "spring" in atoms.node.value:
-                spring = atoms.spring
-                spring.length *= factor
-                spring.max_length *= factor
-
-    @classmethod
-    def from_chrbnd(cls, chrbnd_path: tp.Union[Path, str], prefer_bak=False) -> ClothHKX:
-        chrbnd_path = Path(chrbnd_path)
-        if (bak_path := chrbnd_path.with_suffix(chrbnd_path.suffix + ".bak")).is_file() and prefer_bak:
-            chrbnd_path = bak_path
-        chrbnd = Binder(chrbnd_path)
-        model_name = chrbnd_path.name.split(".")[0]  # e.g. "c0000"
-        try:
-            return cls(chrbnd[f"{model_name}_c.hkx"])
-        except KeyError:
-            raise FileNotFoundError(f"No '*_c.hkx' cloth physics file found in chrbnd {chrbnd_path}.")

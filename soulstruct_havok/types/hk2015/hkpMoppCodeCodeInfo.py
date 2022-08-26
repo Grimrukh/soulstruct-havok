@@ -18,4 +18,4 @@ class hkpMoppCodeCodeInfo(hk):
     )
     members = local_members
 
-    offset: hkVector4
+    offset: Vector4

@@ -43,5 +43,5 @@ class hkpExtendedMeshShapeTrianglesSubpart(hkpExtendedMeshShapeSubpart):
     indexStriding: int
     stridingType: hkpExtendedMeshShapeIndexStridingType
     flipAlternateTriangles: int
-    extrusion: hkVector4
+    extrusion: Vector4
     transform: hkQsTransform

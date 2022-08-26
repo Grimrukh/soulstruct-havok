@@ -81,7 +81,7 @@ class hkpWorldCinfo(hkReferencedObject):
     )
     members = hkReferencedObject.members + local_members
 
-    gravity: hkVector4
+    gravity: Vector4
     broadPhaseQuerySize: int
     contactRestingVelocity: float
     broadPhaseBorderBehaviour: int

@@ -20,5 +20,5 @@ class hknpCapsuleShape(hknpConvexPolytopeShape):
     )
     members = hknpConvexPolytopeShape.members + local_members
 
-    a: hkVector4
-    b: hkVector4
+    a: Vector4
+    b: Vector4

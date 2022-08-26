@@ -28,4 +28,4 @@ class hkMoppBvTreeShapeBase(hkpBvTreeShape):
     code: hkpMoppCode
     moppData: hkReflectDetailOpaque
     moppDataSize: int
-    codeInfoCopy: hkVector4
+    codeInfoCopy: Vector4

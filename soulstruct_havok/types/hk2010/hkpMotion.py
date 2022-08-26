@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import typing as tp
+
+from soulstruct.utilities.maths import Vector4
+
 from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 from .hkpMotionMotionType import hkpMotionMotionType
 from .hkMotionState import hkMotionState
-from .hkpMaxSizeMotion import hkpMaxSizeMotion
+
+
+if tp.TYPE_CHECKING:
+    from .hkpMaxSizeMotion import hkpMaxSizeMotion
 
 
 class hkpMotion(hkReferencedObject):
@@ -35,9 +42,9 @@ class hkpMotion(hkReferencedObject):
     deactivationIntegrateCounter: int
     deactivationNumInactiveFrames: tuple[int, ...]
     motionState: hkMotionState
-    inertiaAndMassInv: hkVector4
-    linearVelocity: hkVector4
-    angularVelocity: hkVector4
+    inertiaAndMassInv: Vector4
+    linearVelocity: Vector4
+    angularVelocity: Vector4
     deactivationRefPosition: tuple[hkVector4, ...]
     deactivationRefOrientation: tuple[int, ...]
     savedMotion: hkpMaxSizeMotion

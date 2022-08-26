@@ -41,10 +41,10 @@ class hkxMaterial(hkxAttributeHolder):
 
     name: str
     stages: list[hkxMaterialTextureStage]
-    diffuseColor: hkVector4
-    ambientColor: hkVector4
-    specularColor: hkVector4
-    emissiveColor: hkVector4
+    diffuseColor: Vector4
+    ambientColor: Vector4
+    specularColor: Vector4
+    emissiveColor: Vector4
     subMaterials: list[hkxMaterial]
     extraData: hkReferencedObject
     uvMapScale: tuple[hkReal]

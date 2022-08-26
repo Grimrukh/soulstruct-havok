@@ -18,5 +18,5 @@ class hkAabb(hk):
     )
     members = local_members
 
-    min: hkVector4
-    max: hkVector4
+    min: Vector4
+    max: Vector4

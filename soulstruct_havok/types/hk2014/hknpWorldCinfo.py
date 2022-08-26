@@ -75,7 +75,7 @@ class hknpWorldCinfo(hk):
     qualityLibrary: hknpBodyQualityLibrary
     simulationType: int
     numSplitterCells: int
-    gravity: hkVector4
+    gravity: Vector4
     enableContactCaching: bool
     mergeEventsBeforeDispatch: bool
     leavingBroadPhaseBehavior: int

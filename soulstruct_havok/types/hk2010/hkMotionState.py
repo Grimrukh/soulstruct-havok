@@ -29,7 +29,7 @@ class hkMotionState(hk):
 
     transform: hkTransform
     sweptTransform: hkSweptTransform
-    deltaAngle: hkVector4
+    deltaAngle: Vector4
     objectRadius: float
     linearDamping: hkHalf16
     angularDamping: hkHalf16

@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from types import ModuleType
 
+import colorama
 from soulstruct.utilities.binary import BinaryReader
 
 from soulstruct_havok.types.core import hk
@@ -20,7 +21,12 @@ if tp.TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-_DEBUG_TYPES = False
+colorama.init()
+YELLOW = colorama.Fore.YELLOW
+RESET = colorama.Fore.RESET
+
+
+_DEBUG_TYPES = True  # Type order has been confirmed as valid several times!
 _DEBUG_HASH = False
 
 
@@ -234,8 +240,9 @@ class TagFileUnpacker:
 
                     if type_index == 0:
                         continue  # null type
+                    type_info = file_hk_types[type_index]
 
-                    _DEBUG_TYPE_PRINT(f"        --> Real name: `{file_hk_types[type_index].name}`")
+                    _DEBUG_TYPE_PRINT(f"        --> Real name: `{type_info.name}`")
                     parent_type_index = self.unpack_var_int(reader)
                     if parent_type_index > 0:
                         _DEBUG_TYPE_PRINT(
@@ -246,7 +253,6 @@ class TagFileUnpacker:
                     tag_format_flags = self.unpack_var_int(reader)
                     _DEBUG_TYPE_PRINT(f"    Tag format flags: {tag_format_flags}")
 
-                    type_info = file_hk_types[type_index]
                     if parent_type_index > 0:
                         type_info.parent_type_info = file_hk_types[parent_type_index]
                     type_info.tag_format_flags = tag_format_flags
@@ -323,6 +329,17 @@ class TagFileUnpacker:
                         raise ValueError(
                             f"Havok type '{type_info.name}' has flag `0b1000_0000`, which is unknown and not supported."
                         )
+
+                if _DEBUG_TYPES:
+                    lines = []
+                    for i, hk_type in enumerate(file_hk_types[1:]):
+                        line = f"{i + 1}: {hk_type.py_name}"
+                        while hk_type.pointer_type_info:
+                            hk_type = hk_type.pointer_type_info
+                            line += f"[{hk_type.py_name}]"
+                        lines.append(line)
+                    types = "\n    ".join(lines)
+                    print(f"{YELLOW}Final unpacked type list:\n    {types}{RESET}")
 
             with self.unpack_section(reader, "THSH"):
                 hashed = []

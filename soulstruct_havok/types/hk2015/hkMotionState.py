@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from soulstruct.utilities.maths import Vector4
+
 from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
@@ -30,8 +32,8 @@ class hkMotionState(hk):
     members = local_members
 
     transform: hkTransform
-    sweptTransform: tuple[hkVector4f]
-    deltaAngle: hkVector4
+    sweptTransform: tuple[Vector4]
+    deltaAngle: Vector4
     objectRadius: float
     linearDamping: float
     angularDamping: float

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import colorama
 import typing as tp
 from collections import deque
 from contextlib import contextmanager
@@ -15,6 +16,12 @@ if tp.TYPE_CHECKING:
     from soulstruct_havok.core import HKX
 
 
+colorama.init()
+GREEN = colorama.Fore.GREEN
+RESET = colorama.Fore.RESET
+
+
+_DEBUG_TYPES = False  # Type order has been confirmed as valid several times!
 _DEBUG_SECTIONS = False
 _DEBUG_HASH = False
 _DEBUG_PRINT = True
@@ -60,6 +67,13 @@ class TagFilePacker:
         type_py_names = [""] + list(self.type_info_dict.keys())
         for type_info in self.type_info_dict.values():
             type_info.indexify(type_py_names)
+
+        if _DEBUG_TYPES:
+            lines = []
+            for i, hk_type in enumerate(type_py_names[1:]):
+                lines.append(f"{i + 1}: {hk_type}")
+            types = "\n    ".join(lines)
+            print(f"{GREEN}Final packed type list:\n    {types}{RESET}")
 
     def pack(self) -> bytes:
         """Pack a tagfile using the `hkRootLevelContainer` (`hkx.root`).

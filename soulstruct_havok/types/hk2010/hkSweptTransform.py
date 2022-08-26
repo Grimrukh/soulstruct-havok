@@ -21,8 +21,8 @@ class hkSweptTransform(hk):
     )
     members = local_members
 
-    centerOfMass0: hkVector4
-    centerOfMass1: hkVector4
+    centerOfMass0: Vector4
+    centerOfMass1: Vector4
     rotation0: hkQuaternionf
     rotation1: hkQuaternionf
-    centerOfMassLocal: hkVector4
+    centerOfMassLocal: Vector4

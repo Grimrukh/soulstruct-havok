@@ -5,7 +5,8 @@ from soulstruct.base.models.flver import FLVER
 from soulstruct.config import DSR_PATH
 from soulstruct.containers import Binder
 
-from soulstruct_havok.core import HKX, AnimationHKX, SkeletonHKX, RagdollHKX, ClothHKX
+from soulstruct_havok.core import HKX
+from soulstruct_havok.hkx2015 import AnimationHKX, RagdollHKX, SkeletonHKX, ClothHKX, CollisionHKX
 
 GAME_CHR_PATH = DSR_PATH + "/chr"
 
@@ -121,7 +122,7 @@ def load_collision():
 
     """
 
-    dsr_hkx = HKX("resources/DSR/h0000B0A10.hkx.dcx", hk_format="tagfile")
+    dsr_hkx = CollisionHKX("resources/DSR/h0000B0A10.hkx.dcx")
     print(dsr_hkx.get_root_tree_string())
 
     # mopp_code_data = dsr_hkx.get_variant_node(0)["systems"][0]["rigidBodies"][0]["collidable"]["shape"]["code"]["data"]
@@ -130,6 +131,26 @@ def load_collision():
 
     # ptde_hkx = HKX("resources/h0001B0A10_PTDE.hkx", hkx_format="packfile")
     # print(ptde_hkx.get_root_tree_string())
+
+
+def dsr_painted_world_test():
+    """Test simple unpack and repack of h0025B0 in m11_00_00_00 in DSR."""
+    from soulstruct.containers import Binder
+    map_path = Path("C:/Steam/steamapps/common/DARK SOULS REMASTERED (NF New)/map")
+    h_hit = Binder(map_path / "m11_00_00_00/h11_00_00_00.hkxbhd", from_bak=True)
+    h0025_entry = h_hit.find_entry_matching_name("h0025B0*")
+    print(h0025_entry)
+    h0025 = CollisionHKX(h0025_entry)
+    h0025_entry.set_uncompressed_data(h0025.pack_dcx())
+    h_hit.write()
+
+    # l_hit = Binder(map_path / "m11_00_00_00/l11_00_00_00.hkxbhd", from_bak=True)
+    # l0025_entry = l_hit.find_entry_matching_name("l0025B0*")
+    # l0025 = CollisionHKX(l0025_entry)
+    # l0025_entry.set_uncompressed_data(l0025.pack())
+    # l_hit.write()
+
+    print("DSR Painted World collision test done.")
 
 
 def bb_to_dsr():
@@ -197,4 +218,5 @@ def new_tag_unpacker():
 
 if __name__ == '__main__':
     # new_tag_unpacker()
-    load_collision()
+    # load_collision()
+    dsr_painted_world_test()

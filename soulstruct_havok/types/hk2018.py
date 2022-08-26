@@ -7,8 +7,15 @@ Generated from files:
 """
 from __future__ import annotations
 
+import typing as tp
+
+from soulstruct.utilities.maths import Vector4
 from soulstruct_havok.enums import TagDataType, MemberFlags
 from soulstruct_havok.types.core import *
+
+if tp.TYPE_CHECKING:
+    from soulstruct.utilities.binary import BinaryReader
+    from soulstruct_havok.tagfile.structs import TagFileItem
 
 
 # --- Invalid Types --- #
@@ -182,6 +189,15 @@ class hkVector4f(hkStruct(_float, 4)):
     __hsh = 3041566998
     local_members = ()
 
+    @classmethod
+    def unpack(cls, reader: BinaryReader, offset: int, items: list[TagFileItem] = None) -> Vector4:
+        cls.debug_print_unpack(f"Unpacking `{cls.__name__}`... (hkVector4f) <{hex(offset)}>")
+        cls.increment_debug_indent()
+        value = Vector4(super().unpack(reader, offset, items))
+        cls.decrement_debug_indent()
+        cls.debug_print_unpack(f"-> {repr(value)}")
+        return value
+
 
 class hkQuaternionf(hkStruct(_float, 4)):
     alignment = 16
@@ -195,7 +211,7 @@ class hkQuaternionf(hkStruct(_float, 4)):
     )
     members = local_members
 
-    vec: hkVector4f
+    vec: Vector4
 
 
 class hkRotationImpl(hkStruct(_float, 12)):
@@ -252,10 +268,10 @@ class hkMatrix4Impl(hkStruct(_float, 16)):
     )
     members = local_members
 
-    col0: hkVector4f
-    col1: hkVector4f
-    col2: hkVector4f
-    col3: hkVector4f
+    col0: Vector4
+    col1: Vector4
+    col2: Vector4
+    col3: Vector4
 
     __templates = (
         TemplateType("tFT", type=_float),
@@ -294,7 +310,7 @@ class hkTransformf(hkStruct(_float, 16)):
     members = local_members
 
     rotation: hkRotationf
-    translation: hkVector4f
+    translation: Vector4
 
 
 class hkMatrix3(hkMatrix3f):
@@ -329,9 +345,9 @@ class hkQsTransformf(hk):
     )
     members = local_members
 
-    translation: hkVector4f
+    translation: Vector4
     rotation: hkQuaternionf
-    scale: hkVector4f
+    scale: Vector4
 
 
 class hkQsTransform(hkQsTransformf):
@@ -801,7 +817,7 @@ class hclSimClothDataOverridableSimulationInfo(hk):
     )
     members = local_members
 
-    gravity: hkVector4
+    gravity: Vector4
     globalDampingPerSecond: float
 
 
@@ -1914,8 +1930,8 @@ class hkAabb(hk):
     )
     members = local_members
 
-    min: hkVector4
-    max: hkVector4
+    min: Vector4
+    max: Vector4
 
 
 class hknpWeldingConfig(hk):
@@ -2180,9 +2196,9 @@ class hknpMassDistribution(hk):
     )
     members = local_members
 
-    centerOfMassAndVolume: hkVector4
+    centerOfMassAndVolume: Vector4
     majorAxisSpace: hkQuaternion
-    inertiaTensor: hkVector4
+    inertiaTensor: Vector4
 
 
 class hknpDragProperties(hk):
@@ -4160,13 +4176,13 @@ class hclTaperedCapsuleShape(hclShape):
     )
     members = hclShape.members + local_members
 
-    small: hkVector4
-    big: hkVector4
-    coneApex: hkVector4
-    coneAxis: hkVector4
-    lVec: hkVector4
-    dVec: hkVector4
-    tanThetaVecNeg: hkVector4
+    small: Vector4
+    big: Vector4
+    coneApex: Vector4
+    coneAxis: Vector4
+    lVec: Vector4
+    dVec: Vector4
+    tanThetaVecNeg: Vector4
     smallRadius: float
     bigRadius: float
     l: float
@@ -4195,9 +4211,9 @@ class hclCapsuleShape(hclShape):
     )
     members = hclShape.members + local_members
 
-    start: hkVector4
-    end: hkVector4
-    dir: hkVector4
+    start: Vector4
+    end: Vector4
+    dir: Vector4
     radius: float
     capLenSqrdInv: float
 
@@ -4622,8 +4638,8 @@ class hclCollidable(hkReferencedObject):
     members = hkReferencedObject.members + local_members
 
     transform: hkTransform
-    linearVelocity: hkVector4
-    angularVelocity: hkVector4
+    linearVelocity: Vector4
+    angularVelocity: Vector4
     userData: int
     shape: hclShape
     name: hkStringPtr
@@ -5101,10 +5117,10 @@ class hkxMaterial(hkxAttributeHolder):
 
     name: hkStringPtr
     stages: list[hkxMaterialTextureStage]
-    diffuseColor: hkVector4
-    ambientColor: hkVector4
-    specularColor: hkVector4
-    emissiveColor: hkVector4
+    diffuseColor: Vector4
+    ambientColor: Vector4
+    specularColor: Vector4
+    emissiveColor: Vector4
     subMaterials: list[hkxMaterial]
     extraData: hkReferencedObject
     uvMapScale: tuple[hkReal]
@@ -5228,7 +5244,7 @@ class hknpWorldCinfo(hk):
     qualityLibrary: hknpBodyQualityLibrary
     simulationType: int
     numSplitterCells: int
-    gravity: hkVector4
+    gravity: Vector4
     airDensity: float
     enableContactCaching: bool
     mergeEventsBeforeDispatch: bool
@@ -5340,7 +5356,7 @@ class hknpConvexShape(hknpShape):
     members = hknpShape.members + local_members
 
     maxAllowedPenetration: float
-    vertices: list[hkVector4f]
+    vertices: list[Vector4]
 
 
 class hkpRagdollConstraintDataAtoms(hk):
@@ -5513,10 +5529,10 @@ class hknpBodyCinfo(hk):
     name: hkStringPtr
     userData: int
     motionType: int
-    position: hkVector4
+    position: Vector4
     orientation: hkQuaternion
-    linearVelocity: hkVector4
-    angularVelocity: hkVector4
+    linearVelocity: Vector4
+    angularVelocity: Vector4
     mass: float
     massDistribution: hknpRefMassDistribution
     dragProperties: hknpRefDragProperties
@@ -5631,8 +5647,8 @@ class hknpCapsuleShape(hknpConvexPolytopeShape):
     )
     members = hknpConvexPolytopeShape.members + local_members
 
-    a: hkVector4
-    b: hkVector4
+    a: Vector4
+    b: Vector4
 
 
 class hkaMeshBinding(hkReferencedObject):

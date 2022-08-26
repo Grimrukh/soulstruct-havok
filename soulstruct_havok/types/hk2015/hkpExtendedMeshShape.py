@@ -42,8 +42,8 @@ class hkpExtendedMeshShape(hkpShapeCollection):
     members = hkpShapeCollection.members + local_members
 
     embeddedTrianglesSubpart: hkpExtendedMeshShapeTrianglesSubpart
-    aabbHalfExtents: hkVector4
-    aabbCenter: hkVector4
+    aabbHalfExtents: Vector4
+    aabbCenter: Vector4
     materialClass: hkReflectDetailOpaque
     numBitsForSubpartIndex: int
     trianglesSubparts: list[hkpExtendedMeshShapeTrianglesSubpart]

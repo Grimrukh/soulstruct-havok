@@ -22,7 +22,7 @@ class hkaDefaultAnimatedReferenceFrame(hkaAnimatedReferenceFrame):
     )
     members = hkaAnimatedReferenceFrame.members + local_members
 
-    up: hkVector4
-    forward: hkVector4
+    up: Vector4
+    forward: Vector4
     duration: float
     referenceFrameSamples: list[hkVector4]

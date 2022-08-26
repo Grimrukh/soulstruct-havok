@@ -27,4 +27,4 @@ class hkpExtendedMeshShapeShapesSubpart(hkpExtendedMeshShapeSubpart):
 
     childShapes: list[hkpConvexShape]
     rotation: hkQuaternion
-    translation: hkVector4
+    translation: Vector4

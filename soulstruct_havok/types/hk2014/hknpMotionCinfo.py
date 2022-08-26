@@ -34,8 +34,8 @@ class hknpMotionCinfo(hk):
     massFactor: float
     maxLinearAccelerationDistancePerStep: float
     maxRotationToPreventTunneling: float
-    inverseInertiaLocal: hkVector4
-    centerOfMassWorld: hkVector4
+    inverseInertiaLocal: Vector4
+    centerOfMassWorld: Vector4
     orientation: hkQuaternionf
-    linearVelocity: hkVector4
-    angularVelocity: hkVector4
+    linearVelocity: Vector4
+    angularVelocity: Vector4
