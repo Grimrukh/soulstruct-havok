@@ -10,21 +10,6 @@ from soulstruct_havok.types.core import *
 from soulstruct_havok.types.hk2010_base import *
 
 
-# --- Invalid Types --- #
-
-
-# --- Primitive Types --- #
-
-
-# --- Havok Struct Types --- #
-
-
-# --- Havok Wrappers --- #
-
-
-# --- Havok Core Types --- #
-
-
 class hkaBone(hk):
     alignment = 8
     byte_size = 8

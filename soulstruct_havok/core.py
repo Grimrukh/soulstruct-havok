@@ -10,6 +10,7 @@ from pathlib import Path
 from soulstruct.base.game_file import GameFile, InvalidGameFileTypeError
 from soulstruct.containers import Binder
 from soulstruct.containers.bnd import BaseBND
+from soulstruct.containers.dcx import DCXType
 from soulstruct.containers.bnd.entry import BNDEntry
 from soulstruct.utilities.maths import QuatTransform, Vector4
 from soulstruct.utilities.binary import BinaryReader
@@ -38,21 +39,26 @@ class HKX(GameFile):
     Use `write_packfile()` and `write_tagfile()` to specify the format you want to output. If you use `write()`, it will
     default to writing the format that was loaded. Same for `pack()` and its two variants.
     """
-
-    Typing = tp.Union[GameFile.Typing]
-
-    root: tp.Optional[hk]
+    root: None | hk
     hk_type_infos = list[tp.Type[hk]]
     hk_format: str  # "packfile" or "tagfile"
     hk_version: str
-    unpacker: tp.Union[None, TagFileUnpacker, PackFileUnpacker]
+    unpacker: None | TagFileUnpacker | PackFileUnpacker
     is_compendium: bool
-    compendium_ids = list[str]
+    compendium_ids: list[str]
+
+    packfile_header_version: None | str
+    packfile_pointer_size: None | int
+    packfile_is_little_endian: None | bool
+    packfile_padding_option: None | int
+    packfile_contents_version_string: None | bytes
+    packfile_flags: None | int
+    packfile_header_extension: None | PackFileHeaderExtension
 
     def __init__(
         self,
-        file_source: Typing = None,
-        dcx_magic: tuple[int, int] = (),
+        file_source: GameFile.Typing = None,
+        dcx_type: None | DCXType = DCXType.Null,
         compendium: tp.Optional[HKX] = None,
         hk_format="",
     ):
@@ -67,15 +73,15 @@ class HKX(GameFile):
         self.unpacker = None
         self.compendium_ids = []
 
-        self.packfile_header_version = None  # type: tp.Optional[str]
-        self.packfile_pointer_size = None  # type: tp.Optional[int]
-        self.packfile_is_little_endian = None  # type: tp.Optional[bool]
-        self.packfile_padding_option = None  # type: tp.Optional[int]
-        self.packfile_contents_version_string = None  # type: tp.Optional[bytes]
-        self.packfile_flags = None  # type: tp.Optional[int]
-        self.packfile_header_extension = None  # type: tp.Optional[PackFileHeaderExtension]
+        self.packfile_header_version = None
+        self.packfile_pointer_size = None
+        self.packfile_is_little_endian = None
+        self.packfile_padding_option = None
+        self.packfile_contents_version_string = None
+        self.packfile_flags = None
+        self.packfile_header_extension = None
 
-        super().__init__(file_source, dcx_magic, compendium=compendium, hk_format=hk_format)
+        super().__init__(file_source, dcx_type=dcx_type, compendium=compendium, hk_format=hk_format)
 
     def _handle_other_source_types(self, file_source, compendium: tp.Optional[HKX] = None, hk_format=""):
 
@@ -101,7 +107,7 @@ class HKX(GameFile):
         raise InvalidGameFileTypeError("`file_source` was not an `XML` file, `HKX` file/stream, or `HKXNode`.")
 
     @staticmethod
-    def _detect_hk_format(reader: BinaryReader) -> tp.Optional[str]:
+    def _detect_hk_format(reader: BinaryReader) -> None | str:
         """Peek into buffer to find out if it is a "packfile", "tagfile", or unknown (`None`)."""
         first_eight_bytes = reader.unpack_bytes(length=8, offset=reader.position)
         if first_eight_bytes == b"\x57\xE0\xE0\x57\x10\xC0\xC0\x10":
@@ -453,10 +459,10 @@ class RagdollHKX(HKX):
     def __init__(
         self,
         file_source: HKX.Typing = None,
-        dcx_magic: tuple[int, int] = (),
+        dcx_type: None | DCXType = DCXType.Null,
         compendium: tp.Optional[HKX] = None,
     ):
-        super().__init__(file_source, dcx_magic, compendium)
+        super().__init__(file_source, dcx_type=dcx_type, compendium=compendium)
         self.animation_container = self.get_variant_node(0).get_py_object(AnimationContainer)
         self.standard_skeleton = self.animation_container.skeletons[0]
         self.ragdoll_skeleton = self.animation_container.skeletons[1]
@@ -548,10 +554,10 @@ class ClothHKX(HKX):
     def __init__(
         self,
         file_source: HKX.Typing = None,
-        dcx_magic: tuple[int, int] = (),
+        dcx_type: None | DCXType = DCXType.Null,
         compendium: tp.Optional[HKX] = None,
     ):
-        super().__init__(file_source, dcx_magic, compendium)
+        super().__init__(file_source, dcx_type=dcx_type, compendium=compendium)
         self.physics_data = self.get_variant_node(0).get_py_object(PhysicsData)
 
     def scale(self, factor: float):

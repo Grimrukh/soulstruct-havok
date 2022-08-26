@@ -121,7 +121,7 @@ def load_collision():
 
     """
 
-    dsr_hkx = HKX("resources/h0001B0A10_DSR.hkx.dcx", hk_format="tagfile")
+    dsr_hkx = HKX("resources/DSR/h0000B0A10.hkx.dcx", hk_format="tagfile")
     print(dsr_hkx.get_root_tree_string())
 
     # mopp_code_data = dsr_hkx.get_variant_node(0)["systems"][0]["rigidBodies"][0]["collidable"]["shape"]["code"]["data"]
@@ -196,4 +196,5 @@ def new_tag_unpacker():
 
 
 if __name__ == '__main__':
-    new_tag_unpacker()
+    # new_tag_unpacker()
+    load_collision()

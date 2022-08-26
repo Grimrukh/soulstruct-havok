@@ -274,6 +274,7 @@ class PackFileUnpacker:
         for i, entry_spec in enumerate(item_entry_specs):
             type_name = self.class_names[entry_spec["type_name_offset"]]
             type_py_name = get_py_name(type_name)
+            print(f"Item: {i, type_py_name, entry_spec}")
             try:
                 hk_type = getattr(self.hk_types_module, type_py_name)
             except AttributeError:

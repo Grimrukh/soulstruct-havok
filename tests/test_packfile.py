@@ -34,7 +34,8 @@ def ds3_c1430_test():
         c1430_ragdoll = HKX(c1430_chrbnd[300])
     print("Unpacked ragdoll successfully.")
     Path("ds3_c1430_ragdoll.hkx.txt").write_text(c1430_ragdoll.get_root_tree_string())
-    c1430_ragdoll.write("repack.hkx")
+    c1430_ragdoll.write("c1430.hkx")
+    exit()
     with contextlib.redirect_stdout(open("ds3_c1430_ragdoll_repack_unpack.txt", "w")):
         c1430_ragdoll_repack = HKX("repack.hkx")
     Path("ds3_c1430_ragdoll_repack.hkx.txt").write_text(c1430_ragdoll_repack.get_root_tree_string())
@@ -46,7 +47,7 @@ def ds3_c1430_test():
     # print("Unpacked cloth successfully.")
 
     c1430_anibnd.write(Path(DS3_PATH + "/chr/c1430.anibnd.dcx"))  # WORKS (but only has skeleton)
-    c1430_chrbnd.write(Path(DS3_PATH + "/chr/c1430.chrbnd.dcx"))  # TODO: works?
+    c1430_chrbnd.write(Path(DS3_PATH + "/chr/c1430.chrbnd.dcx"))  # TODO: Ragdoll repack crashes.
 
 
 def bb_cloth_test():

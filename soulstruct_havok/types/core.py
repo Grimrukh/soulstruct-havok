@@ -142,9 +142,9 @@ class hk:
 
     # These fields are optional (defaulting to `None`), not inherited (hence the double udnerscore), and have class
     # methods for getting and setting.
-    __hsh = None  # type: tp.Optional[int]  # only used by some types
-    __abstract_value = None  # type: tp.Optional[int]  # only used by some Classes
-    __version = None  # type: tp.Optional[int]  # only used by some Classes
+    __hsh = None  # type: None | int  # only used by some types
+    __abstract_value = None  # type: None | int  # only used by some Classes
+    __version = None  # type: None | int  # only used by some Classes
 
     __real_name = ""  # if different to type name (e.g., may contain colons, asterisk, or clash with a Python type)
 
@@ -426,7 +426,7 @@ class hk:
         setattr(cls, f"_{cls.get_type_name(True)}__real_name", real_name)
 
     @classmethod
-    def get_tag_format_flags(cls) -> tp.Optional[int]:
+    def get_tag_format_flags(cls) -> None | int:
         return getattr(cls, f"_{cls.get_type_name(True)}__tag_format_flags", None)
 
     @classmethod
@@ -434,7 +434,7 @@ class hk:
         setattr(cls, f"_{cls.get_type_name(True)}__tag_format_flags", tag_format_flags)
 
     @classmethod
-    def get_hsh(cls) -> tp.Optional[int]:
+    def get_hsh(cls) -> None | int:
         return getattr(cls, f"_{cls.get_type_name(True)}__hsh", None)
 
     @classmethod
@@ -442,7 +442,7 @@ class hk:
         setattr(cls, f"_{cls.get_type_name(True)}__hsh", hsh)
 
     @classmethod
-    def get_abstract_value(cls) -> tp.Optional[int]:
+    def get_abstract_value(cls) -> None | int:
         return getattr(cls, f"_{cls.get_type_name(True)}__abstract_value", None)
 
     @classmethod
@@ -450,7 +450,7 @@ class hk:
         setattr(cls, f"_{cls.get_type_name(True)}__abstract_value", abstract_value)
 
     @classmethod
-    def get_version(cls) -> tp.Optional[int]:
+    def get_version(cls) -> None | int:
         return getattr(cls, f"_{cls.get_type_name(True)}__version", None)
 
     @classmethod
@@ -1759,7 +1759,7 @@ def pack_pointer(
 
     # print(f"Appending pointer item pack: {value}")
 
-    def delayed_item_creation(_item_creation_queue) -> tp.Optional[TagFileItem]:
+    def delayed_item_creation(_item_creation_queue) -> None | TagFileItem:
         # Item may have been created since this function was queued.
         if value in existing_items:
             existing_item = existing_items[value]
@@ -2120,27 +2120,33 @@ def unpack_named_variant(
 
 
 def unpack_named_variant_packfile(
-    hk_type: tp.Type[hk], entry: PackFileItemEntry, pointer_size: int, types_module: dict
+    hk_type: tp.Type[hk], item: PackFileItemEntry, pointer_size: int, types_module: dict
 ) -> hk:
     """Detects `variant` type dynamically from `className` member."""
     instance = hk_type()
-    member_start_offset = entry.reader.position
+    member_start_offset = item.reader.position
     # "variant" member type is a subclass of `hkReferencedObject` with name "className".
     name_member, class_name_member, variant_member = hk_type.members[:3]
     name = name_member.type.unpack_packfile(
-        entry, offset=member_start_offset + name_member.offset, pointer_size=pointer_size
+        item, offset=member_start_offset + name_member.offset, pointer_size=pointer_size
     )
     setattr(instance, name_member.name, name)
     variant_type_name = class_name_member.type.unpack_packfile(
-        entry, offset=member_start_offset + class_name_member.offset, pointer_size=pointer_size
+        item, offset=member_start_offset + class_name_member.offset, pointer_size=pointer_size
     )
     setattr(instance, class_name_member.name, variant_type_name)
     variant_py_name = get_py_name(variant_type_name)
     variant_type = types_module[variant_py_name]
-    entry.reader.seek(member_start_offset + variant_member.offset)
-    _debug_print_unpack(f"Unpacking named variant: {hk_type.__name__}... <{entry.reader.position_hex}>")
+    item.reader.seek(member_start_offset + variant_member.offset)
+    _debug_print_unpack(f"Unpacking named variant: {hk_type.__name__}... <{item.reader.position_hex}>")
     _increment_debug_indent()
-    variant_instance = unpack_pointer_packfile(variant_type, entry, pointer_size=pointer_size)
+    from soulstruct.utilities.inspection import get_hex_repr
+    print(f"Variant offset: {item.reader.position} ({item.reader.position_hex})")
+    print(f"Next four bytes:")
+    print(get_hex_repr(item.reader.read(16, offset=item.reader.position)))
+    print(f"Local fixups: {item.child_pointers}")
+    print(f"Global fixups: {item.item_pointers}")
+    variant_instance = unpack_pointer_packfile(variant_type, item, pointer_size=pointer_size)
     _decrement_debug_indent()
     _debug_print_unpack(f"--> {variant_instance}")
     setattr(instance, variant_member.name, variant_instance)

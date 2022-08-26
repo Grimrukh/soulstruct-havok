@@ -409,6 +409,9 @@ class TrackVector3:
         else:
             raise ValueError(f"Invalid `ScalarQuantizationType`: {self.scalar_quantization}")
 
+    def __repr__(self):
+        return f"TrackVector3({self.x}, {self.y}, {self.z})"
+
 
 class TrackQuaternion:
 
