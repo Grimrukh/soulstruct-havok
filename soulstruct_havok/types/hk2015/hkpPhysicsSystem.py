@@ -7,7 +7,6 @@ from .hkpRigidBody import hkpRigidBody
 from .hkpConstraintInstance import hkpConstraintInstance
 from .hkpAction import hkpAction
 from .hkpPhantom import hkpPhantom
-from .hkBool import hkBool
 
 
 class hkpPhysicsSystem(hkReferencedObject):

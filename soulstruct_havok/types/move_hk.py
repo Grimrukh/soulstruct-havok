@@ -40,7 +40,10 @@ def main():
             new_file.write_text("\n".join(lines) + source)
 
     init_file = new_submodule / "__init__.py"
-    init_file.write_text("\n".join(f"from .{t} import {t}" for t in sorted(init_imports)) + "\n")
+    init_file.write_text(
+        "from .core import *\n\n"
+        + "\n".join(f"from .{t} import {t}" for t in sorted(init_imports)) + "\n"
+    )
 
 
 def get_imported_types(cls: tp.Type[hk], base_names: list[str]) -> tuple[list[str], list[str]]:

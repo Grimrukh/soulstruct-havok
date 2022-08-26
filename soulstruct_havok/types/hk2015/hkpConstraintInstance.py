@@ -7,7 +7,6 @@ from .hkpConstraintData import hkpConstraintData
 from .hkpModifierConstraintAtom import hkpModifierConstraintAtom
 from .hkpEntity import hkpEntity
 from .hkpConstraintInstanceConstraintPriority import hkpConstraintInstanceConstraintPriority
-from .hkBool import hkBool
 from .hkpConstraintInstanceOnDestructionRemapInfo import hkpConstraintInstanceOnDestructionRemapInfo
 from .hkpConstraintInstanceSmallArraySerializeOverrideType import hkpConstraintInstanceSmallArraySerializeOverrideType
 

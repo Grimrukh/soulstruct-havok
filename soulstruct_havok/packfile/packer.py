@@ -20,14 +20,14 @@ class PackFilePacker:
         self.hkx = hkx
 
         if hkx.hk_version == "2014":
-            from soulstruct_havok.types import hk2014_new
-            self.hk_types_module = hk2014_new
+            from soulstruct_havok.types import hk2014
+            self.hk_types_module = hk2014
         else:
             raise ValueError(f"Only version '2014' is supported for packfile packing, not '{hkx.hk_version}'.")
 
     def pack(
         self,
-        header_version: str,
+        header_version: PackFileVersion,
         pointer_size: int,
         is_little_endian: bool,
         padding_option: int,

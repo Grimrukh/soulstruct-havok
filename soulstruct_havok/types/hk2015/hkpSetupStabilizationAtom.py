@@ -4,7 +4,6 @@ from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 from .hkpConstraintAtom import hkpConstraintAtom
-from .hkBool import hkBool
 
 
 class hkpSetupStabilizationAtom(hkpConstraintAtom):

@@ -5,7 +5,10 @@ from soulstruct_havok.enums import *
 from .core import *
 
 
-class hkaBone(hk):
+from .hkpMeshMaterial import hkpMeshMaterial
+
+
+class hkpNamedMeshMaterial(hkpMeshMaterial):
     alignment = 8
     byte_size = 16
     tag_type_flags = TagDataType.Class
@@ -13,10 +16,8 @@ class hkaBone(hk):
     __tag_format_flags = 41
 
     local_members = (
-        Member(0, "name", hkStringPtr),
-        Member(8, "lockTranslation", hkBool),
+        Member(8, "name", hkStringPtr),
     )
-    members = local_members
+    members = hkpMeshMaterial.members + local_members
 
     name: str
-    lockTranslation: bool

@@ -303,8 +303,8 @@ class TypeInfo:
 
             # TODO: Should also check member type, but that's a little more complex with the array/enum wrappers, etc.
 
-    def get_class_py_def(self, defined_type_names: list[str]) -> str:
-        return PyDefBuilder(self, defined_type_names).build()
+    def get_class_py_def(self, defined_type_names: list[str] = (), import_undefined_names=False) -> str:
+        return PyDefBuilder(self, defined_type_names, import_undefined_names).build()
 
     def get_parent_string(self):
         return (
@@ -344,8 +344,19 @@ class TypeInfo:
         if self.members:
             py_def += f"\n\n    local_members = (\n"
             for member in self.members:
+                if member.type_info.name in ("hkArray",):
+                    type_py_name = f"{member.type_info.name}({member.type_info.templates[0].type_info.py_name})"
+                elif member.type_info.name == "hkEnum":
+                    type_py_name = (
+                        f"hkEnum({member.type_info.templates[0].type_info.py_name}, "
+                        f"{member.type_info.templates[1].type_info.py_name})"
+                    )
+                elif member.type_info.name == "T*":
+                    type_py_name = f"Ptr({member.type_info.templates[0].type_info.py_name})"
+                else:
+                    type_py_name = member.type_py_name
                 py_def += (
-                    f"        Member({member.offset}, \"{member.name}\", {member.type_py_name}, "
+                    f"        Member({member.offset}, \"{member.name}\", {type_py_name}, "
                     f"{member.get_tag_member_flags_repr()}),\n"
                 )
             py_def += "    )"
@@ -378,11 +389,13 @@ class PyDefBuilder:
     MAX_LINE_LENGTH = 121
 
     info: TypeInfo
-    defined_type_names: list[str]
+    defined_type_names: None | list[str]
+    import_lines: None | list[str]
 
-    def __init__(self, type_info: TypeInfo, defined_type_names: list[str]):
+    def __init__(self, type_info: TypeInfo, defined_type_names: list[str] = (), import_undefined_names=False):
         self.info = type_info
         self.defined_type_names = defined_type_names + [type_info.name]  # may reference self
+        self.import_lines = [] if import_undefined_names else None
 
     @property
     def name(self):
@@ -399,6 +412,17 @@ class PyDefBuilder:
     @property
     def tag_data_type(self) -> TagDataType:
         return self.info.tag_data_type
+
+    def check_defined(self, py_name: str, source_name: str, description: str):
+        if py_name not in self.defined_type_names:
+            if self.import_lines is not None:
+                print(f"ADDING IMPORT: {py_name}")
+                if py_name not in self.import_lines:
+                    self.import_lines.append(py_name)
+            else:
+                if source_name:
+                    raise TypeNotDefinedError(f"Undefined {description} type for `{source_name}`: {py_name}")
+                raise TypeNotDefinedError(f"Undefined required {description} type: {py_name}")
 
     def build_rel_array_type(self, rel_array_type: TypeInfo) -> tuple[str, str]:
         array_data_type = rel_array_type.pointer_type_info
@@ -432,8 +456,7 @@ class PyDefBuilder:
             raise ValueError(
                 f"`hkRefVariant` has a data type other than `hkReferencedObject`: {data_type_info.py_name}"
             )
-        if data_type_info.py_name not in self.defined_type_names:
-            raise TypeNotDefinedError(f"Undefined data type for `hkRefVariant`: {data_type_info.py_name}`")
+        self.check_defined(data_type_info.py_name, "hkRefVariant", "data")
         py_name, type_hint = self.build_type_name(data_type_info)
         if ref_variant_type.hsh is not None:
             return f"hkRefVariant({py_name}, hsh={ref_variant_type.hsh})", type_hint
@@ -448,8 +471,7 @@ class PyDefBuilder:
             if ref_ptr_type.hsh is not None:
                 return f"hkRefPtr(DefType(\"{py_name}\", lambda: {py_name}), hsh={ref_ptr_type.hsh})", type_hint
             return f"hkRefPtr(DefType(\"{py_name}\", lambda: {py_name}))", type_hint
-        if data_type_info.py_name not in self.defined_type_names:
-            raise TypeNotDefinedError(f"Undefined data type for `hkRefPtr`: {data_type_info.py_name}`")
+        self.check_defined(data_type_info.py_name, "hkRefPtr", "data")
         if ref_ptr_type.hsh is not None:
             return f"hkRefPtr({py_name}, hsh={ref_ptr_type.hsh})", type_hint
         return f"hkRefPtr({py_name})", type_hint
@@ -462,8 +484,7 @@ class PyDefBuilder:
             if ptr_type.hsh is not None:
                 return f"Ptr(DefType(\"{py_name}\", lambda: {py_name}), hsh={ptr_type.hsh})", type_hint
             return f"Ptr(DefType(\"{py_name}\", lambda: {py_name}))", type_hint
-        if data_type_info.py_name not in self.defined_type_names:
-            raise TypeNotDefinedError(f"Undefined data type for `Ptr`: {data_type_info.py_name}`")
+        self.check_defined(data_type_info.py_name, "Ptr", "data")
         if ptr_type.hsh is not None:
             return f"Ptr({py_name}, hsh={ptr_type.hsh})", type_hint
         return f"Ptr({py_name})", type_hint
@@ -492,25 +513,19 @@ class PyDefBuilder:
         else:
             # Struct of primitives.
             py_name = type_hint = data_type_info.py_name
-            if py_name not in self.defined_type_names:
-                raise TypeNotDefinedError(f"Undefined data type for `hkStruct`: {py_name}`")
+            self.check_defined(py_name, "hkStruct", "data")
         return f"hkGenericStruct({py_name}, {struct_length})", f"tuple[{type_hint}]"
 
     def build_enum_type(self, enum_type: TypeInfo) -> tuple[str, str]:
         t_enum_type = enum_type.templates[0].type_info  # "tENUM" template
         t_storage_type = enum_type.templates[1].type_info  # "tSTORAGE" template
-        if t_enum_type.py_name not in self.defined_type_names:
-            raise TypeNotDefinedError(f"Undefined enum type for `hkEnum`: {t_enum_type.py_name}`")
-        if t_storage_type.py_name not in self.defined_type_names:
-            raise TypeNotDefinedError(f"Undefined storage type for `hkEnum`: {t_storage_type.py_name}`")
+        self.check_defined(t_enum_type.py_name, "hkEnum", "enum")
+        self.check_defined(t_storage_type.py_name, "hkEnum", "storage")
         return f"hkEnum({t_enum_type.py_name}, {t_storage_type.py_name})", t_enum_type.py_name
 
     def build_free_list_array_element_type(self, element_type: TypeInfo) -> tuple[str, str]:
         element_parent_type = element_type.parent_type_info
-        if element_parent_type.py_name not in self.defined_type_names:
-            raise TypeNotDefinedError(
-                f"Undefined parent type for `hkFreeListArrayElement`: {element_parent_type.py_name}"
-            )
+        self.check_defined(element_parent_type.py_name, "hkFreeListArrayElement", "parent")
         return f"hkFreeListArrayElement({element_parent_type})", element_parent_type.py_name
 
     def build_free_list_array_type(self, free_list_array_type: TypeInfo) -> tuple[str, str]:
@@ -523,14 +538,8 @@ class PyDefBuilder:
                 f"not: {elements_data_type.py_name}"
             )
         elements_data_parent_type = elements_data_type.parent_type_info
-        if elements_data_parent_type.py_name not in self.defined_type_names:
-            raise TypeNotDefinedError(
-                f"Undefined 'elements' parent type for `hkFreeListArray`: {elements_data_parent_type.py_name}"
-            )
-        if first_free_type.py_name not in self.defined_type_names:
-            raise TypeNotDefinedError(
-                f"Undefined 'firstFree' type for `hkFreeListArray: {first_free_type.py_name}"
-            )
+        self.check_defined(elements_data_parent_type.py_name, "hkFreeListArray", "`elements` parent")
+        self.check_defined(first_free_type.py_name, "hkFreeListArray", "`firstFree`")
         if hsh is not None:
             return (
                 f"hkFreeListArray({elements_data_parent_type.py_name}, {first_free_type.py_name}, hsh={hsh})",
@@ -543,8 +552,7 @@ class PyDefBuilder:
 
     def build_flags_type(self, flags_type: TypeInfo) -> tuple[str, str]:
         storage_type = flags_type.members[0].type_info
-        if storage_type.py_name not in self.defined_type_names:
-            raise TypeNotDefinedError(f"Undefined storage type for `hkFlags`: {storage_type.py_name}")
+        self.check_defined(storage_type.py_name, "hkFlags", "storage")
         return f"hkFlags({storage_type.py_name})", storage_type.py_name
 
     def build_type_name(self, type_info: TypeInfo, allow_undefined=False) -> tuple[str, str]:
@@ -585,12 +593,10 @@ class PyDefBuilder:
             #  when generated, and use that information on unpacking/packing to treat them properly. (Any subclass of
             #  `hkBasePointer` will have a `tTYPE` template that can be checked.)
             elif type_info.name == "hkReflect::QualifiedType":
-                if "hkReflectQualifiedType" not in self.defined_type_names:
-                    raise TypeNotDefinedError("Undefined pointer type name: hkReflectQualifiedType")
+                self.check_defined("hkReflectQualifiedType", "", "pointer")
                 return "hkReflectQualifiedType", "hkReflectQualifiedType"
             elif type_info.name == "hkPropertyBag":
-                if "hkPropertyBag" not in self.defined_type_names:
-                    raise TypeNotDefinedError("Undefined pointer type name: hkPropertyBag")
+                self.check_defined("hkPropertyBag", "", "pointer")
                 return "hkPropertyBag", "hkPropertyBag"
 
             elif type_info.name == "T*":
@@ -603,9 +609,9 @@ class PyDefBuilder:
                     f"Only `hkRefVariant`, `hkRefPtr`, `hkViewPtr`, and `T*` are known."
                 )
         else:
-            # Primitive type.
-            if not allow_undefined and type_info.py_name not in self.defined_type_names:
-                raise TypeNotDefinedError(f"Undefined primitive/class member type: {type_info.py_name}")
+            # Primitive or direct type.
+            if not allow_undefined:
+                self.check_defined(type_info.py_name, self.name, "primitive/class member")
             if type_hint := type_info.get_parent_value("tag_data_type").get_primitive_type_hint():
                 return type_info.py_name, type_hint
             return type_info.py_name, type_info.py_name
@@ -628,8 +634,7 @@ class PyDefBuilder:
             if self.info.parent_type_info is not None:
                 parent_name = self.info.parent_type_info.py_name
                 append_to_parent_members = True
-                if parent_name not in self.defined_type_names:
-                    raise TypeNotDefinedError(f"Undefined parent for `{self.name}`: `{parent_name}`")
+                self.check_defined(parent_name, self.name, "parent")
             elif self.info.pointer_type_info is not None and self.info.name not in {"T*", "hkRefPtr", "hkRefVariant"}:
                 parent_name = "hkBasePointer"
             else:
@@ -680,7 +685,9 @@ class PyDefBuilder:
                     # TODO: Trying to use packfile information only.
                     py_name = member.member_py_name
                     type_hint = member.type_hint
-                    if any(name not in self.defined_type_names for name in member.required_types):
+                    if self.defined_type_names and any(
+                        name not in self.defined_type_names for name in member.required_types
+                    ):
                         raise TypeNotDefinedError(f"Packfile type(s) not defined: {member.required_types}")
                     # raise ValueError(f"Member '{member.name}' of `{self.py_name}` has no `TypeInfo` assigned.")
                 else:
@@ -741,7 +748,11 @@ class PyDefBuilder:
             py_string += f"    __interfaces = (\n"
             for interface_info in self.info.interfaces:
                 interface_type_py_name = interface_info.type_info.py_name
+                self.check_defined(interface_type_py_name, self.name, "interface")
                 py_string += f"        Interface({interface_type_py_name}, flags={interface_info.flags}),\n"
             py_string += f"    )\n"
+
+        if self.import_lines:
+            py_string = "\n".join(f"from .{t} import {t}" for t in self.import_lines) + f"\n\n\n{py_string}"
 
         return py_string

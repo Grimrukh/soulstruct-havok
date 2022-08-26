@@ -6,7 +6,6 @@ from .core import *
 from .hkpConstraintAtom import hkpConstraintAtom
 from .hkpConstraintAtomSolvingMethod import hkpConstraintAtomSolvingMethod
 from .hkUFloat8 import hkUFloat8
-from .hkBool import hkBool
 
 
 class hkpBallSocketConstraintAtom(hkpConstraintAtom):

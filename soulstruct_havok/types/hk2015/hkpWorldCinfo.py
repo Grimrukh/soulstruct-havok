@@ -5,7 +5,6 @@ from soulstruct_havok.enums import *
 from .core import *
 from .hkpWorldCinfoBroadPhaseType import hkpWorldCinfoBroadPhaseType
 from .hkpWorldCinfoBroadPhaseBorderBehaviour import hkpWorldCinfoBroadPhaseBorderBehaviour
-from .hkBool import hkBool
 from .hkAabb import hkAabb
 from .hkpCollisionFilter import hkpCollisionFilter
 from .hkpConvexListFilter import hkpConvexListFilter

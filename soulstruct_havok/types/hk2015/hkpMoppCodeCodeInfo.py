@@ -5,16 +5,17 @@ from soulstruct_havok.enums import *
 from .core import *
 
 
-class hkBool(hk):
-    alignment = 1
-    byte_size = 1
-    tag_type_flags = TagDataType.Bool | TagDataType.Int8
+class hkpMoppCodeCodeInfo(hk):
+    alignment = 16
+    byte_size = 16
+    tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
+    __real_name = "hkpMoppCode::CodeInfo"
 
     local_members = (
-        Member(0, "bool", _char, MemberFlags.Private),
+        Member(0, "offset", hkVector4),
     )
     members = local_members
 
-    bool: int
+    offset: hkVector4

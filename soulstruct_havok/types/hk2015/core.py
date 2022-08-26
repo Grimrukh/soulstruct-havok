@@ -28,6 +28,7 @@ __all__ = [
     "hkQsTransformf",
     "hkQsTransform",
     "hkUint32",
+    "hkQuaternion",
     "hkUint16",
     "hkReal",
     "hkInt16",
@@ -38,6 +39,7 @@ __all__ = [
     "hkUint64",
     "hkBaseObject",
     "hkContainerHeapAllocator",
+    "hkBool",
     "hkStringPtr",
     "hkReferencedObject",
 ]
@@ -321,6 +323,9 @@ class hkQsTransformf(hk):
     scale: hkVector4f
 
 
+# --- Havok Wrappers --- #
+
+
 class hkQsTransform(hkQsTransformf):
     """Havok alias."""
     __tag_format_flags = 0
@@ -334,7 +339,10 @@ class hkUint32(_unsigned_int):
     local_members = ()
 
 
-# --- Havok Wrappers --- #
+class hkQuaternion(hkQuaternionf):
+    """Havok alias."""
+    __tag_format_flags = 0
+    local_members = ()
 
 
 class hkUint16(_unsigned_short):
@@ -408,6 +416,21 @@ class hkContainerHeapAllocator(hk):
     __tag_format_flags = 57
     __abstract_value = 16
     local_members = ()
+
+
+class hkBool(hk):
+    alignment = 1
+    byte_size = 1
+    tag_type_flags = TagDataType.Bool | TagDataType.Int8
+
+    __tag_format_flags = 41
+
+    local_members = (
+        Member(0, "bool", _char, MemberFlags.Private),
+    )
+    members = local_members
+
+    bool: int
 
 
 class hkStringPtr(hk):

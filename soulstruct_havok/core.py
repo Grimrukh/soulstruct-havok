@@ -16,12 +16,13 @@ from soulstruct.utilities.maths import QuatTransform, Vector4
 from soulstruct.utilities.binary import BinaryReader
 
 from .packfile.packer import PackFilePacker
-from .packfile.structs import PackFileHeaderExtension
+from .packfile.structs import PackFileHeaderExtension, PackFileVersion
 from .packfile.unpacker import PackFileUnpacker
 from .spline_compression import SplineCompressedAnimationData
 from .tagfile.packer import TagFilePacker
 from .tagfile.unpacker import TagFileUnpacker
 from .types import hk
+from .types.info import TypeInfo
 
 from .objects.hka import *
 from .objects.hkp import PhysicsData
@@ -39,15 +40,16 @@ class HKX(GameFile):
     Use `write_packfile()` and `write_tagfile()` to specify the format you want to output. If you use `write()`, it will
     default to writing the format that was loaded. Same for `pack()` and its two variants.
     """
+    PACKFILE = "packfile"
+    TAGFILE = "tagfile"
+
     root: None | hk
-    hk_type_infos = list[tp.Type[hk]]
     hk_format: str  # "packfile" or "tagfile"
-    hk_version: str
     unpacker: None | TagFileUnpacker | PackFileUnpacker
     is_compendium: bool
     compendium_ids: list[str]
 
-    packfile_header_version: None | str
+    packfile_header_version: None | PackFileVersion
     packfile_pointer_size: None | int
     packfile_is_little_endian: None | bool
     packfile_padding_option: None | int
@@ -62,13 +64,11 @@ class HKX(GameFile):
         compendium: tp.Optional[HKX] = None,
         hk_format="",
     ):
-        if hk_format not in {"", "tagfile", "packfile"}:
+        if hk_format not in {"", self.TAGFILE, self.PACKFILE}:
             raise ValueError(f"`hk_format` must be 'tagfile' or 'packfile' if given, not: {hk_format}")
-        self.root = None  # type: tp.Optional[hk]
+        self.root = None
         self.all_nodes = []
-        self.hk_type_infos = []  # type: list[tp.Type[hk]]
         self.hk_format = hk_format
-        self.hk_version = ""
         self.is_compendium = False
         self.unpacker = None
         self.compendium_ids = []
@@ -82,6 +82,18 @@ class HKX(GameFile):
         self.packfile_header_extension = None
 
         super().__init__(file_source, dcx_type=dcx_type, compendium=compendium, hk_format=hk_format)
+
+    @property
+    def hk_version(self) -> str:
+        if not self.unpacker:
+            raise AttributeError("Unpacker not created. Cannot retrieve Havok version.")
+        return self.unpacker.hk_version
+
+    @property
+    def hk_type_infos(self) -> list[TypeInfo]:
+        if not self.unpacker:
+            raise AttributeError("Unpacker not created. Cannot retrieve Havok `TypeInfo`s.")
+        return self.unpacker.hk_type_infos
 
     def _handle_other_source_types(self, file_source, compendium: tp.Optional[HKX] = None, hk_format=""):
 
@@ -106,24 +118,24 @@ class HKX(GameFile):
 
         raise InvalidGameFileTypeError("`file_source` was not an `XML` file, `HKX` file/stream, or `HKXNode`.")
 
-    @staticmethod
-    def _detect_hk_format(reader: BinaryReader) -> None | str:
+    @classmethod
+    def _detect_hk_format(cls, reader: BinaryReader) -> None | str:
         """Peek into buffer to find out if it is a "packfile", "tagfile", or unknown (`None`)."""
         first_eight_bytes = reader.unpack_bytes(length=8, offset=reader.position)
         if first_eight_bytes == b"\x57\xE0\xE0\x57\x10\xC0\xC0\x10":
-            return "packfile"
+            return cls.PACKFILE
         elif first_eight_bytes[4:8] in {b"TAG0", b"TCRF"}:
-            return "tagfile"
+            return cls.TAGFILE
         return None
 
     def unpack(self, reader: BinaryReader, hk_format="", compendium: tp.Optional[HKX] = None):
         if not hk_format:
             hk_format = self.hk_format
-        if hk_format == "packfile":
+        if hk_format == self.PACKFILE:
             if compendium is not None:
                 raise ValueError("`compendium` was passed with HKX packfile source (used only by newer tagfiles).")
             self.unpack_packfile(reader)
-        elif hk_format == "tagfile":
+        elif hk_format == self.TAGFILE:
             self.unpack_tagfile(reader, compendium=compendium)
         else:
             raise ValueError(
@@ -135,8 +147,6 @@ class HKX(GameFile):
         self.unpacker = PackFileUnpacker()
         self.unpacker.unpack(reader)
         self.root = self.unpacker.root
-        self.hk_type_infos = self.unpacker.hk_type_infos
-        self.hk_version = self.unpacker.hk_version
         self.is_compendium = False
         self.compendium_ids = []
 
@@ -153,8 +163,6 @@ class HKX(GameFile):
         self.unpacker = TagFileUnpacker()
         self.unpacker.unpack(reader, compendium=compendium)
         self.root = self.unpacker.root
-        self.hk_type_infos = self.unpacker.hk_type_infos
-        self.hk_version = self.unpacker.hk_version
         self.is_compendium = self.unpacker.is_compendium
         self.compendium_ids = self.unpacker.compendium_ids
 

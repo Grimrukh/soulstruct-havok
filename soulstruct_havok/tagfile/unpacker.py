@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 import typing as tp
 from contextlib import contextmanager
+from pathlib import Path
+from types import ModuleType
 
 from soulstruct.utilities.binary import BinaryReader
 
@@ -14,7 +16,7 @@ from .structs import *
 
 if tp.TYPE_CHECKING:
     from soulstruct_havok.core import HKX
-    from soulstruct_havok.types import hk2015
+    from soulstruct_havok.types import hk2015, hk2018
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,7 +31,9 @@ def _DEBUG_TYPE_PRINT(*args, **kwargs):
 
 class TagFileUnpacker:
     
-    root: tp.Optional[hk2015.hkRootLevelContainer]  # TODO: Bit of a hack (hard-coding 2015 hierarchy).
+    hk_types_version: str
+    hk_types_module: None | ModuleType
+    root: None | hk2015.hkRootLevelContainer | hk2018.hkRootLevelContainer
     hk_type_infos: list[TypeInfo]
     items: list[TagFileItem]
     is_compendium: bool
@@ -38,6 +42,7 @@ class TagFileUnpacker:
 
     def __init__(self):
 
+        self.hk_types_version = ""
         self.hk_types_module = None
         self.root = None
         self.hk_type_infos = []
@@ -55,10 +60,13 @@ class TagFileUnpacker:
                 self.is_compendium = False
                 with self.unpack_section(reader, "SDKV"):
                     self.hk_version = reader.unpack_string(length=8, encoding="utf-8")
+                    print(f"HK tagfile version: {self.hk_version}")
                     if self.hk_version.startswith("2015") and not types_only:
+                        self.hk_types_version = "hk2015"
                         from soulstruct_havok.types import hk2015
                         self.hk_types_module = hk2015
                     elif self.hk_version.startswith("2018") and not types_only:
+                        self.hk_types_version = "hk2018"
                         from soulstruct_havok.types import hk2018
                         self.hk_types_module = hk2018
                     else:
@@ -74,8 +82,12 @@ class TagFileUnpacker:
 
                     # Attach Python classes to each non-generic `TypeInfo`.
 
-                    missing_type_names = []
+                    missing_type_infos = []
                     missing_type_py_defs = []
+
+                    from soulstruct_havok.types import core
+                    base = self.hk_types_module.core
+                    base_names = list(vars(core)) + list(vars(base))
 
                     for type_info in self.hk_type_infos[1:]:
                         if type_info.name in type_info.GENERIC_TYPE_NAMES:
@@ -84,20 +96,40 @@ class TagFileUnpacker:
                             py_class = getattr(self.hk_types_module, type_info.py_name)  # type: tp.Type[hk]
                         except AttributeError:
                             # Missing Python definition. Create a (possibly rough) Python definition to print.
-                            missing_type_names.append(type_info.name)
-                            missing_type_py_defs.append(type_info.get_rough_py_def())
+                            missing_type_infos.append(type_info)
+                            # missing_type_py_defs.append(type_info.get_rough_py_def())
+                            missing_type_py_defs.append(type_info.get_class_py_def(base_names, True))
                         else:
                             type_info.check_py_class_match(py_class)
                             type_info.py_class = py_class
 
-                    if missing_type_names:
-                        # Types are printed in reverse order for copy-pasting to module, as member types are generally
-                        # defined AFTER their owner classes in Havok files, but we need the opposite in Python.
-                        for new_py_def in reversed(missing_type_py_defs):
-                            print(new_py_def + "\n\n")
+                    if missing_type_infos:
+                        imports = [
+                            "from __future__ import annotations",
+                            "",
+                            "from soulstruct_havok.types.core import *",
+                            "from soulstruct_havok.enums import *",
+                            "from .core import *",
+                            "",
+                            "",
+                            "",
+                        ]
+
+                        init_lines = []
+
+                        for new_info, new_py_def in zip(missing_type_infos, missing_type_py_defs):
+                            new_file = Path(__file__).parent / f"../types/{self.hk_types_version}/{new_info.py_name}.py"
+                            new_file.write_text("\n".join(imports) + new_py_def)
+                            init_lines.append(new_info.py_name)
+                            print(f"Wrote new type file: {new_file.resolve()}")
+
+                        for line in init_lines:
+                            print(f"from .{line} import {line}")
+
                         raise TypeNotDefinedError(
-                            f"Unknown Havok types in file (definitions printed above): "
-                            f"{list(reversed(missing_type_names))}"
+                            f"Unknown Havok types in file. New type modules created, but will need their imports "
+                            f"fixed. Types:"
+                            f"{[info.name for info in missing_type_infos]}"
                         )
 
                     self.items = self.unpack_index_section(reader, data_start_offset)
@@ -126,7 +158,11 @@ class TagFileUnpacker:
                 raise ValueError(f"HKX root item has a length other than 1: {root_item.length}")
 
             # This call will recursively unpack all items.
-            self.root = self.hk_types_module.hkRootLevelContainer.unpack(reader, root_item.absolute_offset, self.items)
+
+            with hk.set_types_module(self.hk_types_module):
+                self.root = self.hk_types_module.hkRootLevelContainer.unpack(
+                    reader, root_item.absolute_offset, self.items
+                )
             root_item.value = self.root
 
     def unpack_type_section(self, reader: BinaryReader, compendium: tp.Optional[HKX] = None) -> list[TypeInfo]:

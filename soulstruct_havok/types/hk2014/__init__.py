@@ -1,3 +1,5 @@
+from .core import *
+
 from .hkAabb import hkAabb
 from .hkCompressedMassProperties import hkCompressedMassProperties
 from .hkFreeListArrayhknpMaterialhknpMaterialId8hknpMaterialFreeListArrayOperations import hkFreeListArrayhknpMaterialhknpMaterialId8hknpMaterialFreeListArrayOperations

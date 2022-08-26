@@ -39,6 +39,7 @@ import inspect
 import sys
 import typing as tp
 from collections import deque
+from contextlib import contextmanager
 
 from colorama import init as colorama_init, Fore
 
@@ -133,6 +134,11 @@ class Interface(tp.NamedTuple):
 
 class hk:
     """Absolute base of every Havok type."""
+
+    # Set before unpacking root and removed afterward, as `hkRootLevelContainerNamedVariant` objects need to dynamically
+    # retrieve all type names.
+    _TYPES_MODULE = None
+
     alignment = 0
     byte_size = 0
     tag_type_flags = 0
@@ -202,6 +208,18 @@ class hk:
             return hierarchy[1]
         return None
 
+    @staticmethod
+    @contextmanager
+    def set_types_module(module):
+        hk._TYPES_MODULE = {
+            name: hk_type
+            for name, hk_type in inspect.getmembers(module, lambda x: inspect.isclass(x) and issubclass(x, hk))
+        }
+        try:
+            yield
+        finally:
+            hk._TYPES_MODULE = None
+
     @classmethod
     def unpack(cls, reader: BinaryReader, offset: int, items: list[TagFileItem] = None) -> tp.Any:
         """Unpack a `hk` instance from `reader`.
@@ -215,13 +233,11 @@ class hk:
 
         if cls.__name__ == "hkRootLevelContainerNamedVariant":
             # Retrieve other classes from subclass's module, as they will be dynamically attached to the root container.
-            all_types = {
-                name: hk_type
-                for name, hk_type in inspect.getmembers(
-                    sys.modules[cls.__module__], lambda x: inspect.isclass(x) and issubclass(x, hk)
+            if hk._TYPES_MODULE is None:
+                raise AttributeError(
+                    "Cannot unpack `hkRootLevelContainerNamedVariant` without using types context manager."
                 )
-            }
-            return unpack_named_variant(cls, reader, items, all_types)
+            return unpack_named_variant(cls, reader, items, hk._TYPES_MODULE)
 
         tag_data_type = cls.get_tag_data_type()
         if tag_data_type == TagDataType.Invalid:

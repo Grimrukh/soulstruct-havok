@@ -1,3 +1,5 @@
+from .core import *
+
 from .hkAabb import hkAabb
 from .hkLocalFrame import hkLocalFrame
 from .hkMotionState import hkMotionState

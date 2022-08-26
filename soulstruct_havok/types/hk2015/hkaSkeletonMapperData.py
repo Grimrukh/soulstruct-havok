@@ -7,7 +7,6 @@ from .hkaSkeleton import hkaSkeleton
 from .hkaSkeletonMapperDataPartitionMappingRange import hkaSkeletonMapperDataPartitionMappingRange
 from .hkaSkeletonMapperDataSimpleMapping import hkaSkeletonMapperDataSimpleMapping
 from .hkaSkeletonMapperDataChainMapping import hkaSkeletonMapperDataChainMapping
-from .hkBool import hkBool
 from .hkaSkeletonMapperDataMappingType import hkaSkeletonMapperDataMappingType
 
 
