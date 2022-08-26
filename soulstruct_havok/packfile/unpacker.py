@@ -112,8 +112,8 @@ class PackFileUnpacker:
             return
 
         if self.hk_version == "2014":
-            from soulstruct_havok.types import hk2014
-            self.hk_types_module = hk2014
+            from soulstruct_havok.types import hk2014_new
+            self.hk_types_module = hk2014_new
         elif self.hk_version == "2015":
             from soulstruct_havok.types import hk2015
             self.hk_types_module = hk2015

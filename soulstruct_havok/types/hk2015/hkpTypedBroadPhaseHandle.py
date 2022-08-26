@@ -1,0 +1,27 @@
+from __future__ import annotations
+
+from soulstruct_havok.types.core import *
+from soulstruct_havok.enums import *
+from .core import *
+from .hkpBroadPhaseHandle import hkpBroadPhaseHandle
+
+
+class hkpTypedBroadPhaseHandle(hkpBroadPhaseHandle):
+    alignment = 4
+    byte_size = 12
+    tag_type_flags = TagDataType.Class
+
+    __tag_format_flags = 41
+
+    local_members = (
+        Member(4, "type", hkInt8, MemberFlags.Protected),
+        Member(5, "ownerOffset", hkInt8, MemberFlags.NotSerializable | MemberFlags.Protected),
+        Member(6, "objectQualityType", hkInt8),
+        Member(8, "collisionFilterInfo", hkUint32),
+    )
+    members = hkpBroadPhaseHandle.members + local_members
+
+    type: int
+    ownerOffset: int
+    objectQualityType: int
+    collisionFilterInfo: int

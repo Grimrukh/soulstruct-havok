@@ -10,7 +10,7 @@ from soulstruct.containers import Binder
 from soulstruct.containers.bnd import BaseBND
 
 from soulstruct_havok.core import HKX
-from soulstruct_havok.types import hk2014
+from soulstruct_havok.types import hk2014_new
 
 
 BLOODBORNE_CHR_PATH = Path("C:/Dark Souls/Other FromSoft Games/Bloodborne/DISC/Image0/dvdroot_ps4/chr")
@@ -30,16 +30,16 @@ def extract_info_to_json(ragdoll: HKX | BaseBND, output_json_path: Path | str):
 
     info = {}  # type: dict[tp.Any, tp.Any]
 
-    variants = ragdoll.root.namedVariants  # type: list[hk2014.hkRootLevelContainerNamedVariant]
-    animation_container = variants[0].variant  # type: hk2014.hkaAnimationContainer
-    physics_scene_data = variants[1].variant  # type: hk2014.hknpPhysicsSceneData   # just contains `ragdoll_data` again
-    ragdoll_data = variants[2].variant  # type: hk2014.hknpRagdollData
-    master_to_ragdoll_mapper = variants[3].variant  # type: hk2014.hkaSkeletonMapper
-    ragdoll_to_master_mapper = variants[4].variant  # type: hk2014.hkaSkeletonMapper
+    variants = ragdoll.root.namedVariants  # type: list[hk2014_new.hkRootLevelContainerNamedVariant]
+    animation_container = variants[0].variant  # type: hk2014_new.hkaAnimationContainer
+    physics_scene_data = variants[1].variant  # type: hk2014_new.hknpPhysicsSceneData   # just contains `ragdoll_data` again
+    ragdoll_data = variants[2].variant  # type: hk2014_new.hknpRagdollData
+    master_to_ragdoll_mapper = variants[3].variant  # type: hk2014_new.hkaSkeletonMapper
+    ragdoll_to_master_mapper = variants[4].variant  # type: hk2014_new.hkaSkeletonMapper
 
     # Skeletons.
     for skeleton in animation_container.skeletons:
-        skeleton: hk2014.hkaSkeleton
+        skeleton: hk2014_new.hkaSkeleton
         info[skeleton.name] = []
         for bone, parent, ref_pose in zip(skeleton.bones, skeleton.parentIndices, skeleton.referencePose):
             info[skeleton.name].append({
@@ -62,9 +62,9 @@ def extract_info_to_json(ragdoll: HKX | BaseBND, output_json_path: Path | str):
                 "name": body_c_info.name,
             }
         )
-        if isinstance(body_c_info.shape, hk2014.hknpCapsuleShape):
+        if isinstance(body_c_info.shape, hk2014_new.hknpCapsuleShape):
             info["physics"]["shapes"][-1].update({"a": body_c_info.shape.a, "b": body_c_info.shape.b})
-        elif isinstance(body_c_info.shape, hk2014.hknpConvexPolytopeShape):
+        elif isinstance(body_c_info.shape, hk2014_new.hknpConvexPolytopeShape):
             info["physics"]["shapes"][-1].update({"vertices": body_c_info.shape.vertices})
         else:
             raise TypeError(f"Unhandled `hknp` shape type: {type(body_c_info.shape).__name__}")
