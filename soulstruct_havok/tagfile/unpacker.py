@@ -23,10 +23,11 @@ _LOGGER = logging.getLogger(__name__)
 
 colorama.init()
 YELLOW = colorama.Fore.YELLOW
+MAGENTA = colorama.Fore.MAGENTA
 RESET = colorama.Fore.RESET
 
 
-_DEBUG_TYPES = True  # Type order has been confirmed as valid several times!
+_DEBUG_TYPES = False  # Type order has been confirmed as valid several times!
 _DEBUG_HASH = False
 
 
@@ -66,7 +67,6 @@ class TagFileUnpacker:
                 self.is_compendium = False
                 with self.unpack_section(reader, "SDKV"):
                     self.hk_version = reader.unpack_string(length=8, encoding="utf-8")
-                    print(f"HK tagfile version: {self.hk_version}")
                     if self.hk_version.startswith("2015") and not types_only:
                         self.hk_types_version = "hk2015"
                         from soulstruct_havok.types import hk2015
@@ -343,14 +343,19 @@ class TagFileUnpacker:
 
             with self.unpack_section(reader, "THSH"):
                 hashed = []
+                if _DEBUG_HASH:
+                    print(f"{MAGENTA}Unpacked hashes:{RESET}")
                 for _ in range(self.unpack_var_int(reader)):
                     type_index = self.unpack_var_int(reader)
                     type_info = file_hk_types[type_index]
                     type_info.hsh = reader.unpack_value("<I")
-                    hashed.append((type_info.name, hex(reader.position), type_index, type_info.hsh, type_info.py_name))
+                    if _DEBUG_HASH:
+                        print(f"    {MAGENTA}`{type_info.get_full_py_name()}`: {type_info.hsh}{RESET}")
+                    hashed.append((type_info.hsh, type_info.get_full_py_name()))
                 if _DEBUG_HASH:
-                    for h in sorted(hashed, key=lambda x: x[3]):
-                        print(h[4], h[3])
+                    print(f"{MAGENTA}Unpacked hashes (sorted):{RESET}")
+                    for type_hsh, type_name in sorted(hashed):
+                        print(f"    {MAGENTA}`{type_name}`: {type_hsh}{RESET}")
 
             with self.unpack_section(reader, "TPAD"):
                 pass
@@ -384,6 +389,7 @@ class TagFileUnpacker:
                     type_index = item_info & 0x00FFFFFF
                     is_ptr = bool((item_info >> 24) & 0b00010000)
                     item_hk_type_info = self.hk_type_infos[type_index]
+                    # print(f"Unpacking item {len(items)}: type index {type_index} ({item_hk_type_info.name})")
                     item = TagFileItem(
                         hk_type=item_hk_type_info.py_class,
                         absolute_offset=data_start_offset + relative_item_offset,

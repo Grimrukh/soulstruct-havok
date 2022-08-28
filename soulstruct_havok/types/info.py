@@ -26,8 +26,8 @@ HAVOK_TYPE_PREFIXES = ("hk", "hcl", "Custom")
 
 
 def get_py_name(real_name: str) -> str:
-    py_name = real_name.replace("::", "").replace(" ", "_").replace("*", "STAR")
-    if not any(py_name.startswith(s) for s in HAVOK_TYPE_PREFIXES):
+    py_name = real_name.replace("T*", "Ptr").replace("::", "").replace(" ", "_").replace("*", "STAR")
+    if not any(py_name.startswith(s) for s in HAVOK_TYPE_PREFIXES) and not py_name.startswith("Ptr"):
         py_name = "_" + py_name  # for 'int', 'const_charSTAR', etc.
     return py_name
 
@@ -35,9 +35,9 @@ def get_py_name(real_name: str) -> str:
 class TemplateInfo:
     """Simple container for an unpacked template name and value."""
     name: str
-    value: tp.Optional[int]  # will be a type index if name starts with 't'
-    type_info: tp.Optional[TypeInfo]
-    type_py_name: tp.Optional[str]
+    value: None | int  # will be a type index if name starts with 't'
+    type_info: None | TypeInfo
+    type_py_name: None | str
 
     def __init__(self, name: str, value: int = -1, type_info: TypeInfo = None, type_py_name: str = None):
         self.name = name
@@ -61,7 +61,7 @@ class TemplateInfo:
 
     def __repr__(self):
         if self.is_type:
-            return f"TemplateInfo(\"{self.name}\", <{self.type_info.name}>)"
+            return f"TemplateInfo(\"{self.name}\", <{self.type_info.name if self.type_info else None}>)"
         return f"TemplateInfo(\"{self.name}\", {self.value})"
 
 
@@ -164,27 +164,47 @@ class TypeInfo:
         "hkFreeListArray", "hkFreeListArrayElement",
     ]
 
+    templates: list[TemplateInfo]
+    parent_type_index: None | int
+    tag_format_flags: None | int
+    tag_type_flags: None | int
+    pointer_type_index: None | int
+    version: None | int
+    byte_size: None | int
+    alignment: None | int
+    abstract_value: None | int
+    members: list[MemberInfo]
+    interfaces: list[InterfaceInfo]
+    hsh: None | int
+
+    parent_type_info: None | TypeInfo
+    parent_type_py_name: None | str
+    pointer_type_info: None | TypeInfo
+    pointer_type_py_name: None | str
+
+    py_class: tp.Optional[tp.Type[hk]]
+
     def __init__(self, name: str):
         self.name = name
-        self.templates = []  # type: list[TemplateInfo]
-        self.parent_type_index = None  # type: tp.Optional[int]
-        self.tag_format_flags = None  # type: tp.Optional[int]
-        self.tag_type_flags = None  # type: tp.Optional[int]
-        self.pointer_type_index = None  # type: tp.Optional[int]
-        self.version = None  # type: tp.Optional[int]
-        self.byte_size = None  # type: tp.Optional[int]
-        self.alignment = None  # type: tp.Optional[int]
-        self.abstract_value = None  # type: tp.Optional[int]
-        self.members = []  # type: list[MemberInfo]
-        self.interfaces = []  # type: list[InterfaceInfo]
-        self.hsh = None  # type: tp.Optional[int]
+        self.templates = []
+        self.parent_type_index = None
+        self.tag_format_flags = None
+        self.tag_type_flags = None
+        self.pointer_type_index = None
+        self.version = None
+        self.byte_size = None
+        self.alignment = None
+        self.abstract_value = None
+        self.members = []
+        self.interfaces = []
+        self.hsh = None
 
-        self.parent_type_info = None  # type: tp.Optional[TypeInfo]
-        self.parent_type_py_name = None  # type: tp.Optional[str]
-        self.pointer_type_info = None  # type: tp.Optional[TypeInfo]
-        self.pointer_type_py_name = None  # type: tp.Optional[str]
+        self.parent_type_info = None
+        self.parent_type_py_name = None
+        self.pointer_type_info = None
+        self.pointer_type_py_name = None
 
-        self.py_class = None  # type: tp.Optional[tp.Type[hk]]
+        self.py_class = None
 
     def indexify(self, type_py_names: list[str]):
         """Use `type_py_names` indices and `self.py_class`, if present, to fill in indices.
@@ -261,6 +281,15 @@ class TypeInfo:
     def py_name(self) -> str:
         return get_py_name(self.name)
 
+    def get_full_py_name(self) -> str:
+        """Get actual generic type, if appropriate, eg `hkArray[Ptr[hkaAnimation]]`."""
+        name = self.py_name
+        if self.pointer_type_info:
+            return f"{name}[{self.pointer_type_info.get_full_py_name()}]"
+        elif self.pointer_type_py_name:
+            return f"{name}[{self.pointer_type_py_name}]"
+        return name
+
     def check_py_class_match(self, py_class: tp.Type[hk]):
         """Check `TypeInfo` attributes (typically from a file) against attributes of pre-defined Python class.
 
@@ -309,7 +338,7 @@ class TypeInfo:
     def get_parent_string(self):
         return (
             f"{self.parent_type_info.name if self.parent_type_info else None} | "
-            f"{self.parent_type_py_name if self.parent_type_py_name else None}"
+            f"{self.parent_type_py_name} | {self.parent_type_index}"
         )
 
     def get_pointer_string(self):

@@ -4,6 +4,7 @@ from pathlib import Path
 from soulstruct.base.models.flver import FLVER
 from soulstruct.config import DSR_PATH
 from soulstruct.containers import Binder
+from soulstruct.utilities.maths import Vector4
 
 from soulstruct_havok.core import HKX
 from soulstruct_havok.hkx2015 import AnimationHKX, RagdollHKX, SkeletonHKX, ClothHKX, CollisionHKX
@@ -136,21 +137,33 @@ def load_collision():
 def dsr_painted_world_test():
     """Test simple unpack and repack of h0025B0 in m11_00_00_00 in DSR."""
     from soulstruct.containers import Binder
+    from soulstruct.containers.dcx import decompress
+    from soulstruct.utilities.inspection import write_hex_repr
+
     map_path = Path("C:/Steam/steamapps/common/DARK SOULS REMASTERED (NF New)/map")
     h_hit = Binder(map_path / "m11_00_00_00/h11_00_00_00.hkxbhd", from_bak=True)
     h0025_entry = h_hit.find_entry_matching_name("h0025B0*")
-    print(h0025_entry)
+    vanilla, _ = decompress(h0025_entry.get_uncompressed_data())
     h0025 = CollisionHKX(h0025_entry)
+    new = h0025.pack()
+
+    with_line_numbers = False
+    write_hex_repr(vanilla, "vanilla_h0025B0.hkx.txt", with_line_numbers=with_line_numbers, with_unicode=True)
+    write_hex_repr(new, "new_h0025B0.hkx.txt", with_line_numbers=with_line_numbers, with_unicode=True)
+
     h0025_entry.set_uncompressed_data(h0025.pack_dcx())
     h_hit.write()
 
-    # l_hit = Binder(map_path / "m11_00_00_00/l11_00_00_00.hkxbhd", from_bak=True)
-    # l0025_entry = l_hit.find_entry_matching_name("l0025B0*")
-    # l0025 = CollisionHKX(l0025_entry)
-    # l0025_entry.set_uncompressed_data(l0025.pack())
-    # l_hit.write()
+    l_hit = Binder(map_path / "m11_00_00_00/l11_00_00_00.hkxbhd", from_bak=True)
+    l0025_entry = l_hit.find_entry_matching_name("l0025B0*")
+    l0025 = CollisionHKX(l0025_entry)
+    l0025_entry.set_uncompressed_data(l0025.pack_dcx())
+    l_hit.write()
 
     print("DSR Painted World collision test done.")
+    # SUCCESS!
+
+
 
 
 def bb_to_dsr():
@@ -218,5 +231,4 @@ def new_tag_unpacker():
 
 if __name__ == '__main__':
     # new_tag_unpacker()
-    # load_collision()
-    dsr_painted_world_test()
+    load_collision()

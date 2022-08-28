@@ -17,7 +17,6 @@ class hkpConstraintInstance(hkReferencedObject):
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
-    __hsh = 2242967661
     __version = 1
 
     local_members = (

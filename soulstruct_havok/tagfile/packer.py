@@ -18,13 +18,13 @@ if tp.TYPE_CHECKING:
 
 colorama.init()
 GREEN = colorama.Fore.GREEN
+MAGENTA = colorama.Fore.LIGHTMAGENTA_EX
 RESET = colorama.Fore.RESET
 
 
 _DEBUG_TYPES = False  # Type order has been confirmed as valid several times!
 _DEBUG_SECTIONS = False
 _DEBUG_HASH = False
-_DEBUG_PRINT = True
 
 
 class UniqueInstance:
@@ -108,10 +108,12 @@ class TagFilePacker:
                 ref_queue = deque([root_item])
 
                 def write_item_data(item_):
-                    if issubclass(item_.hk_type, hkArray_):
+                    item_hk_data_type = item_.get_item_hk_type(self.hk_types_module)
+                    if issubclass(item_.hk_type, hkArray_) and item_hk_data_type.__name__ != "hkRootLevelContainerNamedVariant":
                         alignment = 16
                     else:
-                        alignment = max(2, item_.get_item_hk_type(self.hk_types_module).alignment)
+                        alignment = max(2, item_hk_data_type.alignment)
+
                     writer.pad_align(alignment)
                     item_.absolute_offset = writer.position
                     item_.finish_writer()
@@ -186,7 +188,7 @@ class TagFilePacker:
             print(f"Section {magic} start: {hex(writer.position)}")
 
         section_start_offset = writer.position
-        writer.reserve(f"{magic}_size", ">I")
+        writer.reserve(f"{magic}_size", ">I")  # section size will be filled here later
         writer.append(magic[:4].encode("utf-8"))
         try:
             yield
@@ -237,9 +239,20 @@ class TagFilePacker:
 
             with self.pack_section(writer, "TBOD"):
                 # "Type body" section, where everything about a type other than its name and templates is defined.
-                for i, type_info in enumerate(self.type_info_dict.values()):
 
-                    # TODO: hkReferencedObject and T* are swapped.
+                # Inexplicably, `hkReferencedObject` and the `T*` that comes after it (in TNAM order) are swapped here.
+                tbod_type_infos = [(i, t) for i, t in enumerate(self.type_info_dict.values())]
+                try:
+                    hk_referenced_object = [(i, t) for i, t in tbod_type_infos if t.name == "hkReferencedObject"][0]
+                except IndexError:
+                    pass
+                else:
+                    j = tbod_type_infos.index(hk_referenced_object)
+                    t_star = tbod_type_infos[j + 1]
+                    if t_star[1].name == "T*" and t_star[1].pointer_type_py_name == "hkReferencedObject":
+                        tbod_type_infos[j:j + 2] = t_star, hk_referenced_object  # swap
+
+                for i, type_info in tbod_type_infos:
 
                     self.pack_var_int(writer, i + 1)
                     self.pack_var_int(writer, type_info.parent_type_index)
@@ -281,15 +294,20 @@ class TagFilePacker:
                 hashed_types = [
                     (i + 1, type_info) for i, type_info in enumerate(self.type_info_dict.values()) if type_info.hsh
                 ]
-                hashed = []
                 self.pack_var_int(writer, len(hashed_types))
+                hashed = []
+                if _DEBUG_HASH:
+                    print(f"{MAGENTA}Packed hashes:{RESET}")
                 for i, type_info in hashed_types:
-                    hashed.append((type_info.name, hex(writer.position), type_info.hsh))
                     self.pack_var_int(writer, i)
                     writer.pack("<I", type_info.hsh)
+                    if _DEBUG_HASH:
+                        print(f"    {MAGENTA}`{type_info.get_full_py_name()}`: {type_info.hsh}{RESET}")
+                        hashed.append((type_info.hsh, type_info.get_full_py_name()))
                 if _DEBUG_HASH:
-                    for h in sorted(hashed):
-                        print(h[0], h[2])
+                    print(f"{MAGENTA}Packed hashes (sorted):{RESET}")
+                    for type_hsh, type_name in sorted(hashed):
+                        print(f"    {MAGENTA}`{type_name}`: {type_hsh}{RESET}")
 
             with self.pack_section(writer, "TPAD"):
                 pass

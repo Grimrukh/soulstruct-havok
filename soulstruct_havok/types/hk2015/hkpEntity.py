@@ -45,7 +45,12 @@ class hkpEntity(hkpWorldObject):
             hkArray(hkViewPtr("hkpConstraintInstance", hsh=3107152142)),
             MemberFlags.NotSerializable | MemberFlags.Protected,
         ),
-        Member(280, "constraintRuntime", hkArray(hkUint8), MemberFlags.NotSerializable | MemberFlags.Protected),
+        Member(
+            280,
+            "constraintRuntime",
+            hkArray(hkUint8, hsh=2877151166),
+            MemberFlags.NotSerializable | MemberFlags.Protected,
+        ),
         Member(
             296,
             "simulationIsland",

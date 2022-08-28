@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 __all__ = [
+    "Vector4",
     "hkReflectDetailOpaque",
     "_int",
     "_const_charSTAR",
@@ -350,7 +351,6 @@ class hkQsTransform(hkQsTransformf):
 class hkUint32(_unsigned_int):
     """Havok alias."""
     __tag_format_flags = 0
-    __hsh = 1716249908
     local_members = ()
 
 
@@ -363,6 +363,7 @@ class hkQuaternion(hkQuaternionf):
 class hkUint16(_unsigned_short):
     """Havok alias."""
     __tag_format_flags = 0
+    __hsh = 4179182467
     local_members = ()
 
 
@@ -375,7 +376,6 @@ class hkReal(_float):
 class hkInt16(_short):
     """Havok alias."""
     __tag_format_flags = 0
-    __hsh = 1556469994
     local_members = ()
 
 

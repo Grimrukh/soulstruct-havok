@@ -35,7 +35,7 @@ class TagFileItem:
     ):
         self.hk_type = hk_type
         self.absolute_offset = absolute_offset
-        self.length = length
+        self.length = length  # number of contained elements, NOT byte size (usually 1)
         self.is_ptr = is_ptr
         self.in_process = False  # prevents recursion
         self.value = None
@@ -51,6 +51,7 @@ class TagFileItem:
         self.writer = None  # ensure we don't accidentally try to write more
 
     def get_item_hk_type(self, hk_types_module):
+        """Get actual data type of item (string, array, pointer, or `hkRootLevelContainer`)."""
         tag_data_type = self.hk_type.get_tag_data_type()
         if tag_data_type == TagDataType.CharArray:
             return getattr(hk_types_module, "_char")

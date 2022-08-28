@@ -31,7 +31,7 @@ class hkpStorageExtendedMeshShapeMeshSubpartStorage(hkReferencedObject):
     )
     members = hkReferencedObject.members + local_members
 
-    vertices: list[hkVector4]
+    vertices: list[Vector4]
     indices8: list[int]
     indices16: list[int]
     indices32: list[int]

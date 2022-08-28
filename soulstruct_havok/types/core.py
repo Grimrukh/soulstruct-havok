@@ -64,6 +64,7 @@ colorama_init()
 
 _DEBUG_PRINT_UNPACK = False
 _DEBUG_PRINT_PACK = False
+_DO_NOT_DEBUG_PRINT_PRIMITIVES = True
 _INDENT = 0
 _REQUIRE_INPUT = False
 
@@ -322,7 +323,9 @@ class hk:
         will cause a new item to be created with its own `BinaryWriter`; this item's data, once complete, will be stored
         in its `data` attribute, and all items' data can be assembled in order at the end.
         """
-        cls.debug_print_pack(f"Packing `{cls.__name__}` with value {repr(value)}... ({cls.get_tag_data_type().name})")
+        if not _DO_NOT_DEBUG_PRINT_PRIMITIVES and cls.__name__ not in {"_float", "hkUint8"}:
+            tag_data_type_name = cls.get_tag_data_type().name
+            cls.debug_print_pack(f"Packing `{cls.__name__}` with value {repr(value)}... ({tag_data_type_name})")
 
         if cls.__name__ == "hkRootLevelContainerNamedVariant":
             return pack_named_variant(cls, item, value, items, existing_items, item_creation_queue)
@@ -535,7 +538,7 @@ class hk:
                             )
                             instances_shown.append(element)
                     lines.append(f"    ],")
-                elif isinstance(member_value[0], (list, tuple)):
+                elif isinstance(member_value[0], (list, tuple, Vector4)):
                     if 0 < max_primitive_sequence_size < len(member_value):
                         lines.append(
                             f"    {member.name} = [<{len(member_value)} tuples>],"
@@ -569,7 +572,7 @@ class hk:
                             )
                             instances_shown.append(element)
                     lines.append(f"    ),")
-                elif isinstance(member_value[0], (list, tuple)):
+                elif isinstance(member_value[0], (list, tuple, Vector4)):
                     lines.append(f"    {member.name} = (")
                     for element in member_value:
                         lines.append(f"        {repr(element)},")
@@ -639,6 +642,7 @@ class TypeInfoGenerator:
     def _add_type(self, hk_type: tp.Type[hk], indent=0):
         if hk_type.__name__ in self.type_infos:
             raise KeyError(f"Type named '{hk_type.__name__}' was collected more than once.")
+
         type_info_index = len(self.type_infos) + 1
         self.type_infos[hk_type.__name__] = hk_type.get_type_info()
         if self._DEBUG_PRINT:
@@ -831,8 +835,7 @@ class hkArray_(hkBasePointer):
         type_info.tag_type_flags = 8
         type_info.byte_size = 16
         type_info.alignment = 8
-        if (hsh := cls.__dict__.get("__hsh")) is not None:
-            type_info.hsh = hsh
+        type_info.hsh = cls.get_hsh()
         type_info.pointer_type_py_name = data_type_py_name
         type_info.members = [
             # `m_data` generic T* pointer type will be created by caller if missing
@@ -1131,8 +1134,7 @@ class Ptr_(hkBasePointer):
         type_info.tag_type_flags = 6
         type_info.byte_size = 8
         type_info.alignment = 8
-        if (hsh := cls.__dict__.get("__hsh")) is not None:
-            type_info.hsh = hsh
+        type_info.hsh = cls.get_hsh()
         return type_info
 
     @classmethod
@@ -1181,8 +1183,7 @@ class hkReflectQualifiedType_(Ptr_):
         type_info.tag_type_flags = 6
         type_info.byte_size = 8
         type_info.alignment = 8
-        if (hsh := cls.__dict__.get("__hsh")) is not None:
-            type_info.hsh = hsh
+        type_info.hsh = cls.get_hsh()
         type_info.pointer_type_py_name = "hkReflectType"
         type_info.members = [
             MemberInfo("type", flags=36, offset=0, type_py_name=f"Ptr[hkReflectType]"),
@@ -1226,8 +1227,7 @@ class hkRefPtr_(Ptr_):
         type_info.tag_type_flags = 6
         type_info.byte_size = 8
         type_info.alignment = 8
-        if (hsh := cls.__dict__.get("__hsh")) is not None:
-            type_info.hsh = hsh
+        type_info.hsh = cls.get_hsh()
         type_info.pointer_type_py_name = cls.get_data_type().__name__
         type_info.members = [
             MemberInfo("ptr", flags=36, offset=0, type_py_name=f"Ptr[{cls.get_data_type().__name__}]"),
@@ -1264,8 +1264,7 @@ class hkRefVariant_(Ptr_):
         type_info.tag_type_flags = 6
         type_info.byte_size = 8
         type_info.alignment = 8
-        if (hsh := cls.__dict__.get("__hsh")) is not None:
-            type_info.hsh = hsh
+        type_info.hsh = cls.get_hsh()
         type_info.pointer_type_py_name = cls.get_data_type().__name__
         type_info.members = [
             MemberInfo("ptr", flags=36, offset=0, type_py_name=f"Ptr[{cls.get_data_type().__name__}]"),
@@ -1787,8 +1786,6 @@ def pack_pointer(
     item_index_pos = item.writer.position
     item.writer.pack("<I", 0)  # temporary
 
-    # print(f"Appending pointer item pack: {value}")
-
     def delayed_item_creation(_item_creation_queue) -> None | TagFileItem:
         # Item may have been created since this function was queued.
         if value in existing_items:
@@ -1796,12 +1793,12 @@ def pack_pointer(
             item.writer.pack_at(item_index_pos, "<I", items.index(existing_item))
             return None
 
-        # print(f"Packing pointer item index {len(items)}")
         item.writer.pack_at(item_index_pos, "<I", len(items))
         value_data_hk_type = type(value)  # type: tp.Type[hk]  # may be a subclass of `data_hk_type`
         new_item = TagFileItem(ptr_hk_type, is_ptr=value_data_hk_type.get_tag_data_type() == TagDataType.Class)
         new_item.value = value
         existing_items[value] = new_item
+        hk.debug_print_pack(f"{Fore.YELLOW}Created item {len(items)}: {ptr_hk_type.__name__}{Fore.RESET}")
         items.append(new_item)
         new_item.writer = BinaryWriter()
         # Item does NOT recur `.pack()` here. It is packed when this item is iterated over.
@@ -1915,14 +1912,12 @@ def pack_array(
     item.writer.pack("<I", 0)  # temporary
     data_hk_type = array_hk_type.get_data_type()
 
-    # print(f"Appending array item pack: {value}")
-
     def delayed_item_creation(_item_creation_queue) -> TagFileItem:
-        # print(f"Packing array item index {len(items)}")
         item.writer.pack_at(item_index_pos, "<I", len(items))
         new_item = TagFileItem(array_hk_type, is_ptr=False, length=len(value))
         item.patches.setdefault(new_item.hk_type.__name__, []).append(item_index_pos)
         new_item.value = value
+        hk.debug_print_pack(f"{Fore.YELLOW}Created item {len(items)}: hkArray[{data_hk_type.__name__}]{Fore.RESET}")
         items.append(new_item)
         new_item.writer = BinaryWriter()
         for i, element in enumerate(value):
@@ -1931,6 +1926,7 @@ def pack_array(
         return new_item
 
     item_creation_queue.setdefault("array", deque()).append(delayed_item_creation)
+    hk.debug_print_pack(f"{Fore.GREEN}Queued item creation: hkArray[{data_hk_type.__name__}]{Fore.RESET}")
 
 
 def pack_array_packfile(
@@ -2083,10 +2079,10 @@ def pack_string(
     item.writer.pack("<I", 0)  # temporary
 
     def delayed_item_creation(_item_creation_queue) -> TagFileItem:
-        # print(f"Packing string item index {len(items)}")
         item.writer.pack_at(item_index_pos, "<I", len(items))
         encoded = value.encode("shift_jis_2004") + b"\0"
         new_item = TagFileItem(string_hk_type, is_ptr=False, length=len(encoded))
+        hk.debug_print_pack(f"{Fore.YELLOW}Created item {len(items)}: {string_hk_type.__name__}{Fore.RESET}")
         new_item.value = value
         items.append(new_item)
         new_item.writer = BinaryWriter()
@@ -2094,8 +2090,10 @@ def pack_string(
         return new_item
 
     if is_variant_name:
+        hk.debug_print_pack(f"{Fore.GREEN}Queued VARIANT NAME STRING: {string_hk_type.__name__} ({value}){Fore.RESET}")
         item_creation_queue.setdefault("variant_name_string", deque()).append(delayed_item_creation)
     else:
+        hk.debug_print_pack(f"{Fore.GREEN}Queued string: {string_hk_type.__name__} ({value}){Fore.RESET}")
         item_creation_queue.setdefault("string", deque()).append(delayed_item_creation)
 
 
@@ -2198,7 +2196,7 @@ def pack_named_variant(
     name_member = hk_type.members[0]
     item.writer.pad_to_offset(member_start_offset + name_member.offset)
     hk.debug_print_pack(f"Member 'name' (type `{name_member.type.__name__}`):")
-    pack_string(item.hk_type, item, value["name"], items, item_creation_queue, is_variant_name=True)
+    pack_string(name_member.type, item, value["name"], items, item_creation_queue, is_variant_name=True)
 
     class_name_member = hk_type.members[1]
     item.writer.pad_to_offset(member_start_offset + class_name_member.offset)
