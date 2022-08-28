@@ -314,7 +314,7 @@ class CollisionHKX(HKX2015):
     def create_attributes(self):
         self.set_variant_attribute("physicsData", hkpPhysicsData, 0)
 
-    def get_child_shape(self) -> hkpStorageExtendedMeshShape:
+    def get_child_shape(self) -> CustomParamStorageExtendedMeshShape:
         """Validates type of collision shape and returns `childShape`."""
         shape = self.physicsData.systems[0].rigidBodies[0].collidable.shape
         if not isinstance(shape, hkpMoppBvTreeShape):
@@ -368,59 +368,63 @@ class CollisionHKX(HKX2015):
         return cls(entry)
 
     @classmethod
-    def from_obj(cls, obj_path: Path | str, hkx_name: str, material_name_data=()) -> CollisionHKX:
+    def from_obj(
+        cls,
+        obj_path: Path | str,
+        hkx_name: str,
+        material_name_data: tuple[int] = (),
+        template_hkx: CollisionHKX = None,
+        invert_x=True,
+        dcx_type: DCXType = DCXType.Null,
+    ) -> CollisionHKX:
         """Convert an OBJ file containing vertices and faces for one or more meshes (subparts) to a HKX collision file.
 
         Uses default values for a bunch of fields, most of which don't matter. Also uses new and improved Mopper.
+
+        If `template_hkx` is given, it will be used as the base for the new HKX, rather than the stock `template.hkx`.
+        Note that if given, `template_hkx` will be modified in place AND returned.
+
+        Inverts X axis by default, which should also be done in `to_obj()` if used again here (for accurate depiction
+        in Blender, etc.).
         """
-        hkx = cls("template.hkx")
-        meshes = read_obj(obj_path)
-        if not meshes:
+        obj_meshes = read_obj(obj_path, invert_x=invert_x)
+        if not obj_meshes:
             raise ValueError("At least one mesh required in OBJ to convert to HKX.")
+
+        if template_hkx is not None:
+            hkx = template_hkx if template_hkx is not None else cls("template.hkx")
+            child_shape = hkx.get_child_shape()
+            if len(child_shape.meshstorage) != len(obj_meshes):
+                raise ValueError(
+                    f"Number of OBJ meshes ({len(obj_meshes)}) does not match number of existing meshes in template "
+                    f"HKX ({len(child_shape.meshstorage)}). Omit `template_hkx` to allow any number of OBJ meshes."
+                )
+        else:
+            hkx = cls("template.hkx")
+            child_shape = hkx.get_child_shape()
+
+        if not material_name_data:
+            material_name_data = [material.materialNameData for material in child_shape.materialArray]
+        elif len(material_name_data) != len(obj_meshes):
+            raise ValueError(
+                f"Length of `material_name_data` ({len(material_name_data)}) does not match number of meshes in "
+                f"OBJ ({len(obj_meshes)})."
+            )
+        else:
+            material_name_data = [0] * len(obj_meshes)
 
         rigid_body = hkx.physicsData.systems[0].rigidBodies[0]
         rigid_body.name = hkx_name
-        shape = rigid_body.collidable.shape
-        if not isinstance(shape, hkpMoppBvTreeShape):
-            raise TypeError("Expected template collision shape to be `hkpMoppBvTreeShape`.")
-
-        child_shape = shape.child.childShape
-
-        if not isinstance(child_shape, CustomParamStorageExtendedMeshShape):
-            raise TypeError("Expected template collision child shape to be `CustomParamStorageExtendedMeshShape`.")
 
         # TODO: rigid_body.motion.motionState.objectRadius?
 
-        child_shape.cachedNumChildShapes = sum(len(faces) for _, faces in meshes)
+        child_shape.cachedNumChildShapes = sum(len(faces) for _, faces in obj_meshes)
         child_shape.trianglesSubparts = []
         child_shape.meshstorage = []
         child_shape.materialArray = []
-        for i, (vertices, faces) in enumerate(meshes):
+        for i, (vertices, faces) in enumerate(obj_meshes):
 
-            subpart = hkpExtendedMeshShapeTrianglesSubpart(
-                typeAndFlags=2,
-                shapeInfo=0,
-                materialIndexBase=None,
-                materialBase=None,
-                vertexBase=None,
-                indexBase=None,
-                materialStriding=0,
-                materialIndexStriding=0,
-                userData=0,
-                numTriangleShapes=len(faces),
-                numVertices=len(vertices),
-                vertexStriding=16,
-                triangleOffset=2010252431,  # TODO: should be given in `mopp.json`
-                indexStriding=8,
-                stridingType=2,  # 16-bit
-                flipAlternateTriangles=0,
-                extrusion=Vector4(0.0, 0.0, 0.0, 0.0),
-                transform=hkQsTransform(
-                    translation=Vector4(0.0, 0.0, 0.0, 0.0),
-                    rotation=(0.0, 0.0, 0.0, 1.0),
-                    scale=Vector4(1.0, 1.0, 1.0, 1.0),
-                ),
-            )
+            subpart = cls.get_subpart(len(vertices), len(faces))
             child_shape.trianglesSubparts.append(subpart)
 
             indices = []
@@ -440,13 +444,6 @@ class CollisionHKX(HKX2015):
             )
             child_shape.meshstorage.append(storage)
 
-            if not material_name_data:
-                material_name = 0
-            else:
-                try:
-                    material_name = material_name_data[i]
-                except IndexError:
-                    raise IndexError("`material_name_data` must be empty (all zero) or match the number of meshes.")
             material = CustomMeshParameter(
                 memSizeAndFlags=0,
                 refCount=0,
@@ -454,24 +451,43 @@ class CollisionHKX(HKX2015):
                 vertexDataBuffer=[255] * len(vertices),
                 vertexDataStride=1,
                 primitiveDataBuffer=[],
-                materialNameData=material_name,
+                materialNameData=material_name_data[i],
             )
             child_shape.materialArray.append(material)
 
         # Havok docs say that embedded triangle subpart is only efficient for single-subpart shapes, but From disagrees.
         # Note that it is a fresh instance, not a copy of the first subpart.
-        child_shape.embeddedTrianglesSubpart = hkpExtendedMeshShapeTrianglesSubpart(
+        child_shape.embeddedTrianglesSubpart = cls.get_subpart(len(obj_meshes[0][0]), len(obj_meshes[0][1]))
+
+        x_min = min([v.x for mesh, _ in obj_meshes for v in mesh])
+        x_max = max([v.x for mesh, _ in obj_meshes for v in mesh])
+        y_min = min([v.y for mesh, _ in obj_meshes for v in mesh])
+        y_max = max([v.y for mesh, _ in obj_meshes for v in mesh])
+        z_min = min([v.z for mesh, _ in obj_meshes for v in mesh])
+        z_max = max([v.z for mesh, _ in obj_meshes for v in mesh])
+        child_shape.aabbHalfExtents = Vector4((x_max - x_min) / 2, (y_max - y_min) / 2, (z_max - z_min) / 2, 0.0)
+        child_shape.aabbCenter = Vector4((x_max + x_min) / 2, (y_max + y_min) / 2, (z_max + z_min) / 2, 0.0)
+
+        hkx.regenerate_mopp_data()
+
+        hkx.dcx_type = dcx_type
+
+        return hkx
+
+    @staticmethod
+    def get_subpart(vertices_count: int, faces_count: int):
+        return hkpExtendedMeshShapeTrianglesSubpart(
             typeAndFlags=2,
+            shapeInfo=0,
             materialIndexBase=None,
             materialBase=None,
             vertexBase=None,
             indexBase=None,
-            shapeInfo=0,
             materialStriding=0,
             materialIndexStriding=0,
             userData=0,
-            numTriangleShapes=len(meshes[0][1]),
-            numVertices=len(meshes[0][0]),
+            numTriangleShapes=faces_count,
+            numVertices=vertices_count,
             vertexStriding=16,
             triangleOffset=2010252431,  # TODO: should be given in `mopp.json`
             indexStriding=8,
@@ -485,21 +501,11 @@ class CollisionHKX(HKX2015):
             ),
         )
 
-        x_min = min([v.x for mesh, _ in meshes for v in mesh])
-        x_max = max([v.x for mesh, _ in meshes for v in mesh])
-        y_min = min([v.y for mesh, _ in meshes for v in mesh])
-        y_max = max([v.y for mesh, _ in meshes for v in mesh])
-        z_min = min([v.z for mesh, _ in meshes for v in mesh])
-        z_max = max([v.z for mesh, _ in meshes for v in mesh])
-        child_shape.aabbHalfExtents = Vector4((x_max - x_min) / 2, (y_max - y_min) / 2, (z_max - z_min) / 2, 0.0)
-        child_shape.aabbCenter = Vector4((x_max + x_min) / 2, (y_max + y_min) / 2, (z_max + z_min) / 2, 0.0)
+    def to_obj(self, invert_x=True) -> str:
+        """Convert raw vertices and triangle faces (zero-separated triplets) from HKX meshes to OBJ file.
 
-        hkx.regenerate_mopp_data()
-
-        return hkx
-
-    def to_obj(self) -> str:
-        """Convert raw vertices and triangle faces (zero-separated triplets) from HKX meshes to OBJ file."""
+        Inverts (negates) X axis by default, which should be reversed on import.
+        """
         name = self.get_name()
         obj_lines = [
             f"# OBJ file generated by Soulstruct from HKX with path: {self.path}",
@@ -512,7 +518,7 @@ class CollisionHKX(HKX2015):
                 raise ValueError("`indices16` length must be a multiple of 4.")
             obj_lines += ["", f"o {name} Subpart {i}"]
             for vert in mesh.vertices:
-                obj_lines.append(f"v {vert.x} {vert.y} {vert.z}")
+                obj_lines.append(f"v {-vert.x if invert_x else vert.x} {vert.y} {vert.z}")
             obj_lines.append("s off")
             for f in range(len(mesh.indices16) // 4):
                 face = mesh.indices16[4 * f:4 * f + 3]
@@ -561,13 +567,13 @@ def scale_shape(shape: hkpShape, factor: float):
                     vertex *= factor
 
 
-def read_obj(obj_path: Path | str) -> list[tuple[list[Vector4], list[tuple[int, int, int]]]]:
+def read_obj(obj_path: Path | str, invert_x=True) -> list[tuple[list[Vector4], list[tuple[int, int, int]]]]:
     meshes = []  # type: list[tuple[list[Vector4], list[tuple[int, int, int]]]]
     mesh = None  # type: None | tuple[list, list]
 
     o_re = re.compile(r"^o .*$")
     v_re = re.compile(r"^v ([-\d.]+) ([-\d.]+) ([-\d.]+)$")
-    f_re = re.compile(r"^f (\d+) (\d+) (\d+)$")
+    f_re = re.compile(r"^f (\d+)(?://\d+)? (\d+)(?://\d+)? (\d+)(?://\d+)?$")
 
     global_v_i = 0
 
@@ -583,7 +589,8 @@ def read_obj(obj_path: Path | str) -> list[tuple[list[Vector4], list[tuple[int, 
                     raise ValueError("Found 'v' vertex line before an 'o' object definition.")
                 if mesh[1]:
                     raise ValueError("Found 'v' vertex line after 'f' face lines.")
-                vertex = Vector4(float(v.group(1)), float(v.group(2)), float(v.group(3)), 0.0)
+                x, y, z = float(v.group(1)), float(v.group(2)), float(v.group(3))
+                vertex = Vector4((-x if invert_x else x), y, z, 0.0)
                 mesh[0].append(vertex)
             elif f := f_re.match(line):
                 if mesh is None:
