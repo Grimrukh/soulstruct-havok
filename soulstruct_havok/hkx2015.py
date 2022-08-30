@@ -1,19 +1,35 @@
+"""Subclasses and tools for making work with Havok 2015 easier."""
 from __future__ import annotations
 
+__all__ = [
+    "HKX2015",
+    "SkeletonHKX",
+    "AnimationHKX",
+    "RagdollHKX",
+    "ClothHKX",
+    "CollisionHKX",
+    "scale_chrbnd",
+    "scale_anibnd",
+]
+
+import logging
 import os
-import re
 import subprocess as sp
 import typing as tp
 from pathlib import Path
 
+from soulstruct.base.models.flver import FLVER
 from soulstruct.containers import Binder
 from soulstruct.containers.dcx import DCXType
-from soulstruct.utilities.maths import QuatTransform
+from soulstruct.utilities.maths import QuatTransform, Matrix4
 from soulstruct.utilities.files import read_json
 
 from soulstruct_havok.core import HKX
 from soulstruct_havok.types.hk2015 import *
 from soulstruct_havok.spline_compression import SplineCompressedAnimationData
+from soulstruct_havok.utilities.wavefront import read_obj
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class HKX2015(HKX):
@@ -35,6 +51,7 @@ class SkeletonHKX(HKX2015):
     skeleton: hkaSkeleton
 
     def create_attributes(self):
+        self.set_variant_attribute("animationContainer", hkaAnimationContainer, 0)
         self.skeleton = self.animationContainer.skeletons[0]
 
     def scale(self, factor: float):
@@ -55,7 +72,7 @@ class AnimationHKX(HKX2015):
     animationContainer: hkaAnimationContainer
     animation: hkaAnimation
     animationBinder: hkaAnimationBinding
-    reference_frame_samples: list[Vector4]
+    reference_frame_samples: None | list[Vector4]
 
     def create_attributes(self):
         self.set_variant_attribute("animationContainer", hkaAnimationContainer, 0)
@@ -65,6 +82,8 @@ class AnimationHKX(HKX2015):
             reference_frame = self.animation.extractedMotion
             if isinstance(reference_frame, hkaDefaultAnimatedReferenceFrame):
                 self.reference_frame_samples = reference_frame.referenceFrameSamples
+        else:
+            self.reference_frame_samples = None
 
     def get_spline_compressed_animation_data(self) -> SplineCompressedAnimationData:
         if isinstance(self.animation, hkaSplineCompressedAnimation):
@@ -92,7 +111,7 @@ class AnimationHKX(HKX2015):
         self.animation.data = scaled_data
 
         # Root motion (if present), sans W.
-        if self.reference_frame_samples:
+        if self.reference_frame_samples is not None:
             for sample in self.reference_frame_samples:
                 # Scale X, Y, and Z only, not W.
                 sample.x *= factor
@@ -173,19 +192,10 @@ class RagdollHKX(HKX2015):
         for rigid_body in self.physicsData.systems[0].rigidBodies:
             scale_shape(rigid_body.collidable.shape, factor)
 
-            # TODO: motion inertiaAndMassInv?
+            # TODO: Experimental. Possibly index 3 should not be scaled. (Maybe always zero for ragdolls anyway.)
+            rigid_body.motion.inertiaAndMassInv *= factor
 
-            motion_state = rigid_body.motion.motionState
-            motion_state.transform.translation.x *= factor
-            motion_state.transform.translation.y *= factor
-            motion_state.transform.translation.z *= factor  # not W
-            motion_state.objectRadius *= factor
-
-            swept_transform = motion_state.sweptTransform
-            swept_transform[0] *= factor
-            swept_transform[1] *= factor
-            # Indices 2 and 3 are rotations.
-            swept_transform[4] *= factor
+            scale_motion_state(rigid_body.motion.motionState, factor)
 
         # TODO: constraint instance transforms?
 
@@ -214,7 +224,7 @@ class ClothHKX(HKX2015):
     physicsData: hkpPhysicsData
 
     def create_attributes(self):
-        self.set_variant_attribute("physicasData", hkpPhysicsData, 0)
+        self.set_variant_attribute("physicsData", hkpPhysicsData, 0)
 
     def scale(self, factor: float):
         """Scale all translation information, including:
@@ -226,70 +236,14 @@ class ClothHKX(HKX2015):
         for rigid_body in self.physicsData.systems[0].rigidBodies:
             scale_shape(rigid_body.collidable.shape, factor)
 
-            # TODO: motion inertiaAndMassInv?
+            # TODO: Experimental. Possibly index 3 should not be scaled. (Also, maybe scales as cube?)
+            rigid_body.motion.inertiaAndMassInv *= factor
 
-            motion_state = rigid_body.motion.motionState
-            motion_state.transform.translation.x *= factor
-            motion_state.transform.translation.y *= factor
-            motion_state.transform.translation.z *= factor  # not W
-            motion_state.objectRadius *= factor
-
-            swept_transform = motion_state.sweptTransform
-            swept_transform[0] *= factor
-            swept_transform[1] *= factor
-            # Indices 2 and 3 are rotations.
-            swept_transform[4] *= factor
+            scale_motion_state(rigid_body.motion.motionState, factor)
 
         for constraint_instance in self.physicsData.systems[0].constraints:
 
-            # TODO: Missing some types here.
-
-            constraint_instance.data.link_0_pivot_b_velocity
-
-            try:
-                infos = constraint_instance.data.infos
-            except AttributeError:
-                pass
-            else:
-                for info in infos:
-                    info.pivot_in_a = tuple(x * factor for x in info.pivot_in_a)
-                    info.pivot_in_b = tuple(x * factor for x in info.pivot_in_b)
-                constraint_instance.data.link_0_pivot_b_velocity = tuple(
-                    x * factor for x in constraint_instance.data.link_0_pivot_b_velocity
-                )
-                # TODO: scale tau, damping, cfm?
-                constraint_instance.data.max_error_distance *= factor
-                constraint_instance.data.inertia_per_meter *= factor
-
-            try:
-                atoms = constraint_instance.data.atoms
-            except AttributeError:
-                continue
-
-            if "transforms" in atoms.node.value:
-                transforms = atoms.transforms
-
-                old_transform_A = transforms.transform_a.to_flat_column_order()
-                scaled_translate = tuple(x * factor for x in old_transform_A[12:15]) + (1.0,)
-                transforms.node.value["transformA"].value = tuple(old_transform_A[:12]) + scaled_translate
-
-                old_transform_B = transforms.transform_b.to_flat_column_order()
-                scaled_translate = tuple(x * factor for x in old_transform_B[12:15]) + (1.0,)
-                transforms.node.value["transformB"].value = tuple(old_transform_B[:12]) + scaled_translate
-
-            if "pivots" in atoms.node.value:
-                pivots = atoms.pivots
-
-                scaled_translate = tuple(x * factor for x in pivots.translation_a)
-                pivots.node.value["translationA"].value = scaled_translate
-
-                scaled_translate = tuple(x * factor for x in pivots.translation_b)
-                pivots.node.value["translationB"].value = scaled_translate
-
-            if "spring" in atoms.node.value:
-                spring = atoms.spring
-                spring.length *= factor
-                spring.max_length *= factor
+            scale_constraint_data(constraint_instance.data, factor)
 
     @classmethod
     def from_chrbnd(cls, chrbnd_path: Path | str, prefer_bak=False) -> ClothHKX:
@@ -391,17 +345,16 @@ class CollisionHKX(HKX2015):
         if not obj_meshes:
             raise ValueError("At least one mesh required in OBJ to convert to HKX.")
 
-        if template_hkx is not None:
-            hkx = template_hkx if template_hkx is not None else cls("template.hkx")
-            child_shape = hkx.get_child_shape()
-            if len(child_shape.meshstorage) != len(obj_meshes):
-                raise ValueError(
-                    f"Number of OBJ meshes ({len(obj_meshes)}) does not match number of existing meshes in template "
-                    f"HKX ({len(child_shape.meshstorage)}). Omit `template_hkx` to allow any number of OBJ meshes."
-                )
+        if template_hkx is None:
+            hkx = cls(Path(__file__).parent / "resources/CollisionTemplate2015.hkx")
         else:
-            hkx = cls("template.hkx")
-            child_shape = hkx.get_child_shape()
+            hkx = template_hkx
+        child_shape = hkx.get_child_shape()
+        if len(child_shape.meshstorage) != len(obj_meshes):
+            raise ValueError(
+                f"Number of OBJ meshes ({len(obj_meshes)}) does not match number of existing meshes in template "
+                f"HKX ({len(child_shape.meshstorage)}). Omit `template_hkx` to allow any number of OBJ meshes."
+            )
 
         if not material_name_data:
             material_name_data = [material.materialNameData for material in child_shape.materialArray]
@@ -541,14 +494,14 @@ class CollisionHKX(HKX2015):
         input_text = "\n".join(input_lines) + "\n"
         # print(input_text)
         Path("mopper_input.txt").write_text(input_text)
-        print("# Running mopper...")
+        _LOGGER.info("# Running mopper...")
         sp.call([str(CollisionHKX.MOPPER_PATH), mode, "mopper_input.txt"])
         if not Path("mopp.json").exists():
             raise FileNotFoundError("Mopper did not produce `mopp.json`.")
         return read_json("mopp.json")
 
 
-# TODO: Move to some utility module.
+# region Utility Functions
 def scale_shape(shape: hkpShape, factor: float):
     if isinstance(shape, hkpConvexShape):
         shape.radius *= factor
@@ -567,45 +520,101 @@ def scale_shape(shape: hkpShape, factor: float):
                     vertex *= factor
 
 
-def read_obj(obj_path: Path | str, invert_x=True) -> list[tuple[list[Vector4], list[tuple[int, int, int]]]]:
-    meshes = []  # type: list[tuple[list[Vector4], list[tuple[int, int, int]]]]
-    mesh = None  # type: None | tuple[list, list]
+def scale_transform_translation(transform: tuple[float], factor: float) -> tuple[float]:
+    """Scale translation component of 16-float tuple that represents `hkTransform` or `hkTransformf` and return scaled
+    tuple."""
+    transform = Matrix4.from_flat_column_order(transform)
+    transform[0, 3] *= factor  # x
+    transform[1, 3] *= factor  # y
+    transform[2, 3] *= factor  # z
+    return tuple(transform.to_flat_column_order())
 
-    o_re = re.compile(r"^o .*$")
-    v_re = re.compile(r"^v ([-\d.]+) ([-\d.]+) ([-\d.]+)$")
-    f_re = re.compile(r"^f (\d+)(?://\d+)? (\d+)(?://\d+)? (\d+)(?://\d+)?$")
 
-    global_v_i = 0
+def scale_motion_state(motion_state: hkMotionState, factor: float):
+    motion_state.transform = scale_transform_translation(motion_state.transform, factor)
+    motion_state.objectRadius *= factor
 
-    with Path(obj_path).open("r") as f:
-        for line in f.readlines():
-            if o_re.match(line):
-                if mesh is not None:
-                    global_v_i += len(mesh[0])  # increase global vertex count
-                mesh = ([], [])  # vertices, faces
-                meshes.append(mesh)
-            elif v := v_re.match(line):
-                if mesh is None:
-                    raise ValueError("Found 'v' vertex line before an 'o' object definition.")
-                if mesh[1]:
-                    raise ValueError("Found 'v' vertex line after 'f' face lines.")
-                x, y, z = float(v.group(1)), float(v.group(2)), float(v.group(3))
-                vertex = Vector4((-x if invert_x else x), y, z, 0.0)
-                mesh[0].append(vertex)
-            elif f := f_re.match(line):
-                if mesh is None:
-                    raise ValueError("Found 'f' face line before an 'o' object definition.")
-                if not mesh[0]:
-                    raise ValueError("Found 'f' face line before a 'v' vertex lines.")
-                # Switch to 0-indexing, localize vertex indices, and insert zero that appears between triplets.
-                face = (
-                    int(f.group(1)) - global_v_i - 1,
-                    int(f.group(2)) - global_v_i - 1,
-                    int(f.group(3)) - global_v_i - 1,
-                    0,
-                )
-                mesh[1].append(face)
-            else:
-                pass  # ignore all other lines
+    # Indices 2 and 3 are rotations.
+    motion_state.sweptTransform = tuple(
+        t * factor if i in {0, 1, 4} else t
+        for i, t in enumerate(motion_state.sweptTransform)
+    )
 
-    return meshes
+
+def scale_constraint_data(constraint_data: hkpConstraintData, factor: float):
+    if isinstance(constraint_data, hkpRagdollConstraintData):
+        # TODO: There are a bunch of forces/constraints in here that I'm not sure how to scale.
+        atoms = constraint_data.atoms
+        atoms.transforms.transformA = scale_transform_translation(atoms.transforms.transformA, factor)
+        atoms.transforms.transformB = scale_transform_translation(atoms.transforms.transformB, factor)
+
+        # TODO: I must've encountered some constraint class with `data.pivots` member. Scale if found again.
+        # TODO: Ditto for `atoms.spring` (length and maxLength).
+
+    elif isinstance(constraint_data, hkpBallSocketChainData):
+        constraint_data.link0PivotBVelocity *= factor
+        constraint_data.maxErrorDistance *= factor
+        constraint_data.inertiaPerMeter *= factor
+        # TODO: tau, damping, cfm?
+        for info in constraint_data.infos:
+            # TODO: Possibly don't want to scale `w`.
+            info.pivotInA *= factor
+            info.pivotInB *= factor
+# endregion
+
+
+# Helpers
+
+def scale_chrbnd(chrbnd_path: Path | str, scale_factor: float, from_bak=True):
+    """Scale FLVER, ragdoll, and (if present) cloth in CHRBND."""
+    chrbnd = Binder(chrbnd_path, from_bak=from_bak)
+
+    flver_entry = chrbnd.find_entry_matching_name(r".*\.flver")  # should be ID 200
+    model = FLVER(flver_entry)
+    model.scale(scale_factor)
+    flver_entry.set_uncompressed_data(model.pack_dcx())
+    _LOGGER.info(f"{flver_entry.name} model scaled by {scale_factor}.")
+
+    model_name = flver_entry.name.split(".")[0]
+    ragdoll_entry = chrbnd[f"{model_name}.hkx"]  # should be ID 300
+    ragdoll_hkx = RagdollHKX(ragdoll_entry)
+    ragdoll_hkx.scale(scale_factor)
+    chrbnd[f"{model_name}.hkx"].set_uncompressed_data(ragdoll_hkx.pack_dcx())
+    _LOGGER.info(f"{ragdoll_entry.name} ragdoll physics scaled by {scale_factor}.")
+
+    try:
+        cloth_entry = chrbnd.find_entry_matching_name(rf"{model_name}_c\.hkx")  # should be ID 700
+    except KeyError:
+        # No cloth data.
+        _LOGGER.info("No cloth HKX found.")
+    else:
+        cloth_hkx = ClothHKX(cloth_entry)
+        cloth_hkx.scale(scale_factor)
+        cloth_entry.set_uncompressed_data(cloth_hkx.pack_dcx())
+        _LOGGER.info(f"{cloth_entry.name} cloth physics scaled by {scale_factor}.")
+
+    chrbnd.write()
+    _LOGGER.info(f"Scaling complete. {chrbnd.path} written.")
+
+
+def scale_anibnd(anibnd_path: Path | str, scale_factor: float, from_bak=True):
+    """Scale skeleton and all animations."""
+    anibnd = Binder(anibnd_path, from_bak=from_bak)
+
+    skeleton_entry = anibnd.find_entry_matching_name(r"[Ss]keleton\.(HKX|hkx)")  # should be ID 1000000
+    skeleton_hkx = SkeletonHKX(skeleton_entry)
+    skeleton_hkx.scale(scale_factor)
+    skeleton_entry.set_uncompressed_data(skeleton_hkx.pack_dcx())
+    _LOGGER.info(f"{skeleton_entry.name} skeleton scaled by {scale_factor}.")
+
+    animation_entries = anibnd.find_entries_matching_name(r"a.*\.hkx")
+    for entry in animation_entries:
+        _LOGGER.info(f"  Scaling animation {entry.id} by {scale_factor}...")
+        animation_hkx = AnimationHKX(entry)  # "aXX_XXXX.hkx"
+        animation_hkx.scale(scale_factor)
+        entry.set_uncompressed_data(animation_hkx.pack_dcx())
+
+    anibnd.write()
+    _LOGGER.info(f"Scaling complete. {anibnd.path} written.")
+
+# endregion

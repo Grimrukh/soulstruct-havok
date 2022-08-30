@@ -125,6 +125,8 @@ from .hkxVertexDescription import hkxVertexDescription
 from .hkxVertexDescriptionDataType import hkxVertexDescriptionDataType
 from .hkxVertexDescriptionDataUsage import hkxVertexDescriptionDataUsage
 from .hkxVertexDescriptionElementDecl import hkxVertexDescriptionElementDecl
+
+# TODO: Unsorted from here. Resort all at some point...
 from .hkpMoppBvTreeShape import hkpMoppBvTreeShape
 from .hkMoppBvTreeShapeBase import hkMoppBvTreeShapeBase
 from .hkpSingleShapeContainer import hkpSingleShapeContainer
@@ -150,3 +152,40 @@ from .hkpExtendedMeshShapeIndexStridingType import hkpExtendedMeshShapeIndexStri
 from .hkpStorageExtendedMeshShapeMaterial import hkpStorageExtendedMeshShapeMaterial
 from .hkpNamedMeshMaterial import hkpNamedMeshMaterial
 from .hkpMeshMaterial import hkpMeshMaterial
+from .hkpHingeConstraintData import hkpHingeConstraintData
+from .hkpHingeConstraintDataAtoms import hkpHingeConstraintDataAtoms
+from .hkp2dAngConstraintAtom import hkp2dAngConstraintAtom
+from .hkpConstraintChainInstance import hkpConstraintChainInstance
+from .hkpConstraintChainInstanceAction import hkpConstraintChainInstanceAction
+from .hkpBallSocketChainData import hkpBallSocketChainData
+from .hkpConstraintChainData import hkpConstraintChainData
+from .hkpBridgeAtoms import hkpBridgeAtoms
+from .hkpBridgeConstraintAtom import hkpBridgeConstraintAtom
+from .hkpBallSocketChainDataConstraintInfo import hkpBallSocketChainDataConstraintInfo
+from .hkpLimitedHingeConstraintData import hkpLimitedHingeConstraintData
+from .hkpLimitedHingeConstraintDataAtoms import hkpLimitedHingeConstraintDataAtoms
+from .hkpAngMotorConstraintAtom import hkpAngMotorConstraintAtom
+from .hkpAngLimitConstraintAtom import hkpAngLimitConstraintAtom
+
+# TODO: from DBZ Xenoverse 2
+from .hknpExternMeshShape import hknpExternMeshShape
+from .hknpCompositeShape import hknpCompositeShape
+from .hknpShape import hknpShape
+from .hknpSparseCompactMap import hknpSparseCompactMap
+from .hknpExternMeshShapeGeometry import hknpExternMeshShapeGeometry
+from .hknpShapeFlagsEnum import hknpShapeFlagsEnum
+from .hknpShapeTypeEnum import hknpShapeTypeEnum
+from .hknpCollisionDispatchTypeEnum import hknpCollisionDispatchTypeEnum
+from .hkRefCountedProperties import hkRefCountedProperties
+from .hkRefCountedPropertiesEntry import hkRefCountedPropertiesEntry
+from .hknpDefaultExternMeshShapeGeometry import hknpDefaultExternMeshShapeGeometry
+from .hkGeometry import hkGeometry
+from .hkGeometryTriangle import hkGeometryTriangle
+from .hknpExternMeshShapeData import hknpExternMeshShapeData
+from .hkcdStaticTreeTree import hkcdStaticTreeTree
+from .hkcdSimdTree import hkcdSimdTree
+from .hkcdStaticTreeDynamicStorage import hkcdStaticTreeDynamicStorage
+from .hkcdStaticTreeCodec3Axis6 import hkcdStaticTreeCodec3Axis6
+from .hkcdSimdTreeNode import hkcdSimdTreeNode
+from .hkcdStaticTreeCodec3Axis import hkcdStaticTreeCodec3Axis
+from .hkcdFourAabb import hkcdFourAabb

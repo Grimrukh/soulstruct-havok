@@ -13,7 +13,7 @@ __all__ = [
 import re
 import typing as tp
 
-from soulstruct_havok.enums import TagDataType, MemberFlags
+from soulstruct_havok.enums import TagDataType, TagFormatFlags, MemberFlags
 
 from .exceptions import HavokTypeError, TypeNotDefinedError, TypeMatchError
 
@@ -74,6 +74,11 @@ class MemberInfo:
     type_info: tp.Optional[TypeInfo]
     type_py_name: tp.Optional[str]
 
+    # Attributes used temporaneously by Python auto-generator.
+    member_py_name: None | str
+    type_hint: None | str
+    required_types: list[str]
+
     def __init__(
         self,
         name: str,
@@ -91,6 +96,10 @@ class MemberInfo:
         # Deindexified attributes.
         self.type_info = type_info
         self.type_py_name = type_py_name
+
+        self.member_py_name = None
+        self.type_hint = None
+        self.required_types = []
 
     def indexify(self, type_py_names: list[str]):
         try:
@@ -284,17 +293,20 @@ class TypeInfo:
     def get_full_py_name(self) -> str:
         """Get actual generic type, if appropriate, eg `hkArray[Ptr[hkaAnimation]]`."""
         name = self.py_name
-        if self.pointer_type_info:
-            return f"{name}[{self.pointer_type_info.get_full_py_name()}]"
-        elif self.pointer_type_py_name:
-            return f"{name}[{self.pointer_type_py_name}]"
+
+        if self.tag_format_flags & TagFormatFlags.Pointer:
+            if self.pointer_type_info:
+                return f"{name}[{self.pointer_type_info.get_full_py_name()}]"
+            elif self.pointer_type_py_name:
+                return f"{name}[{self.pointer_type_py_name}]"
         return name
 
-    def check_py_class_match(self, py_class: tp.Type[hk]):
+    def check_py_class_match(self, py_class: tp.Type[hk]) -> dict[str, int]:
         """Check `TypeInfo` attributes (typically from a file) against attributes of pre-defined Python class.
 
         Raises a `TypeMatchError` if a clash occurs, and does nothing otherwise.
         """
+        changes = {}
 
         if self.parent_type_py_name is not None:
             py_parent_name = py_class.__bases__[-1].__name__
@@ -311,7 +323,8 @@ class TypeInfo:
             if py_value != new_value:
                 if non_inherited_field == "hsh":
                     # Warning only.
-                    print(f"WARNING: {TypeMatchError(py_class, non_inherited_field, py_value, new_value)}")
+                    changes["hsh"] = new_value
+                    # print(f"WARNING: {TypeMatchError(py_class, non_inherited_field, py_value, new_value)}")
                 else:
                     raise TypeMatchError(py_class, non_inherited_field, py_value, new_value)
         # Check member info.
@@ -331,6 +344,8 @@ class TypeInfo:
                 raise ValueError(f"Defined Member {py_member.name} has type `None`. TypeInfo: {self}")
 
             # TODO: Should also check member type, but that's a little more complex with the array/enum wrappers, etc.
+
+        return changes
 
     def get_class_py_def(self, defined_type_names: list[str] = (), import_undefined_names=False) -> str:
         return PyDefBuilder(self, defined_type_names, import_undefined_names).build()
@@ -580,7 +595,8 @@ class PyDefBuilder:
         )
 
     def build_flags_type(self, flags_type: TypeInfo) -> tuple[str, str]:
-        storage_type = flags_type.members[0].type_info
+        # storage_type = flags_type.members[0].type_info
+        storage_type = flags_type.templates[1].type_info
         self.check_defined(storage_type.py_name, "hkFlags", "storage")
         return f"hkFlags({storage_type.py_name})", storage_type.py_name
 
@@ -710,6 +726,7 @@ class PyDefBuilder:
 
             py_string += f"\n    local_members = (\n"  # new line before members
             for member in self.info.members:
+                # noinspection PyUnresolvedReferences
                 if member.type_info is None:
                     # TODO: Trying to use packfile information only.
                     py_name = member.member_py_name

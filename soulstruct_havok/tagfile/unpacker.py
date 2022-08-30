@@ -10,7 +10,7 @@ import colorama
 from soulstruct.utilities.binary import BinaryReader
 
 from soulstruct_havok.types.core import hk
-from soulstruct_havok.types.exceptions import VersionModuleError, TypeNotDefinedError
+from soulstruct_havok.types.exceptions import HavokTypeError, VersionModuleError, TypeNotDefinedError, TypeMatchError
 from soulstruct_havok.types.info import *
 from soulstruct_havok.enums import TagFormatFlags
 from .structs import *
@@ -45,6 +45,7 @@ class TagFileUnpacker:
     items: list[TagFileItem]
     is_compendium: bool
     compendium_ids: list[str]
+    hsh_overrides: dict[str, int | None]
     hk_version: str
 
     def __init__(self):
@@ -56,6 +57,7 @@ class TagFileUnpacker:
         self.items = []
         self.is_compendium = False
         self.compendium_ids = []
+        self.hsh_overrides = {}
         self.hk_version = ""
 
     def unpack(self, reader: BinaryReader, compendium: tp.Optional[HKX] = None, types_only=False):
@@ -80,7 +82,7 @@ class TagFileUnpacker:
 
                 with self.unpack_section(reader, "DATA"):
                     data_start_offset = reader.position
-                    # Skipping over data section for now.
+                    # Skipping over data section for now. We just record the offset to use later.
 
                 self.hk_type_infos = self.unpack_type_section(reader, compendium=compendium)
 
@@ -95,6 +97,7 @@ class TagFileUnpacker:
                     base = self.hk_types_module.core
                     base_names = list(vars(core)) + list(vars(base))
 
+                    type_match_errors = []
                     for type_info in self.hk_type_infos[1:]:
                         if type_info.name in type_info.GENERIC_TYPE_NAMES:
                             continue
@@ -103,11 +106,19 @@ class TagFileUnpacker:
                         except AttributeError:
                             # Missing Python definition. Create a (possibly rough) Python definition to print.
                             missing_type_infos.append(type_info)
-                            # missing_type_py_defs.append(type_info.get_rough_py_def())
                             missing_type_py_defs.append(type_info.get_class_py_def(base_names, True))
                         else:
-                            type_info.check_py_class_match(py_class)
-                            type_info.py_class = py_class
+                            try:
+                                type_info.check_py_class_match(py_class)
+                            except TypeMatchError as ex:
+                                type_match_errors.append(ex)
+                            else:
+                                type_info.py_class = py_class
+
+                    if type_match_errors:
+                        for type_match_error in type_match_errors:
+                            _LOGGER.error(type_match_error)
+                        raise HavokTypeError(f"{len(type_match_errors)} Havok type match errors occurred. See details.")
 
                     if missing_type_infos:
                         imports = [
@@ -157,18 +168,15 @@ class TagFileUnpacker:
             if root_item.hk_type is None:
                 raise ValueError("Root item had no `hk_type`.")
             if root_item.hk_type.__name__ != "hkRootLevelContainer":
-                raise ValueError(
-                    f"Unexpected HKX root item type: {root_item.hk_type.__name__}. Should be `hkRootLevelContainer`."
+                _LOGGER.warning(
+                    f"Root item of HKX file was `{root_item.hk_type.__name__}` instead of `hkRootLevelContainer`."
                 )
             if root_item.length != 1:
                 raise ValueError(f"HKX root item has a length other than 1: {root_item.length}")
 
-            # This call will recursively unpack all items.
-
-            with hk.set_types_module(self.hk_types_module):
-                self.root = self.hk_types_module.hkRootLevelContainer.unpack(
-                    reader, root_item.absolute_offset, self.items
-                )
+            with hk.set_types_dict(self.hk_types_module):
+                # This call will recursively unpack all items.
+                self.root = root_item.hk_type.unpack(reader, root_item.absolute_offset, self.items)
             root_item.value = self.root
 
     def unpack_type_section(self, reader: BinaryReader, compendium: tp.Optional[HKX] = None) -> list[TypeInfo]:
@@ -194,8 +202,9 @@ class TagFileUnpacker:
             if compendium is not None:
                 _LOGGER.warning("Compendium HKX was passed to TYPE-type HKX and will be ignored.")
 
-            with self.unpack_section(reader, "TPTR"):
-                pass
+            if self.peek_section(reader, "TPTR"):
+                with self.unpack_section(reader, "TPTR"):
+                    pass
 
             with self.unpack_section(reader, "TSTR") as (tstr_size, _):
                 type_names = reader.unpack_string(length=tstr_size, encoding="utf-8").split("\0")
@@ -341,24 +350,32 @@ class TagFileUnpacker:
                     types = "\n    ".join(lines)
                     print(f"{YELLOW}Final unpacked type list:\n    {types}{RESET}")
 
-            with self.unpack_section(reader, "THSH"):
-                hashed = []
-                if _DEBUG_HASH:
-                    print(f"{MAGENTA}Unpacked hashes:{RESET}")
-                for _ in range(self.unpack_var_int(reader)):
-                    type_index = self.unpack_var_int(reader)
-                    type_info = file_hk_types[type_index]
-                    type_info.hsh = reader.unpack_value("<I")
+            if self.peek_section(reader, "THSH"):
+                unhashed_types = file_hk_types[1:]
+                with self.unpack_section(reader, "THSH"):
+                    hashed = []
                     if _DEBUG_HASH:
-                        print(f"    {MAGENTA}`{type_info.get_full_py_name()}`: {type_info.hsh}{RESET}")
-                    hashed.append((type_info.hsh, type_info.get_full_py_name()))
-                if _DEBUG_HASH:
-                    print(f"{MAGENTA}Unpacked hashes (sorted):{RESET}")
-                    for type_hsh, type_name in sorted(hashed):
-                        print(f"    {MAGENTA}`{type_name}`: {type_hsh}{RESET}")
+                        print(f"{MAGENTA}Unpacked hashes:{RESET}")
+                    for _ in range(self.unpack_var_int(reader)):
+                        type_index = self.unpack_var_int(reader)
+                        type_info = file_hk_types[type_index]
+                        full_py_name = type_info.get_full_py_name()
+                        self.hsh_overrides[full_py_name] = type_info.hsh = reader.unpack_value("<I")
+                        if _DEBUG_HASH:
+                            print(f"    {MAGENTA}`{full_py_name}`: {type_info.hsh}{RESET}")
+                        hashed.append((type_info.hsh, full_py_name))
+                        unhashed_types.remove(type_info)
+                    if _DEBUG_HASH:
+                        print(f"{MAGENTA}Unpacked hashes (sorted):{RESET}")
+                        for type_hsh, type_name in sorted(hashed):
+                            print(f"    {MAGENTA}`{type_name}`: {type_hsh}{RESET}")
+                for type_info in unhashed_types:
+                    # Types that did not explicitly get a hash receive `None` override.
+                    self.hsh_overrides[type_info.get_full_py_name()] = None
 
-            with self.unpack_section(reader, "TPAD"):
-                pass
+            if self.peek_section(reader, "THSH"):
+                with self.unpack_section(reader, "TPAD"):
+                    pass
 
         # Assign member types.
         for t in file_hk_types[1:]:
@@ -398,21 +415,36 @@ class TagFileUnpacker:
                     )
                     items.append(item)
 
-            with self.unpack_section(reader, "PTCH"):
-                # Patch data contains offsets (in DATA) to item indices. It isn't needed to unpack the file, but its
-                # format is checked here.
-                while True:
-                    try:
-                        type_index, offset_count = reader.unpack("<2I")
-                    except TypeError:
-                        break
-                    else:
-                        reader.unpack(f"<{offset_count}I")
+            # with self.unpack_section(reader, "PTCH"):
+            #     # Patch data contains offsets (in DATA) to item indices. It isn't needed to unpack the file, but its
+            #     # format is checked here.
+            #     while True:
+            #         try:
+            #             type_index, offset_count = reader.unpack("<2I")
+            #         except TypeError:
+            #             break
+            #         else:
+            #             reader.unpack(f"<{offset_count}I")
 
         return items
 
+    @staticmethod
+    def peek_section(reader: BinaryReader, *assert_magic) -> bool:
+        """Looks ahead to see if an optional section is present."""
+        try:
+            with reader.temp_offset(reader.position):
+                # Mask out 2 most significant bits and subtract this header size.
+                data_size = (reader.unpack_value(">I") & 0x3FFFFFFF) - 8
+                magic = reader.unpack_string(length=4, encoding="utf-8")
+        except reader.ReaderError as ex:
+            return False
+        if magic not in assert_magic:
+            return False
+        return True
+
+    @staticmethod
     @contextmanager
-    def unpack_section(self, reader: BinaryReader, *assert_magic) -> tuple[int, str]:
+    def unpack_section(reader: BinaryReader, *assert_magic) -> tuple[int, str]:
         # Mask out 2 most significant bits and subtract header size.
         data_size = (reader.unpack_value(">I") & 0x3FFFFFFF) - 8
         magic = reader.unpack_string(length=4, encoding="utf-8")

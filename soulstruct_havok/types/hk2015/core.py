@@ -3,6 +3,7 @@ from __future__ import annotations
 __all__ = [
     "Vector4",
     "hkReflectDetailOpaque",
+    "_bool",
     "_int",
     "_const_charSTAR",
     "_unsigned_short",
@@ -69,6 +70,16 @@ class hkReflectDetailOpaque(hk):
 
 
 # --- Primitive Types --- #
+
+
+class _bool(hk):
+    alignment = 1
+    byte_size = 1
+    tag_type_flags = TagDataType.Bool | TagDataType.Int8
+
+    __tag_format_flags = 9
+    __real_name = "bool"
+    local_members = ()
 
 
 class _int(hk):

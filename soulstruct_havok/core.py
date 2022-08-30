@@ -50,6 +50,7 @@ class HKX(GameFile):
     unpacker: None | TagFileUnpacker | PackFileUnpacker
     is_compendium: bool
     compendium_ids: list[str]
+    hsh_overrides: dict[str, int]  # maps `hk` type names to non-standard hash values found in file
 
     packfile_header_version: None | PackFileVersion
     packfile_pointer_size: None | int
@@ -74,6 +75,7 @@ class HKX(GameFile):
         self.is_compendium = False
         self.unpacker = None
         self.compendium_ids = []
+        self.hsh_overrides = {}
 
         self.packfile_header_version = None
         self.packfile_pointer_size = None
@@ -167,6 +169,7 @@ class HKX(GameFile):
         self.root = self.unpacker.root
         self.is_compendium = self.unpacker.is_compendium
         self.compendium_ids = self.unpacker.compendium_ids
+        self.hsh_overrides = self.unpacker.hsh_overrides
 
     def pack(self, hk_format="") -> bytes:
         if hk_format == "":
@@ -183,7 +186,7 @@ class HKX(GameFile):
                 header_extension=self.packfile_header_extension,  # may be None
             )
         elif hk_format.lower() == "tagfile":
-            return TagFilePacker(self).pack()
+            return TagFilePacker(self).pack(hsh_overrides=self.hsh_overrides)
         raise ValueError(f"Invalid `hk_format` for `HKX.pack()`: {hk_format}. Should be 'packfile' or 'tagfile'.")
 
     def pack_packfile(self) -> bytes:

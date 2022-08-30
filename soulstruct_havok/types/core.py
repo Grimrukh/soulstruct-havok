@@ -117,7 +117,7 @@ class hk:
 
     # Set before unpacking root and removed afterward, as `hkRootLevelContainerNamedVariant` objects need to dynamically
     # retrieve all type names.
-    _TYPES_MODULE = None
+    _TYPES_DICT = None
 
     alignment = 0
     byte_size = 0
@@ -212,15 +212,27 @@ class hk:
 
     @staticmethod
     @contextmanager
-    def set_types_module(module):
-        hk._TYPES_MODULE = {
+    def set_types_dict(module):
+        """Assign `soulstruct_havok.types` submodule to `hk` so that dynamic type names can be resolved (e.g.,
+        `hkRootLevelContainerNamedVariant`, `hkViewPtr`).
+
+        Should be used as a `with` context to ensure the dictionary is destroyed when unpacking is finished. Not
+        required for packing because the types are already assigned.
+        """
+        hk._TYPES_DICT = {
             name: hk_type
             for name, hk_type in inspect.getmembers(module, lambda x: inspect.isclass(x) and issubclass(x, hk))
         }
         try:
             yield
         finally:
-            hk._TYPES_MODULE = None
+            hk._TYPES_DICT = None
+
+    @classmethod
+    def get_module_type(cls, type_name: str) -> tp.Type[hk]:
+        if cls._TYPES_DICT is None:
+            raise AttributeError(f"`hk.set_types_dict()` has not been called. Cannot retrieve type `{type_name}`.")
+        return cls._TYPES_DICT[type_name]
 
     @classmethod
     def unpack(cls, reader: BinaryReader, offset: int, items: list[TagFileItem] = None) -> tp.Any:
@@ -235,11 +247,11 @@ class hk:
 
         if cls.__name__ == "hkRootLevelContainerNamedVariant":
             # Retrieve other classes from subclass's module, as they will be dynamically attached to the root container.
-            if hk._TYPES_MODULE is None:
+            if hk._TYPES_DICT is None:
                 raise AttributeError(
                     "Cannot unpack `hkRootLevelContainerNamedVariant` without using types context manager."
                 )
-            return unpack_named_variant(cls, reader, items, hk._TYPES_MODULE)
+            return unpack_named_variant(cls, reader, items, hk._TYPES_DICT)
 
         tag_data_type = cls.get_tag_data_type()
         if tag_data_type == TagDataType.Invalid:
@@ -509,6 +521,13 @@ class hk:
             member_value = getattr(self, member.name)
             if member_value is None or isinstance(member_value, (bool, int, float, str)):
                 lines.append(f"    {member.name} = {repr(member_value)},")
+            elif issubclass(member.type, hkViewPtr_):
+                # Reference is likely to be circular: a value that has not even finished being written yet (and we
+                # don't know what the instance number will be yet).
+                lines.append(
+                    f"    {member.name} = {member_value.__class__.__name__},"
+                    f"  # <VIEW>"
+                )
             elif isinstance(member_value, hk):
                 if member_value in instances_shown:
                     lines.append(
@@ -597,6 +616,7 @@ class hkBasePointer(hk):
     @classmethod
     def get_data_type(cls):
         if isinstance(cls._data_type, DefType):
+            # First-time data type retrieval; resolve action into data type.
             cls._data_type = cls._data_type.action()
             return cls._data_type
         return cls._data_type
@@ -714,7 +734,7 @@ class TypeInfoGenerator:
                     self._add_type(getattr(self._module, "_int"), indent)
                     # Does not need to be queued.
 
-            if issubclass(hk_type, (hkRefPtr_, hkRefVariant_)):
+            if issubclass(hk_type, (hkRefPtr_, hkRefVariant_, hkViewPtr_)):
                 if f"Ptr[{data_type.__name__}]" not in self.type_infos:
                     # Add generic pointer type (once once per data type).
                     self._add_type(Ptr(data_type), indent)
@@ -762,7 +782,7 @@ class hkArray_(hkBasePointer):
 
     __tag_format_flags = 43
 
-    _data_type: tp.Type[hk] | hkRefPtr | hkViewPtr | DefType
+    _data_type: tp.Type[hk] | hkRefPtr | hkViewPtr_ | DefType
 
     @classmethod
     def unpack(
@@ -989,8 +1009,9 @@ class hkStruct_(hkBasePointer):
 
     @classmethod
     def get_type_info(cls) -> TypeInfo:
+        data_type = cls.get_data_type()
         if cls.is_generic:
-            data_type_py_name = cls.get_data_type().__name__
+            data_type_py_name = data_type.__name__
             type_info = TypeInfo("T[N]")
             type_info.py_class = cls
             type_info.pointer_type_py_name = data_type_py_name
@@ -1001,14 +1022,13 @@ class hkStruct_(hkBasePointer):
             ]
             type_info.tag_format_flags = 11
             type_info.tag_type_flags = cls.tag_type_flags  # already set to correct subtype (including length)
-            type_info.byte_size = cls.get_data_type().byte_size * cls.length
-            type_info.alignment = cls.get_data_type().alignment
+            type_info.byte_size = data_type.byte_size * cls.length
+            type_info.alignment = data_type.alignment
             # TODO: Some generic T[N] types have hashes. Could find it here from XML...
         else:
             # Default method is fine, but we may remove the parent class and add a `data_type` pointer.
             type_info = super().get_type_info()
-            type_info.py_class = cls
-            type_info.pointer_type_py_name = cls.get_data_type().__name__
+
             # Immediate children of `hkStruct_` have no parent.
             parent_type = cls.__base__
             if parent_type.__base__ == hkStruct_:
@@ -1290,13 +1310,12 @@ def hkRefVariant(data_type: tp.Type[hk] | DefType, hsh: int = None) -> tp.Type[h
     return ptr_type
 
 
-class hkViewPtr_(hk):
-    """Pointer that is used at least once (by `hkpEntity`) for a recursive look at an owner class
-    (`hkpConstraintInstance`).
+class hkViewPtr_(hkBasePointer):
+    """Pointer that is used as a recursive reference to a containing owner instance.
 
-    This is the only time this circularity appears in the 2015 types, so I don't think it's a coincidence that this
-    special pointer is used. Here, it just holds a string name of the reference class, so definition can continue. The
-    class can be retrieved by name when needed.
+    Like `DefType`, this is defined in Python using a type name string and action to avoid circular imports, but unlike
+    `DefType` (which is just a `Ptr` self-reference), this is a real Havok type with its own genuine type data, and the
+    use of `DefType` is internal rather than declared in the member.
     """
     alignment = 8
     byte_size = 8
@@ -1305,40 +1324,72 @@ class hkViewPtr_(hk):
     __tag_format_flags = 59
     __abstract_value = 64
 
-    data_type_name = ""
+    @classmethod
+    def unpack(
+        cls, reader: BinaryReader, offset: int, items: list[TagFileItem] = None
+    ) -> hk:
+        """Identical to `Ptr`."""
+        reader.seek(offset)
+        cls.debug_print_unpack(f"Unpacking `{cls.__name__}`... ({cls.get_tag_data_type().name})")
+        value = unpack_pointer(cls.get_data_type(), reader, items)
+        cls.debug_print_unpack(f"-> {value}")
+        return value
 
     @classmethod
-    def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
-        # noinspection PyTypeChecker
-        return list(cls.__mro__[:-3])  # exclude this, `hk`, and `object`
+    def pack(
+        cls,
+        item: TagFileItem,
+        value: hk,
+        items: list[TagFileItem],
+        existing_items: dict[hk, TagFileItem],
+        item_creation_queue: dict[str, deque[tp.Callable]],
+    ):
+        """Identical to `Ptr`.
+
+        TODO: This might queue up item creation at hkViewPtr time rather than when the actual parent item finishes.
+         May cause issues or at least break my otherwise byte-perfect item order.
+        """
+        cls.debug_print_pack(f"Packing `{cls.__name__}`...")
+        pack_pointer(cls, item, value, items, existing_items, item_creation_queue)
+        if _REQUIRE_INPUT:
+            input("Continue?")
 
     @classmethod
     def get_type_info(cls) -> TypeInfo:
+        data_type_name = cls.get_data_type().__name__
         type_info = TypeInfo("hkViewPtr")
         type_info.py_class = cls
 
         type_info.templates = [
-            TemplateInfo("tTYPE", type_py_name=cls.data_type_name),
+            TemplateInfo("tTYPE", type_py_name=data_type_name),
         ]
         type_info.tag_format_flags = 59
         type_info.tag_type_flags = 6
         type_info.byte_size = 8
         type_info.alignment = 8
         type_info.abstract_value = 64
-        type_info.pointer_type_py_name = cls.data_type_name
+        type_info.pointer_type_py_name = data_type_name
         # `hkViewPtr` hash is actually its pointer's hash; `hkViewPtr` has no hash.
         type_info.members = [
-            MemberInfo("ptr", flags=36, offset=0, type_py_name=f"Ptr[{cls.data_type_name}]"),
+            MemberInfo("ptr", flags=36, offset=0, type_py_name=f"Ptr[{data_type_name}]"),
         ]
 
         return type_info
 
+    @classmethod
+    def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
+        # noinspection PyTypeChecker
+        return list(cls.__mro__[:-4])  # exclude this, `hkBasePointer`, `hk`, and `object`
+
 
 def hkViewPtr(data_type_name: str, hsh: int = None):
-    """Create a `_hkViewPtr` subclass dynamically, pointing to a particular type name."""
+    """Create a `_hkViewPtr` subclass dynamically.
+
+    To avoid Python circular imports, it is necessary to retrieve the type dynamically here from the module set in `hk`.
+    """
     # noinspection PyTypeChecker
     ptr_type = type(f"hkViewPtr[{data_type_name}]", (hkViewPtr_,), {})  # type: tp.Type[hkViewPtr_]
-    ptr_type.data_type_name = data_type_name
+    ptr_type.set_data_type(DefType(data_type_name, lambda: hk.get_module_type(data_type_name)))
     ptr_type.set_hsh(hsh)
     return ptr_type
 
@@ -1620,7 +1671,9 @@ def unpack_class_packfile(hk_type: tp.Type[hk], entry: PackFileItemEntry, pointe
 
     hk.increment_debug_indent()
     for member in hk_type.members:
-        hk.debug_print_unpack(f"Member '{member.name}' at offset {entry.reader.position_hex} (`{member.type.__name__}`):")
+        hk.debug_print_unpack(
+            f"Member '{member.name}' at offset {entry.reader.position_hex} (`{member.type.__name__}`):"
+        )
         member_value = member.type.unpack_packfile(
             entry,
             offset=member_start_offset + member.offset,
@@ -1760,7 +1813,7 @@ def unpack_pointer_packfile(data_hk_type: tp.Type[hk], item: PackFileItemEntry, 
 
 
 def pack_pointer(
-    ptr_hk_type: tp.Union[tp.Type[Ptr_], tp.Type[hkRelArray_]],
+    ptr_hk_type: tp.Union[tp.Type[Ptr_], tp.Type[hkRelArray_], tp.Type[hkViewPtr_]],
     item: TagFileItem,
     value: hk,
     items: list[TagFileItem],
