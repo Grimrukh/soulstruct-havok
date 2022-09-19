@@ -193,6 +193,13 @@ class TypeInfo:
 
     py_class: tp.Optional[tp.Type[hk]]
 
+    _PY_DEF_HEADER = (
+        "from __future__ import annotations\n\n"
+        "from soulstruct_havok.types.core import *\n"
+        "from soulstruct_havok.enums import *\n"
+        "from .core import *\n\n\n"
+    )
+
     def __init__(self, name: str):
         self.name = name
         self.templates = []
@@ -408,6 +415,18 @@ class TypeInfo:
         # TODO: templates, interfaces
 
         return py_def
+
+    def get_new_type_module_and_import(self, base_names: list[str]) -> tuple[str, str]:
+        """Construct best attempt at a Python definition for the given `TypeInfo`.
+
+        `base_names` should be a list of class names defined in `hk20XX.core`.
+
+        Returns the complete Python module string and an import line to add to `hk20XX.__init__`.
+        """
+        py_name = self.py_name
+        py_def = self.get_class_py_def(base_names, True)
+
+        return self._PY_DEF_HEADER + py_def, f"from .{py_name} import {py_name}"
 
     def __repr__(self) -> str:
         return (

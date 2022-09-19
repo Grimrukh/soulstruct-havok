@@ -136,6 +136,7 @@ from .hkaAnnotationTrack import hkaAnnotationTrack
 from .hkaAnnotationTrackAnnotation import hkaAnnotationTrackAnnotation
 from .hkaBone import hkaBone
 from .hkaBoneAttachment import hkaBoneAttachment
+from .hkaDefaultAnimatedReferenceFrame import hkaDefaultAnimatedReferenceFrame
 from .hkaMeshBinding import hkaMeshBinding
 from .hkaMeshBindingMapping import hkaMeshBindingMapping
 from .hkaSkeleton import hkaSkeleton
@@ -147,6 +148,7 @@ from .hkaSkeletonMapperDataMappingType import hkaSkeletonMapperDataMappingType
 from .hkaSkeletonMapperDataPartitionMappingRange import hkaSkeletonMapperDataPartitionMappingRange
 from .hkaSkeletonMapperDataSimpleMapping import hkaSkeletonMapperDataSimpleMapping
 from .hkaSkeletonPartition import hkaSkeletonPartition
+from .hkaSplineCompressedAnimation import hkaSplineCompressedAnimation
 from .hknpBodyCinfo import hknpBodyCinfo
 from .hknpBodyId import hknpBodyId
 from .hknpBodyIntegrator import hknpBodyIntegrator

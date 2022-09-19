@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+__all__ = ["MissingCompendiumError", "TagFileUnpacker"]
+
 import logging
 import typing as tp
 from contextlib import contextmanager
@@ -34,6 +36,10 @@ _DEBUG_HASH = False
 def _DEBUG_TYPE_PRINT(*args, **kwargs):
     if _DEBUG_TYPES:
         print(*args, **kwargs)
+
+
+class MissingCompendiumError(Exception):
+    """Raised when a TCRF-type HKX file is given with no compendium HKX."""
 
 
 class TagFileUnpacker:
@@ -90,14 +96,13 @@ class TagFileUnpacker:
 
                     # Attach Python classes to each non-generic `TypeInfo`.
 
-                    missing_type_infos = []
-                    missing_type_py_defs = []
+                    modules_to_create = []  # type: list[tuple[TypeInfo, str, str]]
+                    clashing_modules = []  # type: list[tuple[Exception, TypeInfo, str]]
 
                     from soulstruct_havok.types import core
                     base = self.hk_types_module.core
                     base_names = list(vars(core)) + list(vars(base))
 
-                    type_match_errors = []
                     for type_info in self.hk_type_infos[1:]:
                         if type_info.name in type_info.GENERIC_TYPE_NAMES:
                             continue
@@ -105,48 +110,47 @@ class TagFileUnpacker:
                             py_class = getattr(self.hk_types_module, type_info.py_name)  # type: tp.Type[hk]
                         except AttributeError:
                             # Missing Python definition. Create a (possibly rough) Python definition to print.
-                            missing_type_infos.append(type_info)
-                            missing_type_py_defs.append(type_info.get_class_py_def(base_names, True))
+                            type_module_def, init_import = type_info.get_new_type_module_and_import(base_names)
+                            modules_to_create.append((type_info, type_module_def, init_import))
                         else:
                             try:
                                 type_info.check_py_class_match(py_class)
                             except TypeMatchError as ex:
-                                type_match_errors.append(ex)
+                                type_module_def, _ = type_info.get_new_type_module_and_import(base_names)
+                                clashing_modules.append((ex, type_info, type_module_def))
                             else:
                                 type_info.py_class = py_class
 
-                    if type_match_errors:
-                        for type_match_error in type_match_errors:
-                            _LOGGER.error(type_match_error)
-                        raise HavokTypeError(f"{len(type_match_errors)} Havok type match errors occurred. See details.")
+                    if modules_to_create:
 
-                    if missing_type_infos:
-                        imports = [
-                            "from __future__ import annotations",
-                            "",
-                            "from soulstruct_havok.types.core import *",
-                            "from soulstruct_havok.enums import *",
-                            "from .core import *",
-                            "",
-                            "",
-                            "",
-                        ]
+                        init_imports = []
+                        types_path = Path(__file__).parent / f"../types/{self.hk_types_version}"
 
-                        init_lines = []
+                        for type_info, type_module_def, init_import in modules_to_create:
+                            new_file = types_path / f"{type_info.py_name}.py"
+                            new_file.write_text(type_module_def)
+                            _LOGGER.info(f"# Wrote new type file: {new_file.resolve()}")
+                            init_imports.append(type_info.py_name)
 
-                        for new_info, new_py_def in zip(missing_type_infos, missing_type_py_defs):
-                            new_file = Path(__file__).parent / f"../types/{self.hk_types_version}/{new_info.py_name}.py"
-                            new_file.write_text("\n".join(imports) + new_py_def)
-                            init_lines.append(new_info.py_name)
-                            print(f"Wrote new type file: {new_file.resolve()}")
-
-                        for line in init_lines:
+                        print(f"\nImport lines to add to `types.{self.hk_types_version}.__init__.py`:")
+                        for line in init_imports:
                             print(f"from .{line} import {line}")
+                        # Don't raise exception until type match errors have been reported below.
 
+                    if clashing_modules:
+                        for error, type_info, type_module_def in clashing_modules:
+                            _LOGGER.error(error)
+                            print(f"\n# {type_info.py_name} NEW MODULE:\n\n" + type_module_def)
+                        raise HavokTypeError(
+                            f"{len(clashing_modules)} Havok type match errors occurred. New module strings that match"
+                            f"the type info in this Havok file have been printed above."
+                        )
+
+                    if modules_to_create:
                         raise TypeNotDefinedError(
                             f"Unknown Havok types in file. New type modules created, but may need their imports "
                             f"fixed. Types:"
-                            f"{[info.name for info in missing_type_infos]}"
+                            f"{[info.name for info, _, _ in modules_to_create]}"
                         )
 
                     self.items = self.unpack_index_section(reader, data_start_offset)
@@ -188,9 +192,9 @@ class TagFileUnpacker:
         with self.unpack_section(reader, "TYPE", "TCRF") as (_, type_magic):
 
             if type_magic == "TCRF":
-                # Load types from compendium and return
+                # Load types from compendium and return.
                 if compendium is None:
-                    raise ValueError("Cannot parse TCRF-type HKX without `compendium` HKX.")
+                    raise MissingCompendiumError("Cannot parse TCRF-type HKX without `compendium` HKX.")
                 compendium_id = reader.read(8)
                 if compendium_id not in compendium.compendium_ids:
                     raise ValueError(f"Could not find compendium ID {repr(compendium_id)} in `compendium`.")
@@ -432,9 +436,9 @@ class TagFileUnpacker:
         try:
             with reader.temp_offset(reader.position):
                 # Mask out 2 most significant bits and subtract this header size.
-                data_size = (reader.unpack_value(">I") & 0x3FFFFFFF) - 8
+                _ = (reader.unpack_value(">I") & 0x3FFFFFFF) - 8  # data_size
                 magic = reader.unpack_string(length=4, encoding="utf-8")
-        except reader.ReaderError as ex:
+        except reader.ReaderError:
             return False
         if magic not in assert_magic:
             return False

@@ -5,8 +5,6 @@ from soulstruct_havok.enums import *
 from .core import *
 
 from .hkaAnimationAnimationType import hkaAnimationAnimationType
-
-
 from .hkaAnimatedReferenceFrame import hkaAnimatedReferenceFrame
 from .hkaAnnotationTrack import hkaAnnotationTrack
 
@@ -21,12 +19,17 @@ class hkaAnimation(hkReferencedObject):
     __version = 3
 
     local_members = (
-        Member(20, "type", hkEnum(hkaAnimationAnimationType, hkInt32), MemberFlags.Protected),
-        Member(24, "duration", hkReal),
-        Member(28, "numberOfTransformTracks", _int),
-        Member(32, "numberOfFloatTracks", _int),
-        Member(40, "extractedMotion", hkRefPtr(hkaAnimatedReferenceFrame), MemberFlags.Protected),
-        Member(48, "annotationTracks", hkArray(hkaAnnotationTrack)),
+        Member(24, "type", hkEnum(hkaAnimationAnimationType, hkInt32), MemberFlags.Protected),
+        Member(28, "duration", hkReal),
+        Member(32, "numberOfTransformTracks", _int),
+        Member(36, "numberOfFloatTracks", _int),
+        Member(
+            40,
+            "extractedMotion",
+            hkRefPtr(hkaAnimatedReferenceFrame, hsh=1067316339),
+            MemberFlags.Protected,
+        ),
+        Member(48, "annotationTracks", hkArray(hkaAnnotationTrack, hsh=1044147508)),
     )
     members = hkReferencedObject.members + local_members
 

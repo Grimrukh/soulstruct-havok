@@ -16,7 +16,7 @@ from .packfile.packer import PackFilePacker
 from .packfile.structs import PackFileHeaderExtension, PackFileVersion
 from .packfile.unpacker import PackFileUnpacker
 from .tagfile.packer import TagFilePacker
-from .tagfile.unpacker import TagFileUnpacker
+from .tagfile.unpacker import TagFileUnpacker, MissingCompendiumError
 from .types import hk, hk2010, hk2014, hk2015, hk2018
 from .types.info import TypeInfo
 
@@ -128,9 +128,86 @@ class HKX(GameFile):
         first_eight_bytes = reader.unpack_bytes(length=8, offset=reader.position)
         if first_eight_bytes == b"\x57\xE0\xE0\x57\x10\xC0\xC0\x10":
             return cls.PACKFILE
-        elif first_eight_bytes[4:8] in {b"TAG0", b"TCM0"}:  # why was 'TCRF' accepted here? Sekiro?
+        elif first_eight_bytes[4:8] in {b"TAG0", b"TCM0"}:
             return cls.TAGFILE
         return None
+
+    @classmethod
+    def from_binder(
+        cls,
+        binder_source: GameFile.Typing,
+        entry_id_or_name: tp.Union[int, str],
+        from_bak=False,
+        compendium_name: str = "",
+    ):
+        """Use or auto-detect `{binder_source.name}.compendium` file in binder, if present."""
+        from soulstruct.containers import Binder
+        binder = Binder(binder_source, from_bak=from_bak)
+
+        if compendium_name == "":
+            # Search for '*.compendium' binder entry.
+            compendium_entries = binder.find_entries_matching_name(r".*\.compendium")
+            if len(compendium_entries) == 1:
+                compendium = HKX(compendium_entries[0])
+                compendium_name = compendium_entries[0].name
+            elif len(compendium_entries) > 1:
+                raise ValueError(
+                    f"Multiple '.compendium' files found in binder: {[e.name for e in compendium_entries]}."
+                )
+            else:
+                # Otherwise, no compendiums found; assume not needed and complain below if otherwise.
+                compendium = None
+        else:
+            if compendium_name in binder.entries_by_basename:
+                compendium = HKX(binder.entries_by_basename[compendium_name])  # always HKX base class
+            else:
+                raise ValueError(f"Compendium file '{compendium_name}' not present in given binder.")
+
+        try:
+            return cls(binder[entry_id_or_name], compendium=compendium)
+        except MissingCompendiumError:
+            if compendium_name != "":
+                raise MissingCompendiumError(
+                    f"Binder entry '{entry_id_or_name}' requires a compendium, but compendium '{compendium_name}' "
+                    f"could not be found in given binder. Use `compendium_name` argument if it has another name."
+                )
+            raise MissingCompendiumError(
+                f"Binder entry '{entry_id_or_name}' requires a compendium, but `compendium_name` was not given and a "
+                f"'.compendium' entry could not be found in the given binder."
+            )
+
+    @classmethod
+    def multiple_from_binder(
+        cls,
+        binder_source: GameFile.Typing,
+        entry_ids_or_names: tp.Sequence[tp.Union[int, str]],
+        from_bak=False,
+        compendium_name: str = "",
+    ):
+        """Open multiple files of this type from the given `entry_ids_or_names` (`str` or `int`) from `Binder` source,
+        with given or auto-detected compendium retrieved from same binder."""
+        from soulstruct.containers import Binder
+        binder = Binder(binder_source, from_bak=from_bak)
+
+        if compendium_name == "":
+            # Search for '*.compendium' binder entry.
+            compendium_entries = binder.find_entries_matching_name(r".*\.compendium")
+            if len(compendium_entries) == 1:
+                compendium = HKX(compendium_entries[0])  # always HKX base class
+            elif len(compendium_entries) > 1:
+                raise ValueError(
+                    f"Multiple '.compendium' files found in binder: {[e.name for e in compendium_entries]}."
+                )
+            else:
+                # Otherwise, no compendiums found; assume not needed and complain below if otherwise.
+                compendium = None
+        else:
+            if compendium_name in binder.entries_by_basename:
+                compendium = HKX(binder.entries_by_basename[compendium_name])
+            else:
+                raise ValueError(f"Compendium file '{compendium_name}' not present in given binder.")
+
+        return [cls(binder[entry_id_or_name], compendium=compendium) for entry_id_or_name in entry_ids_or_names]
 
     def unpack(self, reader: BinaryReader, hk_format="", compendium: tp.Optional[HKX] = None):
         if not hk_format:

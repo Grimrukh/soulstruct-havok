@@ -5,6 +5,7 @@ from soulstruct.config import DSR_PATH
 from soulstruct.containers import Binder
 
 from soulstruct_havok.core import HKX
+from soulstruct_havok import hkx2015, hkx2018
 from soulstruct_havok.hkx2015 import AnimationHKX, RagdollHKX, SkeletonHKX, ClothHKX
 
 GAME_CHR_PATH = DSR_PATH + "/chr"
@@ -166,15 +167,113 @@ def new_tag_unpacker():
     Path("c2240_repack.txt").write_text(hh_string)
 
 
-def er_test():
-    chr_dir = Path("C:/Steam/steamapps/common/ELDEN RING (Vanilla)/Game/chr")
-    anibnd = Binder(chr_dir / "c4810.anibnd.dcx")
-    print(anibnd)
-    compendium = HKX(anibnd["c4810.compendium"])
-    skeleton = HKX(anibnd["skeleton.hkx"], compendium=compendium)
-    print(skeleton.get_root_tree_string())
+def retarget_test():
+    """My attempts to retarget Erdtree Avatar animations (c4810 in ER) to Stray Demon (c2230 in DSR).
+
+    - Erdtree Avatar has more bones, unsurprisingly. Some are also renamed.
+    -
+    """
+    er_chr = Path("C:/Steam/steamapps/common/ELDEN RING (Vanilla)/Game/chr")
+    dsr_chr = Path("C:/Steam/steamapps/common/DARK SOULS REMASTERED (NF New)/chr")
+
+    er_bnd = Binder(er_chr / "c4810.anibnd.dcx")
+    er_compendium = HKX(er_bnd["c4810.compendium"])
+    er_skeleton = hkx2018.SkeletonHKX(er_bnd["skeleton.hkx"], compendium=er_compendium)
+
+    dsr_bnd = Binder(dsr_chr / "c2230.anibnd.dcx")
+    dsr_skeleton = hkx2015.SkeletonHKX(dsr_bnd["Skeleton.HKX"])
+
+    # Remove "new" Erdtree Avatar bone hierarchies.
+    er_skeleton.delete_bone("[cloth]_c4810_skirt_01")
+    er_skeleton.delete_bone("[cloth]_c4810_skirt_04")
+    er_skeleton.delete_bone("[cloth]_c4810_skirt_07")
+    er_skeleton.delete_bone("[cloth]_c4810_skirt_leaf_01")
+    er_skeleton.delete_bone("[cloth]_c4810_body_01")
+    er_skeleton.delete_bone("[cloth]_c4810_body_03")
+    er_skeleton.delete_bone("[cloth]_c4810_arm_01")
+    er_skeleton.delete_bone("[cloth]_c4810_arm_03")
+    er_skeleton.delete_bone("[cloth]_c4810_arm_05")
+    er_skeleton.delete_bone("[cloth]_c4810_arm_07")
+    er_skeleton.delete_bone("[cloth]_c4810_arm_09")
+    er_skeleton.delete_bone("[cloth]_c4810_arm_11")
+
+    er_skeleton.delete_bone("Stomach1")
+    er_skeleton.delete_bone("Stomach2")
+    er_skeleton.delete_bone("Stomach3")
+
+    for arm in "LR":
+        er_skeleton.delete_bone(f"{arm}_Shoulder")
+        er_skeleton.delete_bone(f"{arm}_Elbow")
+        er_skeleton.delete_bone(f"{arm}_ForeArmTwist1")
+
+    # TODO: Skeletons do have some minor changes that will need to be handled.
+    #  - First goal should be to just get the closest Asylum bones possible, even if imperfect.
+    #  -
+    #  - Port over anim 3000 first.
+    #  -
+
+    dsr_skeleton.print_bone_tree()
+    er_skeleton.print_bone_tree()
+
+    ax = draw_skeleton(dsr_skeleton, auto_show=False, scatter_color="red", line_color="red", z_bounds=(0, 8))
+    draw_skeleton(er_skeleton, ax=ax, auto_show=True, scatter_color="green", line_color="green", z_bounds=(0, 8), scale=1.17)
+
+
+def draw_skeleton(
+    skeleton: SkeletonHKX,
+    x_bounds=(-5, 5),
+    y_bounds=(-5, 5),
+    z_bounds=(0, 10),
+    bone_names=(),
+    scale=1.0,
+    ax=None,
+    auto_show=False,
+    scatter_color="red",
+    line_color="black"
+):
+    """Figure out how to properly resolve bones in a nice way, with connected heads and tails, for Blender."""
+    # noinspection PyPackageRequirements
+    import matplotlib.pyplot as plt
+    if ax is None:
+        fig = plt.figure(figsize=(8, 8))
+        ax = fig.add_subplot(111, projection="3d")
+
+    bone_translates = [
+        skeleton.get_bone_global_translate(bone) * scale
+        for bone in skeleton.skeleton.bones
+    ]
+
+    if not bone_names:
+        bone_names = [bone.name for bone in skeleton.skeleton.bones]
+
+    for bone_name in bone_names:
+        bone = skeleton.find_bone_name(bone_name)
+        bone_index = skeleton.skeleton.bones.index(bone)
+
+        translate = bone_translates[bone_index]
+        ax.scatter(translate[0], translate[2], translate[1], c=scatter_color)
+
+        parent_index = skeleton.get_bone_parent_index(bone)
+        if parent_index != -1:
+            parent_translate = bone_translates[parent_index]
+            ax.plot(
+                [translate[0], parent_translate[0]],
+                [translate[2], parent_translate[2]],
+                [translate[1], parent_translate[1]],
+                c=line_color,
+            )
+
+    # Quick way to expand axes.
+    for x in x_bounds:
+        for y in y_bounds:
+            for z in z_bounds:
+                ax.scatter(x, y, z)
+
+    if auto_show:
+        plt.show()
+    return ax
 
 
 if __name__ == '__main__':
     # new_tag_unpacker()
-    er_test()
+    retarget_test()

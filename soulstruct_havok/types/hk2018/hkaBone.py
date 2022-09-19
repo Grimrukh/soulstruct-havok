@@ -5,8 +5,6 @@ from soulstruct_havok.enums import *
 from .core import *
 
 
-
-
 class hkaBone(hk):
     alignment = 8
     byte_size = 16
@@ -21,5 +19,5 @@ class hkaBone(hk):
     )
     members = local_members
 
-    name: hkStringPtr
+    name: str
     lockTranslation: bool

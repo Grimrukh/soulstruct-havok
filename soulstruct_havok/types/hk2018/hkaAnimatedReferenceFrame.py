@@ -9,7 +9,7 @@ from .hkaAnimatedReferenceFramehkaReferenceFrameTypeEnum import hkaAnimatedRefer
 
 class hkaAnimatedReferenceFrame(hkReferencedObject):
     alignment = 8
-    byte_size = 24
+    byte_size = 32
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 57
@@ -17,7 +17,7 @@ class hkaAnimatedReferenceFrame(hkReferencedObject):
 
     local_members = (
         Member(
-            20,
+            24,
             "frameType",
             hkEnum(hkaAnimatedReferenceFramehkaReferenceFrameTypeEnum, hkInt8),
             MemberFlags.NotSerializable,
