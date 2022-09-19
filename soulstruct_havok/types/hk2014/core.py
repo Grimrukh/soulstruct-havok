@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 __all__ = [
+    "Vector4",
     "hkReflectDetailOpaque",
     "_int",
     "_const_char",

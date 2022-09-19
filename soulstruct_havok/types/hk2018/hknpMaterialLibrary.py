@@ -1,0 +1,29 @@
+from __future__ import annotations
+
+from soulstruct_havok.types.core import *
+from soulstruct_havok.enums import *
+from .core import *
+
+
+from .hknpMaterial import hknpMaterial
+
+
+class hknpMaterialLibrary(hkReferencedObject):
+    alignment = 8
+    byte_size = 72
+    tag_type_flags = TagDataType.Class
+
+    __tag_format_flags = 41
+
+    local_members = (
+        Member(24, "materialAddedSignal", Ptr(hkReflectDetailOpaque), MemberFlags.NotSerializable),
+        Member(32, "materialModifiedSignal", Ptr(hkReflectDetailOpaque), MemberFlags.NotSerializable),
+        Member(40, "materialRemovedSignal", Ptr(hkReflectDetailOpaque), MemberFlags.NotSerializable),
+        Member(48, "entries", hkFreeListArray(hknpMaterial, hkInt32), MemberFlags.Protected),
+    )
+    members = hkReferencedObject.members + local_members
+
+    materialAddedSignal: hkReflectDetailOpaque
+    materialModifiedSignal: hkReflectDetailOpaque
+    materialRemovedSignal: hkReflectDetailOpaque
+    entries: list[hknpMaterial]

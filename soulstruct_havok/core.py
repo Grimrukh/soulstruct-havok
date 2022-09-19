@@ -9,7 +9,7 @@ from pathlib import Path
 
 from soulstruct.base.game_file import GameFile, InvalidGameFileTypeError
 from soulstruct.containers.dcx import DCXType
-from soulstruct.containers.bnd.entry import BNDEntry
+from soulstruct.containers.entry import BinderEntry
 from soulstruct.utilities.binary import BinaryReader
 
 from .packfile.packer import PackFilePacker
@@ -49,7 +49,7 @@ class HKX(GameFile):
     hk_format: str  # "packfile" or "tagfile"
     unpacker: None | TagFileUnpacker | PackFileUnpacker
     is_compendium: bool
-    compendium_ids: list[str]
+    compendium_ids: list[bytes]
     hsh_overrides: dict[str, int]  # maps `hk` type names to non-standard hash values found in file
 
     packfile_header_version: None | PackFileVersion
@@ -103,7 +103,7 @@ class HKX(GameFile):
 
         if isinstance(file_source, str):
             file_source = Path(file_source)
-        if isinstance(file_source, BNDEntry):
+        if isinstance(file_source, BinderEntry):
             file_source = file_source.data
         if isinstance(file_source, Path):
             file_source = file_source.open("rb")
@@ -128,7 +128,7 @@ class HKX(GameFile):
         first_eight_bytes = reader.unpack_bytes(length=8, offset=reader.position)
         if first_eight_bytes == b"\x57\xE0\xE0\x57\x10\xC0\xC0\x10":
             return cls.PACKFILE
-        elif first_eight_bytes[4:8] in {b"TAG0", b"TCRF"}:
+        elif first_eight_bytes[4:8] in {b"TAG0", b"TCM0"}:  # why was 'TCRF' accepted here? Sekiro?
             return cls.TAGFILE
         return None
 

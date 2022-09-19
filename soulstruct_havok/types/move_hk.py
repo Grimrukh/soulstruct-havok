@@ -5,9 +5,8 @@ from soulstruct_havok.types.core import hk, TemplateType
 
 
 def main():
-    from soulstruct_havok.types import hk2014_new, core
-    from soulstruct_havok.types.hk2014_n import core as base
-    new_submodule = Path("hk2014_n")
+    from soulstruct_havok.types import hk2018_old, core
+    new_submodule = Path("hk2018")
 
     imports = [
         "from __future__ import annotations",
@@ -19,13 +18,13 @@ def main():
 
     init_imports = []
 
-    for cls_name, cls in vars(hk2014_new).items():
-        if inspect.isclass(cls) and cls.__module__ == "soulstruct_havok.types.hk2014_new":
+    for cls_name, cls in vars(hk2018_old).items():
+        if inspect.isclass(cls) and cls.__module__ == "soulstruct_havok.types.hk2018_old":
             new_file = new_submodule / f"{cls_name}.py"
             source = inspect.getsource(cls)
             init_imports.append(cls_name)
 
-            base_names = list(vars(core)) + list(vars(base))
+            base_names = list(vars(core))  # + list(vars(base))
 
             imported_types, view_types = get_imported_types(cls, base_names)
 
@@ -73,7 +72,8 @@ def get_imported_types(cls: tp.Type[hk], base_names: list[str]) -> tuple[list[st
 
 
 WRAPPERS = (
-    "hkArray", "Ptr", "hkEnum", "hkStruct", "hkFlags", "hkRelArray", "hkRefPtr", "hkRefVariant", "hkViewPtr"
+    "hkArray", "Ptr", "hkEnum", "hkStruct", "hkFlags",
+    "hkRelArray", "hkRefPtr", "hkRefVariant", "hkViewPtr", "hkFreeListArray"
 )
 
 

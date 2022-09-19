@@ -44,7 +44,7 @@ class TagFileUnpacker:
     hk_type_infos: list[TypeInfo]
     items: list[TagFileItem]
     is_compendium: bool
-    compendium_ids: list[str]
+    compendium_ids: list[bytes]
     hsh_overrides: dict[str, int | None]
     hk_version: str
 
@@ -144,7 +144,7 @@ class TagFileUnpacker:
                             print(f"from .{line} import {line}")
 
                         raise TypeNotDefinedError(
-                            f"Unknown Havok types in file. New type modules created, but will need their imports "
+                            f"Unknown Havok types in file. New type modules created, but may need their imports "
                             f"fixed. Types:"
                             f"{[info.name for info in missing_type_infos]}"
                         )
@@ -156,11 +156,9 @@ class TagFileUnpacker:
                 # TODO: No hk_version SDKV section for compendium files?
                 self.is_compendium = True
                 with self.unpack_section(reader, "TCID") as (data_size, _):
-                    self.compendium_ids = [
-                        reader.unpack_string(length=8, encoding="ascii") for _ in range(data_size // 8)
-                    ]
-
+                    self.compendium_ids = [reader.read(8) for _ in range(data_size // 8)]
                 self.hk_type_infos = self.unpack_type_section(reader)
+                return
 
         if not types_only:
 
@@ -193,7 +191,7 @@ class TagFileUnpacker:
                 # Load types from compendium and return
                 if compendium is None:
                     raise ValueError("Cannot parse TCRF-type HKX without `compendium` HKX.")
-                compendium_id = reader.unpack_string(length=8, encoding="utf-8")
+                compendium_id = reader.read(8)
                 if compendium_id not in compendium.compendium_ids:
                     raise ValueError(f"Could not find compendium ID {repr(compendium_id)} in `compendium`.")
                 return compendium.unpacker.hk_type_infos

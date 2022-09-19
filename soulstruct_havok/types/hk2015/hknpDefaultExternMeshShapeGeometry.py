@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
-from .core import *
-
-
-from .hknpExternMeshShapeGeometry import hknpExternMeshShapeGeometry
+from soulstruct_havok.types.core import *
 from .hkGeometry import hkGeometry
+from .hknpExternMeshShapeGeometry import hknpExternMeshShapeGeometry
 
 
 class hknpDefaultExternMeshShapeGeometry(hknpExternMeshShapeGeometry):

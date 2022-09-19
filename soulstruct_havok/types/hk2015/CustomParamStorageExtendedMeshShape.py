@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
-from .core import *
-
-
-from .hkpStorageExtendedMeshShape import hkpStorageExtendedMeshShape
+from soulstruct_havok.types.core import *
 from .CustomMeshParameter import CustomMeshParameter
+from .hkpStorageExtendedMeshShape import hkpStorageExtendedMeshShape
 
 
 class CustomParamStorageExtendedMeshShape(hkpStorageExtendedMeshShape):

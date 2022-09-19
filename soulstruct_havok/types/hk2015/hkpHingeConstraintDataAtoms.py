@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
-from .core import *
-
-
-from .hkpSetLocalTransformsConstraintAtom import hkpSetLocalTransformsConstraintAtom
-from .hkpSetupStabilizationAtom import hkpSetupStabilizationAtom
+from soulstruct_havok.types.core import *
 from .hkp2dAngConstraintAtom import hkp2dAngConstraintAtom
 from .hkpBallSocketConstraintAtom import hkpBallSocketConstraintAtom
+from .hkpSetLocalTransformsConstraintAtom import hkpSetLocalTransformsConstraintAtom
+from .hkpSetupStabilizationAtom import hkpSetupStabilizationAtom
 
 
 class hkpHingeConstraintDataAtoms(hk):

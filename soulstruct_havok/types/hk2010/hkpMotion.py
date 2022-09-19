@@ -2,14 +2,11 @@ from __future__ import annotations
 
 import typing as tp
 
-from soulstruct.utilities.maths import Vector4
-
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
+from soulstruct_havok.types.core import *
 from .core import *
-from .hkpMotionMotionType import hkpMotionMotionType
 from .hkMotionState import hkMotionState
-
+from .hkpMotionMotionType import hkpMotionMotionType
 
 if tp.TYPE_CHECKING:
     from .hkpMaxSizeMotion import hkpMaxSizeMotion

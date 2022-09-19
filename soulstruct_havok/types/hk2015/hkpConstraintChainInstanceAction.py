@@ -2,11 +2,8 @@ from __future__ import annotations
 
 import typing as tp
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
-from .core import *
-
-
+from soulstruct_havok.types.core import *
 from .hkpAction import hkpAction
 
 if tp.TYPE_CHECKING:

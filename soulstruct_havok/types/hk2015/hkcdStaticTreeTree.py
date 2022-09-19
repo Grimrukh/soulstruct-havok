@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
-from .core import *
-
-
-from .hkcdStaticTreeDynamicStorage import hkcdStaticTreeDynamicStorage
+from soulstruct_havok.types.core import *
 from .hkAabb import hkAabb
+from .hkcdStaticTreeDynamicStorage import hkcdStaticTreeDynamicStorage
 
 
 class hkcdStaticTreeTree(hkcdStaticTreeDynamicStorage):

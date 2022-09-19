@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-from soulstruct.utilities.maths import Vector4
-
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
+from soulstruct_havok.types.core import *
 from .core import *
 from .hkHalf16 import hkHalf16
 from .hkUFloat8 import hkUFloat8

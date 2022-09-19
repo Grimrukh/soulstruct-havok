@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
-from .core import *
+from soulstruct_havok.types.core import *
+from .hkpAngFrictionConstraintAtom import hkpAngFrictionConstraintAtom
+from .hkpBallSocketConstraintAtom import hkpBallSocketConstraintAtom
+from .hkpConeLimitConstraintAtom import hkpConeLimitConstraintAtom
+from .hkpRagdollMotorConstraintAtom import hkpRagdollMotorConstraintAtom
 from .hkpSetLocalTransformsConstraintAtom import hkpSetLocalTransformsConstraintAtom
 from .hkpSetupStabilizationAtom import hkpSetupStabilizationAtom
-from .hkpRagdollMotorConstraintAtom import hkpRagdollMotorConstraintAtom
-from .hkpAngFrictionConstraintAtom import hkpAngFrictionConstraintAtom
 from .hkpTwistLimitConstraintAtom import hkpTwistLimitConstraintAtom
-from .hkpConeLimitConstraintAtom import hkpConeLimitConstraintAtom
-from .hkpBallSocketConstraintAtom import hkpBallSocketConstraintAtom
 
 
 class hkpRagdollConstraintDataAtoms(hk):

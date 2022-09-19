@@ -166,6 +166,15 @@ def new_tag_unpacker():
     Path("c2240_repack.txt").write_text(hh_string)
 
 
+def er_test():
+    chr_dir = Path("C:/Steam/steamapps/common/ELDEN RING (Vanilla)/Game/chr")
+    anibnd = Binder(chr_dir / "c4810.anibnd.dcx")
+    print(anibnd)
+    compendium = HKX(anibnd["c4810.compendium"])
+    skeleton = HKX(anibnd["skeleton.hkx"], compendium=compendium)
+    print(skeleton.get_root_tree_string())
+
+
 if __name__ == '__main__':
     # new_tag_unpacker()
-    load_collision()
+    er_test()

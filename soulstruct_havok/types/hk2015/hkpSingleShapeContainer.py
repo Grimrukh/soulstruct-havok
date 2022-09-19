@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
-from .core import *
-
-
-from .hkpShapeContainer import hkpShapeContainer
+from soulstruct_havok.types.core import *
 from .hkpShape import hkpShape
+from .hkpShapeContainer import hkpShapeContainer
 
 
 class hkpSingleShapeContainer(hkpShapeContainer):
