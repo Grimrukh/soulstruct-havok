@@ -167,10 +167,8 @@ class SkeletonHKX(HKX2018):
         if bone not in self.skeleton.bones:
             raise ValueError(f"Bone '{bone.name}' is not in this skeleton.")
 
-        print(f"{indent}Scanning children of bone {bone.name}")
         bones_deleted = 0
         children = self.get_immediate_bone_children(bone)
-        print(f"{indent}{[b.name for b in children]}")
         for child_bone in children:
             bones_deleted += self.delete_bone(child_bone, indent + "    ")
 
@@ -184,7 +182,6 @@ class SkeletonHKX(HKX2018):
             i - 1 if i > bone_index else i
             for i in self.skeleton.parentIndices
         ]
-        print(f"{indent}BONE {bone_index} DELETED: {bone.name}")
 
         return bones_deleted
 
