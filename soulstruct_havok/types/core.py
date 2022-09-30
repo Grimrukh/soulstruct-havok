@@ -35,6 +35,7 @@ __all__ = [
     "SET_DEBUG_PRINT",
 ]
 
+import copy
 import inspect
 import sys
 import typing as tp
@@ -45,7 +46,7 @@ from colorama import init as colorama_init, Fore
 
 from soulstruct.utilities.binary import BinaryReader, BinaryWriter
 from soulstruct.utilities.inspection import get_hex_repr
-from soulstruct.utilities.maths import Vector4
+from soulstruct.utilities.maths import Quaternion, Vector4
 
 from soulstruct_havok.enums import TagDataType, MemberFlags
 from soulstruct_havok.packfile.structs import PackFileItemEntry
@@ -151,6 +152,17 @@ class hk:
                 if member_name not in member_names:
                     raise ValueError(f"Invalid member passed to `{self.get_type_name()}`: {member_name}")
                 setattr(self, member_name, member_value)
+
+    def copy(self):
+        """Make a deep copy of this `hk` instance by calling `copy()` on `hk`-type members and built-in `deepcopy()` on
+        primitive-type members."""
+        self_copy = self.__class__()
+        for member_name in self.get_member_names():
+            member_value = getattr(self, member_name)
+            if isinstance(member_value, hk):
+                setattr(self_copy, member_name, member_value.copy())
+            else:  # primitive Python type
+                setattr(self_copy, member_name, copy.deepcopy(member_value))
 
     @staticmethod
     def debug_print_unpack(msg: tp.Any):
@@ -557,10 +569,10 @@ class hk:
                             )
                             instances_shown.append(element)
                     lines.append(f"    ],")
-                elif isinstance(member_value[0], (list, tuple, Vector4)):
+                elif isinstance(member_value[0], (list, tuple, Quaternion, Vector4)):
                     if 0 < max_primitive_sequence_size < len(member_value):
                         lines.append(
-                            f"    {member.name} = [<{len(member_value)} tuples>],"
+                            f"    {member.name} = [<{len(member_value)} {type(member_value[0]).__name__}>],"
                         )
                     else:
                         lines.append(f"    {member.name} = [")
@@ -591,14 +603,19 @@ class hk:
                             )
                             instances_shown.append(element)
                     lines.append(f"    ),")
-                elif isinstance(member_value[0], (list, tuple, Vector4)):
-                    lines.append(f"    {member.name} = (")
-                    for element in member_value:
-                        lines.append(f"        {repr(element)},")
-                    lines.append(f"    ),")
+                elif isinstance(member_value[0], (list, tuple, Quaternion, Vector4)):
+                    if 0 < max_primitive_sequence_size < len(member_value):
+                        lines.append(
+                            f"    {member.name} = (<{len(member_value)} {type(member_value[0]).__name__}>),"
+                        )
+                    else:
+                        lines.append(f"    {member.name} = (")
+                        for element in member_value:
+                            lines.append(f"        {repr(element)},")
+                        lines.append(f"    ),")
                 else:
                     lines.append(f"    {member.name} = {repr(member_value)},")
-            elif isinstance(member_value, Vector4):
+            elif isinstance(member_value, (Quaternion, Vector4)):
                 lines.append(f"    {member.name} = {repr(member_value)},")
             else:
                 raise TypeError(f"Cannot parse value of member '{member.name}' for tree string: {type(member_value)}")

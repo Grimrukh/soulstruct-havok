@@ -63,7 +63,7 @@ __all__ = [
 ]
 import typing as tp
 
-from soulstruct.utilities.maths import Vector4
+from soulstruct.utilities.maths import Quaternion, Vector4
 from soulstruct_havok.enums import TagDataType, MemberFlags
 from soulstruct_havok.types.core import *
 
@@ -257,6 +257,15 @@ class hkQuaternionf(hkStruct(_float, 4)):
 
     vec: Vector4
 
+    @classmethod
+    def unpack(cls, reader: BinaryReader, offset: int, items: list[TagFileItem] = None) -> Vector4:
+        cls.debug_print_unpack(f"Unpacking `{cls.__name__}`... (hkQuaternionf) <{hex(offset)}>")
+        cls.increment_debug_indent()
+        value = Quaternion(super().unpack(reader, offset, items))
+        cls.decrement_debug_indent()
+        cls.debug_print_unpack(f"-> {repr(value)}")
+        return value
+
 
 class hkRotationImpl(hkStruct(_float, 12)):
     alignment = 16
@@ -384,7 +393,7 @@ class hkQsTransformf(hk):
     members = local_members
 
     translation: Vector4
-    rotation: hkQuaternionf
+    rotation: Quaternion
     scale: Vector4
 
 

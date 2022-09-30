@@ -11,7 +11,10 @@ Original code is copyright (C) 2016-2019 Lukas Cone.
 """
 from __future__ import annotations
 
-__all__ = ["SplineCompressedAnimationData"]
+__all__ = [
+    "SplineCompressedAnimationData",
+    "TransformTrack",
+]
 
 import logging
 import math
@@ -24,6 +27,9 @@ from soulstruct.utilities.binary import BinaryReader, BinaryWriter
 from soulstruct.utilities.maths import Vector3, Quaternion, QuatTransform
 
 _LOGGER = logging.getLogger(__name__)
+
+THREECOMP40_START = -math.sqrt(2) / 2  # -0.7071067811865476
+THREECOMP40_STEP = math.sqrt(2) / 4095  # 0.00034535129728280713
 
 
 class TrackFlags(IntEnum):
@@ -176,7 +182,7 @@ def write_uint40(writer: BinaryWriter, value: int):
     if value > ((1 << 40) - 1):
         raise ValueError(f"Value {value} is too large for a 40-bit integer.")
     packed_uint64 = struct.pack("Q", value)
-    writer.append(packed_uint64[:40])  # drop last three bytes
+    writer.append(packed_uint64[:5])  # drop last three bytes
 
 
 def decode_quat_ThreeComp40(c_val: int) -> Quaternion:
@@ -197,22 +203,14 @@ def decode_quat_ThreeComp40(c_val: int) -> Quaternion:
     """
 
     mask = (1 << 12) - 1  # twelve 1-bits (4095)
-    positive_mask = mask >> 1  # eleven 1-bits (2047)
-    fractal = math.sqrt(2) / 4096  # min and max values in signed 12-bits integer are [-sqrt(2), sqrt(2)].
-
-    x = c_val & mask  # lowest twelve bits
-    y = (c_val >> 12) & mask  # next twelve bits
-    z = (c_val >> 24) & mask  # next twelve bits
+    v0 = c_val & mask  # lowest twelve bits
+    v1 = (c_val >> 12) & mask  # next twelve bits
+    v2 = (c_val >> 24) & mask  # next twelve bits
     implicit_dimension = (c_val >> 36) & 0b0011  # next two bits
     implicit_negative = ((c_val >> 38) & 1) > 0  # final two bits
 
-    # Subtract positive mask from raw 12-bit values (make them signed).
-    x -= positive_mask
-    y -= positive_mask
-    z -= positive_mask
-
     # Multiply masked values by fractal to convert to [-sqrt(2), sqrt(2)] range.
-    quaternion = [x * fractal, y * fractal, z * fractal]  # still missing implicit dimension
+    quaternion = [THREECOMP40_START + v * THREECOMP40_STEP for v in (v0, v1, v2)]  # still missing implicit dimension
 
     # Calculate implicit dimension from unit magnitude.
     # The implicit dimension is always the one with the largest absolute value (outside the +/- sqrt(2) range).
@@ -232,16 +230,14 @@ def decode_quat_ThreeComp40(c_val: int) -> Quaternion:
 def encode_quat_ThreeComp40(quaternion: Quaternion) -> int:
     """Pack `quaternion` into a 40-bit value using ThreeComp40 method."""
     mask = (1 << 12) - 1  # twelve 1-bits (4095)
-    positive_mask = mask >> 1  # eleven 1-bits (2047)
-    fractal = math.sqrt(2) / 4096
     implicit_dimension = quaternion.largest_abs_value_index()
     implicit_negative = int(quaternion[implicit_dimension] < 0)
+
     encoded_floats = []  # type: list[int]
     for i in range(4):
         if i == implicit_dimension:
             continue  # skipped
-        encoded = round(quaternion[i] / fractal)  # int between -2048 and +2047
-        encoded += positive_mask  # signed to unsigned (range 0-4095)
+        encoded = round((quaternion[i] - THREECOMP40_START) / THREECOMP40_STEP)  # int between 0 and 4095
         encoded_floats.append(encoded)
 
     # Join everything together.
@@ -250,6 +246,7 @@ def encode_quat_ThreeComp40(quaternion: Quaternion) -> int:
     c_val += (encoded_floats[2] & mask) << 24
     c_val += implicit_dimension << 36
     c_val += implicit_negative << 38
+
     return c_val
 
 
@@ -332,10 +329,9 @@ class SplineHeader:
         self.degree = reader.unpack_value("B")
         self.knots = [reader.unpack_value("B") for _ in range(control_point_count + self.degree + 1)]
 
-    def pack(self, writer: BinaryWriter, alignment=4):
-        writer.pack("HB", self.control_point_count - 1, self.degree)
-        writer.pack(f"{len(self.knots)}B", *self.knots)
-        writer.pad_align(alignment)
+    def pack(self, big_endian=False) -> bytes:
+        fmt = f"{'>' if big_endian else '<'}HB{len(self.knots)}B"
+        return struct.pack(fmt, self.control_point_count - 1, self.degree, *self.knots)
 
     @property
     def control_point_count(self) -> int:
@@ -345,9 +341,15 @@ class SplineHeader:
 class SplineQuaternion(list[Quaternion]):
     """List of 4D `Quaternion` control points."""
 
+    def __repr__(self):
+        return f"SplineQuaternion<{len(self)}>"
+
 
 class SplineFloat(list[float]):
     """List of control points in a single axis."""
+
+    def __repr__(self):
+        return f"SplineFloat<{len(self)}>"
 
 
 class TrackVector3:
@@ -367,44 +369,62 @@ class TrackVector3:
     x: tp.Union[SplineFloat, float]
     y: tp.Union[SplineFloat, float]
     z: tp.Union[SplineFloat, float]
+    scalar_quantization_type: ScalarQuantizationType
 
     quantized_bounds: dict[str, tp.Optional[list[int, int]]]  # maps axis names ("x") to an optional [min, max] list
 
     def __init__(
-        self, reader: BinaryReader, track_flags: int, scalar_quantization: ScalarQuantizationType, default: float
+        self,
+        x: SplineFloat | float,
+        y: SplineFloat | float,
+        z: SplineFloat | float,
+        header: SplineHeader = None,
+        scalar_quantization_type=ScalarQuantizationType.Bits16,
     ):
-        self.scalar_quantization = scalar_quantization
-        self.default = default  # needed for checking on `pack()`
+        self.x = x
+        self.y = y
+        self.z = z
+        self.spline_header = header
+        self.scalar_quantization_type = scalar_quantization_type
+
+    @classmethod
+    def unpack(
+        cls, reader: BinaryReader, track_flags: int, scalar_quantization_type: ScalarQuantizationType, default: float
+    ) -> TrackVector3:
         if track_flags & (TrackFlags.SplineX | TrackFlags.SplineY | TrackFlags.SplineZ):
-            self.spline_header = SplineHeader(reader)
+            spline_header = SplineHeader(reader)
             reader.align(4)
         else:
-            self.spline_header = None
+            spline_header = None
 
-        self.quantized_bounds = {"x": None, "y": None, "z": None}
+        track_vector = cls(default, default, default, spline_header, scalar_quantization_type)
+
+        quantized_bounds = {"x": None, "y": None, "z": None}
         for axis, spline_flag, static_flag in zip(
             ("x", "y", "z"),
             (TrackFlags.SplineX, TrackFlags.SplineY, TrackFlags.SplineZ),
             (TrackFlags.StaticX, TrackFlags.StaticY, TrackFlags.StaticZ),
         ):
             if track_flags & spline_flag:
-                self.quantized_bounds[axis] = list(reader.unpack("2f"))
-                setattr(self, axis, SplineFloat())
+                quantized_bounds[axis] = list(reader.unpack("2f"))
+                setattr(track_vector, axis, SplineFloat())  # will be filled below
             elif track_flags & static_flag:
-                setattr(self, axis, reader.unpack_value("f"))
+                setattr(track_vector, axis, reader.unpack_value("f"))
             else:
-                setattr(self, axis, default)  # generally 0.0 (translation) or 1.0 (scale)
+                setattr(track_vector, axis, default)  # generally 0.0 (translation) or 1.0 (scale)
 
-        if self.spline_header:
-            for c in range(self.spline_header.control_point_count):
+        if spline_header:
+            for c in range(spline_header.control_point_count):
                 for axis, spline_flag in zip(
                     ("x", "y", "z"),
                     (TrackFlags.SplineX, TrackFlags.SplineY, TrackFlags.SplineZ),
-
                 ):
                     if track_flags & spline_flag:
-                        spline = getattr(self, axis)  # type: SplineFloat
-                        spline.append(self.unpack_quantized_float(reader, *self.quantized_bounds[axis]))
+                        spline = getattr(track_vector, axis)  # type: SplineFloat
+                        q_float = track_vector.unpack_quantized_float(reader, *quantized_bounds[axis])
+                        spline.append(q_float)
+
+        return track_vector
 
     def get_value_at_frame(self, frame: float, axis: str) -> float:
         axis = axis.lower()
@@ -420,13 +440,9 @@ class TrackVector3:
     def get_vector_at_frame(self, frame: float) -> Vector3:
         return Vector3(self.get_value_at_frame(frame, axis) for axis in "xyz")
 
-    def unpack_quantized_float(self, reader: BinaryReader, minimum: float, maximum: float):
-        ratio = -1.0
-        if self.scalar_quantization == ScalarQuantizationType.Bits8:
-            ratio = reader.unpack_value("B") / 255.0
-        elif self.scalar_quantization == ScalarQuantizationType.Bits16:
-            ratio = reader.unpack_value("H") / 65535.0
-        return minimum + (maximum - minimum) * ratio
+    def set_to_static_vector(self, xyz):
+        self.x, self.y, self.z = xyz
+        self.spline_header = None
 
     def scale(self, factor: float):
         """Scale static values or control points by `factor`."""
@@ -446,20 +462,31 @@ class TrackVector3:
                 reversed_axis_value = SplineFloat(reversed(axis_value))
                 setattr(self, axis, reversed_axis_value)
 
-    def get_flags(self) -> int:
+    def swap_axes(self, axis1: str, axis2: str):
+        axis1_value = getattr(self, axis1)
+        axis2_value = getattr(self, axis2)
+        setattr(self, axis1, axis2_value)
+        setattr(self, axis2, axis1_value)
+
+    def get_flags(self, default: float) -> int:
         track_flags = 0
         for axis in ("x", "y", "z"):
             axis_value = getattr(self, axis)
             if isinstance(axis_value, SplineFloat):
                 track_flags |= getattr(TrackFlags, f"Spline{axis.upper()}")
-            elif axis_value != self.default:
+            elif axis_value != default:
                 track_flags |= getattr(TrackFlags, f"Static{axis.upper()}")
             # Otherwise, leave as zero (default static value).
         return track_flags
 
-    def pack(self, writer: BinaryWriter):
+    def pack(self, default: float, big_endian=False) -> bytes:
+        writer = BinaryWriter()
+
         if self.spline_header:
-            self.spline_header.pack(writer, alignment=4)
+            writer.append(self.spline_header.pack(big_endian))
+            writer.pad_align(4)
+
+        quantized_bounds = {"x": None, "y": None, "z": None}
 
         for axis in ("x", "y", "z"):
             axis_value = getattr(self, axis)
@@ -467,20 +494,34 @@ class TrackVector3:
                 # Compute new quantized bounds from final min/max in control points.
                 min_control_point = min(axis_value)
                 max_control_point = max(axis_value)
-                self.quantized_bounds[axis] = [min_control_point, max_control_point]
+                quantized_bounds[axis] = [min_control_point, max_control_point]
                 writer.pack("2f", min_control_point, max_control_point)
-            elif axis_value != self.default:
+            elif axis_value != default:
                 writer.pack("f", axis_value)
             # don't write anything if value is default (no flags for axis)
 
-        if self.spline_header:
+        if self.spline_header is not None:
             for i in range(self.spline_header.control_point_count):
                 for axis in ("x", "y", "z"):
                     axis_value = getattr(self, axis)
                     if isinstance(axis_value, SplineFloat):
-                        self.pack_quantized_float(writer, axis_value[i], *self.quantized_bounds[axis])
+                        self.pack_quantized_float(writer, axis_value[i], *quantized_bounds[axis])
 
-    def pack_quantized_float(self, writer: BinaryWriter, q_float: float, minimum: float, maximum: float):
+        return writer.finish()
+
+    def unpack_quantized_float(
+        self, reader: BinaryReader, minimum: float, maximum: float,
+    ):
+        ratio = -1.0
+        if self.scalar_quantization_type == ScalarQuantizationType.Bits8:
+            ratio = reader.unpack_value("B") / 255.0
+        elif self.scalar_quantization_type == ScalarQuantizationType.Bits16:
+            ratio = reader.unpack_value("H") / 65535.0
+        return minimum + (maximum - minimum) * ratio
+
+    def pack_quantized_float(
+        self, writer: BinaryWriter, q_float: float, minimum: float, maximum: float,
+    ):
         if minimum == maximum:
             if q_float == minimum:
                 ratio = 0.0
@@ -488,12 +529,12 @@ class TrackVector3:
                 raise ValueError(f"Min/max values for quantization of float {q_float} are equal: {minimum}")
         else:
             ratio = (q_float - minimum) / (maximum - minimum)
-        if self.scalar_quantization == ScalarQuantizationType.Bits8:
+        if self.scalar_quantization_type == ScalarQuantizationType.Bits8:
             writer.pack("B", int(ratio * 255))
-        elif self.scalar_quantization == ScalarQuantizationType.Bits16:
+        elif self.scalar_quantization_type == ScalarQuantizationType.Bits16:
             writer.pack("H", int(ratio * 65535))
         else:
-            raise ValueError(f"Invalid `ScalarQuantizationType`: {self.scalar_quantization}")
+            raise ValueError(f"Invalid `ScalarQuantizationType`: {self.scalar_quantization_type}")
 
     def __repr__(self):
         return f"TrackVector3({self.x}, {self.y}, {self.z})"
@@ -505,34 +546,53 @@ class TrackQuaternion:
     raw_value: tp.Union[None, bytes, list[bytes]]  # one or multiple quantized quaternions
     value: tp.Union[None, SplineQuaternion, Quaternion]
 
-    def __init__(self, reader: BinaryReader, track_flags: int, rotation_quantization: RotationQuantizationType):
+    def __init__(
+        self,
+        value: SplineQuaternion | Quaternion,
+        header: SplineHeader = None,
+        rotation_quantization_type=RotationQuantizationType.ThreeComp40,
+        raw_value=b"",
+    ):
         """Holds data for a track's rotation.
 
         Note that this is ALWAYS either one static `Quaternion` or a 4D `SplineQuaternion`, unlike `TrackVector3`, which
-        can use static or spline data for each dimension.
+        can use static or spline data for each dimension. However, `track_flags` may still only mark certain dimensions
+        as splines, using an algorithm that I have tried to replicate faithfully in `pack()`.
 
         We keep `raw_value` for encoded quaternions so the animation data can still be repacked (with quaternions not
         edited) if the quaternion type can't be encoded yet.
         """
-        self.rotation_quantization = rotation_quantization
-        quantized_size = self.rotation_quantization.get_rotation_byte_count()
+        if isinstance(value, SplineQuaternion) and not header:
+            raise ValueError("Must give a `header` to `TrackQuaterion` if `value` is a `SplineQuaterion`.")
+
+        self.value = value
+        self.spline_header = header
+        self.rotation_quantization_type = rotation_quantization_type
+        self.raw_value = raw_value
+
+    @classmethod
+    def unpack(cls, reader: BinaryReader, track_flags: int, rotation_quantization_type: RotationQuantizationType):
+
+        quantized_size = rotation_quantization_type.get_rotation_byte_count()
         if track_flags & (TrackFlags.SplineX | TrackFlags.SplineY | TrackFlags.SplineZ | TrackFlags.SplineW):
-            self.spline_header = SplineHeader(reader)
-            reader.align(rotation_quantization.get_rotation_align())
+            header = SplineHeader(reader)
+            reader.align(rotation_quantization_type.get_rotation_align())
             with reader.temp_offset(reader.position):
-                self.raw_value = [reader.read(quantized_size) for _ in range(self.spline_header.control_point_count)]
-            self.value = SplineQuaternion(
-                unpack_quantized_quaternion(reader, self.rotation_quantization)
-                for _ in range(self.spline_header.control_point_count)
+                raw_value = [reader.read(quantized_size) for _ in range(header.control_point_count)]
+            value = SplineQuaternion(
+                unpack_quantized_quaternion(reader, rotation_quantization_type)
+                for _ in range(header.control_point_count)
             )
         elif track_flags & (TrackFlags.StaticX | TrackFlags.StaticY | TrackFlags.StaticZ | TrackFlags.StaticW):
-            self.spline_header = None
-            self.raw_value = reader.read_without_advancing(quantized_size)
-            self.value = unpack_quantized_quaternion(reader, self.rotation_quantization)
+            header = None
+            raw_value = reader.peek(quantized_size)
+            value = unpack_quantized_quaternion(reader, rotation_quantization_type)
         else:
-            self.spline_header = None
-            self.raw_value = None
-            self.value = Quaternion.identity()  # default rotation
+            header = None
+            raw_value = b""
+            value = Quaternion.identity()  # default rotation
+
+        return TrackQuaternion(value, header, rotation_quantization_type, raw_value)
 
     def get_quaternion_at_frame(self, frame: float) -> Quaternion:
         if isinstance(self.value, SplineQuaternion):
@@ -540,6 +600,10 @@ class TrackQuaternion:
             return get_single_point(knot_span, self.spline_header.degree, frame, self.spline_header.knots, self.value)
         else:
             return self.value  # Quaternion
+
+    def set_to_static_quaternion(self, xyzw):
+        self.value = Quaternion(*xyzw)
+        self.spline_header = None
 
     def reverse(self):
         """Reverses all control points if `value` is a `SplineQuaternion`.
@@ -550,13 +614,47 @@ class TrackQuaternion:
             self.raw_value = list(reversed(self.raw_value))
             self.value = SplineQuaternion(reversed(self.value))
 
-    def get_flags(self) -> int:
-        if isinstance(self.value, SplineQuaternion):  # spline
-            return TrackFlags.SplineX | TrackFlags.SplineY | TrackFlags.SplineZ | TrackFlags.SplineW
-        elif isinstance(self.value, Quaternion):  # static
-            return TrackFlags.StaticX | TrackFlags.StaticY | TrackFlags.StaticZ | TrackFlags.StaticW
+    def swap_axes(self, axis1: str, axis2: str):
+        if isinstance(self.value, SplineQuaternion):
+            for quat in self.value:
+                axis1_value = getattr(quat, axis1)
+                axis2_value = getattr(quat, axis2)
+                setattr(quat, axis1, axis2_value)
+                setattr(quat, axis2, axis1_value)
         else:
-            return 0  # default
+            quat = self.value
+            axis1_value = getattr(quat, axis1)
+            axis2_value = getattr(quat, axis2)
+            setattr(quat, axis1, axis2_value)
+            setattr(quat, axis2, axis1_value)
+
+    def get_flags(self) -> int:
+        """`SplineW` or `StaticW` is always flagged for the corresponding type, but other dimensions are only flagged
+        if any control points (or the single static value) have non-zero data in that dimension."""
+        if isinstance(self.value, SplineQuaternion):  # spline
+            flags = TrackFlags.SplineW
+            for quat in self.value:
+                if quat.x != 0.0:
+                    flags |= TrackFlags.SplineX
+                if quat.y != 0.0:
+                    flags |= TrackFlags.SplineY
+                if quat.z != 0.0:
+                    flags |= TrackFlags.SplineZ
+            return flags
+        elif isinstance(self.value, Quaternion):  # static
+            if self.value == Quaternion.identity():
+                return 0  # default
+            flags = 0
+            if self.value.x != 0.0:
+                flags |= TrackFlags.StaticX
+            if self.value.y != 0.0:
+                flags |= TrackFlags.StaticY
+            if self.value.z != 0.0:
+                flags |= TrackFlags.StaticZ
+            if self.value.w < 0.999:  # note 'default' value for W is 1.0 (with some tolerance)
+                flags |= TrackFlags.StaticW
+            return flags
+        raise TypeError("`TrackQuaternion.value` was not a `Quaternion` or `SplineQuaternion`.")
 
     def pack(self, big_endian=False) -> bytes:
         """Write track quaternion data and return `TrackFlags` bit field for header.
@@ -568,22 +666,24 @@ class TrackQuaternion:
         if isinstance(self.value, SplineQuaternion):  # spline
             if self.spline_header is None:
                 raise ValueError("No `SplineHeader` present, but data is `SplineQuaternion`.")
-            self.spline_header.pack(writer, alignment=self.rotation_quantization.get_rotation_align())
+            writer.append(self.spline_header.pack())
+            writer.pad_align(self.rotation_quantization_type.get_rotation_align())
             for control_point_quaternion in self.value:
-                pack_quantized_quaternion(writer, control_point_quaternion, self.rotation_quantization)
+                pack_quantized_quaternion(writer, control_point_quaternion, self.rotation_quantization_type)
         elif isinstance(self.value, Quaternion):  # static
             # No spline header.
-            pack_quantized_quaternion(writer, self.value, self.rotation_quantization)
-        else:
-            # Default static quaternion (identity). Nothing to write.
-            pass
+            if self.value != Quaternion.identity():
+                pack_quantized_quaternion(writer, self.value, self.rotation_quantization_type)
 
         return writer.finish()
 
-    def pack_raw(self, writer: BinaryWriter):
+    def pack_raw(self, big_endian=False) -> bytes:
         """Substitute method that supports reversal, but not actual quaternion modification."""
+        writer = BinaryWriter(big_endian=big_endian)
+
         if self.spline_header:
-            self.spline_header.pack(writer, alignment=self.rotation_quantization.get_rotation_align())
+            writer.append(self.spline_header.pack())
+            writer.pad_align(self.rotation_quantization_type.get_rotation_align())
 
         if isinstance(self.raw_value, list):
             writer.append(b"".join(self.raw_value))
@@ -591,6 +691,14 @@ class TrackQuaternion:
             writer.append(self.raw_value)
         else:
             pass  # identity, nothing to pack
+
+        return writer.finish()
+
+    def __repr__(self) -> str:
+        if isinstance(self.value, SplineQuaternion):
+            # return f"TrackQuaternion(\n    " + "\n    ".join(str(v) for v in self.value) + "\n)"
+            return f"TrackQuaternion({self.value})"
+        return f"TrackQuaternion({self.value.x}, {self.value.y}, {self.value.z}, {self.value.w})"
 
 
 class TrackHeader:
@@ -625,24 +733,24 @@ class TrackHeader:
         self.rotation_track_flags = reader.unpack_value("B")
         self.scale_track_flags = reader.unpack_value("B")
 
-    def pack(self, writer: BinaryWriter):
+    def pack(self, big_endian=False) -> bytes:
         quantization_types = self.translation_quantization & 0b11
         quantization_types |= (self.rotation_quantization & 0b1111) << 2
         quantization_types |= (self.scale_quantization & 0b11) << 6
-        writer.pack("B", quantization_types)
-        writer.pack("B", self.translation_track_flags)
-        writer.pack("B", self.rotation_track_flags)
-        writer.pack("B", self.scale_track_flags)
+        fmt = ('>' if big_endian else '<') + "BBBB"
+        return struct.pack(
+            fmt, quantization_types, self.translation_track_flags, self.rotation_track_flags, self.scale_track_flags
+        )
 
     @classmethod
     def from_track(cls, track: TransformTrack):
         header = cls()
-        header.translation_quantization = track.translation.scalar_quantization
-        header.rotation_quantization = track.rotation.rotation_quantization
-        header.scale_quantization = track.scale.scalar_quantization
-        header.translation_track_flags = track.translation.get_flags()
+        header.translation_quantization = track.translation.scalar_quantization_type
+        header.rotation_quantization = track.rotation.rotation_quantization_type
+        header.scale_quantization = track.scale.scalar_quantization_type
+        header.translation_track_flags = track.translation.get_flags(default=0.0)
         header.rotation_track_flags = track.rotation.get_flags()
-        header.scale_track_flags = track.scale.get_flags()
+        header.scale_track_flags = track.scale.get_flags(default=1.0)
         return header
 
     def __repr__(self) -> str:
@@ -681,10 +789,19 @@ class TransformTrack:
         scale = self.scale.get_vector_at_frame(frame)
         return QuatTransform(translation, rotation, scale)
 
+    def __repr__(self) -> str:
+        return (
+            f"TransformTrack(\n"
+            f"    translation={self.translation},\n"
+            f"    rotation={self.rotation},\n"
+            f"    scale={self.scale},\n"
+            f")"
+        )
+
 
 class SplineCompressedAnimationData:
 
-    blocks: list[list[TransformTrack]]
+    blocks: list[list[TransformTrack | None]]
 
     def __init__(self, data: list[int], transform_track_count: int, block_count: int, big_endian=False):
         """Read a spline-compressed animation (e.g. `hkaSplineCompressedAnimation["data"]`) to a list of "blocks" of
@@ -694,7 +811,7 @@ class SplineCompressedAnimationData:
         """
         self.raw_data = data
         self.big_endian = big_endian
-        self.blocks = []  # type: list[list[TransformTrack]]
+        self.blocks = []
         reader = BinaryReader(bytearray(self.raw_data), byte_order=">" if big_endian else "<")
         self.unpack(reader, block_count, transform_track_count)
 
@@ -709,11 +826,17 @@ class SplineCompressedAnimationData:
             transform_tracks = []  # type: list[TransformTrack]
             for i in range(transform_track_count):
                 header = track_headers[i]
-                translation = TrackVector3(reader, header.translation_track_flags, header.translation_quantization, 0.0)
+                translation = TrackVector3.unpack(
+                    reader, header.translation_track_flags, header.translation_quantization, 0.0
+                )
                 reader.align(4)
-                rotation = TrackQuaternion(reader, header.rotation_track_flags, header.rotation_quantization)
+                rotation = TrackQuaternion.unpack(
+                    reader, header.rotation_track_flags, header.rotation_quantization
+                )
                 reader.align(4)
-                scale = TrackVector3(reader, header.scale_track_flags, header.scale_quantization, 1.0)
+                scale = TrackVector3.unpack(
+                    reader, header.scale_track_flags, header.scale_quantization, 1.0
+                )
                 reader.align(4)
 
                 transform_tracks.append(TransformTrack(translation, rotation, scale))
@@ -739,18 +862,23 @@ class SplineCompressedAnimationData:
 
         for block in self.blocks:
             for track in block:
-                header = TrackHeader.from_track(track)
-                header.pack(writer)
+                # Null track (permitted by this class) has a default header and no other data.
+                # Represents zero translation, identity rotation, and identity scale.
+                header = TrackHeader() if track is None else TrackHeader.from_track(track)
+                packed_header = header.pack(self.big_endian)
+                writer.append(packed_header)
             writer.pad_align(4)
             for track in block:
-                track.translation.pack(writer)
+                if track is None:
+                    continue  # null track (all defaults, no data written)
+                writer.append(track.translation.pack(default=0.0, big_endian=self.big_endian))
                 writer.pad_align(4)
                 try:
                     writer.append(track.rotation.pack(self.big_endian))
                 except UnsupportedRotationQuantizationError:
-                    track.rotation.pack_raw(writer)
+                    writer.append(track.rotation.pack_raw(self.big_endian))
                 writer.pad_align(4)
-                track.scale.pack(writer)
+                writer.append(track.scale.pack(default=1.0, big_endian=self.big_endian))
             writer.pad_align(16)
 
         data = list(writer.finish())

@@ -1,12 +1,17 @@
+from __future__ import annotations
+
 from pathlib import Path
 
 from soulstruct.base.models.flver import FLVER
 from soulstruct.config import DSR_PATH
 from soulstruct.containers import Binder
+from soulstruct.utilities.maths import Quaternion
 
 from soulstruct_havok.core import HKX
-from soulstruct_havok import hkx2015, hkx2018
-from soulstruct_havok.hkx2015 import AnimationHKX, RagdollHKX, SkeletonHKX, ClothHKX
+from soulstruct_havok import hkx2018
+from soulstruct_havok.wrappers.base import SkeletonHKX
+from soulstruct_havok.wrappers.hkx2015.animation_manager import AnimationManager as AnimationManagerDS1
+from soulstruct_havok.wrappers.hkx2018.animation_manager import AnimationManager as AnimationManagerER
 
 GAME_CHR_PATH = DSR_PATH + "/chr"
 
@@ -167,7 +172,7 @@ def new_tag_unpacker():
     Path("c2240_repack.txt").write_text(hh_string)
 
 
-def retarget_test():
+def examine_asylum_erdtree_skeletons():
     """My attempts to retarget Erdtree Avatar animations (c4810 in ER) to Stray Demon (c2230 in DSR).
 
     - Erdtree Avatar has more bones, unsurprisingly. Some are also renamed.
@@ -179,12 +184,6 @@ def retarget_test():
     er_bnd = Binder(er_chr / "c4810.anibnd.dcx")
     er_compendium = HKX(er_bnd["c4810.compendium"])
     er_skeleton = hkx2018.SkeletonHKX(er_bnd["skeleton.hkx"], compendium=er_compendium)
-    er_anim3000 = hkx2018.AnimationHKX(er_bnd["a000_003000.hkx"], compendium=er_compendium)
-    # print(er_anim3000.get_root_tree_string())
-
-    data = er_anim3000.get_spline_compressed_animation_data()
-    print(data.get_track_strings())
-    exit()
 
     dsr_bnd = Binder(dsr_chr / "c2230.anibnd.dcx")
     dsr_skeleton = hkx2015.SkeletonHKX(dsr_bnd["Skeleton.HKX"])
@@ -212,7 +211,7 @@ def retarget_test():
 
     for arm in "LR":
         er_skeleton.delete_bone(f"{arm}_Shoulder")
-        er_skeleton.delete_bone(f"{arm}_Elbow")
+        # er_skeleton.delete_bone(f"{arm}_Elbow")
         er_skeleton.delete_bone(f"{arm}_ForeArmTwist1")
 
     # TODO: Skeletons do have some minor changes that will need to be handled.
@@ -235,23 +234,134 @@ def retarget_test():
     )
 
 
+def asylum_retarget_test(use_default_bone_transforms=True):
+    import copy
+    from soulstruct_havok.spline_compression import (
+        TransformTrack, TrackHeader
+    )
+
+    er_chr = Path("C:/Steam/steamapps/common/ELDEN RING (Vanilla)/Game/chr")
+    dsr_chr = Path("C:/Steam/steamapps/common/DARK SOULS REMASTERED (NF New)/chr")
+
+    erdtree_manager = AnimationManagerER.from_anibnd(er_chr / "c4810.anibnd.dcx", 3000, from_bak=True)
+    asylum_manager = AnimationManagerDS1.from_anibnd(dsr_chr / "c2230.anibnd.dcx", 3000, from_bak=True)
+
+    asylum_manager.auto_retarget_animation(erdtree_manager, 3000, 3000, RETARGET)
+    asylum_manager.scale_animation_data(1.17, 3000)
+
+    asylum_manager.write_anim_ids_into_anibnd(dsr_chr / "c2230.anibnd.dcx", 3000, from_bak=True)
+
+    exit()
+
+    asylum_anim0 = hkx2015.AnimationHKX(dsr_bnd["a00_0000.hkx"])
+    asylum_anim0_data = asylum_anim0.get_spline_compressed_animation_data()
+    for i, track in enumerate(asylum_anim0_data.blocks[0]):
+        pose = dsr_skeleton.skeleton.referencePose
+        print(f"\na00_0000 Bone {dsr_skeleton.skeleton.bones[i].name}:")
+        print(f"  Reference pose:")
+        print("   ", pose[i].translation)
+        print("   ", pose[i].rotation)
+        print("   ", pose[i].scale)
+        print(f"  Animation tracks:")
+        print("   ", track.translation)
+        print("   ", track.rotation if isinstance(track.rotation.value, Quaternion) else track.rotation.value[0])
+        print("   ", track.scale)
+
+    # We cut/reorder animation tracks according to the skeleton retarget.
+    erdtree_anim_track_mapping = erdtree_anim3000.animation_binding.transformTrackToBoneIndices
+    erdtree_tracks = erdtree_anim_data.blocks[0]
+    new_block = []  # type: list[TransformTrack | None]
+    for i, bone in enumerate(dsr_skeleton.skeleton.bones):
+        asylum_bone_name = bone.name
+        try:
+            erdtree_bone_name = RETARGET[asylum_bone_name]
+        except KeyError:
+            raise KeyError(f"Source skeleton bone '{asylum_bone_name}' has not been retargeted in dictionary.")
+        if erdtree_bone_name is None:
+            # Asylum Demon bone has no corresponding bone in Erdtree Avatar.
+
+            if use_default_bone_transforms:
+                # Use static bone transform from skeleton.
+                dummy_track = copy.deepcopy(erdtree_tracks[21])
+                bone_qs_transform = dsr_skeleton.skeleton.referencePose[i]
+                dummy_track.translation.set_to_static_vector(bone_qs_transform.translation[:3])
+                dummy_track.rotation.set_to_static_quaternion(bone_qs_transform.rotation)
+                dummy_track.scale.set_to_static_vector(bone_qs_transform.scale[:3])
+                new_block.append(dummy_track)
+
+                print(
+                    f"\n{YELLOW}Source skeleton bone '{asylum_bone_name}' mapped to None. Using bone transform.{RESET}"
+                )
+            else:
+                print(
+                    f"\n{YELLOW}Source skeleton bone '{asylum_bone_name}' mapped to None. Using null transform.{RESET}"
+                )
+                new_block.append(None)
+        else:
+            erdtree_bone_index = er_skeleton.find_bone_name_index(erdtree_bone_name)
+            print(
+                f"\n{GREEN}Source skeleton bone '{asylum_bone_name}' mapped to '{erdtree_bone_name}' "
+                f"(bone {erdtree_bone_index}).{RESET}"
+            )
+            # Almost always the same in practice, but you never know.
+            erdtree_track_index = erdtree_anim_track_mapping.index(erdtree_bone_index)
+            erdtree_track = erdtree_tracks[erdtree_track_index]
+            print(erdtree_track)
+            print(TrackHeader.from_track(erdtree_track))
+
+            new_block.append(erdtree_track)
+
+
+    # TODO: Testing ground for manual correction.
+
+    # 1. Clavicles are both too elevated.
+    # Need to rotate them more outward from parent.
+
+
+    # Assign new block.
+    asylum_anim_data = asylum_anim3000.get_spline_compressed_animation_data()
+    asylum_anim_data.blocks[0] = new_block
+    asylum_anim3000.set_spline_compressed_animation_data(
+        asylum_anim_data,
+        erdtree_spline_anim.duration,
+        erdtree_spline_anim.numFrames,
+        erdtree_spline_anim.maxFramesPerBlock,
+        erdtree_spline_anim.maskAndQuantizationSize,
+        float_track_count=0,
+    )
+
+    # Copy over root motion (modify list in place).
+    asylum_anim3000.reference_frame_samples[:] = erdtree_anim3000.reference_frame_samples[:]
+
+    # print(erdtree_anim3000.get_root_tree_string())
+    # print(asylum_anim3000.get_root_tree_string())
+
+    dsr_bnd["a00_3000.hkx"].set_uncompressed_data(asylum_anim3000.pack_dcx())
+    dsr_bnd.write()
+    print(f"# Wrote '{dsr_bnd.path}'.")
+
+
 # Maps Asylum Demon bones to Erdtree Avatar bones.
 RETARGET = {
 
     "Master": "Master",  # TODO: possibly should be 'Root'
-    "Pelvis": "Pelvis",
+    "Pelvis": "Root",
     "a": None,
     "b": None,
     "c": None,
-    "L_Hip2": "d",
-    "R_Hip2": "e",
+    "d": "L_Hip2",
+    "e": "R_Hip2",
 
     # TODO: Erdtree Avatar thighs and wings are children of 'Pelvis', not 'Spine'.
+
     # TODO: Erdtree Avatar 'L_ThighTwist' is a child of 'L_Thigh' rather than next to it.
+    "LThighTwist": None,  # "L_ThighTwist",
+    "RThighTwist": None,  # "R_ThighTwist",
 
     # TODO: Erdtree Avatar 'Spine' is an extra bone added between 'Pelvis' and 'Spine1'.
     "Spine": "Spine1",
     "Spine1": "Spine2",
+
     "L Thigh": "L_Thigh",
     "L Calf": "L_Calf",
     "L Foot": "L_Foot",
@@ -268,6 +378,23 @@ RETARGET = {
     "L Toe21": "L_FootFinger302",
     "L Toe22": "L_FootFinger303",
     "L Toe2Nub": None,
+
+    "R Thigh": "R_Thigh",
+    "R Calf": "R_Calf",
+    "R Foot": "R_Foot",
+    # TODO: Erdtree Avatar 'R_Toe0' is between 'R_Foot' and all three toes.
+    "R Toe0": "R_FootFinger1",
+    "R Toe01": "R_FootFinger102",
+    "R Toe02": "R_FootFinger103",
+    "R Toe0Nub": None,
+    "R Toe1": "R_FootFinger2",
+    "R Toe11": "R_FootFinger202",
+    "R Toe12": "R_FootFinger203",
+    "R Toe1Nub": None,
+    "R Toe2": "R_FootFinger3",
+    "R Toe21": "R_FootFinger302",
+    "R Toe22": "R_FootFinger303",
+    "R Toe2Nub": None,
 
     "L Clavicle": "L_Clavicle",
     "L UpperArm": "L_UpperArm",
@@ -289,8 +416,8 @@ RETARGET = {
     "L Finger31": "L_Finger31",
     "L Finger32": "L_Finger32",
     "L Finger3Nub": None,
-    "L ForeTwist": "L_ForeArmTwist",  # TODO: moved significantly closer to Hand
-    "LUpArmTwist": "L_UpArmTwist",
+    "L ForeTwist": "L_Elbow",
+    "LUpArmTwist": None,  # "L_UpArmTwist",
 
     "R Clavicle": "R_Clavicle",
     "R UpperArm": "R_UpperArm",
@@ -312,8 +439,10 @@ RETARGET = {
     "R Finger31": "R_Finger31",
     "R Finger32": "R_Finger32",
     "R Finger3Nub": None,
-    "R ForeTwist": "R_ForeArmTwist",  # TODO: moved significantly closer to Hand
-    "RUpArmTwist": "R_UpArmTwist",
+    "R ForeTwist": "R_Elbow",
+    "RUpArmTwist": None,  # "R_UpArmTwist",
+
+    "R_weapon": "R_Club",
 
     "L_wing_00": "L_Wing1",
     "L_wing_01": "L_Wing102",
@@ -359,6 +488,7 @@ RETARGET = {
 
     "Neck": "Neck",
     "Head": "Head",
+    "HeadNub": None,
     "Jaw": "Jaw",
     "Jaw2": "Jaw2",
     "JawNub": None,
@@ -435,4 +565,5 @@ def draw_skeleton(
 
 if __name__ == '__main__':
     # new_tag_unpacker()
-    retarget_test()
+    # examine_asylum_erdtree_skeletons()
+    asylum_retarget_test()

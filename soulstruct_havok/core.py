@@ -8,6 +8,8 @@ import typing as tp
 from pathlib import Path
 
 from soulstruct.base.game_file import GameFile, InvalidGameFileTypeError
+from soulstruct.containers import Binder
+from soulstruct.containers.base import BaseBinder
 from soulstruct.containers.dcx import DCXType
 from soulstruct.containers.entry import BinderEntry
 from soulstruct.utilities.binary import BinaryReader
@@ -141,9 +143,28 @@ class HKX(GameFile):
         compendium_name: str = "",
     ):
         """Use or auto-detect `{binder_source.name}.compendium` file in binder, if present."""
-        from soulstruct.containers import Binder
         binder = Binder(binder_source, from_bak=from_bak)
+        compendium, compendium_name = cls.get_compendium_from_binder(binder, compendium_name)
 
+        try:
+            return cls(binder[entry_id_or_name], compendium=compendium)
+        except MissingCompendiumError:
+            if compendium_name != "":
+                raise MissingCompendiumError(
+                    f"Binder entry '{entry_id_or_name}' requires a compendium, but compendium '{compendium_name}' "
+                    f"could not be found in given binder. Use `compendium_name` argument if it has another name."
+                )
+            raise MissingCompendiumError(
+                f"Binder entry '{entry_id_or_name}' requires a compendium, but `compendium_name` was not given and a "
+                f"'.compendium' entry could not be found in the given binder."
+            )
+
+    @staticmethod
+    def get_compendium_from_binder(binder: BaseBinder, compendium_name="") -> tuple[HKX, str]:
+        """Search for '.compendium' HKX type file in `binder`. Name may be given, or the extension alone may be sought.
+
+        Returns the compendium found (may be `None`) and its name.
+        """
         if compendium_name == "":
             # Search for '*.compendium' binder entry.
             compendium_entries = binder.find_entries_matching_name(r".*\.compendium")
@@ -162,19 +183,7 @@ class HKX(GameFile):
                 compendium = HKX(binder.entries_by_basename[compendium_name])  # always HKX base class
             else:
                 raise ValueError(f"Compendium file '{compendium_name}' not present in given binder.")
-
-        try:
-            return cls(binder[entry_id_or_name], compendium=compendium)
-        except MissingCompendiumError:
-            if compendium_name != "":
-                raise MissingCompendiumError(
-                    f"Binder entry '{entry_id_or_name}' requires a compendium, but compendium '{compendium_name}' "
-                    f"could not be found in given binder. Use `compendium_name` argument if it has another name."
-                )
-            raise MissingCompendiumError(
-                f"Binder entry '{entry_id_or_name}' requires a compendium, but `compendium_name` was not given and a "
-                f"'.compendium' entry could not be found in the given binder."
-            )
+        return compendium, compendium_name
 
     @classmethod
     def multiple_from_binder(
@@ -280,14 +289,6 @@ class HKX(GameFile):
 
     def write_tagfile(self, file_path: tp.Union[None, str, Path] = None, make_dirs=True, check_hash=False):
         self.write(file_path, make_dirs=make_dirs, check_hash=check_hash, hk_format="tagfile")
-
-    def set_variant_attribute(self, attr_name: str, hk_type: tp.Type[hk], variant_index: int):
-        variant = self.root.namedVariants[variant_index].variant
-        if not isinstance(variant, hk_type):
-            raise TypeError(
-                f"HKX variant index {variant_index} did not have type {hk_type.__name__} ({variant.__class__.__name__})"
-            )
-        setattr(self, attr_name, variant)
 
     def get_root_tree_string(self, max_primitive_sequence_size=-1) -> str:
         return self.root.get_tree_string(max_primitive_sequence_size=max_primitive_sequence_size)

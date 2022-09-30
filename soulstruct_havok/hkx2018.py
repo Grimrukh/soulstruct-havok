@@ -68,6 +68,10 @@ class SkeletonHKX(HKX2018):
         else:
             raise ValueError(f"Bone name not found: '{bone_name}'")
 
+    def find_bone_name_index(self, bone_name: str):
+        bone = self.find_bone_name(bone_name)
+        return self.skeleton.bones.index(bone)
+
     def get_bone_parent_index(self, bone: tp.Union[hkaBone, str]) -> int:
         if isinstance(bone, str):
             bone = self.find_bone_name(bone)
@@ -147,7 +151,7 @@ class SkeletonHKX(HKX2018):
         for hierarchy_bone in self.get_all_parents(bone):
             local_transform = self.get_bone_local_transform(hierarchy_bone)
             absolute_translate += rotate @ Vector3(local_transform.translate)
-            rotate @= local_transform.rotation.to_rotation_matrix(r_last=True)
+            rotate @= local_transform.rotation.to_rotation_matrix(real_last=True)
         return absolute_translate
 
     def get_bone_transforms_and_parents(self):
