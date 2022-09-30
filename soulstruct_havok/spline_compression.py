@@ -24,7 +24,7 @@ from enum import IntEnum
 
 from soulstruct.utilities.conversion import floatify
 from soulstruct.utilities.binary import BinaryReader, BinaryWriter
-from soulstruct.utilities.maths import Vector3, Quaternion, QuatTransform
+from soulstruct.utilities.maths import Vector3, Vector4, Quaternion, QuatTransform
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -444,14 +444,67 @@ class TrackVector3:
         self.x, self.y, self.z = xyz
         self.spline_header = None
 
-    def scale(self, factor: float):
-        """Scale static values or control points by `factor`."""
+    def translate(self, translate: Vector3):
+        """Simply add the appropriate component of `translate` to every value."""
+        for axis in "xyz":
+            axis_value = getattr(self, axis)
+            delta_value = getattr(translate, axis)
+            if isinstance(axis_value, SplineFloat):
+                new_axis_value = SplineFloat(c + delta_value for c in axis_value)
+            else:
+                new_axis_value = axis_value + delta_value
+            setattr(self, axis, new_axis_value)
+
+    def rotate(self, rotate: Quaternion):
+        """Rotate static values or control points around local origin (parent bone) with `rotate`.
+
+        This is a little more complicated because we need to combine control points across splines, but ultimately not
+        that difficult, since any splines in this track must have the same number of control points.
+        """
+        if not self.spline_header:
+            # No splines. Can just rotate static vector.
+            print(f"Old translate: {self.x, self.y, self.z}")
+            self.x, self.y, self.z = rotate.apply_to_vector(Vector3(self.x, self.y, self.z))
+            print(f"New translate: {self.x, self.y, self.z}")
+            return
+
+        # Static values may end up becoming splines, and (less likely) vice versa.
+        old_splines = []  # will contain x, y, z splines
         for axis in "xyz":
             axis_value = getattr(self, axis)
             if isinstance(axis_value, SplineFloat):
-                scaled_axis_value = SplineFloat(c * factor for c in axis_value)
+                old_splines.append(axis_value)
+            else:  # constant list for zipping below
+                old_splines.append([axis_value] * self.spline_header.control_point_count)
+        new_control_points = []  # will contain (x, y, z) control points to be unzipped below
+        for x, y, z in zip(*new_control_points):
+            rotated_control_point = rotate.apply_to_vector(Vector3(x, y, z))
+            new_control_points.append(rotated_control_point)
+        spline_x = SplineFloat([v.x for v in new_control_points])
+        spline_y = SplineFloat([v.y for v in new_control_points])
+        spline_z = SplineFloat([v.z for v in new_control_points])
+
+        print(f"Translate rotated X:")
+        print(self.x)
+        print(spline_x)
+
+        # Check if any of the new spline dimensions are static (unlikely, unless rotations are exactly axis-aligned).
+        self.x = spline_x[0] if len(set(spline_x)) == 1 else spline_x
+        self.y = spline_y[0] if len(set(spline_y)) == 1 else spline_y
+        self.z = spline_z[0] if len(set(spline_z)) == 1 else spline_z
+        if all(isinstance(v, float) for v in (self.x, self.y, self.z)):
+            # Spline header no longer needed. (Though I don't see how this could possibly happen!)
+            self.spline_header = None
+
+    def scale(self, factor: float | Vector3):
+        """Scale static values or control points by `factor` or its appropriate component if it's a vector."""
+        for axis in "xyz":
+            axis_value = getattr(self, axis)
+            scale_value = factor if isinstance(factor, float) else getattr(factor, axis)
+            if isinstance(axis_value, SplineFloat):
+                scaled_axis_value = SplineFloat(c * scale_value for c in axis_value)
             else:
-                scaled_axis_value = axis_value * factor
+                scaled_axis_value = axis_value * scale_value
             setattr(self, axis, scaled_axis_value)
 
     def reverse(self):
@@ -604,6 +657,13 @@ class TrackQuaternion:
     def set_to_static_quaternion(self, xyzw):
         self.value = Quaternion(*xyzw)
         self.spline_header = None
+
+    def rotate(self, rotate: Quaternion):
+        """Simply left-multiply every value by `rotate`."""
+        if isinstance(self.value, Quaternion):
+            self.value = rotate * self.value
+        else:
+            self.value = SplineQuaternion([rotate * quat for quat in self.value])
 
     def reverse(self):
         """Reverses all control points if `value` is a `SplineQuaternion`.
@@ -782,6 +842,24 @@ class TransformTrack:
         self.translation = translation
         self.rotation = rotation
         self.scale = scale
+
+    @classmethod
+    def from_static_transform(cls, translation: Vector3 | Vector4, rotation: Quaternion, scale: Vector3 | Vector4):
+        """Construct simple static tracks from given values."""
+        translation_track = TrackVector3(translation.x, translation.y, translation.z)
+        rotation_track = TrackQuaternion(rotation)
+        scale_track = TrackVector3(scale.x, scale.y, scale.z)
+        return cls(translation_track, rotation_track, scale_track)
+
+    def apply_transform(self, transform: QuatTransform):
+        """Apply components of `transform` to all values in appropriate tracks."""
+        self.translation.translate(transform.translate)
+        self.rotation.rotate(transform.rotation)
+        self.scale.scale(transform.scale)
+
+    def rotate_translation(self, rotate: Quaternion):
+        """Rotate `translation` points around origin."""
+        self.translation.rotate(rotate)
 
     def get_quat_transform_at_frame(self, frame: float) -> QuatTransform:
         translation = self.translation.get_vector_at_frame(frame)

@@ -32,18 +32,26 @@ class AnimationHKX(BaseWrapperHKX):
 
     animation: ANIMATION_TYPING
     animation_binding: ANIMATION_BINDING_TYPING
-    reference_frame_samples: None | list[Vector4]
 
     def create_attributes(self):
         animation_container = self.get_variant_index(0, "hkaAnimationContainer")
         self.animation = animation_container.animations[0]
         self.animation_binding = animation_container.bindings[0]
+
+    def get_root_motion(self):
         if isinstance(self.animation, SPLINE_ANIMATION_TYPES) and self.animation.extractedMotion:
             reference_frame = self.animation.extractedMotion
             if isinstance(reference_frame, DEFAULT_ANIMATED_REFERENCE_FRAME_TYPES):
-                self.reference_frame_samples = reference_frame.referenceFrameSamples
-        else:
-            self.reference_frame_samples = None
+                return reference_frame.referenceFrameSamples
+        raise TypeError("No root motion for this animation class/reference frame class.")
+
+    def set_root_motion(self, samples: list[Vector4]):
+        if isinstance(self.animation, SPLINE_ANIMATION_TYPES) and self.animation.extractedMotion:
+            reference_frame = self.animation.extractedMotion
+            if isinstance(reference_frame, DEFAULT_ANIMATED_REFERENCE_FRAME_TYPES):
+                reference_frame.referenceFrameSamples = samples
+                return
+        raise TypeError("No root motion for this animation class/reference frame class.")
 
     def get_spline_compressed_animation_data(self) -> SplineCompressedAnimationData:
         if isinstance(self.animation, SPLINE_ANIMATION_TYPES):
@@ -108,12 +116,17 @@ class AnimationHKX(BaseWrapperHKX):
         self.animation.data = animation_data.pack()[0]  # no chance that block/transform counts have changed
 
         # Root motion (if present), sans W.
-        if self.reference_frame_samples is not None:
-            for sample in self.reference_frame_samples:
+        try:
+            reference_frame_samples = self.get_root_motion()
+        except TypeError:
+            pass
+        else:
+            for sample in reference_frame_samples:
                 # Scale X, Y, and Z only, not W.
                 sample.x *= factor
                 sample.y *= factor
                 sample.z *= factor
+            self.set_root_motion(reference_frame_samples)
 
     def reverse(self):
         """Reverses all control points in all spline tracks, and also root motion (reference frame samples)."""
@@ -123,12 +136,9 @@ class AnimationHKX(BaseWrapperHKX):
         self.animation.data = reversed_data
 
         # Root motion (if present).
-        if self.reference_frame_samples:
-            extracted_motion = self.animation.extractedMotion
-            if isinstance(extracted_motion, DEFAULT_ANIMATED_REFERENCE_FRAME_TYPES):
-                extracted_motion.referenceFrameSamples = list(reversed(self.reference_frame_samples))
-
-    @property
-    def root_motion(self):
-        """Usual modding alias for reference frame samples."""
-        return self.reference_frame_samples
+        try:
+            reference_frame_samples = self.get_root_motion()
+        except TypeError:
+            pass
+        else:
+            self.set_root_motion(list(reversed(reference_frame_samples)))

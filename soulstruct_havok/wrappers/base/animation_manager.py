@@ -11,6 +11,7 @@ from pathlib import Path
 
 from soulstruct.base.game_file import GameFile
 from soulstruct.containers import Binder
+from soulstruct.utilities.maths import *
 
 from soulstruct_havok.tagfile.unpacker import MissingCompendiumError
 from soulstruct_havok.wrappers.base import AnimationHKX, SkeletonHKX
@@ -48,7 +49,19 @@ class BaseAnimationManager(abc.ABC):
         if not anim_ids:
             anim_ids = [self.get_default_anim_id()]
         for anim_id in anim_ids:
-            self.animations[anim_id].scale(factor)
+            self.check_data_loaded(anim_id)
+            self.animation_data[anim_id].scale(factor)
+            try:
+                root_motion = self.animations[anim_id].get_root_motion()
+            except TypeError:
+                pass
+            else:
+                for sample in root_motion:
+                    sample.x *= factor
+                    sample.y *= factor
+                    sample.z *= factor
+                self.animations[anim_id].set_root_motion(root_motion)
+        self.save_animation_data(*anim_ids)
 
     def copy_animation(self, anim_id: int, new_anim_id: int, overwrite=False):
         """Make a copy of an animation. Will also copy its raw data, if loaded."""
@@ -57,6 +70,27 @@ class BaseAnimationManager(abc.ABC):
         self.animations[new_anim_id] = self.animations[anim_id].copy()
         if anim_id in self.animation_data:
             self.animation_data[new_anim_id] = copy.deepcopy(self.animation_data[anim_id])
+
+    def transform_bone_track(self, bone_name_or_index: str | int, transform: QuatTransform, anim_id: int = None):
+        """Apply `transform` to every control point (or just the static value) in the given bone's track."""
+        track = self.get_bone_animation_track(bone_name_or_index, anim_id)
+
+        # TODO: It's difficult to execute the transformation I want while bones are all in spaces relative to their
+        #  parents. In absolute space, I can see, for example, that I want to rotate Demon's clavicles 'outward' along
+        #  the Z (facing) axis. I can kind of see which way the parent 'Neck' is pointing (roughly forward) and use
+        #  that, but this may get more difficult. Anyway, let's try for now.
+
+        track.apply_transform(transform)
+
+    def rotate_bone_track(self, bone_name_or_index: str | int, rotation: Quaternion, anim_id: int = None):
+        """Apply `rotation` to every control point (or just the static value) of given bone's track translation.
+
+        Note that rotating a bone's position (relative to its parent) is NOT the same as changing the bone's rotation,
+        which would cause weighted vertices to twist and affect the space of child bones. This method is just a way
+        to conveniently move a bone by rotating it around its parent.
+        """
+        track = self.get_bone_animation_track(bone_name_or_index, anim_id)
+        track.rotate_translation(rotation)
 
     def auto_retarget_animation(
         self,
@@ -76,8 +110,6 @@ class BaseAnimationManager(abc.ABC):
         if dest_anim_id not in self.animation_data:
             self.load_animation_data(dest_anim_id)
         source_animation = source_manager.animations[source_anim_id]
-        source_animation_data = source_manager.animation_data[source_anim_id]
-        source_tracks = source_animation_data.blocks[0]
         dest_animation = self.animations[dest_anim_id]
         dest_animation_data = self.animation_data[dest_anim_id]
 
@@ -88,18 +120,14 @@ class BaseAnimationManager(abc.ABC):
             except KeyError:
                 raise KeyError(f"Target skeleton bone '{bone.name}' has no key in mapping to source bone names.")
             if source_bone_name is None:
-                # Bone has no corresponding bone in source skeleton.
-                # We default to the bone's skeleton reference pose (T-pose).
-                # Use static bone transform from skeleton.
-
-                # TODO: Currently copying and modifying a track, because there's a bug with creation of tracks from
-                #  scratch. Figure it out!
-                dummy_track = copy.deepcopy(source_tracks[21])
+                # Bone has no corresponding bone in source skeleton. We default to the bone's reference pose (T-pose).
                 bone_qs_transform = self.skeleton.skeleton.referencePose[i]
-                dummy_track.translation.set_to_static_vector(bone_qs_transform.translation[:3])
-                dummy_track.rotation.set_to_static_quaternion(bone_qs_transform.rotation)
-                dummy_track.scale.set_to_static_vector(bone_qs_transform.scale[:3])
-                new_block.append(dummy_track)
+                static_track = TransformTrack.from_static_transform(
+                    bone_qs_transform.translation,
+                    bone_qs_transform.rotation,
+                    bone_qs_transform.scale,
+                )
+                new_block.append(static_track)
                 _LOGGER.info(f"Using default reference pose for unmapped bone '{bone.name}'.")
             else:
                 _LOGGER.info(f"Bone '{bone.name}' mapped to source bone '{source_bone_name}'.")
@@ -109,17 +137,23 @@ class BaseAnimationManager(abc.ABC):
         dest_animation_data.blocks[0] = new_block
 
         # Copy over root motion (modify list in place).
-        if dest_animation.reference_frame_samples is not None:
-            dest_animation.reference_frame_samples[:] = source_animation.reference_frame_samples[:]
-            _LOGGER.info("Retargeted animation reference frame samples.")
+        try:
+            source_root_motion = source_animation.get_root_motion()
+        except TypeError:
+            try:
+                dest_animation.set_root_motion([])
+            except TypeError:
+                pass
+        else:
             if scale_factor != 1.0:
-                if dest_animation.reference_frame_samples is not None:
-                    for sample in dest_animation.reference_frame_samples:
-                        # Scale X, Y, and Z only, not W.
-                        sample.x *= scale_factor
-                        sample.y *= scale_factor
-                        sample.z *= scale_factor
-                _LOGGER.info(f"Scaled animation reference frame samples by {scale_factor}.")
+                for sample in source_root_motion:
+                    # Scale X, Y, and Z only, not W.
+                    sample.x *= scale_factor
+                    sample.y *= scale_factor
+                    sample.z *= scale_factor
+                _LOGGER.info(f"Scaled retargeted animation reference frame samples by {scale_factor}.")
+            dest_animation.set_root_motion(source_root_motion)
+            _LOGGER.info("Retargeted animation reference frame samples.")
 
         if scale_factor != 1.0:
             self.animation_data[dest_anim_id].scale(scale_factor)
@@ -132,8 +166,7 @@ class BaseAnimationManager(abc.ABC):
     def get_bone_animation_track(self, bone_name_or_index: str | int, anim_id: int = None) -> TransformTrack:
         if anim_id is None:
             anim_id = self.get_default_anim_id()
-        if anim_id not in self.animation_data:
-            self.load_animation_data(anim_id)
+        self.check_data_loaded(anim_id)
         if isinstance(bone_name_or_index, str):
             bone_index = self.skeleton.find_bone_name_index(bone_name_or_index)
         else:
@@ -141,6 +174,10 @@ class BaseAnimationManager(abc.ABC):
         mapping = self.animations[anim_id].animation_binding.transformTrackToBoneIndices
         track_index = mapping.index(bone_index)
         return self.animation_data[anim_id].blocks[0][track_index]
+
+    def check_data_loaded(self, anim_id: int):
+        if anim_id not in self.animation_data:
+            self.load_animation_data(anim_id)
 
     def validate_track_count(self, anim_id: int = None):
         """Check that the number of animation tracks matches the number of skeleton bones.
@@ -163,6 +200,8 @@ class BaseAnimationManager(abc.ABC):
             self.animation_data[anim_id] = animation.get_spline_compressed_animation_data()
 
     def save_animation_data(self, *anim_ids: int):
+        if not anim_ids:
+            anim_ids = tuple(self.animation_data.keys())
         for anim_id in anim_ids:
             if anim_id not in self.animation_data:
                 raise KeyError(f"Animation ID {anim_id} has not had its raw data loaded yet.")
