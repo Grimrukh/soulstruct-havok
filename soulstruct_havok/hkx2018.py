@@ -151,7 +151,7 @@ class SkeletonHKX(HKX2018):
         for hierarchy_bone in self.get_all_parents(bone):
             local_transform = self.get_bone_local_transform(hierarchy_bone)
             absolute_translate += rotate @ Vector3(local_transform.translate)
-            rotate @= local_transform.rotation.to_rotation_matrix(real_last=True)
+            rotate @= local_transform.rotation.to_rotation_matrix()
         return absolute_translate
 
     def get_bone_transforms_and_parents(self):

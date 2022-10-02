@@ -8,59 +8,11 @@ from soulstruct.containers import Binder
 from soulstruct.utilities.maths import *
 
 from soulstruct_havok.core import HKX
-from soulstruct_havok import hkx2018
-from soulstruct_havok.wrappers.base import SkeletonHKX
+from soulstruct_havok.wrappers.base import AnimationHKX, SkeletonHKX
 from soulstruct_havok.wrappers.hkx2015.animation_manager import AnimationManager as AnimationManagerDS1
 from soulstruct_havok.wrappers.hkx2018.animation_manager import AnimationManager as AnimationManagerER
 
 GAME_CHR_PATH = DSR_PATH + "/chr"
-
-
-def scale_character(model_name: str, scale_factor: float):
-    chrbnd = Binder(GAME_CHR_PATH / f"{model_name}.chrbnd.dcx", from_bak=True)
-    anibnd = Binder(GAME_CHR_PATH / f"{model_name}.anibnd.dcx", from_bak=True)
-
-    model = FLVER(chrbnd[f"{model_name}.flver"])  # ID 200
-    model.scale(scale_factor)
-    chrbnd[f"{model_name}.flver"].set_uncompressed_data(model.pack())
-    print("Model (FLVER) scaled.")
-
-    ragdoll_hkx = RagdollHKX(chrbnd[f"{model_name}.hkx"])  # ID 300
-    ragdoll_hkx.scale(scale_factor)
-    chrbnd[f"{model_name}.hkx"].set_uncompressed_data(ragdoll_hkx.pack())
-    print("Ragdoll physics scaled.")
-
-    skeleton_hkx = SkeletonHKX(anibnd[1000000])   # "Skeleton.HKX" or "Skeleton.hkx"
-    skeleton_hkx.scale(scale_factor)
-    anibnd[1000000].set_uncompressed_data(skeleton_hkx.pack())
-    print("Skeleton scaled.")
-
-    try:
-        cloth_entry = chrbnd[700]
-    except KeyError:
-        # No cloth data.
-        print("No cloth HKX found.")
-    else:
-        cloth_hkx = ClothHKX(cloth_entry)
-        print(cloth_hkx.get_root_tree_string())
-        cloth_hkx.scale(scale_factor)
-        print(cloth_hkx.get_root_tree_string())
-        cloth_entry.set_uncompressed_data(cloth_hkx.pack())
-        print("Cloth physics scaled.")
-
-    print("Scaling animations:")
-    for entry_id, entry in anibnd.entries_by_id.items():
-        if entry_id < 1000000:
-            print(f"  Scaling animation {entry_id}... ", end="")
-            animation_hkx = AnimationHKX(entry)  # "aXX_XXXX.hkx"
-            animation_hkx.scale(scale_factor)
-            entry.set_uncompressed_data(animation_hkx.pack())
-            print("Done.")
-
-    print("Writing BNDs...")
-    chrbnd.write()
-    anibnd.write()
-    print("Scaling complete.")
 
 
 def retarget():
@@ -109,69 +61,6 @@ def retarget():
     print(model_2_3000.animation_binding.transform_track_to_bone_indices)
 
 
-def bb_to_dsr():
-    """Try loading and converting c2800's ragdoll and an attack animation (3000) to DSR format."""
-    # skeleton_hkx = HKX("resources/BB/c2800/Skeleton.HKX")
-    # print("Skeleton loaded successfully.")
-    # print(skeleton_hkx.root.get_tree_string(skeleton_hkx.hkx_types))
-
-    ragdoll_hkx = HKX("resources/BB/c2020/c2020.HKX")
-    print("Ragdoll loaded successfully.")
-    # print(ragdoll_hkx.root.get_tree_string(ragdoll_hkx.hkx_types))
-    # with open("bb_ragdoll.txt", "w") as f:
-    #     f.write(ragdoll_hkx.root.get_tree_string(ragdoll_hkx.hkx_types))
-
-    # capra_ragdoll = HKX("resources/DSR/c2240/c2240.hkx")
-    # with open("dsr_ragdoll.txt", "w") as f:
-    #     f.write(capra_ragdoll.root.get_tree_string(capra_ragdoll.hkx_types))
-    # animation_hkx = HKX("resources/BB/c2800/a000_003000.hkx")
-    # print("Animation loaded successfully.")
-    # print(animation_hkx.root.get_tree_string(animation_hkx.hkx_types))
-
-
-def new_tag_unpacker():
-    h = HKX("resources/DSR/c2240/c2240.hkx")  # ragdoll
-    print("Opened tagfile c2240 ragdoll successfully.")
-    h_string = h.get_root_tree_string()
-
-    print("Bones:")
-    for bone in h.root.namedVariants[0].variant.skeletons[1].bones:
-        print("   ", bone.name)
-    print(f"Physics rigid bodies: {len(h.root.namedVariants[1].variant.systems[0].rigidBodies)}")
-    print(f"Physics constraints: {len(h.root.namedVariants[1].variant.systems[0].constraints)}")
-    for c in h.root.namedVariants[1].variant.systems[0].constraints:
-        print("   ", c.name)
-    print(f"Ragdoll rigid bodies: {len(h.root.namedVariants[2].variant.rigidBodies)}")
-    for r in h.root.namedVariants[2].variant.rigidBodies:
-        print("   ", r.name)
-    print(f"Ragdoll constraints: {len(h.root.namedVariants[2].variant.constraints)}")
-    for c in h.root.namedVariants[2].variant.constraints:
-        print("   ", c.name)
-    exit()
-
-    h.write("c2240_repack.hkx")
-    print("Wrote tagfile c2240 ragdoll successfully.")
-
-    hh = HKX("c2240_repack.hkx")
-    print("Re-opened tagfile c2240 ragdoll successfully.")
-    hh_string = hh.get_root_tree_string()
-
-    if h_string == hh_string:
-        print("Re-opened file has identical tree string to original opened file.")
-    else:
-        print("ERROR: Re-opened file does NOT have identical tree string to original opened file.")
-
-    # Inject into live c2240 CHRBND.
-    chrbnd_path = GAME_CHR_PATH + "/c2240.chrbnd.dcx"
-    chrbnd = Binder(chrbnd_path)
-    chrbnd[300].set_uncompressed_data(h.pack())
-    chrbnd.write()
-    print("Wrote c2240 skeleton to game CHRBND.")
-
-    Path("c2240.txt").write_text(h_string)
-    Path("c2240_repack.txt").write_text(hh_string)
-
-
 def examine_asylum_erdtree_skeletons():
     """My attempts to retarget Erdtree Avatar animations (c4810 in ER) to Stray Demon (c2230 in DSR).
 
@@ -183,36 +72,36 @@ def examine_asylum_erdtree_skeletons():
 
     er_bnd = Binder(er_chr / "c4810.anibnd.dcx")
     er_compendium = HKX(er_bnd["c4810.compendium"])
-    er_skeleton = hkx2018.SkeletonHKX(er_bnd["skeleton.hkx"], compendium=er_compendium)
+    er_skeleton = SkeletonHKX(er_bnd["skeleton.hkx"], compendium=er_compendium)
 
     dsr_bnd = Binder(dsr_chr / "c2230.anibnd.dcx")
-    dsr_skeleton = hkx2015.SkeletonHKX(dsr_bnd["Skeleton.HKX"])
+    dsr_skeleton = SkeletonHKX(dsr_bnd["Skeleton.HKX"])
 
     # Remove "new" Erdtree Avatar bone hierarchies.
-    er_skeleton.delete_bone("[cloth]_c4810_skirt_01")
-    er_skeleton.delete_bone("[cloth]_c4810_skirt_04")
-    er_skeleton.delete_bone("[cloth]_c4810_skirt_07")
-    er_skeleton.delete_bone("[cloth]_c4810_skirt_leaf_01")
-    er_skeleton.delete_bone("[cloth]_c4810_body_01")
-    er_skeleton.delete_bone("[cloth]_c4810_body_03")
-    er_skeleton.delete_bone("[cloth]_c4810_arm_01")
-    er_skeleton.delete_bone("[cloth]_c4810_arm_03")
-    er_skeleton.delete_bone("[cloth]_c4810_arm_05")
-    er_skeleton.delete_bone("[cloth]_c4810_arm_07")
-    er_skeleton.delete_bone("[cloth]_c4810_arm_09")
-    er_skeleton.delete_bone("[cloth]_c4810_arm_11")
-
-    er_skeleton.delete_bone("Stomach1")
-    er_skeleton.delete_bone("Stomach2")
-    er_skeleton.delete_bone("Stomach3")
-
-    er_skeleton.delete_bone("L_Foot_Target2")
-    er_skeleton.delete_bone("R_Foot_Target2")
-
-    for arm in "LR":
-        er_skeleton.delete_bone(f"{arm}_Shoulder")
-        # er_skeleton.delete_bone(f"{arm}_Elbow")
-        er_skeleton.delete_bone(f"{arm}_ForeArmTwist1")
+    # er_skeleton.delete_bone("[cloth]_c4810_skirt_01")
+    # er_skeleton.delete_bone("[cloth]_c4810_skirt_04")
+    # er_skeleton.delete_bone("[cloth]_c4810_skirt_07")
+    # er_skeleton.delete_bone("[cloth]_c4810_skirt_leaf_01")
+    # er_skeleton.delete_bone("[cloth]_c4810_body_01")
+    # er_skeleton.delete_bone("[cloth]_c4810_body_03")
+    # er_skeleton.delete_bone("[cloth]_c4810_arm_01")
+    # er_skeleton.delete_bone("[cloth]_c4810_arm_03")
+    # er_skeleton.delete_bone("[cloth]_c4810_arm_05")
+    # er_skeleton.delete_bone("[cloth]_c4810_arm_07")
+    # er_skeleton.delete_bone("[cloth]_c4810_arm_09")
+    # er_skeleton.delete_bone("[cloth]_c4810_arm_11")
+    #
+    # er_skeleton.delete_bone("Stomach1")
+    # er_skeleton.delete_bone("Stomach2")
+    # er_skeleton.delete_bone("Stomach3")
+    #
+    # er_skeleton.delete_bone("L_Foot_Target2")
+    # er_skeleton.delete_bone("R_Foot_Target2")
+    #
+    # for arm in "LR":
+    #     er_skeleton.delete_bone(f"{arm}_Shoulder")
+    #     # er_skeleton.delete_bone(f"{arm}_Elbow")
+    #     er_skeleton.delete_bone(f"{arm}_ForeArmTwist1")
 
     # TODO: Skeletons do have some minor changes that will need to be handled.
     #  - First goal should be to just get the closest Asylum bones possible, even if imperfect.
@@ -234,23 +123,16 @@ def examine_asylum_erdtree_skeletons():
     )
 
 
-def asylum_retarget_test(use_default_bone_transforms=True):
-    import copy
-    from soulstruct_havok.spline_compression import (
-        TransformTrack, TrackHeader
-    )
+def asylum_retarget_test():
 
     er_chr = Path("C:/Steam/steamapps/common/ELDEN RING (Vanilla)/Game/chr")
     dsr_chr = Path("C:/Steam/steamapps/common/DARK SOULS REMASTERED (NF New)/chr")
 
-    erdtree_manager = AnimationManagerER.from_anibnd(er_chr / "c4810.anibnd.dcx", 3009, from_bak=True)
+    erdtree_manager = AnimationManagerER.from_anibnd(er_chr / "c4810.anibnd.dcx", 3000, from_bak=True)
     asylum_manager = AnimationManagerDS1.from_anibnd(dsr_chr / "c2230.anibnd.dcx", 3000, from_bak=True)
 
-    asylum_manager.auto_retarget_animation(erdtree_manager, 3009, 3000, RETARGET)
+    asylum_manager.auto_retarget_animation(erdtree_manager, 3000, 3000, RETARGET)
     asylum_manager.scale_animation_data(1.17, 3000)
-
-    # asylum_manager.auto_retarget_animation(erdtree_manager, 3000, 3000, RETARGET)
-    # asylum_manager.scale_animation_data(1.17, 3000)
 
     # TODO: Testing adjustments.
     asylum_manager.transform_bone_track(
@@ -460,7 +342,7 @@ def draw_skeleton(
         ax = fig.add_subplot(111, projection="3d")
 
     bone_translates = [
-        skeleton.get_bone_global_translate(bone) * scale
+        skeleton.get_bone_global_transform(bone).translate * scale
         for bone in skeleton.skeleton.bones
     ]
 
@@ -468,7 +350,7 @@ def draw_skeleton(
         bone_names = [bone.name for bone in skeleton.skeleton.bones]
 
     for bone_name in bone_names:
-        bone = skeleton.find_bone_name(bone_name)
+        bone = skeleton.resolve_bone_spec(bone_name)
         bone_index = skeleton.skeleton.bones.index(bone)
 
         translate = bone_translates[bone_index]
@@ -496,7 +378,21 @@ def draw_skeleton(
     return ax
 
 
+def test2010():
+    """Confirm I can still read and write 2010 HKX animation files..."""
+    from soulstruct import PTDE_PATH
+    ptde_2230 = Binder(PTDE_PATH + "/chr/c2230.anibnd")
+    anim = AnimationHKX(ptde_2230["a00_0000.hkx"])
+
+    anim.write("test2010_anim.hkx")
+
+    repacked = AnimationHKX("test2010_anim.hkx")
+    print("Read repacked 2010 packfile successfully. Bone track 0:")
+    print(repacked.get_spline_compressed_animation_data().blocks[0][0])
+
+
 if __name__ == '__main__':
     # new_tag_unpacker()
     # examine_asylum_erdtree_skeletons()
-    asylum_retarget_test()
+    # asylum_retarget_test()
+    test2010()

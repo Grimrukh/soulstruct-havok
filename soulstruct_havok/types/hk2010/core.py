@@ -403,17 +403,19 @@ class hkBaseObject(hk):
 
 
 class hkReferencedObject(hkBaseObject):
-    alignment = 16
-    byte_size = 16
+    alignment = 8
+    byte_size = 8
     tag_format_flags = 41
     tag_type_flags = 7
 
     local_members = (
-        Member(8, "memSizeAndRefCount", hkUint32, MemberFlags.NotSerializable | MemberFlags.Private),
+        Member(4, "memSizeAndFlags", hkUint16, MemberFlags.NotSerializable | MemberFlags.Private),
+        Member(6, "referenceCount", hkUint16, MemberFlags.NotSerializable | MemberFlags.Private),
     )
     members = hkBaseObject.members + local_members
 
-    memSizeAndRefCount: hkUint32
+    memSizeAndFlags: int
+    referenceCount: int
 
 
 class hkRefVariant(hk):

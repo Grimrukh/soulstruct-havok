@@ -14,7 +14,7 @@ ANIMATION_BINDING_TYPING = tp.Union[
     hk2010.hkaAnimationBinding, hk2014.hkaAnimationBinding, hk2015.hkaAnimationBinding, hk2018.hkaAnimationBinding,
 ]
 SPLINE_ANIMATION_TYPES = (
-    hk2015.hkaSplineCompressedAnimation, hk2018.hkaSplineCompressedAnimation,
+    hk2010.hkaSplineCompressedAnimation, hk2015.hkaSplineCompressedAnimation, hk2018.hkaSplineCompressedAnimation,
 )
 SPLINE_ANIMATION_TYPING = tp.Union[
     hk2015.hkaSplineCompressedAnimation, hk2018.hkaSplineCompressedAnimation,

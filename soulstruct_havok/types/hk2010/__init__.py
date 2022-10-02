@@ -18,6 +18,8 @@ from .hkaAnnotationTrack import hkaAnnotationTrack
 from .hkaAnnotationTrackAnnotation import hkaAnnotationTrackAnnotation
 from .hkaBone import hkaBone
 from .hkaBoneAttachment import hkaBoneAttachment
+from .hkaDefaultAnimatedReferenceFrame import hkaDefaultAnimatedReferenceFrame
+from .hkaInterleavedUncompressedAnimation import hkaInterleavedUncompressedAnimation
 from .hkaMeshBinding import hkaMeshBinding
 from .hkaMeshBindingMapping import hkaMeshBindingMapping
 from .hkaRagdollInstance import hkaRagdollInstance
@@ -28,6 +30,7 @@ from .hkaSkeletonMapperData import hkaSkeletonMapperData
 from .hkaSkeletonMapperDataChainMapping import hkaSkeletonMapperDataChainMapping
 from .hkaSkeletonMapperDataMappingType import hkaSkeletonMapperDataMappingType
 from .hkaSkeletonMapperDataSimpleMapping import hkaSkeletonMapperDataSimpleMapping
+from .hkaSplineCompressedAnimation import hkaSplineCompressedAnimation
 from .hkpAction import hkpAction
 from .hkpAngFrictionConstraintAtom import hkpAngFrictionConstraintAtom
 from .hkpBallSocketConstraintAtom import hkpBallSocketConstraintAtom

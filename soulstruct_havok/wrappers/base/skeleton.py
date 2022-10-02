@@ -12,7 +12,7 @@ SKELETON_TYPING = tp.Union[
 BONE_TYPING = tp.Union[
     hk2010.hkaBone, hk2014.hkaBone, hk2015.hkaBone, hk2018.hkaBone,
 ]
-BONE_OR_NAME = tp.Union[BONE_TYPING, str]
+BONE_SPEC_TYPING = tp.Union[BONE_TYPING, int, str]
 
 
 class SkeletonHKX(BaseWrapperHKX):
@@ -31,49 +31,34 @@ class SkeletonHKX(BaseWrapperHKX):
         for pose in self.skeleton.referencePose:
             pose.translation = tuple(x * factor for x in pose.translation)
 
-    def find_bone_name(self, bone_name: str):
-        matches = [bone for bone in self.skeleton.bones if bone.name == bone_name]
-        if len(matches) == 1:
-            return matches[0]
-        elif len(matches) > 1:
-            raise ValueError(f"Multiple bones named '{bone_name}' in skeleton. This is unusual.")
-        else:
-            raise ValueError(f"Bone name not found: '{bone_name}'")
-
-    def find_bone_name_index(self, bone_name: str):
-        bone = self.find_bone_name(bone_name)
+    def get_bone_index(self, bone: BONE_SPEC_TYPING):
+        bone = self.resolve_bone_spec(bone)
         return self.skeleton.bones.index(bone)
 
-    def get_bone_parent_index(self, bone: BONE_OR_NAME) -> int:
-        if isinstance(bone, str):
-            bone = self.find_bone_name(bone)
-        if bone not in self.skeleton.bones:
-            raise ValueError(f"Bone '{bone}' is not in this skeleton.")
+    def get_bone_parent_index(self, bone: BONE_SPEC_TYPING) -> int:
+        bone = self.resolve_bone_spec(bone)
         bone_index = self.skeleton.bones.index(bone)
         return self.skeleton.parentIndices[bone_index]
 
-    def get_bone_parent(self, bone: BONE_OR_NAME) -> tp.Optional[BONE_TYPING]:
+    def get_bone_parent(self, bone: BONE_SPEC_TYPING) -> tp.Optional[BONE_TYPING]:
         parent_index = self.get_bone_parent_index(bone)
         if parent_index == -1:
             return None
         return self.skeleton.bones[parent_index]
 
-    def get_immediate_bone_children(self, bone: BONE_OR_NAME) -> list[BONE_TYPING]:
-        if isinstance(bone, str):
-            bone = self.find_bone_name(bone)
-        if bone not in self.skeleton.bones:
-            raise ValueError(f"Bone '{bone}' is not in this skeleton.")
+    def get_immediate_bone_children_indices(self, bone: BONE_SPEC_TYPING) -> list[int]:
+        bone = self.resolve_bone_spec(bone)
+        bone_index = self.skeleton.bones.index(bone)
+        return [i for i, b in enumerate(self.skeleton.bones) if self.get_bone_parent_index(b) == bone_index]
 
+    def get_immediate_bone_children(self, bone: BONE_SPEC_TYPING) -> list[BONE_TYPING]:
+        bone = self.resolve_bone_spec(bone)
         bone_index = self.skeleton.bones.index(bone)
         return [b for b in self.skeleton.bones if self.get_bone_parent_index(b) == bone_index]
 
-    def get_all_bone_children(self, bone: BONE_OR_NAME) -> list[BONE_TYPING]:
+    def get_all_bone_children(self, bone: BONE_SPEC_TYPING) -> list[BONE_TYPING]:
         """Recursively get all bones that are children of `bone`."""
-        if isinstance(bone, str):
-            bone = self.find_bone_name(bone)
-        if bone not in self.skeleton.bones:
-            raise ValueError(f"Bone '{bone}' is not in this skeleton.")
-
+        bone = self.resolve_bone_spec(bone)
         children = []
         bone_index = self.skeleton.bones.index(bone)
         for bone in self.skeleton.bones:
@@ -83,11 +68,8 @@ class SkeletonHKX(BaseWrapperHKX):
                 children += self.get_all_bone_children(bone)  # recur on child
         return children
 
-    def get_bone_local_transform(self, bone: BONE_OR_NAME) -> QuatTransform:
-        if isinstance(bone, str):
-            bone = self.find_bone_name(bone)
-        if bone not in self.skeleton.bones:
-            raise ValueError(f"Bone '{bone}' is not in this skeleton.")
+    def get_bone_local_transform(self, bone: BONE_SPEC_TYPING) -> QuatTransform:
+        bone = self.resolve_bone_spec(bone)
         bone_index = self.skeleton.bones.index(bone)
         qs_transform = self.skeleton.referencePose[bone_index]
         return QuatTransform(
@@ -96,12 +78,9 @@ class SkeletonHKX(BaseWrapperHKX):
             qs_transform.scale,
         )
 
-    def get_all_parents(self, bone: BONE_OR_NAME) -> list[BONE_TYPING]:
+    def get_hierarchy_to_bone(self, bone: BONE_SPEC_TYPING) -> list[BONE_TYPING]:
         """Get all parents of `bone` in order from the highest down to itself."""
-        if isinstance(bone, str):
-            bone = self.find_bone_name(bone)
-        if bone not in self.skeleton.bones:
-            raise ValueError(f"Bone '{bone}' is not in this skeleton.")
+        bone = self.resolve_bone_spec(bone)
         parents = [bone]
         bone_index = self.skeleton.bones.index(bone)
         parent_index = self.skeleton.parentIndices[bone_index]
@@ -112,19 +91,22 @@ class SkeletonHKX(BaseWrapperHKX):
             parent_index = self.skeleton.parentIndices[bone_index]
         return list(reversed(parents))
 
-    def get_bone_global_translate(self, bone: BONE_OR_NAME) -> Vector3:
-        """Accumulates parents' transforms into a 4x4 matrix."""
-        if isinstance(bone, str):
-            bone = self.find_bone_name(bone)
-        if bone not in self.skeleton.bones:
-            raise ValueError(f"Bone '{bone}' is not in this skeleton.")
-        absolute_translate = Vector3.zero()
-        rotate = Matrix3.identity()
-        for hierarchy_bone in self.get_all_parents(bone):
-            local_transform = self.get_bone_local_transform(hierarchy_bone)
-            absolute_translate += rotate @ Vector3(local_transform.translate)
-            rotate @= local_transform.rotation.to_rotation_matrix(real_last=True)
-        return absolute_translate
+    def get_hierarchy_transforms(self, bone: BONE_SPEC_TYPING) -> list[QuatTransform]:
+        """Get all transforms of all parent bones down to `bone`, including it."""
+        return [self.get_bone_local_transform(b) for b in self.get_hierarchy_to_bone(bone)]
+
+    def get_bone_global_transform(self, bone: BONE_SPEC_TYPING) -> QuatTransform:
+        """Accumulates parents' transforms through composition.
+
+        Any bone's "absolute" transform (i.e., its transform in the space of the root bone) can be found by simply
+        composing down the hierarchy:
+            abs(Bn) = B0 @ B1 @ B2 @ ... @ Bn
+        """
+        bone = self.resolve_bone_spec(bone)
+        transform = QuatTransform.identity()
+        for hierarchy_transform in self.get_hierarchy_transforms(bone):
+            transform = transform @ hierarchy_transform
+        return transform
 
     def get_bone_transforms_and_parents(self):
         """Construct a dictionary that maps bone names to (`hkQsTransform`, `hkaBone`) pairs of transforms/parents."""
@@ -136,13 +118,9 @@ class SkeletonHKX(BaseWrapperHKX):
             bone_transforms[bone_name] = (self.skeleton.referencePose[i], parent_bone)
         return bone_transforms
 
-    def delete_bone(self, bone: BONE_OR_NAME) -> int:
+    def delete_bone(self, bone: BONE_SPEC_TYPING) -> int:
         """Delete a bone and all of its children. Returns the number of bones deleted."""
-        if isinstance(bone, str):
-            bone = self.find_bone_name(bone)
-        if bone not in self.skeleton.bones:
-            raise ValueError(f"Bone '{bone}' is not in this skeleton.")
-
+        bone = self.resolve_bone_spec(bone)
         bones_deleted = 0
         children = self.get_all_bone_children(bone)
         for child_bone in children:
@@ -156,15 +134,31 @@ class SkeletonHKX(BaseWrapperHKX):
 
         return bones_deleted
 
-    def print_bone_tree(self, bone: BONE_OR_NAME = None, indent=""):
+    def print_bone_tree(self, bone: BONE_SPEC_TYPING = None, indent=""):
         """Print indented tree of bone names."""
-        if bone is None:
-            bone = self.skeleton.bones[0]  # 'Master' usually
-        elif isinstance(bone, str):
-            bone = self.find_bone_name(bone)
-        elif bone not in self.skeleton.bones:
-            raise ValueError(f"Bone '{bone}' is not in this skeleton.")
-
+        bone = self.skeleton.bones[0] if bone is None else self.resolve_bone_spec(bone)  # 'Master' usually
         print(indent + bone.name)
         for child in self.get_immediate_bone_children(bone):
             self.print_bone_tree(child, indent=indent + "    ")
+
+    def resolve_bone_spec(self, bone_spec: BONE_SPEC_TYPING) -> BONE_TYPING:
+        if isinstance(bone_spec, int):
+            bone = self.bones[bone_spec]
+        elif isinstance(bone_spec, str):
+            bone = self._find_bone_name(bone_spec)
+        elif isinstance(bone_spec, BONE_TYPING):
+            bone = bone_spec
+        else:
+            raise TypeError(f"Invalid specification type for `hkaBone`: {type(bone_spec).__name__}")
+        if bone not in self.skeleton.bones:
+            raise ValueError(f"Bone '{bone}' is not in this skeleton.")
+        return bone
+
+    def _find_bone_name(self, bone_name: str):
+        matches = [bone for bone in self.skeleton.bones if bone.name == bone_name]
+        if len(matches) == 1:
+            return matches[0]
+        elif len(matches) > 1:
+            raise ValueError(f"Multiple bones named '{bone_name}' in skeleton. This is unusual.")
+        else:
+            raise ValueError(f"Bone name not found: '{bone_name}'")

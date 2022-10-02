@@ -16,7 +16,7 @@ class BaseWrapperHKX(HKX, abc.ABC):
     root: hk2010RootLevelContainer | hk2014RootLevelContainer | hk2015RootLevelContainer | hk2018RootLevelContainer
 
     def __init__(self, file_source, dcx_type: None | DCXType = DCXType.Null, compendium: None | HKX = None):
-        super().__init__(file_source, dcx_type=dcx_type, compendium=compendium, hk_format=self.TAGFILE)
+        super().__init__(file_source, dcx_type=dcx_type, compendium=compendium)
         self.create_attributes()
 
     @abc.abstractmethod

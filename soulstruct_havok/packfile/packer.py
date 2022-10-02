@@ -19,11 +19,16 @@ class PackFilePacker:
     def __init__(self, hkx: HKX):
         self.hkx = hkx
 
-        if hkx.hk_version == "2014":
+        if hkx.hk_version == "2010":
+            from soulstruct_havok.types import hk2010
+            self.hk_types_module = hk2010
+        elif hkx.hk_version == "2014":
             from soulstruct_havok.types import hk2014
             self.hk_types_module = hk2014
         else:
-            raise ValueError(f"Only version '2014' is supported for packfile packing, not '{hkx.hk_version}'.")
+            raise ValueError(
+                f"Only versions '2010' and '2014' are supported for packfile packing, not '{hkx.hk_version}'."
+            )
 
     def pack(
         self,
@@ -118,7 +123,8 @@ class PackFilePacker:
 
         # This call will recursively pack all items through subqueues.
         # TODO: Will work with this for now, but it's very possible I should just use the same algorithm as tagfiles.
-        self.process_data_pack_queue(deque([delayed_root_item_pack]))
+        with hk.set_types_dict(self.hk_types_module):
+            self.process_data_pack_queue(deque([delayed_root_item_pack]))
 
         for item in self.packed_items:
             # Packed entry data.

@@ -16,6 +16,7 @@ __all__ = [
     "TransformTrack",
 ]
 
+import copy
 import logging
 import math
 import struct
@@ -277,23 +278,26 @@ def pack_quantized_quaternion(
     raise UnsupportedRotationQuantizationError(f"Cannot quantize quaternion type: {rotation_quantization_type}")
 
 
-def find_knot_span(degree: int, value: float, c_points_size: int, knots: list[int]) -> int:
-    """Algorithm A2.1 The NURBS Book 2nd edition, page 68"""
-    if value >= knots[c_points_size]:
-        return c_points_size - 1
+def find_knot_span(degree: int, value: float, control_point_count: int, knots: list[int]) -> int:
+    """Find the starting knot index of the span that contains the parameter `value` using a binary search.
+
+    Algorithm A2.1 The NURBS Book 2nd edition, page 68
+    """
+    if value >= knots[control_point_count]:
+        return control_point_count - 1
 
     low = degree
-    high = c_points_size
-    mid = (low + high) // 2
+    high = control_point_count
+    guess = (low + high) // 2
 
-    while value < knots[mid] or value >= knots[mid + 1]:
-        if value < knots[mid]:
-            high = mid
+    while value < knots[guess] or value >= knots[guess + 1]:
+        if value < knots[guess]:
+            high = guess  # search interval [low, guess]
         else:
-            low = mid
-        mid = (low + high) // 2
+            low = guess  # search interval [guess, high]
+        guess = (low + high) // 2
 
-    return mid
+    return guess  # found knot index
 
 
 def get_single_point(
@@ -866,6 +870,9 @@ class TransformTrack:
         rotation = self.rotation.get_quaternion_at_frame(frame)
         scale = self.scale.get_vector_at_frame(frame)
         return QuatTransform(translation, rotation, scale)
+
+    def copy(self) -> TransformTrack:
+        return copy.deepcopy(self)
 
     def __repr__(self) -> str:
         return (

@@ -9,12 +9,15 @@ import copy
 import logging
 from pathlib import Path
 
+from numpy.linalg import inv
+
 from soulstruct.base.game_file import GameFile
 from soulstruct.containers import Binder
 from soulstruct.utilities.maths import *
 
 from soulstruct_havok.tagfile.unpacker import MissingCompendiumError
 from soulstruct_havok.wrappers.base import AnimationHKX, SkeletonHKX
+from soulstruct_havok.wrappers.base.skeleton import BONE_SPEC_TYPING
 from soulstruct_havok.spline_compression import *
 
 _LOGGER = logging.getLogger(__name__)
@@ -71,25 +74,38 @@ class BaseAnimationManager(abc.ABC):
         if anim_id in self.animation_data:
             self.animation_data[new_anim_id] = copy.deepcopy(self.animation_data[anim_id])
 
-    def transform_bone_track(self, bone_name_or_index: str | int, transform: QuatTransform, anim_id: int = None):
-        """Apply `transform` to every control point (or just the static value) in the given bone's track."""
-        track = self.get_bone_animation_track(bone_name_or_index, anim_id)
+    def transform_bone_track(
+        self,
+        bone: BONE_SPEC_TYPING,
+        transform: QuatTransform,
+        anim_id: int = None,
+        fix_children=False,
+    ):
+        """Apply `transform` to every control point (or just the static value) in the given bone's track.
 
-        # TODO: It's difficult to execute the transformation I want while bones are all in spaces relative to their
-        #  parents. In absolute space, I can see, for example, that I want to rotate Demon's clavicles 'outward' along
-        #  the Z (facing) axis. I can kind of see which way the parent 'Neck' is pointing (roughly forward) and use
-        #  that, but this may get more difficult. Anyway, let's try for now.
-
+        If `fix_children=True`, the all tracks of the bone's immediate children will be counter-transformed in such a
+        way that they do not move relative to this parent bone, which is useful for IK. False by default.
+        """
+        bone = self.skeleton.resolve_bone_spec(bone)
+        track = self.get_bone_animation_track(bone, anim_id)
         track.apply_transform(transform)
 
-    def rotate_bone_track(self, bone_name_or_index: str | int, rotation: Quaternion, anim_id: int = None):
+        if fix_children:
+            inverse_transform = inv(transform)
+            child_tracks = self.get_immediate_child_bone_animation_tracks(bone)
+
+            for _, child_track in child_tracks:
+                child_track.apply_transform()
+
+
+    def rotate_bone_track(self, bone: BONE_SPEC_TYPING, rotation: Quaternion, anim_id: int = None):
         """Apply `rotation` to every control point (or just the static value) of given bone's track translation.
 
         Note that rotating a bone's position (relative to its parent) is NOT the same as changing the bone's rotation,
         which would cause weighted vertices to twist and affect the space of child bones. This method is just a way
         to conveniently move a bone by rotating it around its parent.
         """
-        track = self.get_bone_animation_track(bone_name_or_index, anim_id)
+        track = self.get_bone_animation_track(bone, anim_id)
         track.rotate_translation(rotation)
 
     def auto_retarget_animation(
@@ -163,17 +179,29 @@ class BaseAnimationManager(abc.ABC):
 
         _LOGGER.info(f"Auto-retarget complete. Animation {dest_anim_id} saved.")
 
-    def get_bone_animation_track(self, bone_name_or_index: str | int, anim_id: int = None) -> TransformTrack:
+    def get_bone_animation_track(self, bone: BONE_SPEC_TYPING, anim_id: int = None) -> TransformTrack:
+        bone = self.skeleton.resolve_bone_spec(bone)
         if anim_id is None:
             anim_id = self.get_default_anim_id()
         self.check_data_loaded(anim_id)
-        if isinstance(bone_name_or_index, str):
-            bone_index = self.skeleton.find_bone_name_index(bone_name_or_index)
-        else:
-            bone_index = bone_name_or_index
+        bone_index = self.skeleton.get_bone_index(bone)
         mapping = self.animations[anim_id].animation_binding.transformTrackToBoneIndices
         track_index = mapping.index(bone_index)
         return self.animation_data[anim_id].blocks[0][track_index]
+
+    def get_immediate_child_bone_animation_tracks(
+        self, parent_bone: BONE_SPEC_TYPING, anim_id: int = None
+    ) -> list[tuple[int, TransformTrack]]:
+        """Get a list of `(int, track)` tuples for all immediate child bones of `parent_bone_name_or_index`."""
+        bone = self.skeleton.resolve_bone_spec(parent_bone)
+        if anim_id is None:
+            anim_id = self.get_default_anim_id()
+        self.check_data_loaded(anim_id)
+        child_bone_indices = self.skeleton.get_immediate_bone_children_indices(parent_bone)
+        mapping = self.animations[anim_id].animation_binding.transformTrackToBoneIndices
+        child_track_indices = [mapping.index(bone_index) for bone_index in child_bone_indices]
+        block = self.animation_data[anim_id].blocks[0]
+        return [(i, block[i]) for i in child_track_indices]
 
     def check_data_loaded(self, anim_id: int):
         if anim_id not in self.animation_data:

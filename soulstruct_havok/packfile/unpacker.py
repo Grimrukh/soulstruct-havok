@@ -59,7 +59,7 @@ class PackFileUnpacker:
         self.header = PackFileHeader(reader)
 
         self.hk_version = self.header.contents_version_string[3:7].decode()  # from "hk_YYYY" (e.g. "2010")
-        _DEBUG(f"hk version: {self.hk_version}")
+        _LOGGER.info(f"Unpacking packfile with hk version: {self.hk_version}")
 
         if self.header.version.has_header_extension:
             self.header_extension = PackFileHeaderExtension(reader)
@@ -99,21 +99,24 @@ class PackFileUnpacker:
         )
 
         if self.type_entries:
-            print("Found type entries in packfile.")
+            _LOGGER.info("Found type entries in packfile.")
             # Types defined inside file, minus some primitive types that are supplied manually.
             self.hk_type_infos = PackFileTypeUnpacker(
                 self.type_entries, self.class_hashes, self.header.pointer_size, self.hk_types_module
             ).type_infos
         else:
             self.hk_type_infos = []
-            print("NO type entries in packfile.")
+            _LOGGER.info("NO type entries in packfile.")
 
         if types_only:
             return
 
-        if self.hk_version == "2014":
-            from soulstruct_havok.types import hk2014_new
-            self.hk_types_module = hk2014_new
+        if self.hk_version == "2010":
+            from soulstruct_havok.types import hk2010
+            self.hk_types_module = hk2010
+        elif self.hk_version == "2014":
+            from soulstruct_havok.types import hk2014
+            self.hk_types_module = hk2014
         elif self.hk_version == "2015":
             from soulstruct_havok.types import hk2015
             self.hk_types_module = hk2015
@@ -138,9 +141,10 @@ class PackFileUnpacker:
         if root_entry.hk_type != self.hk_types_module.hkRootLevelContainer:
             raise TypeError(f"First data entry in HKX was not root node: {root_entry.hk_type.__name__}")
         root_entry.start_reader()
-        self.root = self.hk_types_module.hkRootLevelContainer.unpack_packfile(
-            root_entry, pointer_size=self.header.pointer_size
-        )
+        with hk.set_types_dict(self.hk_types_module):
+            self.root = self.hk_types_module.hkRootLevelContainer.unpack_packfile(
+                root_entry, pointer_size=self.header.pointer_size
+            )
 
     @staticmethod
     def localize_pointers(
@@ -274,7 +278,7 @@ class PackFileUnpacker:
         for i, entry_spec in enumerate(item_entry_specs):
             type_name = self.class_names[entry_spec["type_name_offset"]]
             type_py_name = get_py_name(type_name)
-            print(f"Item: {i, type_py_name, entry_spec}")
+            # print(f"Item: {i, type_py_name, entry_spec}")
             try:
                 hk_type = getattr(self.hk_types_module, type_py_name)
             except AttributeError:

@@ -37,7 +37,6 @@ __all__ = [
 
 import copy
 import inspect
-import sys
 import typing as tp
 from collections import deque
 from contextlib import contextmanager
@@ -302,13 +301,11 @@ class hk:
 
         if cls.__name__ == "hkRootLevelContainerNamedVariant":
             # Retrieve other classes from subclass's module, as they will be dynamically attached to the root container.
-            all_types = {
-                name: hk_type
-                for name, hk_type in inspect.getmembers(
-                    sys.modules[cls.__module__], lambda x: inspect.isclass(x) and issubclass(x, hk)
+            if hk._TYPES_DICT is None:
+                raise AttributeError(
+                    "Cannot unpack `hkRootLevelContainerNamedVariant` without using types context manager."
                 )
-            }
-            return unpack_named_variant_packfile(cls, entry, pointer_size, all_types)
+            return unpack_named_variant_packfile(cls, entry, pointer_size, hk._TYPES_DICT)
 
         tag_data_type = cls.get_tag_data_type()
         if tag_data_type == TagDataType.Invalid:
@@ -2238,12 +2235,6 @@ def unpack_named_variant_packfile(
     item.reader.seek(member_start_offset + variant_member.offset)
     hk.debug_print_unpack(f"Unpacking named variant: {hk_type.__name__}... <{item.reader.position_hex}>")
     hk.increment_debug_indent()
-    from soulstruct.utilities.inspection import get_hex_repr
-    print(f"Variant offset: {item.reader.position} ({item.reader.position_hex})")
-    print(f"Next four bytes:")
-    print(get_hex_repr(item.reader.read(16, offset=item.reader.position)))
-    print(f"Local fixups: {item.child_pointers}")
-    print(f"Global fixups: {item.item_pointers}")
     variant_instance = unpack_pointer_packfile(variant_type, item, pointer_size=pointer_size)
     hk.decrement_debug_indent()
     hk.debug_print_unpack(f"--> {variant_instance}")
