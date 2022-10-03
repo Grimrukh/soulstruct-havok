@@ -15,23 +15,23 @@ from soulstruct.containers.entry import BinderEntry
 from soulstruct.utilities.binary import BinaryReader
 
 from .packfile.packer import PackFilePacker
-from .packfile.structs import PackFileHeaderExtension, PackFileVersion
+from .packfile.structs import PackfileHeaderInfo
 from .packfile.unpacker import PackFileUnpacker
 from .tagfile.packer import TagFilePacker
 from .tagfile.unpacker import TagFileUnpacker, MissingCompendiumError
-from .types import hk, hk2010, hk2014, hk2015, hk2018
+from .types import hk2010, hk2014, hk2015, hk2018
 from .types.info import TypeInfo
 
 
 _LOGGER = logging.getLogger(__name__)
 
-ROOT_TYPING = (
-    None
-    | hk2010.hkRootLevelContainer
-    | hk2014.hkRootLevelContainer
-    | hk2015.hkRootLevelContainer
-    | hk2018.hkRootLevelContainer
-)
+ROOT_TYPING = tp.Union[
+    None,
+    hk2010.hkRootLevelContainer,
+    hk2014.hkRootLevelContainer,
+    hk2015.hkRootLevelContainer,
+    hk2018.hkRootLevelContainer,
+]
 
 
 class HKX(GameFile):
@@ -49,18 +49,13 @@ class HKX(GameFile):
 
     root: ROOT_TYPING
     hk_format: str  # "packfile" or "tagfile"
+    hk_version: str  # e.g., "2010"
     unpacker: None | TagFileUnpacker | PackFileUnpacker
     is_compendium: bool
     compendium_ids: list[bytes]
     hsh_overrides: dict[str, int]  # maps `hk` type names to non-standard hash values found in file
 
-    packfile_header_version: None | PackFileVersion
-    packfile_pointer_size: None | int
-    packfile_is_little_endian: None | bool
-    packfile_padding_option: None | int
-    packfile_contents_version_string: None | bytes
-    packfile_flags: None | int
-    packfile_header_extension: None | PackFileHeaderExtension
+    packfile_header_info: None | PackfileHeaderInfo
 
     def __init__(
         self,
@@ -74,26 +69,16 @@ class HKX(GameFile):
         self.root = None
         self.all_nodes = []
         self.hk_format = hk_format
+        self.hk_version = ""
         self.is_compendium = False
         self.unpacker = None
         self.compendium_ids = []
         self.hsh_overrides = {}
 
-        self.packfile_header_version = None
-        self.packfile_pointer_size = None
-        self.packfile_is_little_endian = None
-        self.packfile_padding_option = None
-        self.packfile_contents_version_string = None
-        self.packfile_flags = None
-        self.packfile_header_extension = None
+        # Will be set by `PackFileUnpacker`, but must otherwise be set manually (e.g., to pack converted tagfiles).
+        self.packfile_header_info = None
 
         super().__init__(file_source, dcx_type=dcx_type, compendium=compendium, hk_format=hk_format)
-
-    @property
-    def hk_version(self) -> str:
-        if not self.unpacker:
-            raise AttributeError("Unpacker not created. Cannot retrieve Havok version.")
-        return self.unpacker.hk_version
 
     @property
     def hk_type_infos(self) -> list[TypeInfo]:
@@ -237,16 +222,11 @@ class HKX(GameFile):
         self.unpacker = PackFileUnpacker()
         self.unpacker.unpack(reader)
         self.root = self.unpacker.root
-        self.is_compendium = False
+        self.is_compendium = False  # not supported by any packfile versions, I believe
         self.compendium_ids = []
 
-        self.packfile_header_version = self.unpacker.header.version
-        self.packfile_pointer_size = self.unpacker.header.pointer_size
-        self.packfile_is_little_endian = self.unpacker.header.is_little_endian
-        self.packfile_padding_option = self.unpacker.header.padding_option
-        self.packfile_contents_version_string = self.unpacker.header.contents_version_string
-        self.packfile_flags = self.unpacker.header.flags
-        self.packfile_header_extension = self.unpacker.header_extension
+        # NOTE: All of this must be set manually if you are converted to packfile from another format.
+        self.packfile_header_info = self.unpacker.get_header_info()
 
     def unpack_tagfile(self, reader: BinaryReader, compendium: tp.Optional[HKX] = None):
         """Buffer is known to be `tagfile`."""
@@ -261,16 +241,9 @@ class HKX(GameFile):
         if hk_format == "":
             hk_format = self.hk_format
         if hk_format.lower() == "packfile":
-            self._validate_packfile_header_info()
-            return PackFilePacker(self).pack(
-                header_version=self.packfile_header_version,
-                pointer_size=self.packfile_pointer_size,
-                is_little_endian=self.packfile_is_little_endian,
-                padding_option=self.packfile_padding_option,
-                contents_version_string=self.packfile_contents_version_string,
-                flags=self.packfile_flags,
-                header_extension=self.packfile_header_extension,  # may be None
-            )
+            if not self.packfile_header_info:
+                raise ValueError("You must set `hkx.packfile_header_info` before you can pack to packfile format.")
+            return PackFilePacker(self).pack(self.packfile_header_info)
         elif hk_format.lower() == "tagfile":
             return TagFilePacker(self).pack(hsh_overrides=self.hsh_overrides)
         raise ValueError(f"Invalid `hk_format` for `HKX.pack()`: {hk_format}. Should be 'packfile' or 'tagfile'.")
@@ -293,21 +266,8 @@ class HKX(GameFile):
     def get_root_tree_string(self, max_primitive_sequence_size=-1) -> str:
         return self.root.get_tree_string(max_primitive_sequence_size=max_primitive_sequence_size)
 
-    def _validate_packfile_header_info(self):
-        if any(
-            attr is None
-            for attr in (
-                self.packfile_header_version,
-                self.packfile_pointer_size,
-                self.packfile_is_little_endian,
-                self.packfile_padding_option,
-                self.packfile_contents_version_string,
-                self.packfile_flags,
-            )
-        ):
-            raise AttributeError("Not all packfile header information has been set.")
-
     # ~~~ CONVERSION METHODS ~~~ #
+    # TODO: All ridiculously outdated, but contains info I need to move elsewhere.
 
     # Call these to PERMANENTLY convert the HKX instance to the given Havok version. This works by iterating over all
     # the nodes and changing their type to the corresponding type in the requested version's type database. Only the

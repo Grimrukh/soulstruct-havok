@@ -1,6 +1,9 @@
+from __future__ import annotations
+
+import abc
 import typing as tp
 
-from soulstruct.utilities.maths import Matrix3, QuatTransform, Vector3
+from soulstruct.utilities.maths import QuatTransform
 from soulstruct_havok.types import hk2010, hk2014, hk2015, hk2018
 
 from .core import BaseWrapperHKX
@@ -15,7 +18,7 @@ BONE_TYPING = tp.Union[
 BONE_SPEC_TYPING = tp.Union[BONE_TYPING, int, str]
 
 
-class SkeletonHKX(BaseWrapperHKX):
+class BaseSkeletonHKX(BaseWrapperHKX, abc.ABC):
     """Loads HKX objects that are found in a "Skeleton" HKX file (inside `anibnd` binder, usually `Skeleton.HKX`)."""
 
     skeleton: SKELETON_TYPING

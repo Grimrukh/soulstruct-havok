@@ -12,7 +12,7 @@ class hkaInterleavedUncompressedAnimation(hkaAnimation):
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 45
-    __hsh = 3449291259  # TODO: may be wrong for 2015 (from TagTools; could be 2014 only)
+    __hsh = 3449291259  # TODO: may be wrong for 2018 (from TagTools; could be 2014 only)
     __version = 1
 
     local_members = (

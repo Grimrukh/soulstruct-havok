@@ -30,35 +30,26 @@ class PackFilePacker:
                 f"Only versions '2010' and '2014' are supported for packfile packing, not '{hkx.hk_version}'."
             )
 
-    def pack(
-        self,
-        header_version: PackFileVersion,
-        pointer_size: int,
-        is_little_endian: bool,
-        padding_option: int,
-        contents_version_string: bytes,
-        flags: int,
-        header_extension: PackFileHeaderExtension = None,
-    ) -> bytes:
-        writer = BinaryWriter(big_endian=not is_little_endian)
+    def pack(self, header_info: PackfileHeaderInfo) -> bytes:
+        writer = BinaryWriter(big_endian=not header_info.is_little_endian)
 
         # TODO: Do the "contents" header indices/offsets vary? I don't imagine so, not for my scope anyway.
         self.header = PackFileHeader(
-            version=header_version,
-            pointer_size=pointer_size,
-            is_little_endian=is_little_endian,
-            padding_option=padding_option,
-            contents_version_string=contents_version_string,
-            flags=flags,
+            version=header_info.header_version,
+            pointer_size=header_info.pointer_size,
+            is_little_endian=header_info.is_little_endian,
+            padding_option=header_info.padding_option,
+            contents_version_string=header_info.contents_version_string,
+            flags=header_info.flags,
         )
 
         self.header.default_pack(writer)
         if self.header.version.has_header_extension:
-            if header_extension is None:
+            if header_info.header_extension is None:
                 raise NotImplementedError(
                     f"HKX packfile version {self.header.version} requires `packfile_header_extension`."
                 )
-            header_extension.default_pack(writer)
+            header_info.header_extension.default_pack(writer)
         writer.pad_align(16, b"\xFF")
 
         class_name_section = PackFileSectionHeader(section_tag=b"__classnames__")
@@ -118,7 +109,9 @@ class PackFilePacker:
 
         def delayed_root_item_pack(_data_pack_queue: dict[str, deque[tp.Callable]]):
             root_item.start_writer()
-            self.hkx.root.pack_packfile(root_item, self.hkx.root, self.items, _data_pack_queue, pointer_size)
+            self.hkx.root.pack_packfile(
+                root_item, self.hkx.root, self.items, _data_pack_queue, header_info.pointer_size
+            )
             return root_item
 
         # This call will recursively pack all items through subqueues.

@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import abc
 import typing as tp
 
 from soulstruct_havok.types import hk2010, hk2014, hk2015, hk2018
@@ -20,7 +23,7 @@ SKELETON_MAPPER_TYPING = tp.Union[
 ]
 
 
-class RagdollHKX(BaseWrapperHKX):
+class BaseRagdollHKX(BaseWrapperHKX, abc.ABC):
     """Loads HKX objects that are found in a "Ragdoll" HKX file (inside `chrbnd` binder, e.g. `c0000.hkx`)."""
 
     standard_skeleton: SKELETON_TYPING

@@ -1,16 +1,25 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.hk2015 import hkaInterleavedUncompressedAnimation
+import typing as tp
+
 from soulstruct_havok.wrappers.base.animation_manager import BaseAnimationManager
+from .core import AnimationHKX, SkeletonHKX
 
 
 class AnimationManager(BaseAnimationManager):
 
-    def convert_spline_anim_to_interleaved(self, anim_id: int = None):
-        """Convert a spline-compressed animation to 'interleaved' format, which is just a raw list of frame"""
-        if anim_id is None:
-            anim_id = self.get_default_anim_id()
-        self.check_data_loaded(anim_id)
+    ANIMATION_HKX = AnimationHKX
+    SKELETON_HKX = SkeletonHKX
+    skeleton: SkeletonHKX
+    animations: dict[int, AnimationHKX]
+
+    get_animation: tp.Callable[[tp.Optional[int]], AnimationHKX]
+
+    def convert_interleaved_to_spline_anim(self, anim_id: int = None):
+        """Convert to spline animation by a downgrade -> SDK conversion -> upgrade process."""
+        animation = self.get_animation(anim_id)
+        spline_anim = animation.to_spline_animation()
+        self.animations[anim_id] = spline_anim
 
     @staticmethod
     def animation_id_to_entry_basename(animation_id: int) -> str:

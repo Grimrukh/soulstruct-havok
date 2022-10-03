@@ -311,6 +311,19 @@ class PackFileUnpacker:
 
         return data_entries
 
+    def get_header_info(self) -> PackfileHeaderInfo:
+        if not self.header:
+            raise ValueError("PackFileUnpacker header has not been set yet.")
+        return PackfileHeaderInfo(
+            header_version=self.header.version,
+            pointer_size=self.header.pointer_size,
+            is_little_endian=self.header.is_little_endian,
+            padding_option=self.header.padding_option,
+            contents_version_string=self.header.contents_version_string,
+            flags=self.header.flags,
+            header_extension=self.header_extension,
+        )
+
     def raw_repr(self):
         lines = ["Entries:"]
         for item in self.items:

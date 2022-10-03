@@ -7,14 +7,16 @@ from pathlib import Path
 
 from soulstruct.containers.dcx import DCXType
 from soulstruct.utilities.files import read_json
-from soulstruct_havok.wrappers.base.core import BaseWrapperHKX
+
 from soulstruct_havok.types.hk2015 import *
 from soulstruct_havok.utilities.wavefront import read_obj
+from ..base import BaseWrapperHKX
+from .core import HKXMixin2015
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class CollisionHKX(BaseWrapperHKX):
+class CollisionHKX(BaseWrapperHKX, HKXMixin2015):
     """Loads HKX objects used as terrain 'hit' geometry, found in `map/mAA_BB_CC_DD` folders."""
 
     MOPPER_PATH = Path(r"C:\Users\Scott\Downloads\mopper-master\mopper-master\Release\mopper.exe")

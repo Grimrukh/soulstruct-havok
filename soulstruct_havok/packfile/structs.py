@@ -7,6 +7,7 @@ __all__ = [
     "PackFileHeaderExtension",
     "PackFileSectionHeader",
     "PackFileVersion",
+    "PackfileHeaderInfo",
     "CHILD_POINTER_STRUCT",
     "ITEM_POINTER_STRUCT",
     "ITEM_SPEC_STRUCT",
@@ -318,6 +319,17 @@ class PackFileSectionHeader(BinaryObject):
             imports_offset=end_offset,
             end_offset=end_offset,
         )
+
+
+class PackfileHeaderInfo(tp.NamedTuple):
+    """Minimal info needed to pack a packfile. Stored in `HKX` and must be passed to `PackFileUnpacker`."""
+    header_version: PackFileVersion
+    pointer_size: int
+    is_little_endian: bool
+    padding_option: int
+    contents_version_string: bytes
+    flags: int
+    header_extension: None | PackFileHeaderExtension = None  # optional (version 0x0B only)
 
 
 CHILD_POINTER_STRUCT = BinaryStruct(

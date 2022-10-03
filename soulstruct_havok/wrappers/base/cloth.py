@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import abc
 import typing as tp
 
 from soulstruct_havok.types import hk2010, hk2015
@@ -11,7 +14,7 @@ PHYSICS_SYSTEM_TYPING = tp.Union[
 ]
 
 
-class ClothHKX(BaseWrapperHKX):
+class BaseClothHKX(BaseWrapperHKX, abc.ABC):
     """Loads HKX objects that are found in a "Cloth" HKX file (inside `chrbnd` binder, e.g. `c2410_c.hkx`).
 
     This file is not used for every character - only those with cloth physics (e.g. capes).

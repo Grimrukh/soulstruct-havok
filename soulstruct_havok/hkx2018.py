@@ -234,7 +234,7 @@ class AnimationHKX(HKX2018):
     def decompress_spline_animation_data(self) -> list[list[QuatTransform]]:
         """Convert spline-compressed animation data to a list of lists (per track) of `QuatTransform` instances."""
         if isinstance(self.animation, hkaSplineCompressedAnimation):
-            return self.get_spline_compressed_animation_data().to_transform_track_lists(
+            return self.get_spline_compressed_animation_data().to_interleaved_transforms(
                 frame_count=self.animation.numFrames,
                 max_frames_per_block=self.animation.maxFramesPerBlock
             )

@@ -137,6 +137,7 @@ from .hkaAnnotationTrackAnnotation import hkaAnnotationTrackAnnotation
 from .hkaBone import hkaBone
 from .hkaBoneAttachment import hkaBoneAttachment
 from .hkaDefaultAnimatedReferenceFrame import hkaDefaultAnimatedReferenceFrame
+from .hkaInterleavedUncompressedAnimation import hkaInterleavedUncompressedAnimation
 from .hkaMeshBinding import hkaMeshBinding
 from .hkaMeshBindingMapping import hkaMeshBindingMapping
 from .hkaSkeleton import hkaSkeleton

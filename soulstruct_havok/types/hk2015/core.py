@@ -47,7 +47,7 @@ __all__ = [
 ]
 import typing as tp
 
-from soulstruct.utilities.maths import Quaternion, Vector4
+from soulstruct.utilities.maths import Quaternion, QuatTransform, Vector4
 from soulstruct_havok.enums import TagDataType, MemberFlags
 from soulstruct_havok.types.core import *
 
@@ -357,6 +357,17 @@ class hkQsTransformf(hk):
     translation: Vector4
     rotation: Quaternion
     scale: Vector4
+
+    def to_quat_transform(self) -> QuatTransform:
+        return QuatTransform(self.translation, self.rotation, self.scale)
+
+    @classmethod
+    def from_quat_transform(cls, transform: QuatTransform):
+        return cls(
+            translation=Vector4(*transform.translate, 1.0),
+            rotation=transform.rotation,
+            scale=Vector4(*transform.scale, 1.0),
+        )
 
 
 # --- Havok Wrappers --- #

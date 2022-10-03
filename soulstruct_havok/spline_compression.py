@@ -13,7 +13,7 @@ from __future__ import annotations
 
 __all__ = [
     "SplineCompressedAnimationData",
-    "TransformTrack",
+    "SplineTransformTrack",
 ]
 
 import copy
@@ -318,7 +318,7 @@ def get_single_point(
 
     value = Quaternion.zero() if isinstance(control_points[0], Quaternion) else 0.0
     for i in range(0, degree + 1):
-        value += control_points[knot_span_index - 1] * n[i]
+        value += control_points[knot_span_index - i] * n[i]
     return value
 
 
@@ -340,6 +340,9 @@ class SplineHeader:
     @property
     def control_point_count(self) -> int:
         return len(self.knots) - self.degree - 1
+
+    def __repr__(self):
+        return f"SplineHeader<{self.control_point_count}>(degree={self.degree}, knots={self.knots})"
 
 
 class SplineQuaternion(list[Quaternion]):
@@ -438,11 +441,12 @@ class TrackVector3:
         if isinstance(axis_value, SplineFloat):
             knot_span = find_knot_span(self.spline_header.degree, frame, len(axis_value), self.spline_header.knots)
             return get_single_point(knot_span, self.spline_header.degree, frame, self.spline_header.knots, axis_value)
+            # return get_single_point_new(self.spline_header.degree, frame, self.spline_header.knots, axis_value)
         else:
             return axis_value  # float
 
     def get_vector_at_frame(self, frame: float) -> Vector3:
-        return Vector3(self.get_value_at_frame(frame, axis) for axis in "xyz")
+        return Vector3([self.get_value_at_frame(frame, axis) for axis in "xyz"])
 
     def set_to_static_vector(self, xyz):
         self.x, self.y, self.z = xyz
@@ -467,9 +471,7 @@ class TrackVector3:
         """
         if not self.spline_header:
             # No splines. Can just rotate static vector.
-            print(f"Old translate: {self.x, self.y, self.z}")
             self.x, self.y, self.z = rotate.apply_to_vector(Vector3(self.x, self.y, self.z))
-            print(f"New translate: {self.x, self.y, self.z}")
             return
 
         # Static values may end up becoming splines, and (less likely) vice versa.
@@ -481,16 +483,12 @@ class TrackVector3:
             else:  # constant list for zipping below
                 old_splines.append([axis_value] * self.spline_header.control_point_count)
         new_control_points = []  # will contain (x, y, z) control points to be unzipped below
-        for x, y, z in zip(*new_control_points):
+        for x, y, z in zip(*old_splines):
             rotated_control_point = rotate.apply_to_vector(Vector3(x, y, z))
             new_control_points.append(rotated_control_point)
         spline_x = SplineFloat([v.x for v in new_control_points])
         spline_y = SplineFloat([v.y for v in new_control_points])
         spline_z = SplineFloat([v.z for v in new_control_points])
-
-        print(f"Translate rotated X:")
-        print(self.x)
-        print(spline_x)
 
         # Check if any of the new spline dimensions are static (unlikely, unless rotations are exactly axis-aligned).
         self.x = spline_x[0] if len(set(spline_x)) == 1 else spline_x
@@ -807,7 +805,7 @@ class TrackHeader:
         )
 
     @classmethod
-    def from_track(cls, track: TransformTrack):
+    def from_track(cls, track: SplineTransformTrack):
         header = cls()
         header.translation_quantization = track.translation.scalar_quantization_type
         header.rotation_quantization = track.rotation.rotation_quantization_type
@@ -830,7 +828,7 @@ class TrackHeader:
         )
 
 
-class TransformTrack:
+class SplineTransformTrack:
     """Single track of animation data, usually corresponding to a single bone.
 
     Just a container for the three transform types.
@@ -861,9 +859,14 @@ class TransformTrack:
         self.rotation.rotate(transform.rotation)
         self.scale.scale(transform.scale)
 
-    def rotate_translation(self, rotate: Quaternion):
-        """Rotate `translation` points around origin."""
-        self.translation.rotate(rotate)
+    def apply_transform_to_translate(self, transform: QuatTransform):
+        """Order is scale, rotation, translation."""
+        self.translation.scale(transform.scale)
+        self.translation.rotate(transform.rotation)
+        self.translation.translate(transform.translate)
+
+    def apply_transform_to_rotation(self, transform: QuatTransform):
+        self.rotation.rotate(transform.rotation)
 
     def get_quat_transform_at_frame(self, frame: float) -> QuatTransform:
         translation = self.translation.get_vector_at_frame(frame)
@@ -871,7 +874,7 @@ class TransformTrack:
         scale = self.scale.get_vector_at_frame(frame)
         return QuatTransform(translation, rotation, scale)
 
-    def copy(self) -> TransformTrack:
+    def copy(self) -> SplineTransformTrack:
         return copy.deepcopy(self)
 
     def __repr__(self) -> str:
@@ -886,7 +889,7 @@ class TransformTrack:
 
 class SplineCompressedAnimationData:
 
-    blocks: list[list[TransformTrack | None]]
+    blocks: list[list[SplineTransformTrack | None]]
 
     def __init__(self, data: list[int], transform_track_count: int, block_count: int, big_endian=False):
         """Read a spline-compressed animation (e.g. `hkaSplineCompressedAnimation["data"]`) to a list of "blocks" of
@@ -908,7 +911,7 @@ class SplineCompressedAnimationData:
             track_headers = [TrackHeader(reader) for _ in range(transform_track_count)]
             reader.align(4)
 
-            transform_tracks = []  # type: list[TransformTrack]
+            transform_tracks = []  # type: list[SplineTransformTrack]
             for i in range(transform_track_count):
                 header = track_headers[i]
                 translation = TrackVector3.unpack(
@@ -924,7 +927,7 @@ class SplineCompressedAnimationData:
                 )
                 reader.align(4)
 
-                transform_tracks.append(TransformTrack(translation, rotation, scale))
+                transform_tracks.append(SplineTransformTrack(translation, rotation, scale))
 
             reader.align(16)
 
@@ -970,22 +973,24 @@ class SplineCompressedAnimationData:
 
         return data, block_count, transform_track_count
 
-    def to_transform_track_lists(self, frame_count: int, max_frames_per_block: int) -> list[list[QuatTransform]]:
+    def to_interleaved_transforms(self, frame_count: int, max_frames_per_block: int) -> list[list[QuatTransform]]:
         """Decompresses the spline data by computing the `QuatTransform` at each frame from any splines.
 
-        Returns a list of lists (blocks) of `QuatTransform` instances sorted into sub-lists by transform track. Each
-        transform track affects a different bone, as mapped by a `hkaAnimationBinding` instance in animation HKX.
+        Returns a list of lists (blocks) of `QuatTransform` instances sorted into sub-lists by frame. Each list holds
+        all the `QuatTransforms` (generally one per bone) for that frame, as mapped by an `hkaAnimationBinding` instance
+        in the HKX file.
         """
+        # TODO: Track count should be passed in, rather than continuing to assume one block only.
         transform_track_count = len(self.blocks[0])
         for block in self.blocks:
             if len(block) != transform_track_count:
                 _LOGGER.warning("Animation data blocks do not have equal numbers of transform tracks.")
 
-        track_transforms = [[] for _ in range(transform_track_count)]  # type: list[list[QuatTransform]]
+        frame_transforms = [[] for _ in range(frame_count)]  # type: list[list[QuatTransform]]
 
-        for i in range(frame_count):
-            frame = float((i % frame_count) % max_frames_per_block)
-            block_index = int((i % frame_count) / max_frames_per_block)
+        for frame_index in range(frame_count):
+            frame = float((frame_index % frame_count) % max_frames_per_block)
+            block_index = int((frame_index % frame_count) / max_frames_per_block)
             block = self.blocks[block_index]
 
             for transform_track_index in range(transform_track_count):
@@ -994,28 +999,40 @@ class SplineCompressedAnimationData:
                     # Need to interpolate between this final frame and the first frame.
                     current_frame_transform = track.get_quat_transform_at_frame(float(math.floor(frame)))
                     first_frame_transform = self.blocks[0][transform_track_index].get_quat_transform_at_frame(frame=0.0)
-                    track_transforms[transform_track_index].append(
+                    frame_transforms[frame_index].append(
                         QuatTransform.lerp(current_frame_transform, first_frame_transform, t=frame % 1)
                     )
                 else:
                     # Normal frame.
-                    track_transforms[transform_track_index].append(track.get_quat_transform_at_frame(frame))
+                    frame_transforms[frame_index].append(track.get_quat_transform_at_frame(frame))
 
-        return track_transforms
+        return frame_transforms
 
-    def scale(self, factor: float):
-        """Multiply all translation static values and control points by `factor`, in place.
+    def apply_transform_to_all_track_translations(self, transform: QuatTransform):
+        """Apply `transform` to the translation data of each track.
 
-        Note that this does NOT touch transform scale data, despite the name. It scales all translations directly and
-        leaves transform scales as-is.
+        Use this to manipulate bone positions relative to their parents, rather than modifying their actual frames.
         """
         for block in self.blocks:
             for track in block:
-                track.translation.scale(factor)
+                track.apply_transform_to_translate(transform)
+
+    def apply_transform_to_all_track_rotations(self, transform: QuatTransform):
+        for block in self.blocks:
+            for track in block:
+                track.apply_transform_to_rotation(transform)
+
+    def apply_transform_to_all_tracks(self, transform: QuatTransform):
+        """NOTE: This will apply the transform to the ENTIRE TRANSFORM of each track, not just the translation.
+
+        Use this to modify bone frames directly.
+        """
+        for block in self.blocks:
+            for track in block:
+                track.apply_transform(transform)
 
     def reverse(self):
         """Reverses all spline data by simply reversing the lists of control points. Static values are unchanged."""
-
         for block in self.blocks:
             for track in block:
                 track.translation.reverse()

@@ -186,6 +186,28 @@ class hk:
         _INDENT -= 4
 
     @classmethod
+    def get_default_value(cls):
+        """Specify some basic default values for primitive types.
+
+        `hk` subclasses may override this to provide their own defaults.
+        """
+        tag_data_type = cls.get_tag_data_type()
+        if tag_data_type == TagDataType.Invalid:
+            return None
+        elif tag_data_type == TagDataType.Bool:
+            return False
+        elif tag_data_type in {TagDataType.CharArray, TagDataType.ConstCharArray}:
+            return ""
+        elif tag_data_type == TagDataType.Int:
+            return 0
+        elif tag_data_type == TagDataType.Float:
+            return 0.0
+        elif tag_data_type == TagDataType.Class:
+            return None
+        else:
+            raise ValueError(f"Type `{cls.__name__}` has no default value available.")
+
+    @classmethod
     def get_type_name(cls, lstrip_underscore=False):
         """Easier way (especially for instances) to get Python class name."""
         if lstrip_underscore:
@@ -297,7 +319,8 @@ class hk:
         `entry` already contains resolved pointers to other entries, so no entry list needs to be passed around.
         """
         offset = entry.reader.seek(offset) if offset is not None else entry.reader.position
-        cls.debug_print_unpack(f"Unpacking `{cls.__name__}`... ({cls.get_tag_data_type().name}) <{hex(offset)}>")
+        if not _DO_NOT_DEBUG_PRINT_PRIMITIVES and cls.__name__ not in {"_float", "hkUint8"}:
+            cls.debug_print_unpack(f"Unpacking `{cls.__name__}`... ({cls.get_tag_data_type().name}) <{hex(offset)}>")
 
         if cls.__name__ == "hkRootLevelContainerNamedVariant":
             # Retrieve other classes from subclass's module, as they will be dynamically attached to the root container.
@@ -324,7 +347,8 @@ class hk:
         else:
             # Note that 'Pointer', 'Array', and 'Struct' types have their own explicit subclasses.
             raise ValueError(f"Cannot unpack `hk` subclass `{cls.__name__}` with tag data type {tag_data_type}.")
-        cls.debug_print_unpack(f"-> {repr(value)}")
+        if not _DO_NOT_DEBUG_PRINT_PRIMITIVES and cls.__name__ not in {"_float", "hkUint8"}:
+            cls.debug_print_unpack(f"-> {repr(value)}")
         entry.reader.seek(offset + cls.byte_size)
         return value
 
@@ -885,6 +909,10 @@ class hkArray_(hkBasePointer):
         # noinspection PyTypeChecker
         return list(cls.__mro__[:-4])  # exclude this, `hkBasePointer`, `hk`, and `object`
 
+    @classmethod
+    def get_default_value(cls):
+        return []
+
 
 def hkArray(data_type: tp.Type[hk] | hkRefPtr | hkViewPtr, hsh: int = None) -> tp.Type[hkArray_]:
     """Generates an array class with given `data_type` and (optionally) hash."""
@@ -954,6 +982,10 @@ class hkEnum_(hk):
     def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
         # noinspection PyTypeChecker
         return list(cls.__mro__[:-3])  # exclude this, `hk`, and `object`
+
+    @classmethod
+    def get_default_value(cls):
+        return 0
 
 
 def hkEnum(enum_type: tp.Type[hk], storage_type: tp.Type[hk]) -> tp.Type[hkEnum_]:
@@ -1060,6 +1092,10 @@ class hkStruct_(hkBasePointer):
             # exclude `hkStruct_[type, length]` subclass, this, `hkBasePointer`, `hk`, and `object`
             # noinspection PyTypeChecker
             return list(cls.__mro__[:-5])
+
+    @classmethod
+    def get_default_value(cls):
+        return ()
 
 
 def hkStruct(data_type: tp.Type[hk], length: int) -> tp.Type[hkStruct_]:
@@ -1175,6 +1211,10 @@ class Ptr_(hkBasePointer):
     def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
         # noinspection PyTypeChecker
         return list(cls.__mro__[:-4])  # exclude this, `hkBasePointer`, `hk`, and `object`
+
+    @classmethod
+    def get_default_value(cls):
+        return None
 
 
 def Ptr(data_type: tp.Type[hk] | DefType, hsh: int = None) -> tp.Type[Ptr_]:
@@ -1395,6 +1435,10 @@ class hkViewPtr_(hkBasePointer):
         # noinspection PyTypeChecker
         return list(cls.__mro__[:-4])  # exclude this, `hkBasePointer`, `hk`, and `object`
 
+    @classmethod
+    def get_default_value(cls):
+        return None
+
 
 def hkViewPtr(data_type_name: str, hsh: int = None):
     """Create a `_hkViewPtr` subclass dynamically.
@@ -1523,6 +1567,10 @@ class hkRelArray_(hkBasePointer):
         # noinspection PyTypeChecker
         return list(cls.__mro__[:-4])  # exclude this, `hk`, `hkBasePointer`, and `object`
 
+    @classmethod
+    def get_default_value(cls):
+        return []
+
 
 def hkRelArray(data_type: tp.Type[hk]):
     """Create a `hkRelArray_` subclass dynamically."""
@@ -1587,6 +1635,10 @@ class hkFlags_(hk):
     # `__hsh` is set dynamically (probably never used).
 
     # `local_members` and `members` (lone 'storage' member) are set dynamically.
+
+    @classmethod
+    def get_default_value(cls):
+        return 0
 
 
 def hkFlags(storage_type: tp.Type[hk], hsh: int = None) -> tp.Type[hkFlags_]:
