@@ -47,7 +47,7 @@ __all__ = [
 ]
 import typing as tp
 
-from soulstruct.utilities.maths import Quaternion, QuatTransform, Vector4
+from soulstruct_havok.utilities.maths import Quaternion, QsTransform, Vector4
 from soulstruct_havok.enums import TagDataType, MemberFlags
 from soulstruct_havok.types.core import *
 
@@ -230,7 +230,7 @@ class hkQuaternionf(hkStruct(_float, 4)):
     vec: Vector4
 
     @classmethod
-    def unpack(cls, reader: BinaryReader, offset: int, items: list[TagFileItem] = None) -> Vector4:
+    def unpack(cls, reader: BinaryReader, offset: int, items: list[TagFileItem] = None) -> Quaternion:
         cls.debug_print_unpack(f"Unpacking `{cls.__name__}`... (hkQuaternionf) <{hex(offset)}>")
         cls.increment_debug_indent()
         value = Quaternion(super().unpack(reader, offset, items))
@@ -358,13 +358,13 @@ class hkQsTransformf(hk):
     rotation: Quaternion
     scale: Vector4
 
-    def to_quat_transform(self) -> QuatTransform:
-        return QuatTransform(self.translation, self.rotation, self.scale)
+    def to_quat_transform(self) -> QsTransform:
+        return QsTransform(self.translation, self.rotation, self.scale)
 
     @classmethod
-    def from_quat_transform(cls, transform: QuatTransform):
+    def from_quat_transform(cls, transform: QsTransform):
         return cls(
-            translation=Vector4(*transform.translate, 1.0),
+            translation=Vector4(*transform.translation, 1.0),
             rotation=transform.rotation,
             scale=Vector4(*transform.scale, 1.0),
         )

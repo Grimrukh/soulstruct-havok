@@ -3,7 +3,7 @@ from __future__ import annotations
 import abc
 import typing as tp
 
-from soulstruct.utilities.maths import QuatTransform
+from soulstruct_havok.utilities.maths import QsTransform
 from soulstruct_havok.types import hk2010, hk2014, hk2015, hk2018
 
 from .core import BaseWrapperHKX
@@ -71,11 +71,11 @@ class BaseSkeletonHKX(BaseWrapperHKX, abc.ABC):
                 children += self.get_all_bone_children(bone)  # recur on child
         return children
 
-    def get_bone_local_transform(self, bone: BONE_SPEC_TYPING) -> QuatTransform:
+    def get_bone_local_transform(self, bone: BONE_SPEC_TYPING) -> QsTransform:
         bone = self.resolve_bone_spec(bone)
         bone_index = self.skeleton.bones.index(bone)
         qs_transform = self.skeleton.referencePose[bone_index]
-        return QuatTransform(
+        return QsTransform(
             qs_transform.translation,
             qs_transform.rotation,
             qs_transform.scale,
@@ -94,11 +94,23 @@ class BaseSkeletonHKX(BaseWrapperHKX, abc.ABC):
             parent_index = self.skeleton.parentIndices[bone_index]
         return list(reversed(parents))
 
-    def get_hierarchy_transforms(self, bone: BONE_SPEC_TYPING) -> list[QuatTransform]:
+    def get_all_bone_parent_indices(self) -> list[list[int]]:
+        """Returns a list of lists of the hierarchical indices up to each bone (inclusive)."""
+        all_indices = []
+        for bone_index, bone in enumerate(self.skeleton.bones):
+            indices = []
+            parent_index = bone_index
+            while parent_index != -1:
+                indices.append(parent_index)
+                parent_index = self.get_bone_parent_index(parent_index)
+            all_indices.append(list(reversed(indices)))
+        return all_indices
+
+    def get_hierarchy_transforms(self, bone: BONE_SPEC_TYPING) -> list[QsTransform]:
         """Get all transforms of all parent bones down to `bone`, including it."""
         return [self.get_bone_local_transform(b) for b in self.get_hierarchy_to_bone(bone)]
 
-    def get_bone_global_transform(self, bone: BONE_SPEC_TYPING) -> QuatTransform:
+    def get_bone_root_transform(self, bone: BONE_SPEC_TYPING) -> QsTransform:
         """Accumulates parents' transforms through composition.
 
         Any bone's "absolute" transform (i.e., its transform in the space of the root bone) can be found by simply
@@ -106,7 +118,7 @@ class BaseSkeletonHKX(BaseWrapperHKX, abc.ABC):
             abs(Bn) = B0 @ B1 @ B2 @ ... @ Bn
         """
         bone = self.resolve_bone_spec(bone)
-        transform = QuatTransform.identity()
+        transform = QsTransform.identity()
         for hierarchy_transform in self.get_hierarchy_transforms(bone):
             transform = transform @ hierarchy_transform
         return transform

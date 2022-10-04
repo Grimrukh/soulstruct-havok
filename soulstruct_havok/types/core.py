@@ -45,12 +45,12 @@ from colorama import init as colorama_init, Fore
 
 from soulstruct.utilities.binary import BinaryReader, BinaryWriter
 from soulstruct.utilities.inspection import get_hex_repr
-from soulstruct.utilities.maths import Quaternion, Vector4
 
 from soulstruct_havok.enums import TagDataType, MemberFlags
 from soulstruct_havok.packfile.structs import PackFileItemEntry
 from soulstruct_havok.tagfile.structs import TagFileItem
 from soulstruct_havok.types.info import *
+from soulstruct_havok.utilities.maths import Quaternion, Vector4
 
 if tp.TYPE_CHECKING:
     from soulstruct_havok.packfile.structs import PackFileItemEntry

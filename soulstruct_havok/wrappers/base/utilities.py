@@ -1,6 +1,6 @@
 import typing as tp
 
-from soulstruct.utilities.maths import Matrix4
+from soulstruct_havok.utilities.maths import Matrix4
 
 from soulstruct_havok.types import hk2010, hk2014, hk2015, hk2018
 

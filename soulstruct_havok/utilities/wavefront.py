@@ -5,7 +5,7 @@ __all__ = ["read_obj"]
 import re
 from pathlib import Path
 
-from soulstruct.utilities.maths import Vector4
+from soulstruct_havok.utilities.maths import Vector4
 
 
 def read_obj(obj_path: Path | str, invert_x=True) -> list[tuple[list[Vector4], list[tuple[int, int, int]]]]:

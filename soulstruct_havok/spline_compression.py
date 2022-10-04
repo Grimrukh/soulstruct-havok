@@ -23,14 +23,11 @@ import struct
 import typing as tp
 from enum import IntEnum
 
-from soulstruct.utilities.conversion import floatify
 from soulstruct.utilities.binary import BinaryReader, BinaryWriter
-from soulstruct.utilities.maths import Vector3, Vector4, Quaternion, QuatTransform
+
+from soulstruct_havok.utilities.maths import Vector3, Vector4, Quaternion, QsTransform
 
 _LOGGER = logging.getLogger(__name__)
-
-THREECOMP40_START = -math.sqrt(2) / 2  # -0.7071067811865476
-THREECOMP40_STEP = math.sqrt(2) / 4095  # 0.00034535129728280713
 
 
 class TrackFlags(IntEnum):
@@ -107,72 +104,6 @@ class UnsupportedRotationQuantizationError(Exception):
     """Raised when you try to call `TrackQuaternion.pack()` when its quantization type is not supported."""
 
 
-def decode_quat_Polar32(c_val: int) -> Quaternion:
-    r_mask = (1 << 10) - 1
-    r_frac = 1.0 / r_mask
-    phi_frac = math.pi / 4 / 511.0
-
-    r = floatify((c_val >> 18) & (r_mask & 0xFFFFFFFF)) * r_frac
-    r = 1.0 - (r ** 2)
-
-    phi_theta = float(c_val & 0x3FFFF)
-    phi = float(math.floor(math.sqrt(phi_theta)))
-    theta = 0
-
-    if phi > 0.0:
-        theta = (math.pi / 4) * (phi_theta - (phi * phi)) / phi
-        phi = phi_frac * phi
-
-    magnitude = float(math.sqrt(1.0 - (r ** 2)))
-
-    value = Quaternion(
-        x=math.sin(phi) * math.cos(theta) * magnitude,
-        y=math.sin(phi) * math.sin(theta) * magnitude,
-        z=math.cos(phi) * magnitude,
-        w=r,
-    )
-
-    if (c_val & 0x10000000) > 0:
-        value.x *= -1
-    if (c_val & 0x20000000) > 0:
-        value.y *= -1
-    if (c_val & 0x40000000) > 0:
-        value.z *= -1
-    if (c_val & 0x80000000) > 0:
-        value.w *= -1
-
-    return value
-
-
-def decode_quat_ThreeComp48(x: int, y: int, z: int) -> Quaternion:
-    mask = (1 << 15) - 1
-    fractal = 0.000043161
-
-    result_shift = ((y >> 14) & 2) | ((x >> 15) & 1)
-    r_sign = (z >> 15) != 0
-
-    x &= mask
-    x -= mask >> 1
-    y &= mask
-    y -= mask >> 1
-    z &= mask
-    z -= mask >> 1
-
-    temp_val = (x * fractal, y * fractal, z * fractal)
-
-    float_value = [math.nan] * 4
-    for i in range(4):
-        if i < result_shift:
-            float_value[i] = temp_val[i]
-        elif i == result_shift:
-            t = 1.0 - temp_val[0] * temp_val[0] - temp_val[1] * temp_val[1] - temp_val[2] * temp_val[2]
-            float_value[i] = (0.0 if t <= 0.0 else math.sqrt(t)) * (-1 if r_sign else 1)
-        elif i > result_shift:
-            float_value[i] = temp_val[i - 1]
-
-    return Quaternion(float_value)
-
-
 def read_uint40(reader: BinaryReader) -> int:
     """Read five bytes, append three zeros, and get the resulting unsigned '64-bit' integer."""
     return struct.unpack("Q", reader.read(5) + b"\0\0\0")[0]
@@ -186,83 +117,18 @@ def write_uint40(writer: BinaryWriter, value: int):
     writer.append(packed_uint64[:5])  # drop last three bytes
 
 
-def decode_quat_ThreeComp40(c_val: int) -> Quaternion:
-    """
-    Quaternion data packed into 40 bits.
-
-    Bits 0-11 (first 12 minor) are X data.
-    Bits 12-23 (second 12 minor) are Y data.
-    Bits 24-35 (third 12 minor) are Z data.
-    Bits 36-37 (four major) are "result shift".
-    Bits 38-39 don't matter (zeroes).
-
-    We then subtract a "positive mask" (4095) from X, Y, and Z.
-
-    We calculate a "temp_val" 3-tuple by multiplying X, Y, and Z by a "fractal", `0.000345436`.
-
-    More...
-    """
-
-    mask = (1 << 12) - 1  # twelve 1-bits (4095)
-    v0 = c_val & mask  # lowest twelve bits
-    v1 = (c_val >> 12) & mask  # next twelve bits
-    v2 = (c_val >> 24) & mask  # next twelve bits
-    implicit_dimension = (c_val >> 36) & 0b0011  # next two bits
-    implicit_negative = ((c_val >> 38) & 1) > 0  # final two bits
-
-    # Multiply masked values by fractal to convert to [-sqrt(2), sqrt(2)] range.
-    quaternion = [THREECOMP40_START + v * THREECOMP40_STEP for v in (v0, v1, v2)]  # still missing implicit dimension
-
-    # Calculate implicit dimension from unit magnitude.
-    # The implicit dimension is always the one with the largest absolute value (outside the +/- sqrt(2) range).
-    implicit_squared = 1.0 - quaternion[0] ** 2 - quaternion[1] ** 2 - quaternion[2] ** 2
-    # Clamp to zero (means this was NOT a unit quaternion!) or square root.
-    implicit = 0.0 if implicit_squared <= 0.0 else math.sqrt(implicit_squared)
-    # Apply sign.
-    if implicit_negative:
-        implicit *= -1
-    # Insert implicit dimension.
-    quaternion.insert(implicit_dimension, implicit)
-    q = Quaternion(quaternion)
-
-    return q
-
-
-def encode_quat_ThreeComp40(quaternion: Quaternion) -> int:
-    """Pack `quaternion` into a 40-bit value using ThreeComp40 method."""
-    mask = (1 << 12) - 1  # twelve 1-bits (4095)
-    implicit_dimension = quaternion.largest_abs_value_index()
-    implicit_negative = int(quaternion[implicit_dimension] < 0)
-
-    encoded_floats = []  # type: list[int]
-    for i in range(4):
-        if i == implicit_dimension:
-            continue  # skipped
-        encoded = round((quaternion[i] - THREECOMP40_START) / THREECOMP40_STEP)  # int between 0 and 4095
-        encoded_floats.append(encoded)
-
-    # Join everything together.
-    c_val = encoded_floats[0] & mask
-    c_val += (encoded_floats[1] & mask) << 12
-    c_val += (encoded_floats[2] & mask) << 24
-    c_val += implicit_dimension << 36
-    c_val += implicit_negative << 38
-
-    return c_val
-
-
 def unpack_quantized_quaternion(
     reader: BinaryReader, rotation_quantization_type: RotationQuantizationType
 ) -> Quaternion:
     if rotation_quantization_type == RotationQuantizationType.Polar32:
         c_val = reader.unpack_value("I")
-        return decode_quat_Polar32(c_val)
+        return Quaternion.decode_Polar32(c_val)
     elif rotation_quantization_type == RotationQuantizationType.ThreeComp40:
         c_val = read_uint40(reader)
-        return decode_quat_ThreeComp40(c_val)
+        return Quaternion.decode_ThreeComp40(c_val)
     elif rotation_quantization_type == RotationQuantizationType.ThreeComp48:
         x, y, z = reader.unpack_value("3h")
-        return decode_quat_ThreeComp48(x, y, z)
+        return Quaternion.decode_ThreeComp48(x, y, z)
     elif rotation_quantization_type == RotationQuantizationType.Uncompressed:
         return Quaternion(reader.unpack("4f"))
     raise NotImplementedError(f"Cannot read quantized quaternion of type: {rotation_quantization_type}")
@@ -272,7 +138,7 @@ def pack_quantized_quaternion(
     writer: BinaryWriter, quaternion: Quaternion, rotation_quantization_type: RotationQuantizationType
 ):
     if rotation_quantization_type == RotationQuantizationType.ThreeComp40:
-        c_val = encode_quat_ThreeComp40(quaternion)
+        c_val = quaternion.encode_ThreeComp40()
         write_uint40(writer, c_val)
         return
     raise UnsupportedRotationQuantizationError(f"Cannot quantize quaternion type: {rotation_quantization_type}")
@@ -471,7 +337,7 @@ class TrackVector3:
         """
         if not self.spline_header:
             # No splines. Can just rotate static vector.
-            self.x, self.y, self.z = rotate.apply_to_vector(Vector3(self.x, self.y, self.z))
+            self.x, self.y, self.z = rotate.rotate_vector(Vector3(self.x, self.y, self.z))
             return
 
         # Static values may end up becoming splines, and (less likely) vice versa.
@@ -484,7 +350,7 @@ class TrackVector3:
                 old_splines.append([axis_value] * self.spline_header.control_point_count)
         new_control_points = []  # will contain (x, y, z) control points to be unzipped below
         for x, y, z in zip(*old_splines):
-            rotated_control_point = rotate.apply_to_vector(Vector3(x, y, z))
+            rotated_control_point = rotate.rotate_vector(Vector3(x, y, z))
             new_control_points.append(rotated_control_point)
         spline_x = SplineFloat([v.x for v in new_control_points])
         spline_y = SplineFloat([v.y for v in new_control_points])
@@ -853,26 +719,26 @@ class SplineTransformTrack:
         scale_track = TrackVector3(scale.x, scale.y, scale.z)
         return cls(translation_track, rotation_track, scale_track)
 
-    def apply_transform(self, transform: QuatTransform):
+    def apply_transform(self, transform: QsTransform):
         """Apply components of `transform` to all values in appropriate tracks."""
-        self.translation.translate(transform.translate)
+        self.translation.translate(transform.translation)
         self.rotation.rotate(transform.rotation)
         self.scale.scale(transform.scale)
 
-    def apply_transform_to_translate(self, transform: QuatTransform):
+    def apply_transform_to_translate(self, transform: QsTransform):
         """Order is scale, rotation, translation."""
         self.translation.scale(transform.scale)
         self.translation.rotate(transform.rotation)
-        self.translation.translate(transform.translate)
+        self.translation.translate(transform.translation)
 
-    def apply_transform_to_rotation(self, transform: QuatTransform):
+    def apply_transform_to_rotation(self, transform: QsTransform):
         self.rotation.rotate(transform.rotation)
 
-    def get_quat_transform_at_frame(self, frame: float) -> QuatTransform:
+    def get_quat_transform_at_frame(self, frame: float) -> QsTransform:
         translation = self.translation.get_vector_at_frame(frame)
         rotation = self.rotation.get_quaternion_at_frame(frame)
         scale = self.scale.get_vector_at_frame(frame)
-        return QuatTransform(translation, rotation, scale)
+        return QsTransform(translation, rotation, scale)
 
     def copy(self) -> SplineTransformTrack:
         return copy.deepcopy(self)
@@ -973,11 +839,11 @@ class SplineCompressedAnimationData:
 
         return data, block_count, transform_track_count
 
-    def to_interleaved_transforms(self, frame_count: int, max_frames_per_block: int) -> list[list[QuatTransform]]:
-        """Decompresses the spline data by computing the `QuatTransform` at each frame from any splines.
+    def to_interleaved_transforms(self, frame_count: int, max_frames_per_block: int) -> list[list[QsTransform]]:
+        """Decompresses the spline data by computing the `QsTransform` at each frame from any splines.
 
-        Returns a list of lists (blocks) of `QuatTransform` instances sorted into sub-lists by frame. Each list holds
-        all the `QuatTransforms` (generally one per bone) for that frame, as mapped by an `hkaAnimationBinding` instance
+        Returns a list of lists (blocks) of `QsTransform` instances sorted into sub-lists by frame. Each list holds
+        all the `QsTransforms` (generally one per bone) for that frame, as mapped by an `hkaAnimationBinding` instance
         in the HKX file.
         """
         # TODO: Track count should be passed in, rather than continuing to assume one block only.
@@ -986,7 +852,7 @@ class SplineCompressedAnimationData:
             if len(block) != transform_track_count:
                 _LOGGER.warning("Animation data blocks do not have equal numbers of transform tracks.")
 
-        frame_transforms = [[] for _ in range(frame_count)]  # type: list[list[QuatTransform]]
+        frame_transforms = [[] for _ in range(frame_count)]  # type: list[list[QsTransform]]
 
         for frame_index in range(frame_count):
             frame = float((frame_index % frame_count) % max_frames_per_block)
@@ -1000,7 +866,7 @@ class SplineCompressedAnimationData:
                     current_frame_transform = track.get_quat_transform_at_frame(float(math.floor(frame)))
                     first_frame_transform = self.blocks[0][transform_track_index].get_quat_transform_at_frame(frame=0.0)
                     frame_transforms[frame_index].append(
-                        QuatTransform.lerp(current_frame_transform, first_frame_transform, t=frame % 1)
+                        QsTransform.lerp(current_frame_transform, first_frame_transform, t=frame % 1)
                     )
                 else:
                     # Normal frame.
@@ -1008,7 +874,7 @@ class SplineCompressedAnimationData:
 
         return frame_transforms
 
-    def apply_transform_to_all_track_translations(self, transform: QuatTransform):
+    def apply_transform_to_all_track_translations(self, transform: QsTransform):
         """Apply `transform` to the translation data of each track.
 
         Use this to manipulate bone positions relative to their parents, rather than modifying their actual frames.
@@ -1017,12 +883,12 @@ class SplineCompressedAnimationData:
             for track in block:
                 track.apply_transform_to_translate(transform)
 
-    def apply_transform_to_all_track_rotations(self, transform: QuatTransform):
+    def apply_transform_to_all_track_rotations(self, transform: QsTransform):
         for block in self.blocks:
             for track in block:
                 track.apply_transform_to_rotation(transform)
 
-    def apply_transform_to_all_tracks(self, transform: QuatTransform):
+    def apply_transform_to_all_tracks(self, transform: QsTransform):
         """NOTE: This will apply the transform to the ENTIRE TRANSFORM of each track, not just the translation.
 
         Use this to modify bone frames directly.

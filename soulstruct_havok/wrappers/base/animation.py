@@ -4,7 +4,7 @@ import abc
 import logging
 import typing as tp
 
-from soulstruct.utilities.maths import QuatTransform, Vector4
+from soulstruct_havok.utilities.maths import QsTransform, Vector4
 from soulstruct_havok.types import hk2010, hk2014, hk2015, hk2018
 from soulstruct_havok.spline_compression import SplineCompressedAnimationData
 
@@ -51,7 +51,7 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
 
     # Loaded upon first use or explicit `load_interleaved_data()` call. Will be resaved on `pack()` if present, or with
     # explicit `save_spline_data()` call. All this data does is split the frame transforms into separate 'track' lists.
-    interleaved_data: list[list[QuatTransform]] = None
+    interleaved_data: list[list[QsTransform]] = None
 
     @property
     def is_spline(self):
@@ -134,7 +134,7 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
             if self.interleaved_data is not None and not reload:
                 # Already exists. Do nothing.
                 return
-            # Otherwise, reorganize lists and convert transforms to `QuatTransform`.
+            # Otherwise, reorganize lists and convert transforms to `QsTransform`.
             track_count = self.animation.numberOfTransformTracks
             transforms = self.animation.transforms
             if len(transforms) % track_count > 0:
@@ -163,11 +163,11 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
         else:
             raise TypeError(f"Animation type `{type(self.animation).__name__}` is not interleaved.")
 
-    def get_reference_frame_samples(self):
+    def get_reference_frame_samples(self) -> list[Vector4]:
         if self.animation.extractedMotion:
             extracted_motion = self.animation.extractedMotion
             if isinstance(extracted_motion, DEFAULT_ANIMATED_REFERENCE_FRAME_TYPES):
-                return extracted_motion.referenceFrameSamples
+                return [Vector4(v) for v in extracted_motion.referenceFrameSamples]
         raise TypeError("No root motion for this animation reference frame class.")
 
     def set_reference_frame_samples(self, samples: list[Vector4]):
@@ -185,7 +185,7 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
         if isinstance(extracted_motion, DEFAULT_ANIMATED_REFERENCE_FRAME_TYPES):
             extracted_motion.duration = duration
 
-    def transform(self, transform: QuatTransform):
+    def transform(self, transform: QsTransform):
         """Apply `transform` to all animation tracks (control points or static/interleaved values).
 
         This transforms the `translate` vectors -- that is, bone POSITIONS can be translated, rotated, and/or scaled
@@ -200,7 +200,7 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
             self.load_interleaved_data()
             for frame in self.interleaved_data:
                 for track_index in range(len(frame)):
-                    frame[track_index].translate = transform.apply_to_vector(frame[track_index].translate)
+                    frame[track_index].translation = transform.transform_vector(frame[track_index].translation)
         else:
             raise TypeError("Animation is not interleaved or spline-compressed. Cannot transform data.")
 
@@ -213,7 +213,7 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
         bones in their parent's frame of reference, rather than scaling the bone's frame of reference itself (though
         you could achieve the same result that way).
         """
-        self.transform(QuatTransform(scale=factor))
+        self.transform(QsTransform(scale=factor))
 
     def reverse(self):
         """Reverses all control points/static transforms, and also root motion (reference frame samples)."""
@@ -230,14 +230,14 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
 
         self.try_reverse_root_motion()
 
-    def try_transform_root_motion(self, transform: QuatTransform):
+    def try_transform_root_motion(self, transform: QsTransform):
         """Transform root motion vectors if present, or do nothing otherwise."""
         try:
             reference_frame_samples = self.get_reference_frame_samples()
         except TypeError:
             return
         for i in range(len(reference_frame_samples)):
-            reference_frame_samples[i] = transform.apply_to_vector(reference_frame_samples[i])
+            reference_frame_samples[i] = transform.transform_vector(reference_frame_samples[i])
 
     def try_reverse_root_motion(self):
         """Reverse root motion vectors if present, or do nothing otherwise."""
@@ -303,4 +303,3 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
         elif self.is_interleaved and self.interleaved_data:
             self.save_interleaved_data()
         return super().pack(hk_format)
-

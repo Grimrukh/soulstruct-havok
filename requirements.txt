@@ -3,3 +3,5 @@ setuptools~=58.3.0
 colorama~=0.4.4
 numpy~=1.21.4
 matplotlib~=3.4.3
+scipy~=1.9.1
+transforms3d~=0.4.1
