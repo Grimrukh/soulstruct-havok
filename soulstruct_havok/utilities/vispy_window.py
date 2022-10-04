@@ -4,15 +4,23 @@ __all__ = ["VispyWindow"]
 
 import sys
 import numpy as np
-from vispy import app, scene, color
+import vispy.color as vp_color
+from vispy import app, scene
 
 
 class VispyWindow:
 
     def __init__(self, bgcolor="black"):
-        self.canvas = scene.SceneCanvas(keys="interactive", bgcolor=color.Color(bgcolor))
+        self.canvas = scene.SceneCanvas(size=(1200, 800), keys="interactive", bgcolor=vp_color.Color(bgcolor))
         self.view = self.canvas.central_widget.add_view()  # type: scene.ViewBox
         self.view.camera = scene.TurntableCamera(up='z', fov=60)  # TODO: Try "y" as up
+
+    @property
+    def camera(self) -> scene.TurntableCamera:
+        return self.view.camera
+
+    def set_camera_center(self, point):
+        self.camera.center = point
 
     def add_markers(
         self,
@@ -35,14 +43,26 @@ class VispyWindow:
         self.view.add(markers)
         return markers
 
+    def add_arrow(
+        self,
+        line_points,
+        arrows,
+        color="red",
+        connect="strip",
+    ):
+        arrow = scene.Arrow(line_points, arrows=arrows, connect=connect, color=color)
+        self.view.add(arrow)
+        return arrow
+
     def add_line(
         self,
         line_points: np.ndarray,
         line_color=(1, 1, 1, 1),
         width=1,
+        connect="strip",
         method="gl",
     ) -> scene.Line:
-        line = scene.Line(line_points, color=line_color, width=width, method=method)
+        line = scene.Line(line_points, color=line_color, width=width, connect=connect, method=method)
         self.view.add(line)
         return line
 

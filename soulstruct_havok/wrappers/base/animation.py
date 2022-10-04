@@ -4,7 +4,7 @@ import abc
 import logging
 import typing as tp
 
-from soulstruct_havok.utilities.maths import QsTransform, Vector4
+from soulstruct_havok.utilities.maths import TRSTransform, Vector4
 from soulstruct_havok.types import hk2010, hk2014, hk2015, hk2018
 from soulstruct_havok.spline_compression import SplineCompressedAnimationData
 
@@ -51,7 +51,7 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
 
     # Loaded upon first use or explicit `load_interleaved_data()` call. Will be resaved on `pack()` if present, or with
     # explicit `save_spline_data()` call. All this data does is split the frame transforms into separate 'track' lists.
-    interleaved_data: list[list[QsTransform]] = None
+    interleaved_data: list[list[TRSTransform]] = None
 
     @property
     def is_spline(self):
@@ -185,7 +185,7 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
         if isinstance(extracted_motion, DEFAULT_ANIMATED_REFERENCE_FRAME_TYPES):
             extracted_motion.duration = duration
 
-    def transform(self, transform: QsTransform):
+    def transform(self, transform: TRSTransform):
         """Apply `transform` to all animation tracks (control points or static/interleaved values).
 
         This transforms the `translate` vectors -- that is, bone POSITIONS can be translated, rotated, and/or scaled
@@ -213,7 +213,7 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
         bones in their parent's frame of reference, rather than scaling the bone's frame of reference itself (though
         you could achieve the same result that way).
         """
-        self.transform(QsTransform(scale=factor))
+        self.transform(TRSTransform(scale=factor))
 
     def reverse(self):
         """Reverses all control points/static transforms, and also root motion (reference frame samples)."""
@@ -230,7 +230,7 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
 
         self.try_reverse_root_motion()
 
-    def try_transform_root_motion(self, transform: QsTransform):
+    def try_transform_root_motion(self, transform: TRSTransform):
         """Transform root motion vectors if present, or do nothing otherwise."""
         try:
             reference_frame_samples = self.get_reference_frame_samples()

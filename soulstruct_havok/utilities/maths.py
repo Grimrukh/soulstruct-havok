@@ -7,7 +7,7 @@ from __future__ import annotations
 __all__ = [
     "invert_matrix",
     "Quaternion",
-    "QsTransform",
+    "TRSTransform",
     "Vector3",
     "Vector4",
 ]
@@ -100,6 +100,10 @@ class Quaternion:
             return np.allclose(self._data, other._data)
         raise TypeError("Can only compare equality for `Quaternion` with another `Quaternion`.")
 
+    def normalize(self) -> Quaternion:
+        magnitude = abs(self)
+        return Quaternion(self._data / magnitude)
+
     @classmethod
     def from_wxyz(cls, w: float | ARRAYLIKE | Quaternion, x: float = None, y: float = None, z: float = None):
         if x is None and y is None and z is None:
@@ -111,6 +115,9 @@ class Quaternion:
     def to_wxyz(self) -> np.ndarray:
         return np.array([self._data[3], self._data[0], self._data[1], self._data[2]])
 
+    def is_identity(self) -> bool:
+        return np.allclose(self._data, [0.0, 0.0, 0.0, 1.0])
+
     @classmethod
     def identity(cls) -> Quaternion:
         return Quaternion(0.0, 0.0, 0.0, 1.0)
@@ -118,6 +125,30 @@ class Quaternion:
     @classmethod
     def zero(cls) -> Quaternion:
         return Quaternion(0.0, 0.0, 0.0, 0.0)
+
+    @classmethod
+    def from_vector_change(cls, v1: Vector3, v2: Vector3):
+        """Get `Quaternion` representing the rotation from `v1` to `v2`."""
+        """
+        quaternion q;
+        vector3 c = cross(v1,v2);
+        q.v = c;
+        if ( vectors are known to be unit length ) {
+           q.w = 1 + dot(v1,v2);
+        } else {
+            q.w = sqrt(v1.length_squared() * v2.length_squared()) + dot(v1,v2);
+        }
+        q.normalize();
+        return q;
+        """
+        dot = v1.dot(v2)
+        # if dot > 0.999999:  # parallel
+        #     return cls.identity()
+        # elif dot < -0.999999:  # opposite
+        #     return cls(1.0, 0.0, 0.0, 0.0)  # 180 degrees (arbitrarily around X)
+        xyz = v1.cross(v2)
+        w = math.sqrt(v1.get_squared_magnitude() * v2.get_squared_magnitude()) + dot
+        return cls(*xyz, w).normalize()
 
     def _call_t3d(self, func: tp.Callable) -> Quaternion:
         """Automatically fixes `wxyz` order for `transforms3d` calls."""
@@ -147,9 +178,16 @@ class Quaternion:
         return np.r_[matrix34, [0.0, 0.0, 0.0, 1.0]]
 
     @classmethod
-    def from_axis_angle(cls, axis: Vector3, angle: float, is_normalized=False) -> Quaternion:
+    def from_axis_angle(cls, axis: Vector3, angle: float, is_normalized=False, radians=False) -> Quaternion:
+        if not radians:
+            angle = math.radians(angle)
         return Quaternion.from_wxyz(*t3d.quaternions.axangle2quat(axis, angle, is_normalized))
     # endregion
+
+    @classmethod
+    def axis(cls, x: float, y: float, z: float, angle: float, radians=False) -> Quaternion:
+        """Shorter wrapper for the above."""
+        return cls.from_axis_angle(Vector3(x, y, z), angle, radians)
 
     # region Arithmetic
 
@@ -316,7 +354,7 @@ class Quaternion:
         return Quaternion(quaternion_slerp(q1._data, q2._data, t, spin=spin, shortestpath=shortest_path))
 
 
-class QsTransform:
+class TRSTransform:
     """Holds the translation, rotation, and scale components that define a coordinate system (e.g., a Havok bone or
     one frame or spline control point in a bone animation track).
 
@@ -341,8 +379,8 @@ class QsTransform:
         self.rotation = Quaternion(rotation) if rotation is not None else Quaternion.identity()
         if scale is None:
             self.scale = Vector3.ones()
-        elif isinstance(scale, float):
-            self.scale = scale * Vector3.ones()
+        elif isinstance(scale, (int, float)):
+            self.scale = float(scale) * Vector3.ones()
         else:
             self.scale = Vector3(scale)
             if self.WARN_NONUNIFORM_SCALE and (self.scale.x != self.scale.y or self.scale.x != self.scale.z):
@@ -356,11 +394,15 @@ class QsTransform:
             return Vector4(*transformed, vector.w)
         return transformed
 
+    def left_multiply_rotation(self, rotation: Quaternion):
+        """Update `self.rotation` by left-multiplying it with `rotation`."""
+        self.rotation = rotation * self.rotation
+
     def inverse_transform_vector(self, vector: Vector3 | Vector4) -> Vector3 | Vector4:
         """Apply the INVERSE of this transform to `vector`. Last element is ignored for `Vector4`s."""
         return self.inverse().transform_vector(vector)
 
-    def inverse(self) -> QsTransform:
+    def inverse(self) -> TRSTransform:
         """Get the inverse transform.
 
         Even if scale is non-uniform, this will always produce a `QsTransform` that is the inverse of the `compose`
@@ -370,7 +412,7 @@ class QsTransform:
         inv_translation = -1.0 * self.rotation.inverse().rotate_vector(self.translation)
         inv_rotation = self.rotation.inverse()
         inv_scale = 1.0 / self.scale
-        return QsTransform(inv_translation, inv_rotation, inv_scale)
+        return TRSTransform(inv_translation, inv_rotation, inv_scale)
 
     def is_identity(self) -> bool:
         return (
@@ -380,7 +422,7 @@ class QsTransform:
         )
 
     @classmethod
-    def identity(cls) -> QsTransform:
+    def identity(cls) -> TRSTransform:
         return cls(
             Vector3.zero(),
             Quaternion.identity(),
@@ -388,7 +430,7 @@ class QsTransform:
         )
 
     @classmethod
-    def lerp(cls, transform1: QsTransform, transform2: QsTransform, t: float):
+    def lerp(cls, transform1: TRSTransform, transform2: TRSTransform, t: float):
         """Linearly interpolate translate and scale, and spherically interpolate rotation Quaternion.
 
         `t` will be clamped to [0, 1] interval.
@@ -399,7 +441,7 @@ class QsTransform:
         scale = transform1.scale + (transform2.scale - transform1.scale) * t
         return cls(translation, rotation, scale)
 
-    def compose(self, other: QsTransform, scale_translation=False) -> QsTransform:
+    def compose(self, other: TRSTransform, scale_translation=False) -> TRSTransform:
         """Combine two `QsTransforms`.
 
         We cannot rely on general composition of affine transformations (e.g., 4x4 matrix multiplication) to compose
@@ -422,7 +464,7 @@ class QsTransform:
 
         The `QsTransform` constructor will log a warning if you initialize it with non-uniform scale.
         """
-        if not isinstance(other, QsTransform):
+        if not isinstance(other, TRSTransform):
             raise TypeError("Can only compose `QsTransform` with another `QsTransform`.")
         if scale_translation:
             new_translation = self.translation + self.rotation.rotate_vector(self.scale * other.translation)
@@ -430,9 +472,9 @@ class QsTransform:
             new_translation = self.translation + self.rotation.rotate_vector(other.translation)
         new_rotation = self.rotation * other.rotation
         new_scale = self.scale * other.scale
-        return QsTransform(new_translation, new_rotation, new_scale)
+        return TRSTransform(new_translation, new_rotation, new_scale)
 
-    def __matmul__(self, other: QsTransform):
+    def __matmul__(self, other: TRSTransform):
         """Shortcut for `compose(other, scale_translation=True)`."""
         return self.compose(other, scale_translation=True)
 
@@ -449,14 +491,14 @@ class QsTransform:
         )
 
     @classmethod
-    def from_matrix4(cls, matrix4: np.ndarray) -> QsTransform:
+    def from_matrix4(cls, matrix4: np.ndarray) -> TRSTransform:
         """Attempt to decompose `matrix4` into translation, rotation, and scale components."""
         translate, rotation, scale, shear = t3d.affines.decompose44(matrix4)
 
         if not np.allclose(shear, 0.0):
             raise ValueError(f"Cannot convert a 4x4 matrix with non-zero shear to `QsTransform`: shear = {shear}")
 
-        return QsTransform(
+        return TRSTransform(
             translation=Vector3(translate),
             rotation=Quaternion.from_matrix3(rotation),
             scale=Vector3(scale),
@@ -464,9 +506,9 @@ class QsTransform:
 
     def __repr__(self) -> str:
         return (
-            f"QsTransform(\n"
-            f"    translate={self.translation}\n"
-            f"    rotation={self.rotation}\n"
-            f"    scale={self.scale}\n"
+            f"TRSTransform(\n"
+            f"    translation={self.translation},\n"
+            f"    rotation={self.rotation},\n"
+            f"    scale={self.scale},\n"
             f")"
         )

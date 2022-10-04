@@ -3,7 +3,7 @@ from __future__ import annotations
 import abc
 import typing as tp
 
-from soulstruct_havok.utilities.maths import QsTransform
+from soulstruct_havok.utilities.maths import TRSTransform
 from soulstruct_havok.types import hk2010, hk2014, hk2015, hk2018
 
 from .core import BaseWrapperHKX
@@ -71,11 +71,11 @@ class BaseSkeletonHKX(BaseWrapperHKX, abc.ABC):
                 children += self.get_all_bone_children(bone)  # recur on child
         return children
 
-    def get_bone_local_transform(self, bone: BONE_SPEC_TYPING) -> QsTransform:
+    def get_bone_local_transform(self, bone: BONE_SPEC_TYPING) -> TRSTransform:
         bone = self.resolve_bone_spec(bone)
         bone_index = self.skeleton.bones.index(bone)
         qs_transform = self.skeleton.referencePose[bone_index]
-        return QsTransform(
+        return TRSTransform(
             qs_transform.translation,
             qs_transform.rotation,
             qs_transform.scale,
@@ -106,11 +106,11 @@ class BaseSkeletonHKX(BaseWrapperHKX, abc.ABC):
             all_indices.append(list(reversed(indices)))
         return all_indices
 
-    def get_hierarchy_transforms(self, bone: BONE_SPEC_TYPING) -> list[QsTransform]:
+    def get_hierarchy_transforms(self, bone: BONE_SPEC_TYPING) -> list[TRSTransform]:
         """Get all transforms of all parent bones down to `bone`, including it."""
         return [self.get_bone_local_transform(b) for b in self.get_hierarchy_to_bone(bone)]
 
-    def get_bone_root_transform(self, bone: BONE_SPEC_TYPING) -> QsTransform:
+    def get_bone_root_transform(self, bone: BONE_SPEC_TYPING) -> TRSTransform:
         """Accumulates parents' transforms through composition.
 
         Any bone's "absolute" transform (i.e., its transform in the space of the root bone) can be found by simply
@@ -118,7 +118,7 @@ class BaseSkeletonHKX(BaseWrapperHKX, abc.ABC):
             abs(Bn) = B0 @ B1 @ B2 @ ... @ Bn
         """
         bone = self.resolve_bone_spec(bone)
-        transform = QsTransform.identity()
+        transform = TRSTransform.identity()
         for hierarchy_transform in self.get_hierarchy_transforms(bone):
             transform = transform @ hierarchy_transform
         return transform

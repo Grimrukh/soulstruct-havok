@@ -16,7 +16,7 @@ DSR_VAN_CHR = Path("C:/Steam/steamapps/common/DARK SOULS REMASTERED (Vanilla Bac
 ER_CHR = Path("C:/Steam/steamapps/common/ELDEN RING (Vanilla)/Game/chr")
 
 
-def do_erdtree_retarget():
+def do_erdtree_retarget_and_adjustment():
     print("Reading 2015 animation...")
     asylum_manager = AnimationManagerDS1.from_anibnd(DSR_VAN_CHR / "c2230.anibnd.dcx", 3000, from_bak=True)
     print("Reading 2018 animation...")
@@ -30,9 +30,6 @@ def do_erdtree_retarget():
     print("Converting 2018 spline to interleaved...")
     erdtree_manager.animations[3000].spline_to_interleaved()
 
-    print("Erdtree:", " @ ".join(b.name for b in erdtree_manager.skeleton.get_hierarchy_to_bone("L_Toe0")))
-    print("Asylum:", " @ ".join(b.name for b in asylum_manager.skeleton.get_hierarchy_to_bone("L Toe0")))
-
     print("Retargeting Erdtree animation...")
     asylum_manager.auto_retarget_interleaved_animation(erdtree_manager, 3000, 3000, RETARGET)
     asylum_manager.animations[3000].scale(1.17)
@@ -41,19 +38,6 @@ def do_erdtree_retarget():
     # asylum_manager.plot_hierarchy_interleaved_translation("L Toe0", "y", ylim=(-1, 5))
     # plt.show()
     # exit()
-
-    # Weapon rotation.
-    asylum_manager.rotate_bone_track(
-        "R_weapon",
-        Quaternion.from_axis_angle(Vector3(0, 0, 1), angle=90.0),
-    )
-
-    # Shrink gut.
-    for bone in ("a", "b", "c"):
-        asylum_manager.transform_bone_track(
-            bone,
-            QsTransform(scale=0.5),
-        )
 
     asylum_manager.write_anim_ids_into_anibnd(
         DSR_VAN_CHR / "c2230.anibnd.dcx", 3000, from_bak=True,
@@ -75,26 +59,102 @@ def do_erdtree_adjustment(asylum_manager: AnimationManagerDS1 = None):
         )
 
     print("Making edits to bones...")
-    # asylum_manager.transform_bone_track(
-    #     "L Clavicle",
-    #     QsTransform(translate=Vector3(-0.2, 0.8, 0.0)),
-    #     compensate_child_bones=True,
-    # )
-    # asylum_manager.transform_bone_track(
-    #     "R Clavicle",
-    #     QsTransform(translate=Vector3(-0.2, -0.8, 0.0)),
-    #     compensate_child_bones=True,
-    # )
-    # asylum_manager.transform_bone_track(
-    #     "L UpperArm",
-    #     QsTransform(translate=Vector3(-0.2, 0.8, 0.0)),
-    #     compensate_child_bones=True,
-    # )
-    # asylum_manager.transform_bone_track(
-    #     "R UpperArm",
-    #     QsTransform(translate=Vector3(-0.2, -0.8, 0.0)),
-    #     compensate_child_bones=True,
-    # )
+
+    # Weapon rotation.
+    asylum_manager.rotate_bone_track(
+        "R_weapon",
+        rotation=Quaternion.axis(0, 0, 1, 90.0),
+        compensate_children=False,  # no children
+    )
+
+    # TODO: I think the calf bone (from thigh) is stretching too much during the animation. I'd like to scale it in a
+    #  way that fixes its length to whatever it has in the first frame, or at least 'dulls' it, while still compensating
+    #  the child foot bones.
+
+    # Shrink gut.
+    # for bone in ("a", "b", "c"):
+    #     asylum_manager.transform_bone_track(
+    #         bone,
+    #         QsTransform(scale=0.5),
+    #     )
+
+    def match_rotation(bone_, target_):
+        bone_tfs_ = asylum_manager.get_bone_interleaved_transforms(bone_)
+        target_tfs_ = asylum_manager.get_bone_interleaved_transforms(target_)
+        for b_, t_ in zip(bone_tfs_, target_tfs_):
+            b_.rotation = t_.rotation
+
+    # TODO: Since the parent (L Clavicle) is being rotated, LUpArmTwist comes along for the ride here, but its own
+    #  rotation does not change to orbit 'L Forearm'. Kind of an artifact of these twist bones being synchronized as
+    #  they are... But I don't think they stay in sync the whole time.
+
+    asylum_manager.proper_transform_bone_track(
+        "L Clavicle",
+        TRSTransform(
+            rotation=Quaternion.axis(0, 0, 1, 110),
+            scale=0.3,
+        ),
+        rotate_parent=False,  # do not rotate Neck
+        compensate_children=True,
+        rotation_orbits_child="L UpperArm",
+    )
+    asylum_manager.proper_transform_bone_track(
+        "L UpperArm",
+        TRSTransform(
+            rotation=Quaternion.axis(0, 0, 1, 45),
+            scale=0.6,
+        ),
+        rotate_parent=True,
+        compensate_children=True,
+        rotation_orbits_child="L Forearm",
+    )
+    asylum_manager.proper_transform_bone_track(
+        "LUpArmTwist",
+        TRSTransform(
+            scale=0.6,
+        ),
+        rotate_parent=True,
+        compensate_children=True,
+    )
+    match_rotation("LUpArmTwist", "L UpperArm")
+
+    asylum_manager.proper_transform_bone_track(
+        "R Clavicle",
+        TRSTransform(
+            rotation=Quaternion.axis(0, 0, 1, -110),
+            scale=0.3,
+        ),
+        rotate_parent=False,  # do not rotate Neck
+        compensate_children=True,
+        rotation_orbits_child="R UpperArm",
+    )
+    asylum_manager.proper_transform_bone_track(
+        "R UpperArm",
+        TRSTransform(
+            rotation=Quaternion.axis(0, 0, 1, -45),
+            scale=0.6,
+        ),
+        rotate_parent=True,
+        compensate_children=True,
+        rotation_orbits_child="R Forearm",
+    )
+    asylum_manager.proper_transform_bone_track(
+        "RUpArmTwist",
+        TRSTransform(
+            scale=0.6,
+        ),
+        rotate_parent=True,
+        compensate_children=True,
+    )
+    match_rotation("RUpArmTwist", "R UpperArm")
+
+    # Correct thigh twists.
+    match_rotation("LThighTwist", "L Thigh")
+    match_rotation("RThighTwist", "R Thigh")
+
+    window = asylum_manager.plot_interleaved_skeleton_on_frame(0, focus_bone="Neck")
+    window.show()
+    window.run()
 
     # TODO: Don't need to convert back to splines for DSAS.
     # print(f"Converting interleaved anim to spline...")
@@ -132,8 +192,9 @@ RETARGET = {
     #  So I ALSO want to
 
     # TODO: Erdtree Avatar 'L_ThighTwist' is a child of 'L_Thigh' rather than next to it.
-    "LThighTwist": ["L_Thigh", "L_ThighTwist"],
-    "RThighTwist": ["R_Thigh", "R_ThighTwist"],
+    #  However, in Asylum animations, the twist always seems to be right on top of the Thigh.
+    "LThighTwist": ["~Spine1", "~Spine", "Pelvis", "L_Thigh"],
+    "RThighTwist": ["~Spine1", "~Spine", "Pelvis", "R_Thigh"],
 
     "Spine": ["~Pelvis", "Spine", "Spine1"],
     "Spine1": "Spine2",
@@ -190,8 +251,8 @@ RETARGET = {
     "L Finger31": "L_Finger31",
     "L Finger32": "L_Finger32",
     "L Finger3Nub": None,
-    "L ForeTwist": "L_Elbow",
-    "LUpArmTwist": "L_UpArmTwist",
+    "L ForeTwist": "L_Forearm",
+    "LUpArmTwist": "L_UpperArm",
 
     "R Clavicle": "R_Clavicle",
     "R UpperArm": "R_UpperArm",
@@ -213,8 +274,8 @@ RETARGET = {
     "R Finger31": "R_Finger31",
     "R Finger32": "R_Finger32",
     "R Finger3Nub": None,
-    "R ForeTwist": "R_Elbow",
-    "RUpArmTwist": "R_UpArmTwist",
+    "R ForeTwist": "R_Forearm",
+    "RUpArmTwist": "R_UpperArm",
 
     "R_weapon": "R_Club",
 
@@ -281,27 +342,8 @@ RETARGET = {
 }
 
 
-def quat_test():
-    qt = QsTransform(
-        translation=Vector3(1, 2, 3),
-        rotation=Quaternion.from_axis_angle(Vector3(1, 1, 0), angle=45),
-        scale=Vector3(1, 1, 1),
-    )
-    qt2 = QsTransform(
-        translation=Vector3(4, 5, 6),
-        rotation=Quaternion.from_axis_angle(Vector3(0, 0, 1), angle=60),
-        scale=Vector3(5, 3, 2),
-    )
-
-    qt2_mat = qt2.to_matrix4()
-    qt2_inv_mat = qt2.inverse().to_matrix4()
-    print(qt2_mat)
-    print(qt2_inv_mat)
-    print(qt2_mat @ qt2_inv_mat)
-
-
 if __name__ == '__main__':
     # examine_asylum_erdtree_skeletons()
-    do_erdtree_retarget()
-    # do_erdtree_adjustment()
+    # do_erdtree_retarget_and_adjustment()
+    do_erdtree_adjustment()
     # quat_test()

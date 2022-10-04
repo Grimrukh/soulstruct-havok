@@ -6,7 +6,7 @@ from pathlib import Path
 
 from soulstruct import DSR_PATH, BB_PATH
 from soulstruct.containers import Binder
-from soulstruct_havok.utilities.maths import QsTransform, Vector3, Quaternion
+from soulstruct_havok.utilities.maths import TRSTransform, Vector3, Quaternion
 
 from soulstruct_havok.core import HKX
 from soulstruct_havok.types import hk2014_new, hk2015
@@ -243,7 +243,7 @@ def convert_hknp_ragdoll_hkx_to_hkp(
         hknp_motion_c_info = hknp_ragdoll_data.motionCinfos[hknp_body_c_info.motionId]
         hknp_motion_properties = hknp_ragdoll_data.motionProperties[hknp_motion_c_info.motionPropertiesId]  # not used
 
-        hknp_quat_transform = QsTransform(
+        hknp_quat_transform = TRSTransform(
             Vector3(hknp_body_c_info.position[:3]),
             Quaternion(hknp_body_c_info.orientation),
             Vector3.ones(),  # normal scale

@@ -25,7 +25,7 @@ from enum import IntEnum
 
 from soulstruct.utilities.binary import BinaryReader, BinaryWriter
 
-from soulstruct_havok.utilities.maths import Vector3, Vector4, Quaternion, QsTransform
+from soulstruct_havok.utilities.maths import Vector3, Vector4, Quaternion, TRSTransform
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -719,26 +719,26 @@ class SplineTransformTrack:
         scale_track = TrackVector3(scale.x, scale.y, scale.z)
         return cls(translation_track, rotation_track, scale_track)
 
-    def apply_transform(self, transform: QsTransform):
+    def apply_transform(self, transform: TRSTransform):
         """Apply components of `transform` to all values in appropriate tracks."""
         self.translation.translate(transform.translation)
         self.rotation.rotate(transform.rotation)
         self.scale.scale(transform.scale)
 
-    def apply_transform_to_translate(self, transform: QsTransform):
+    def apply_transform_to_translate(self, transform: TRSTransform):
         """Order is scale, rotation, translation."""
         self.translation.scale(transform.scale)
         self.translation.rotate(transform.rotation)
         self.translation.translate(transform.translation)
 
-    def apply_transform_to_rotation(self, transform: QsTransform):
+    def apply_transform_to_rotation(self, transform: TRSTransform):
         self.rotation.rotate(transform.rotation)
 
-    def get_quat_transform_at_frame(self, frame: float) -> QsTransform:
+    def get_quat_transform_at_frame(self, frame: float) -> TRSTransform:
         translation = self.translation.get_vector_at_frame(frame)
         rotation = self.rotation.get_quaternion_at_frame(frame)
         scale = self.scale.get_vector_at_frame(frame)
-        return QsTransform(translation, rotation, scale)
+        return TRSTransform(translation, rotation, scale)
 
     def copy(self) -> SplineTransformTrack:
         return copy.deepcopy(self)
@@ -839,7 +839,7 @@ class SplineCompressedAnimationData:
 
         return data, block_count, transform_track_count
 
-    def to_interleaved_transforms(self, frame_count: int, max_frames_per_block: int) -> list[list[QsTransform]]:
+    def to_interleaved_transforms(self, frame_count: int, max_frames_per_block: int) -> list[list[TRSTransform]]:
         """Decompresses the spline data by computing the `QsTransform` at each frame from any splines.
 
         Returns a list of lists (blocks) of `QsTransform` instances sorted into sub-lists by frame. Each list holds
@@ -852,7 +852,7 @@ class SplineCompressedAnimationData:
             if len(block) != transform_track_count:
                 _LOGGER.warning("Animation data blocks do not have equal numbers of transform tracks.")
 
-        frame_transforms = [[] for _ in range(frame_count)]  # type: list[list[QsTransform]]
+        frame_transforms = [[] for _ in range(frame_count)]  # type: list[list[TRSTransform]]
 
         for frame_index in range(frame_count):
             frame = float((frame_index % frame_count) % max_frames_per_block)
@@ -866,7 +866,7 @@ class SplineCompressedAnimationData:
                     current_frame_transform = track.get_quat_transform_at_frame(float(math.floor(frame)))
                     first_frame_transform = self.blocks[0][transform_track_index].get_quat_transform_at_frame(frame=0.0)
                     frame_transforms[frame_index].append(
-                        QsTransform.lerp(current_frame_transform, first_frame_transform, t=frame % 1)
+                        TRSTransform.lerp(current_frame_transform, first_frame_transform, t=frame % 1)
                     )
                 else:
                     # Normal frame.
@@ -874,7 +874,7 @@ class SplineCompressedAnimationData:
 
         return frame_transforms
 
-    def apply_transform_to_all_track_translations(self, transform: QsTransform):
+    def apply_transform_to_all_track_translations(self, transform: TRSTransform):
         """Apply `transform` to the translation data of each track.
 
         Use this to manipulate bone positions relative to their parents, rather than modifying their actual frames.
@@ -883,12 +883,12 @@ class SplineCompressedAnimationData:
             for track in block:
                 track.apply_transform_to_translate(transform)
 
-    def apply_transform_to_all_track_rotations(self, transform: QsTransform):
+    def apply_transform_to_all_track_rotations(self, transform: TRSTransform):
         for block in self.blocks:
             for track in block:
                 track.apply_transform_to_rotation(transform)
 
-    def apply_transform_to_all_tracks(self, transform: QsTransform):
+    def apply_transform_to_all_tracks(self, transform: TRSTransform):
         """NOTE: This will apply the transform to the ENTIRE TRANSFORM of each track, not just the translation.
 
         Use this to modify bone frames directly.

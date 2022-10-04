@@ -21,7 +21,7 @@ from pathlib import Path
 from soulstruct.base.models.flver import FLVER
 from soulstruct.containers import Binder
 from soulstruct.containers.dcx import DCXType
-from soulstruct_havok.utilities.maths import QsTransform, Vector3, Matrix3, Matrix4
+from soulstruct_havok.utilities.maths import TRSTransform, Vector3, Matrix3, Matrix4
 from soulstruct.utilities.files import read_json
 
 from soulstruct_havok.core import HKX
@@ -111,14 +111,14 @@ class SkeletonHKX(HKX2018):
                 children += self.get_all_bone_children(bone)  # recur on child
         return children
 
-    def get_bone_local_transform(self, bone: tp.Union[hkaBone, str]) -> QsTransform:
+    def get_bone_local_transform(self, bone: tp.Union[hkaBone, str]) -> TRSTransform:
         if isinstance(bone, str):
             bone = self.find_bone_name(bone)
         if bone not in self.skeleton.bones:
             raise ValueError(f"Bone '{bone}' is not in this skeleton.")
         bone_index = self.skeleton.bones.index(bone)
         qs_transform = self.skeleton.referencePose[bone_index]
-        return QsTransform(
+        return TRSTransform(
             qs_transform.translation,
             qs_transform.rotation,
             qs_transform.scale,
@@ -231,7 +231,7 @@ class AnimationHKX(HKX2018):
             )
         raise TypeError("Animation is not spline-compressed. Cannot get data.")
 
-    def decompress_spline_animation_data(self) -> list[list[QsTransform]]:
+    def decompress_spline_animation_data(self) -> list[list[TRSTransform]]:
         """Convert spline-compressed animation data to a list of lists (per track) of `QsTransform` instances."""
         if isinstance(self.animation, hkaSplineCompressedAnimation):
             return self.get_spline_compressed_animation_data().to_interleaved_transforms(
