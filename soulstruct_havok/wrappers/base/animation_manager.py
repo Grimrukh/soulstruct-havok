@@ -56,84 +56,6 @@ class BaseAnimationManager(abc.ABC):
             raise ValueError(f"Animation ID {new_anim_id} already exists, and `overwrite=False`.")
         self.animations[new_anim_id] = self.animations[anim_id].copy()
 
-    def transform_bone_track(
-        self,
-        bone: BONE_SPEC_TYPING,
-        transform: TRSTransform,
-        anim_id: int = None,
-        compensate_child_bones=False,
-        affect_translation=True,
-        affect_rotation=True,
-        affect_parent_rotation=False,
-        rotation_orbits_child: BONE_SPEC_TYPING = None,
-    ):
-        """Apply `transform` to every control point or static transform in the given bone's track.
-
-        If `compensate_child_bones=True`, the all tracks of the bone's immediate children will be counter-transformed in
-        such a way that they do not move relative to this parent bone, which is useful for IK. The animation must be
-        interleaved to do this, as synchonized parent-child data is needed for each frame (and I can't unpack, edit,
-        and regenerate splines myself).
-        """
-        if not affect_translation and not affect_rotation:
-            raise ValueError("At least one of `affect_translation` or `affect_rotation` must be True!")
-        if rotation_orbits_child and affect_rotation:
-            raise ValueError("Cannot set `rotation_orbits_child` when `affect_rotation=True`.")
-        if affect_rotation and affect_parent_rotation:
-            _LOGGER.warning(
-                "Transforming bone with `affect_rotation` and `affect_parent_rotation` both True! This is unusual."
-            )
-        bone = self.skeleton.resolve_bone_spec(bone)
-        animation = self.get_animation(anim_id)
-        if animation.is_spline:
-            track = self.get_bone_spline_animation_track(bone, anim_id)
-            if affect_translation:
-                track.apply_transform_to_translate(transform)
-            if affect_rotation:
-                track.apply_transform_to_rotation(transform)
-            if compensate_child_bones:
-                raise ValueError("Cannot use `fix_children=True` for a spline-compressed animation.")
-        elif animation.is_interleaved:
-            transforms = self.get_bone_interleaved_transforms(bone, anim_id)
-            pre_change_target_t = None
-            if rotation_orbits_child:
-                target_child_transforms = self.get_bone_interleaved_transforms(
-                    rotation_orbits_child, anim_id
-                )
-            else:
-                target_child_transforms = None
-
-            for i, this_t in enumerate(transforms):
-                if rotation_orbits_child:
-                    pre_change_target_t = this_t.transform_vector(target_child_transforms[i].translation)
-                if affect_translation:
-                    this_t.translation = transform.transform_vector(this_t.translation)
-                if rotation_orbits_child:
-                    post_change_target_t = this_t.transform_vector(target_child_transforms[i].translation)
-                    preserving_rotation = Quaternion.from_vector_change(pre_change_target_t, post_change_target_t)
-                    this_t.rotation = preserving_rotation * this_t.rotation
-                    affect_rotation = True  # trigger child rotation compensation below
-                elif affect_rotation:
-                    this_t.rotation = transform.rotation * this_t.rotation
-
-            if affect_parent_rotation and (parent_bone := self.skeleton.get_bone_parent(bone)):
-                parent_transforms = self.get_bone_interleaved_transforms(parent_bone, anim_id)
-
-            if compensate_child_bones:
-                child_tracks = self.get_immediate_child_bone_interleaved_animation_transforms(bone)
-                for child_index, child_transforms in child_tracks:
-                    for i in range(len(child_transforms)):
-                        this_t = transforms[i]  # in same frame
-                        child_t = child_transforms[i]
-                        # Enter parent's frame, apply inverse transform, then exit parent's frame.
-                        if affect_translation:
-                            child_t.translation = this_t.transform_vector(child_t.translation)
-                            child_t.translation = transform.inverse_transform_vector(child_t.translation)
-                            child_t.translation = this_t.inverse_transform_vector(child_t.translation)
-                        if affect_rotation:
-                            child_t.rotation = this_t.rotation * child_t.rotation
-                            child_t.rotation = transform.rotation.inverse() * child_t.rotation
-                            child_t.rotation = this_t.rotation.inverse() * child_t.rotation
-
     def rotate_bone_track(
         self,
         bone: BONE_SPEC_TYPING,
@@ -198,14 +120,66 @@ class BaseAnimationManager(abc.ABC):
                     initial_root_rot = initial_root_child_tf.rotation
                     child_tf.rotation = bone_tf.rotation.inverse() * initial_root_rot
 
-    def proper_transform_bone_track(
+    def swivel_bone_track(
+        self,
+        parent_bone: BONE_SPEC_TYPING,
+        swiveling_bone: BONE_SPEC_TYPING,
+        child_bone: BONE_SPEC_TYPING,
+        angle: float | list[float],
+        anim_id: int = None,
+        radians=False,
+    ):
+        """Rotate `parent_bone` in a way that rotates the final position of `swiveling_bone` around the vector from
+        `parent_bone` to `child_bone` by `angle` on each frame.
+
+        Useful for rotating bones without changing their length.
+
+        TODO: Doesn't really work; bone rotations are difficult to keep consistent? Or maybe the lengths just get too
+         screwed up.
+        """
+        parent_bone = self.skeleton.resolve_bone_spec(parent_bone)
+        swiveling_bone = self.skeleton.resolve_bone_spec(swiveling_bone)
+        child_bone = self.skeleton.resolve_bone_spec(child_bone)
+        if self.skeleton.get_bone_parent(swiveling_bone) is not parent_bone:
+            raise ValueError("Swiveling bone must be an immediate child of parent bone.")
+        if self.skeleton.get_bone_parent(child_bone) is not swiveling_bone:
+            raise ValueError("Child bone must be an immediate child of swiveling bone.")
+
+        parent_tfs = self.get_bone_interleaved_transforms(parent_bone, anim_id)
+        if isinstance(angle, (list, tuple)) and len(angle) != len(parent_tfs):
+            raise ValueError(f"Received a list of {len(angle)} swivel angles, but there are {len(parent_tfs)} frames.")
+        swiveling_tfs = self.get_bone_interleaved_transforms(swiveling_bone, anim_id)
+        child_tfs = self.get_bone_interleaved_transforms(child_bone, anim_id)
+
+        transforms = []
+        for i, (parent_tf, swivel_tf, child_tf) in enumerate(zip(parent_tfs, swiveling_tfs, child_tfs)):
+            child_point_from_parent = swivel_tf.transform_vector(child_tf.translation)
+            rotation_axis = child_point_from_parent.normalize()  # vector to swivel around
+            a = angle[i] if isinstance(angle, (list, tuple)) else angle
+            rotation = Quaternion.from_axis_angle(rotation_axis, a, radians=radians)
+            transforms.append(TRSTransform(rotation=rotation))
+
+        print(f"Swiveling bone {swiveling_bone.name} between {parent_bone.name} and {child_bone.name}.")
+
+        self.transform_bone_track(
+            bone=swiveling_bone,
+            transform=transforms,
+            anim_id=anim_id,
+            rotate_parent=True,
+            compensate_children=True,
+            rotation_orbits_child=child_bone,
+            freeze_rotation=True,
+        )
+
+    def transform_bone_track(
         self,
         bone: BONE_SPEC_TYPING,
-        transform: TRSTransform,
+        transform: TRSTransform | list[TRSTransform],
         anim_id: int = None,
         rotate_parent=True,
         compensate_children=False,
         rotation_orbits_child: BONE_SPEC_TYPING = None,
+        freeze_rotation=False,
     ):
         """Apply `transform` to every animation frame for `bone`. Depending on usage, may also affect local parent and
         child transforms. Requires interleaved animation.
@@ -220,12 +194,22 @@ class BaseAnimationManager(abc.ABC):
         If `rotation_orbits_child` is set to a bone (which must be a child of `bone`), the rotation of
         `bone` will be compensated to preserve its orientation relative to that child. Cannot be used with
         `rotate_parent=False`.
+
+        If `freeze_rotation=True`, and `rotate_parent=True`, the rotation of `bone` relative to its grandparent will be
+        preserved even its parent's rotation is modified with `transform.rotation`. If `rotation_orbits_child` is given,
+        `bone` will still be rotated to orbit that child.
+
+        TODO: Rotating a bone while compensating its children will, generally, stretch bones. I've tried to make a
+         "swivel" function above that avoids this by only permitting rotations around an axis that preserves bone
+         lengths, but it seems to cause other twisting issues.
         """
         if rotation_orbits_child and not compensate_children:
             raise ValueError(
                 "Cannot set `rotation_orbits_child` when `compensate_children=False`. Relative rotation "
                 "will naturally be preserved (local child transforms will not change)."
             )
+        if freeze_rotation and not rotate_parent:
+            raise ValueError("Can only use `freeze_rotation=True` if `rotate_parent=True`.")
         bone = self.skeleton.resolve_bone_spec(bone)
         animation = self.get_animation(anim_id)
         if not animation.is_interleaved:
@@ -282,48 +266,39 @@ class BaseAnimationManager(abc.ABC):
                     initial_root_target_tfs = root_child_tfs  # store separately for convenience
 
         for i, (parent_tf, bone_tf) in enumerate(zip(parent_tfs, bone_tfs)):
+            tf = transform[i] if isinstance(transform, (list, tuple)) else transform
             if rotate_parent:
                 # Modify translation using scale/translation components of transform, but apply rotation only to parent.
-                bone_tf.translation = transform.scale * bone_tf.translation + transform.translation
-                parent_tf.left_multiply_rotation(transform.rotation)
-
-                if target_bone:
-                    # Compensate `bone_tf.rotation` to point toward OLD absolute target child position.
-                    # TODO: I'm sure there's a way to calculate the new `bone_tf.rotation` directly, but I can't think
-                    #  of it right now. If this works, I'm leaving it for the time being.
-                    initial_translation = parent_tf.inverse_transform_vector(
-                        initial_root_target_tfs[i].translation
-                    ) - bone_tf.translation  # in parent space, but relative to new bone translation
-                    new_translation = bone_tf.transform_vector(target_bone_tfs[i].translation) - bone_tf.translation
-
-                    compensating_rotation = Quaternion.from_vector_change(
-                        new_translation.normalize(),
-                        initial_translation.normalize(),
-                    )
-
-                    bone_tf.left_multiply_rotation(compensating_rotation)
+                bone_tf.translation = tf.scale * bone_tf.translation + tf.translation
+                # NOTE: we right-multiply the rotation to mimic the effective result of left-multipling the main bone's
+                # translation (as when `rotate_parent=False`).
+                parent_tf.right_multiply_rotation(tf.rotation)
+                if freeze_rotation:
+                    # Left-multiply `bone.rotation` with inverse rotation to cancel out effect in "root" space.
+                    # Will still be compensated to orbit `target_bone` below, if given.
+                    bone_tf.left_multiply_rotation(tf.rotation.inverse())
             else:
                 # Scale, rotate, and translate bone translation directly.
-                bone_tf.translation = transform.transform_vector(bone_tf.translation)
-
-                if target_bone:
-                    # Compensate `bone_tf.rotation` to point toward OLD absolute target child position.
-                    # TODO: I'm sure there's a way to calculate the new `bone_tf.rotation` directly, but I can't think
-                    #  of it right now. If this works, I'm leaving it for the time being.
-                    initial_translation = parent_tf.inverse_transform_vector(
-                        initial_root_target_tfs[i].translation
-                    ) - bone_tf.translation  # in parent space, but relative to new bone translation
-                    new_translation = bone_tf.transform_vector(target_bone_tfs[i].translation) - bone_tf.translation
-
-                    compensating_rotation = Quaternion.from_vector_change(
-                        new_translation.normalize(),
-                        initial_translation.normalize(),
-                    )
-
-                    bone_tf.left_multiply_rotation(compensating_rotation)
-                else:
+                bone_tf.translation = tf.transform_vector(bone_tf.translation)
+                if not target_bone:
                     # Modify `bone_tf.rotation` directly from `transform.rotation`, as it is not orbiting a child.
-                    bone_tf.left_multiply_rotation(transform.rotation)
+                    bone_tf.left_multiply_rotation(tf.rotation)
+
+            if target_bone:
+                # Compensate `bone_tf.rotation` to point toward OLD absolute target child position.
+                # TODO: I'm sure there's a way to calculate the new `bone_tf.rotation` directly, but I can't think
+                #  of it right now. If this works, I'm leaving it for the time being.
+                initial_translation = parent_tf.inverse_transform_vector(
+                    initial_root_target_tfs[i].translation
+                ) - bone_tf.translation  # in parent space, but relative to new bone translation
+                new_translation = bone_tf.transform_vector(target_bone_tfs[i].translation) - bone_tf.translation
+
+                compensating_rotation = Quaternion.from_vector_change(
+                    new_translation.normalize(),
+                    initial_translation.normalize(),
+                )
+
+                bone_tf.left_multiply_rotation(compensating_rotation)
 
         # We still compensate the target along with any other non-target children below. (Because the main
         # bone is already pointing toward the old "root" translation of the target child, that particular
@@ -469,6 +444,59 @@ class BaseAnimationManager(abc.ABC):
             _LOGGER.info("Retargeted animation reference frame samples.")
 
         _LOGGER.info(f"Auto-retarget complete. Animation {dest_anim_id} saved.")
+
+    def conform_bone_length_in_animation(self, bone: BONE_SPEC_TYPING, anim_id: int = None, extra_scale=1.0):
+        """Scale length of `bone` (translation vector magnitude) in every frame to match its length in the skeleton's
+        reference pose. Useful after retargeting, but will generally break IK (such as feet on ground, two-handed
+        weapons).
+
+        Use `extra_scale` to apply global scaling to all bone lengths.
+        """
+        bone = self.skeleton.resolve_bone_spec(bone)
+        animation = self.get_animation(anim_id)
+        if not animation.is_interleaved:
+            # TODO: Should be able to conform spline control points as well.
+            raise TypeError("Can only confirm bone length for interleaved animations.")
+        reference_pose_length = self.skeleton.get_bone_local_transform(bone).translation.get_magnitude() * extra_scale
+        transforms = self.get_bone_interleaved_transforms(bone, anim_id)
+        print(f"Conforming bone '{bone.name}' to length {reference_pose_length}.")
+        for tf in transforms:
+            old_magnitude = abs(tf.translation)
+            if old_magnitude != 0:
+                tf.translation = tf.translation / old_magnitude * reference_pose_length
+            elif reference_pose_length != 0:
+                print(f"  Cannot change length 0 bone to length {reference_pose_length}.")
+
+    def conform_all_bone_lengths_in_animation(self, anim_id: int = None, extra_scale=1.0):
+        for bone in self.skeleton.bones:
+            self.conform_bone_length_in_animation(bone, anim_id, extra_scale)
+
+    def realign_foot_to_ground(
+        self, *foot_bones: BONE_SPEC_TYPING, anim_id: int = None, root_bone: BONE_SPEC_TYPING = None, ground_height=0.0
+    ):
+        """Find the highest shared parent of all `foot_bones` (usually 'Master') and offset its Y translation in every
+        frame so that the LOWEST `foot_bone` on that frame has a world-space Y coordinate of `ground_height` (typically
+        zero).
+
+        Useful after retargeting and conforming bone lengths, provided that the change in foot bone hierarchies is very
+        similar.
+        """
+        foot_bones = [self.skeleton.resolve_bone_spec(foot_bone) for foot_bone in foot_bones]
+        if root_bone is None:
+            root_bone = self.skeleton.get_bone_highest_parent(foot_bones[0])
+        else:
+            root_bone = self.skeleton.resolve_bone_spec(root_bone)
+        all_foot_root_tfs = [
+            self.get_bone_interleaved_transforms(foot_bone, anim_id, use_root_space=True)
+            for foot_bone in foot_bones
+        ]
+        true_root_tfs = self.get_bone_interleaved_transforms(root_bone, anim_id)
+        for i, true_root_tf in enumerate(true_root_tfs):
+            lowest_y = min(frames[i].translation.y for frames in all_foot_root_tfs)
+            true_root_tf.translation.y += ground_height - lowest_y
+
+    # TODO: "realign_hand_to_weapon" method that uses minor rotations and stretch (up to some specified max) to place
+    #  a hand on a weapon, which can be defined relative to the other hand (to which the weapon is parented).
 
     def _get_tpose_spline_transform_track(self, bone_index: int) -> SplineTransformTrack:
         bone_qs_transform = self.skeleton.skeleton.referencePose[bone_index]

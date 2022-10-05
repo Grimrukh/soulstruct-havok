@@ -49,6 +49,14 @@ class BaseSkeletonHKX(BaseWrapperHKX, abc.ABC):
             return None
         return self.skeleton.bones[parent_index]
 
+    def get_bone_highest_parent(self, bone: BONE_SPEC_TYPING) -> tp.Optional[BONE_TYPING]:
+        parent_bone = bone
+        parent_index = self.get_bone_parent_index(bone)
+        while parent_index != -1:
+            parent_bone = self.skeleton.bones[parent_index]
+            parent_index = self.get_bone_parent_index(parent_bone)
+        return parent_bone
+
     def get_immediate_bone_children_indices(self, bone: BONE_SPEC_TYPING) -> list[int]:
         bone = self.resolve_bone_spec(bone)
         bone_index = self.skeleton.bones.index(bone)
@@ -158,6 +166,8 @@ class BaseSkeletonHKX(BaseWrapperHKX, abc.ABC):
 
     def resolve_bone_spec(self, bone_spec: BONE_SPEC_TYPING) -> BONE_TYPING:
         if isinstance(bone_spec, int):
+            if bone_spec < 0:
+                raise ValueError(f"Can only use non-negative bone indices, not: {bone_spec}")
             bone = self.bones[bone_spec]
         elif isinstance(bone_spec, str):
             bone = self._find_bone_name(bone_spec)

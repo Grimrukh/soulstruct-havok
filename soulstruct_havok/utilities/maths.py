@@ -178,16 +178,16 @@ class Quaternion:
         return np.r_[matrix34, [0.0, 0.0, 0.0, 1.0]]
 
     @classmethod
-    def from_axis_angle(cls, axis: Vector3, angle: float, is_normalized=False, radians=False) -> Quaternion:
+    def from_axis_angle(cls, axis: Vector3, angle: float, radians=False) -> Quaternion:
         if not radians:
             angle = math.radians(angle)
-        return Quaternion.from_wxyz(*t3d.quaternions.axangle2quat(axis, angle, is_normalized))
-    # endregion
+        return Quaternion.from_wxyz(*t3d.quaternions.axangle2quat(axis.normalize(), angle, is_normalized=True))
 
     @classmethod
     def axis(cls, x: float, y: float, z: float, angle: float, radians=False) -> Quaternion:
         """Shorter wrapper for the above."""
         return cls.from_axis_angle(Vector3(x, y, z), angle, radians)
+    # endregion
 
     # region Arithmetic
 
@@ -397,6 +397,14 @@ class TRSTransform:
     def left_multiply_rotation(self, rotation: Quaternion):
         """Update `self.rotation` by left-multiplying it with `rotation`."""
         self.rotation = rotation * self.rotation
+
+    def right_multiply_rotation(self, rotation: Quaternion):
+        """Update `self.rotation` by right-multiplying it with `rotation`.
+
+        Useful for transforming a coordinate system in a way that corresponds to LEFT-multiplying the rotation of a
+        vector within it.
+        """
+        self.rotation = self.rotation * rotation
 
     def inverse_transform_vector(self, vector: Vector3 | Vector4) -> Vector3 | Vector4:
         """Apply the INVERSE of this transform to `vector`. Last element is ignored for `Vector4`s."""
