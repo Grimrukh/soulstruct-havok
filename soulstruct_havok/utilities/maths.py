@@ -359,7 +359,7 @@ class TRSTransform:
     one frame or spline control point in a bone animation track).
 
     CANNOT represent arbitrary affine transformations -- only those with no shear component. The constructor will log a
-    warning if you initialize it with non-uniform scale, as this will make the `QsTransform` non-invertible.
+    warning if you initialize it with non-uniform scale, as this will make the `TRSTransform` non-invertible.
 
     Corresponds to `hkQsTransformf` Havok type.
     """
@@ -384,7 +384,7 @@ class TRSTransform:
         else:
             self.scale = Vector3(scale)
             if self.WARN_NONUNIFORM_SCALE and (self.scale.x != self.scale.y or self.scale.x != self.scale.z):
-                _LOGGER.warning(f"`QsTransform` created with non-uniform scale: {self.scale}")
+                _LOGGER.warning(f"`TRSTransform` created with non-uniform scale: {self.scale}")
 
     def transform_vector(self, vector: Vector3 | Vector4) -> Vector3 | Vector4:
         """Apply this transform to `vector`. Returned vector will have the same length as input (3 or 4), with the
@@ -413,14 +413,17 @@ class TRSTransform:
     def inverse(self) -> TRSTransform:
         """Get the inverse transform.
 
-        Even if scale is non-uniform, this will always produce a `QsTransform` that is the inverse of the `compose`
-        function that defines `QsTransform` multiplication. This inversion operation does NOT correspond to affine
+        Even if scale is non-uniform, this will always produce a `TRSTransform` that is the inverse of the `compose`
+        function that defines `TRSTransform` multiplication. This inversion operation does NOT correspond to affine
         matrix inversion if scale is non-uniform!
         """
-        inv_translation = -1.0 * self.rotation.inverse().rotate_vector(self.translation)
+        inv_translation = -self.rotation.inverse().rotate_vector(self.translation)
         inv_rotation = self.rotation.inverse()
         inv_scale = 1.0 / self.scale
         return TRSTransform(inv_translation, inv_rotation, inv_scale)
+
+    def copy(self) -> TRSTransform:
+        return TRSTransform(self.translation, self.rotation, self.scale)
 
     def is_identity(self) -> bool:
         return (
@@ -450,10 +453,10 @@ class TRSTransform:
         return cls(translation, rotation, scale)
 
     def compose(self, other: TRSTransform, scale_translation=False) -> TRSTransform:
-        """Combine two `QsTransforms`.
+        """Combine two `TRSTransforms`.
 
         We cannot rely on general composition of affine transformations (e.g., 4x4 matrix multiplication) to compose
-        `QsTransform`s because they can only represent a subset of affine transformations (those without shear). The
+        `TRSTransform`s because they can only represent a subset of affine transformations (those without shear). The
         caller must decide how to resolve this.
 
         If `scale_translation=True`, then this (left) transform's scale will be applied to the other (right) transform's
@@ -470,10 +473,10 @@ class TRSTransform:
         make certain spatial bone corrections, as you will not be able to construct accurate frame transforms from
         inversions.
 
-        The `QsTransform` constructor will log a warning if you initialize it with non-uniform scale.
+        The `TRSTransform` constructor will log a warning if you initialize it with non-uniform scale.
         """
         if not isinstance(other, TRSTransform):
-            raise TypeError("Can only compose `QsTransform` with another `QsTransform`.")
+            raise TypeError("Can only compose `TRSTransform` with another `TRSTransform`.")
         if scale_translation:
             new_translation = self.translation + self.rotation.rotate_vector(self.scale * other.translation)
         else:
@@ -504,7 +507,7 @@ class TRSTransform:
         translate, rotation, scale, shear = t3d.affines.decompose44(matrix4)
 
         if not np.allclose(shear, 0.0):
-            raise ValueError(f"Cannot convert a 4x4 matrix with non-zero shear to `QsTransform`: shear = {shear}")
+            raise ValueError(f"Cannot convert a 4x4 matrix with non-zero shear to `TRSTransform`: shear = {shear}")
 
         return TRSTransform(
             translation=Vector3(translate),

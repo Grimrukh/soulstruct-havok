@@ -119,7 +119,7 @@ def do_erdtree_adjustment(asylum_manager: AnimationManagerDS1 = None, source_id=
     # # for bone in ("a", "b", "c"):
     # #     asylum_manager.transform_bone_track(
     # #         bone,
-    # #         QsTransform(scale=0.5),
+    # #         TRSTransform(scale=0.5),
     # #     )
     #
     # # CLAVICLES

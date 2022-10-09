@@ -53,36 +53,6 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
     # explicit `save_spline_data()` call. All this data does is split the frame transforms into separate 'track' lists.
     interleaved_data: list[list[TRSTransform]] = None
 
-    @property
-    def is_spline(self):
-        try:
-            spline_cls = self.TYPES_MODULE.hkaSplineCompressedAnimation
-        except AttributeError:
-            return False
-        return isinstance(self.animation, spline_cls)
-
-    @property
-    def is_interleaved(self):
-        try:
-            interleaved_cls = self.TYPES_MODULE.hkaInterleavedUncompressedAnimation
-        except AttributeError:
-            return False
-        return isinstance(self.animation, interleaved_cls)
-
-    @property
-    def track_count(self):
-        return self.animation.numberOfTransformTracks
-
-    @property
-    def frame_count(self):
-        if self.is_spline:
-            self.animation: SPLINE_ANIMATION_TYPING
-            return self.animation.numFrames
-        elif self.is_interleaved:
-            self.animation: INTERLEAVED_ANIMATION_TYPING
-            return len(self.animation.transforms) // self.animation.numberOfTransformTracks
-        raise TypeError("Cannot infer animation frame count from non-spline, non-interleaved animation type.")
-
     def create_attributes(self):
         animation_container = self.get_variant_index(0, "hkaAnimationContainer")
         self.animation = animation_container.animations[0]
@@ -134,7 +104,7 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
             if self.interleaved_data is not None and not reload:
                 # Already exists. Do nothing.
                 return
-            # Otherwise, reorganize lists and convert transforms to `QsTransform`.
+            # Otherwise, reorganize lists and convert transforms to `TRSTransform`.
             track_count = self.animation.numberOfTransformTracks
             transforms = self.animation.transforms
             if len(transforms) % track_count > 0:
@@ -144,7 +114,7 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
             frame_count = len(transforms) // track_count
             self.interleaved_data = []
             for i in range(frame_count):
-                frame = [t.to_quat_transform() for t in transforms[i * track_count:(i + 1) * track_count]]
+                frame = [t.to_trs_transform() for t in transforms[i * track_count:(i + 1) * track_count]]
                 self.interleaved_data.append(frame)
         else:
             raise TypeError(f"Animation type `{type(self.animation).__name__}` is not interleaved.")
@@ -157,7 +127,7 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
             qs_transform_cls = self.TYPES_MODULE.hkQsTransform
             transforms = []
             for frame in self.interleaved_data:
-                transforms += [qs_transform_cls.from_quat_transform(t) for t in frame]
+                transforms += [qs_transform_cls.from_trs_transform(t) for t in frame]
             self.animation.transforms = transforms
             _LOGGER.info("Saved interleaved data to animation.")
         else:
@@ -184,6 +154,18 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
         extracted_motion = self.animation.extractedMotion
         if isinstance(extracted_motion, DEFAULT_ANIMATED_REFERENCE_FRAME_TYPES):
             extracted_motion.duration = duration
+
+    def get_track_index_of_bone(self, bone_index: int):
+        try:
+            return self.animation_binding.transformTrackToBoneIndices.index(bone_index)
+        except IndexError:
+            raise IndexError(f"Bone index {bone_index} has no corresponding track index.")
+
+    def get_bone_index_of_track(self, track_index: int):
+        try:
+            return self.animation_binding.transformTrackToBoneIndices[track_index]
+        except IndexError:
+            raise IndexError(f"There is no animation track with index {track_index}.")
 
     def transform(self, transform: TRSTransform):
         """Apply `transform` to all animation tracks (control points or static/interleaved values).
@@ -275,7 +257,7 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
         qs_transform_cls = self.TYPES_MODULE.hkQsTransform
         transforms = []
         for frame in self.interleaved_data:
-            transforms += [qs_transform_cls.from_quat_transform(t) for t in frame]
+            transforms += [qs_transform_cls.from_trs_transform(t) for t in frame]
 
         # TODO: Some arguments will differ for older versions. Move to abstract method.
         self.animation = interleaved_cls(
@@ -303,3 +285,33 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
         elif self.is_interleaved and self.interleaved_data:
             self.save_interleaved_data()
         return super().pack(hk_format)
+
+    @property
+    def is_spline(self):
+        try:
+            spline_cls = self.TYPES_MODULE.hkaSplineCompressedAnimation
+        except AttributeError:
+            return False
+        return isinstance(self.animation, spline_cls)
+
+    @property
+    def is_interleaved(self):
+        try:
+            interleaved_cls = self.TYPES_MODULE.hkaInterleavedUncompressedAnimation
+        except AttributeError:
+            return False
+        return isinstance(self.animation, interleaved_cls)
+
+    @property
+    def track_count(self):
+        return self.animation.numberOfTransformTracks
+
+    @property
+    def frame_count(self):
+        if self.is_spline:
+            self.animation: SPLINE_ANIMATION_TYPING
+            return self.animation.numFrames
+        elif self.is_interleaved:
+            self.animation: INTERLEAVED_ANIMATION_TYPING
+            return len(self.animation.transforms) // self.animation.numberOfTransformTracks
+        raise TypeError("Cannot infer animation frame count from non-spline, non-interleaved animation type.")

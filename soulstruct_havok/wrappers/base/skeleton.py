@@ -3,7 +3,7 @@ from __future__ import annotations
 import abc
 import typing as tp
 
-from soulstruct_havok.utilities.maths import TRSTransform
+from soulstruct_havok.utilities.maths import TRSTransform, Vector3
 from soulstruct_havok.types import hk2010, hk2014, hk2015, hk2018
 
 from .core import BaseWrapperHKX
@@ -79,15 +79,16 @@ class BaseSkeletonHKX(BaseWrapperHKX, abc.ABC):
                 children += self.get_all_bone_children(bone)  # recur on child
         return children
 
-    def get_bone_local_transform(self, bone: BONE_SPEC_TYPING) -> TRSTransform:
+    def get_bone_reference_pose_transform(self, bone: BONE_SPEC_TYPING, world_space=False) -> TRSTransform:
         bone = self.resolve_bone_spec(bone)
-        bone_index = self.skeleton.bones.index(bone)
-        qs_transform = self.skeleton.referencePose[bone_index]
-        return TRSTransform(
-            qs_transform.translation,
-            qs_transform.rotation,
-            qs_transform.scale,
-        )
+        if world_space:
+            transform = TRSTransform.identity()
+            for hierarchy_transform in self.get_hierarchy_transforms(bone):
+                transform = transform @ hierarchy_transform
+            return transform
+        else:
+            bone_index = self.skeleton.bones.index(bone)
+            return self.skeleton.referencePose[bone_index].to_trs_transform()
 
     def get_hierarchy_to_bone(self, bone: BONE_SPEC_TYPING) -> list[BONE_TYPING]:
         """Get all parents of `bone` in order from the highest down to itself."""
@@ -101,6 +102,32 @@ class BaseSkeletonHKX(BaseWrapperHKX, abc.ABC):
             bone_index = self.skeleton.bones.index(bone)
             parent_index = self.skeleton.parentIndices[bone_index]
         return list(reversed(parents))
+
+    def get_bone_ascending_parent_indices(self, bone: BONE_SPEC_TYPING, include_self=False) -> list[int]:
+        """Get indices of bone's parents in ascending order.
+
+        Useful for applying parent transforms in the correct order to get a world space transform of `bone`.
+        """
+        bone = self.resolve_bone_spec(bone)
+        bone_index = self.skeleton.bones.index(bone)
+        parent_indices = []
+        if include_self:
+            parent_indices.append(bone_index)
+        parent_index = self.skeleton.parentIndices[bone_index]
+        while parent_index != -1:
+            parent_indices.append(parent_index)
+            bone = self.skeleton.bones[parent_index]
+            bone_index = self.skeleton.bones.index(bone)
+            parent_index = self.skeleton.parentIndices[bone_index]
+        return parent_indices
+
+    def get_bone_descending_parent_indices(self, bone: BONE_SPEC_TYPING, include_self=False) -> list[int]:
+        """Get indices of bone's parents in descending order from root bone.
+
+        Useful for applying inverse parent transforms in the correcet order to change world space back to local space.
+        """
+        ascending_indices = self.get_bone_ascending_parent_indices(bone, include_self=include_self)
+        return ascending_indices[::-1]
 
     def get_all_bone_parent_indices(self) -> list[list[int]]:
         """Returns a list of lists of the hierarchical indices up to each bone (inclusive)."""
@@ -116,20 +143,7 @@ class BaseSkeletonHKX(BaseWrapperHKX, abc.ABC):
 
     def get_hierarchy_transforms(self, bone: BONE_SPEC_TYPING) -> list[TRSTransform]:
         """Get all transforms of all parent bones down to `bone`, including it."""
-        return [self.get_bone_local_transform(b) for b in self.get_hierarchy_to_bone(bone)]
-
-    def get_bone_root_transform(self, bone: BONE_SPEC_TYPING) -> TRSTransform:
-        """Accumulates parents' transforms through composition.
-
-        Any bone's "absolute" transform (i.e., its transform in the space of the root bone) can be found by simply
-        composing down the hierarchy:
-            abs(Bn) = B0 @ B1 @ B2 @ ... @ Bn
-        """
-        bone = self.resolve_bone_spec(bone)
-        transform = TRSTransform.identity()
-        for hierarchy_transform in self.get_hierarchy_transforms(bone):
-            transform = transform @ hierarchy_transform
-        return transform
+        return [self.get_bone_reference_pose_transform(b) for b in self.get_hierarchy_to_bone(bone)]
 
     def get_bone_transforms_and_parents(self):
         """Construct a dictionary that maps bone names to (`hkQsTransform`, `hkaBone`) pairs of transforms/parents."""

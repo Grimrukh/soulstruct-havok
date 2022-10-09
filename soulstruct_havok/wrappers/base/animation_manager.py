@@ -35,6 +35,10 @@ class BaseAnimationManager(abc.ABC):
     animations: dict[int, BaseAnimationHKX]
     default_anim_id: int | None
 
+    # Tracks whether each animation's transforms have been converted to world space with `change_local_to_world()`.
+    # If true on pack, transforms will be converted back. They can also be converted with `change_world_to_local()`.
+    _is_world_space: dict[int, bool]
+
     def __init__(self, skeleton: BaseSkeletonHKX, animations: dict[int, BaseAnimationHKX]):
         self.skeleton = skeleton
         self.animations = animations
@@ -42,6 +46,8 @@ class BaseAnimationManager(abc.ABC):
             self.default_anim_id = list(animations)[0]
         else:
             self.default_anim_id = None  # undecided
+        for anim_id in self.animations:
+            self._is_world_space[anim_id] = False
 
     def get_animation(self, anim_id: int = None) -> BaseAnimationHKX:
         if anim_id is None:
@@ -56,6 +62,58 @@ class BaseAnimationManager(abc.ABC):
             raise ValueError(f"Animation ID {new_anim_id} already exists, and `overwrite=False`.")
         self.animations[new_anim_id] = self.animations[anim_id].copy()
 
+    def change_local_to_world(self, anim_id: int = None):
+        """Convert all animation transforms from their default local coordinates relative to parent to coordinates in
+        world space.
+
+        TODO: Currently only supported for interleaved, but could easily be done for splines too.
+        """
+        animation = self.get_animation(anim_id)
+        if anim_id is None:
+            anim_id = self.default_anim_id
+        if not animation.is_interleaved:
+            raise TypeError("Animation must be interleaved to convert to/from world space.")
+        if self._is_world_space[anim_id]:
+            raise ValueError(f"Animation {anim_id} is already in world space.")
+        mapping = animation.animation_binding.transformTrackToBoneIndices
+
+        track_count = animation.track_count
+        for track_index in range(track_count):
+            bone_index = mapping[track_index]
+            parent_indices = self.skeleton.get_bone_ascending_parent_indices(bone_index)
+            for frame in animation.interleaved_data:
+                for parent_index in parent_indices:
+                    frame[bone_index] = frame[parent_index] @ frame[bone_index]
+
+        # `animation.interleaved_data` has now been modified in place (but NOT saved automatically).
+        self._is_world_space[anim_id] = True
+
+    def change_world_to_local(self, anim_id: int = None):
+        """Convert all animation transforms from world space (done via `change_local_to_world()` back to their standard
+        parent-relative spaces.
+
+        TODO: Currently only supported for interleaved, but could easily be done for splines too.
+        """
+        animation = self.get_animation(anim_id)
+        if anim_id is None:
+            anim_id = self.default_anim_id
+        if not animation.is_interleaved:
+            raise TypeError("Animation must be interleaved to convert to/from world space.")
+        if not self._is_world_space[anim_id]:
+            raise ValueError(f"Animation {anim_id} is already in local space.")
+        mapping = animation.animation_binding.transformTrackToBoneIndices
+
+        track_count = animation.track_count
+        for track_index in range(track_count):
+            bone_index = mapping[track_index]
+            parent_indices = self.skeleton.get_bone_descending_parent_indices(bone_index)
+            for frame in animation.interleaved_data:
+                for parent_index in parent_indices:
+                    frame[bone_index] = frame[parent_index].inverse() @ frame[bone_index]
+
+        # `animation.interleaved_data` has now been modified in place (but NOT saved automatically).
+        self._is_world_space[anim_id] = False
+
     def rotate_bone_track(
         self,
         bone: BONE_SPEC_TYPING,
@@ -66,7 +124,7 @@ class BaseAnimationManager(abc.ABC):
         """Apply `rotation` to `bone.rotation` in every animation frame. Requires interleaved animation.
 
         If `compensate_children=True` (NOT default), children of `bone` will be transformed in a way that preserves
-        their transforms relative to root space.
+        their transforms in world space.
         """
         bone = self.skeleton.resolve_bone_spec(bone)
         animation = self.get_animation(anim_id)
@@ -80,7 +138,7 @@ class BaseAnimationManager(abc.ABC):
         print(f"Rotating frame of bone {bone.name}.")
 
         all_child_tfs = []
-        all_initial_root_child_tfs = []  # copied grandparent-space child transforms
+        all_initial_child_world_tfs = []  # copied grandparent-space child transforms
         if compensate_children:
             # Get local child transforms (direct object references).
             all_child_bones_tfs = self.get_immediate_child_bone_interleaved_animation_transforms(bone)
@@ -89,15 +147,15 @@ class BaseAnimationManager(abc.ABC):
             for child_bone, child_tfs in all_child_bones_tfs:
                 all_child_tfs.append(child_tfs)
 
-                root_child_tfs = []
+                child_world_tfs = []
                 for bone_tf, child_tf in zip(bone_tfs, child_tfs):
                     root_child_tf = copy.deepcopy(child_tf)
                     root_child_tf.translation = bone_tf.transform_vector(child_tf.translation)
                     root_child_tf.rotation = bone_tf.rotation * child_tf.rotation
                     # We don't care about storing the child's scale (this function will never affect it).
-                    root_child_tfs.append(root_child_tf)
+                    child_world_tfs.append(root_child_tf)
 
-                all_initial_root_child_tfs.append(root_child_tfs)
+                all_initial_child_world_tfs.append(child_world_tfs)
 
         for i, bone_tf in enumerate(bone_tfs):
             # Modify `bone_tf.rotation` directly from `transform.rotation`, as it is not orbiting a child.
@@ -111,7 +169,7 @@ class BaseAnimationManager(abc.ABC):
         # child will only need to be further compensated with some amount of scaling, in practice.)
 
         if compensate_children:
-            for initial_root_child_tfs, child_tfs in zip(all_initial_root_child_tfs, all_child_tfs):
+            for initial_root_child_tfs, child_tfs in zip(all_initial_child_world_tfs, all_child_tfs):
                 for i, (initial_root_child_tf, child_tf, bone_tf) in enumerate(
                     zip(initial_root_child_tfs, child_tfs, bone_tfs)
                 ):
@@ -136,6 +194,9 @@ class BaseAnimationManager(abc.ABC):
 
         TODO: Doesn't really work; bone rotations are difficult to keep consistent? Or maybe the lengths just get too
          screwed up.
+
+        TODO: I think I know how to fix this now: the rotation needs to be the shortest arc, NOT the swiveling rotation
+         itself.
         """
         parent_bone = self.skeleton.resolve_bone_spec(parent_bone)
         swiveling_bone = self.skeleton.resolve_bone_spec(swiveling_bone)
@@ -314,6 +375,139 @@ class BaseAnimationManager(abc.ABC):
                     initial_root_rot = initial_root_child_tf.rotation
                     child_tf.rotation = (parent_tf.rotation * bone_tf.rotation).inverse() * initial_root_rot
 
+    def local_to_world_space_on_frame(
+        self, frame: int, bone: BONE_SPEC_TYPING, point_or_transform: Vector3 | TRSTransform, anim_id: int = None
+    ) -> Vector3 | TRSTransform:
+        """Convert given point or transform (translation and rotation components only) from the local space of `bone`
+        to world space by accumulating and applying all parent transforms on `frame`."""
+        animation = self.get_animation(anim_id)
+        if not animation.is_interleaved:
+            raise ValueError("Can only do per-frame transformations for interleaved animations.")
+        animation_frame = animation.interleaved_data[frame]
+        if isinstance(point_or_transform, Vector3):
+            point = point_or_transform  # type: Vector3
+            for parent_index in self.skeleton.get_bone_ascending_parent_indices(bone, include_self=True):
+                track_index = animation.get_track_index_of_bone(parent_index)
+                point = animation_frame[track_index].transform_vector(point)
+            return point
+        elif isinstance(point_or_transform, TRSTransform):
+            transform = point_or_transform  # type: TRSTransform
+            for parent_index in self.skeleton.get_bone_ascending_parent_indices(bone, include_self=True):
+                track_index = animation.get_track_index_of_bone(parent_index)
+                transform = animation_frame[track_index] @ transform
+            return transform
+        else:
+            raise TypeError("Can only convert Vector3 or TRSTransform.")
+
+    def local_to_world_space_all_frames(
+        self, bone: BONE_SPEC_TYPING, point_or_transform: Vector3 | TRSTransform, anim_id: int = None
+    ) -> list[Vector3] | list[TRSTransform]:
+        """Convert given point or transform (translation and rotation components only) from the local space of `bone`
+        to world space by accumulating and applying all parent transforms.
+
+        Returns a full list of new world positions/transforms on every frame.
+        """
+        animation = self.get_animation(anim_id)
+        if not animation.is_interleaved:
+            raise ValueError("Can only do per-frame transformations for interleaved animations.")
+        if isinstance(point_or_transform, Vector3):
+            point = point_or_transform  # type: Vector3
+            world_points = []  # type: list[Vector3]
+            for frame in animation.interleaved_data:
+                frame_world_point = point.copy()
+                for parent_index in self.skeleton.get_bone_ascending_parent_indices(bone, include_self=True):
+                    track_index = animation.get_track_index_of_bone(parent_index)
+                    frame_world_point = frame[track_index].transform_vector(frame_world_point)
+                world_points.append(frame_world_point)
+            return world_points
+        elif isinstance(point_or_transform, TRSTransform):
+            transform = point_or_transform  # type: TRSTransform
+            world_transforms = []  # type: list[TRSTransform]
+            for frame in animation.interleaved_data:
+                frame_world_transform = transform.copy()
+                for parent_index in self.skeleton.get_bone_ascending_parent_indices(bone, include_self=True):
+                    track_index = animation.get_track_index_of_bone(parent_index)
+                    frame_world_transform = frame[track_index] @ frame_world_transform
+                world_transforms.append(frame_world_transform)
+            return world_transforms
+        else:
+            raise TypeError("Can only convert Vector3 or TRSTransform.")
+
+    def world_to_local_space_on_frame(
+        self, frame: int, bone: BONE_SPEC_TYPING, point_or_transform: Vector3 | TRSTransform, anim_id: int = None
+    ) -> Vector3 | TRSTransform:
+        """Convert given point or transform (translation and rotation components only) from world space to the local
+        space of `bone` by accumulating and applying all inverse parent transforms on `frame`."""
+        animation = self.get_animation(anim_id)
+        if not animation.is_interleaved:
+            raise ValueError("Can only do per-frame transformations for interleaved animations.")
+        animation_frame = animation.interleaved_data[frame]
+        if isinstance(point_or_transform, Vector3):
+            point = point_or_transform  # type: Vector3
+            for parent_index in self.skeleton.get_bone_descending_parent_indices(bone, include_self=True):
+                track_index = animation.get_track_index_of_bone(parent_index)
+                point = animation_frame[track_index].inverse_transform_vector(point)
+            return point
+        elif isinstance(point_or_transform, TRSTransform):
+            transform = point_or_transform  # type: TRSTransform
+            for parent_index in self.skeleton.get_bone_descending_parent_indices(bone, include_self=True):
+                track_index = animation.get_track_index_of_bone(parent_index)
+                transform = animation_frame[track_index].inverse() @ transform
+            return transform
+        else:
+            raise TypeError("Can only convert Vector3 or TRSTransform.")
+
+    def world_to_local_space_all_frames(
+        self, bone: BONE_SPEC_TYPING, point_or_transform: Vector3 | TRSTransform, anim_id: int = None
+    ) -> list[Vector3] | list[TRSTransform]:
+        """Convert given point or transform (translation and rotation components only) from world space to the local
+        space of `bone` by accumulating and applying all parent transforms.
+
+        Returns a full list of new world positions/transforms on every frame.
+        """
+        animation = self.get_animation(anim_id)
+        if not animation.is_interleaved:
+            raise ValueError("Can only do per-frame transformations for interleaved animations.")
+        if isinstance(point_or_transform, Vector3):
+            point = point_or_transform  # type: Vector3
+            world_points = []  # type: list[Vector3]
+            for frame in animation.interleaved_data:
+                frame_world_point = point.copy()
+                for parent_index in self.skeleton.get_bone_descending_parent_indices(bone, include_self=True):
+                    track_index = animation.get_track_index_of_bone(parent_index)
+                    frame_world_point = frame[track_index].inverse_transform_vector(frame_world_point)
+                world_points.append(frame_world_point)
+            return world_points
+        elif isinstance(point_or_transform, TRSTransform):
+            transform = point_or_transform  # type: TRSTransform
+            world_transforms = []  # type: list[TRSTransform]
+            for frame in animation.interleaved_data:
+                frame_world_transform = transform.copy()
+                for parent_index in self.skeleton.get_bone_descending_parent_indices(bone, include_self=True):
+                    track_index = animation.get_track_index_of_bone(parent_index)
+                    frame_world_transform = frame[track_index].inverse() @ frame_world_transform
+                world_transforms.append(frame_world_transform)
+            return world_transforms
+        else:
+            raise TypeError("Can only convert Vector3 or TRSTransform.")
+
+    # TODO: "Hand realignment" method.
+    """    
+    - Let's say that bone R Weapon is a child of R Hand, and we need to realign L Hand to be holding it.
+    - Find the point, in R Weapon local space, where we want the left hand to "grasp it".
+    - Convert that point to world space in each frame: `grasp_point_world`    
+    - Change translation of R Hand such that a passed-in `grasp_point_local` matches `grasp_point_world`.
+        - Preserve rotation of R Hand: we are only translating it to correct its position.
+        - Just calculate the current world space coordinates for `grasp_point_local` and shift R Hand translation by the
+        inverse vector to their difference.
+    - Check that this new R Hand translation's world space distance from R UpperArm does not exceed the combined length
+    of R UpperArm and R Forearm.
+    - Find combination of new R UpperArm ROTATION and R Forearm TRANSLATION that preserves the lengths of R UpperArm and
+    R Forearm.
+        - This solution will be a "swivel circle" around the vector between R UpperArm (fixed) and R Hand (newly fixed).
+    - Select the point on that circle that involves the smallest change in rotation (shortest arc) for R UpperArm. 
+    """
+
     def auto_retarget_interleaved_animation(
         self,
         source_manager: BaseAnimationManager,
@@ -342,7 +536,7 @@ class BaseAnimationManager(abc.ABC):
                 # Bone has no corresponding bone in source skeleton. We default to the bone's reference pose (T-pose).
                 bone_qs_transform = self.skeleton.skeleton.referencePose[i]
                 for frame in new_frames:
-                    frame.append(bone_qs_transform.to_quat_transform())  # fresh object for each frame
+                    frame.append(bone_qs_transform.to_trs_transform())  # fresh object for each frame
                 # _LOGGER.info(f"Using default reference pose for unmapped bone '{bone.name}'.")
             elif isinstance(source_bone, (list, tuple)):
                 if not source_animation.is_interleaved:
@@ -457,7 +651,8 @@ class BaseAnimationManager(abc.ABC):
         if not animation.is_interleaved:
             # TODO: Should be able to conform spline control points as well.
             raise TypeError("Can only confirm bone length for interleaved animations.")
-        reference_pose_length = self.skeleton.get_bone_local_transform(bone).translation.get_magnitude() * extra_scale
+        reference_pose_transform = self.skeleton.get_bone_reference_pose_transform(bone)
+        reference_pose_length = reference_pose_transform.translation.get_magnitude() * extra_scale
         transforms = self.get_bone_interleaved_transforms(bone, anim_id)
         print(f"Conforming bone '{bone.name}' to length {reference_pose_length}.")
         for tf in transforms:
@@ -487,7 +682,7 @@ class BaseAnimationManager(abc.ABC):
         else:
             root_bone = self.skeleton.resolve_bone_spec(root_bone)
         all_foot_root_tfs = [
-            self.get_bone_interleaved_transforms(foot_bone, anim_id, use_root_space=True)
+            self.get_bone_interleaved_transforms(foot_bone, anim_id, world_space=True)
             for foot_bone in foot_bones
         ]
         true_root_tfs = self.get_bone_interleaved_transforms(root_bone, anim_id)
@@ -508,7 +703,7 @@ class BaseAnimationManager(abc.ABC):
 
     def _get_tpose_transform_list(self, bone_index: int, frame_count: int) -> list[TRSTransform]:
         bone_qs_transform = self.skeleton.skeleton.referencePose[bone_index]
-        return [bone_qs_transform.to_quat_transform() for _ in range(frame_count)]
+        return [bone_qs_transform.to_trs_transform() for _ in range(frame_count)]
 
     def get_bone_spline_animation_track(self, bone: BONE_SPEC_TYPING, anim_id: int = None) -> SplineTransformTrack:
         bone = self.skeleton.resolve_bone_spec(bone)
@@ -537,7 +732,7 @@ class BaseAnimationManager(abc.ABC):
         return [(i, block[i]) for i in child_track_indices]
 
     def get_bone_interleaved_transforms(
-        self, bone: BONE_SPEC_TYPING, anim_id: int = None, use_root_space=False,
+        self, bone: BONE_SPEC_TYPING, anim_id: int = None, world_space=False,
     ) -> list[TRSTransform]:
         bone = self.skeleton.resolve_bone_spec(bone)
         animation = self.get_animation(anim_id)
@@ -549,7 +744,7 @@ class BaseAnimationManager(abc.ABC):
         track_index = mapping.index(bone_index)
         transforms = [frame[track_index] for frame in animation.interleaved_data]
 
-        if not use_root_space:
+        if not world_space:
             return transforms  # local transforms suffice
 
         # Compose transforms with all parents.
@@ -561,8 +756,8 @@ class BaseAnimationManager(abc.ABC):
                 transforms[i] = parent_transforms[i].compose(transforms[i], scale_translation=True)
         return transforms
 
-    def get_all_interleaved_bone_transforms_at_frame(self, frame: int, anim_id: int = None) -> list[TRSTransform]:
-        """Resolve all transforms to get root space transforms at the given `frame` index.
+    def get_all_world_space_transforms_in_frame(self, frame: int, anim_id: int = None) -> list[TRSTransform]:
+        """Resolve all transforms to get world space transforms at the given `frame` index.
 
         TODO: Lots of redundant calculations right now; it would be more efficient to work my way downward rather than
          upward from each bone.
@@ -575,15 +770,15 @@ class BaseAnimationManager(abc.ABC):
             raise ValueError(f"Frame must be between 0 and {len(animation.interleaved_data)}, not {frame}.")
         all_bone_index_hierarchies = self.skeleton.get_all_bone_parent_indices()
         frame_transforms = animation.interleaved_data[frame]
-        # NOTE: `root_transforms` is ordered by bone, not track. Bones without tracks will have identity transforms.
-        root_transforms = [TRSTransform.identity() for _ in self.skeleton.bones]
+        # NOTE: `world_transforms` is ordered by bone, not track. Bones without tracks will have identity transforms.
+        world_transforms = [TRSTransform.identity() for _ in self.skeleton.bones]
         mapping = animation.animation_binding.transformTrackToBoneIndices
         for track_index, bone_index in enumerate(mapping):
             bone_index_hierarchy = all_bone_index_hierarchies[bone_index]
             for parent_index in reversed(bone_index_hierarchy):  # start with own local transform and work way upward
                 parent_transform = frame_transforms[mapping.index(parent_index)]
-                root_transforms[bone_index] = parent_transform @ root_transforms[bone_index]  # scales translation
-        return root_transforms
+                world_transforms[bone_index] = parent_transform @ world_transforms[bone_index]  # scales translation
+        return world_transforms
 
     def get_immediate_child_bone_interleaved_animation_transforms(
         self, parent_bone: BONE_SPEC_TYPING, anim_id: int = None
@@ -669,7 +864,7 @@ class BaseAnimationManager(abc.ABC):
         # noinspection PyPackageRequirements
         # Even if only some `bone_names` are given, we collect all of them to draw connective lines from parents.
         bone_translations = [
-            scale * self.skeleton.get_bone_root_transform(bone).translation
+            scale * self.skeleton.get_bone_reference_pose_transform(bone, world_space=True).translation
             for bone in self.skeleton.bones
         ]
 
@@ -714,7 +909,7 @@ class BaseAnimationManager(abc.ABC):
         if not animation.is_interleaved:
             raise TypeError("Can only plot interleaved animations.")
         animation.load_interleaved_data()
-        root_transforms = self.get_all_interleaved_bone_transforms_at_frame(frame, anim_id)
+        world_transforms = self.get_all_world_space_transforms_in_frame(frame, anim_id)
 
         if window is None:
             window = VispyWindow()
@@ -725,22 +920,22 @@ class BaseAnimationManager(abc.ABC):
         x_arrows = []
         z_arrow_line_points = []
         z_arrows = []
-        for bone_index, bone_root_transform in enumerate(root_transforms):
+        for bone_index, bone_world_transform in enumerate(world_transforms):
             bone = self.skeleton.resolve_bone_spec(bone_index)
-            translation = bone_root_transform.translation.to_xzy()
+            translation = bone_world_transform.translation.to_xzy()
             points.append(translation)
             # if label_bones and (not label_bone_filter or label_bone_filter in bone.name):
             #     ax.text(translation[0], translation[2], translation[1], f"({bone_index}) {bone.name}")
 
             parent_index = self.skeleton.get_bone_parent_index(bone)
             if parent_index != -1:
-                parent_translation = root_transforms[parent_index].translation
+                parent_translation = world_transforms[parent_index].translation
                 line_points += [parent_translation.to_xzy(), translation]
 
             # Draw axes along X (red) and Z (green) axes.
-            rotation = bone_root_transform.rotation
-            x_end = (bone_root_transform.translation + rotation.rotate_vector(Vector3(0.1, 0, 0))).to_xzy()  # X
-            z_end = (bone_root_transform.translation + rotation.rotate_vector(Vector3(0, 0, 0.1))).to_xzy()  # Z
+            rotation = bone_world_transform.rotation
+            x_end = (bone_world_transform.translation + rotation.rotate_vector(Vector3(0.1, 0, 0))).to_xzy()  # X
+            z_end = (bone_world_transform.translation + rotation.rotate_vector(Vector3(0, 0, 0.1))).to_xzy()  # Z
 
             x_arrow_line_points += [translation, x_end]
             z_arrow_line_points += [translation, z_end]
@@ -770,7 +965,7 @@ class BaseAnimationManager(abc.ABC):
         show=False,
         axes=None,
     ):
-        """Plot interleaved animation transforms (translation only) in both local bone space and root space."""
+        """Plot interleaved animation transforms (translation only) in both local bone space and world space."""
         if coord not in ("x", "y", "z", "magnitude"):
             raise ValueError("Coord should be 'x', 'y', 'z', or 'magnitude'.")
         bone = self.skeleton.resolve_bone_spec(bone)
@@ -785,14 +980,14 @@ class BaseAnimationManager(abc.ABC):
             if title:
                 fig.suptitle(title)
 
-        for ax, use_root_space in zip(axes, (False, True)):
-            transforms = self.get_bone_interleaved_transforms(bone, anim_id, use_root_space=use_root_space)
+        for ax, world_space in zip(axes, (False, True)):
+            transforms = self.get_bone_interleaved_transforms(bone, anim_id, world_space=world_space)
             if coord in ("x", "y", "z"):
                 values = [getattr(t.translation, coord) for t in transforms]
             else:  # magnitude
                 values = [abs(t.translation) for t in transforms]
             ax.plot(values, label=bone.name, color=color)
-            if legend and not use_root_space:
+            if legend and not world_space:
                 ax.legend()
             if ylim is not None:
                 ax.set_ylim(ylim)

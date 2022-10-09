@@ -330,11 +330,11 @@ class hkQsTransformf(hk):
     rotation: Quaternion
     scale: Vector4
 
-    def to_quat_transform(self) -> TRSTransform:
+    def to_trs_transform(self) -> TRSTransform:
         return TRSTransform(self.translation, self.rotation, self.scale)
 
     @classmethod
-    def from_quat_transform(cls, transform: TRSTransform):
+    def from_trs_transform(cls, transform: TRSTransform):
         return cls(
             translation=Vector4(*transform.translation, 1.0),
             rotation=transform.rotation,

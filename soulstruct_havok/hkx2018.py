@@ -232,7 +232,7 @@ class AnimationHKX(HKX2018):
         raise TypeError("Animation is not spline-compressed. Cannot get data.")
 
     def decompress_spline_animation_data(self) -> list[list[TRSTransform]]:
-        """Convert spline-compressed animation data to a list of lists (per track) of `QsTransform` instances."""
+        """Convert spline-compressed animation data to a list of lists (per track) of `TRSTransform` instances."""
         if isinstance(self.animation, hkaSplineCompressedAnimation):
             return self.get_spline_compressed_animation_data().to_interleaved_transforms(
                 frame_count=self.animation.numFrames,

@@ -840,10 +840,10 @@ class SplineCompressedAnimationData:
         return data, block_count, transform_track_count
 
     def to_interleaved_transforms(self, frame_count: int, max_frames_per_block: int) -> list[list[TRSTransform]]:
-        """Decompresses the spline data by computing the `QsTransform` at each frame from any splines.
+        """Decompresses the spline data by computing the `TRSTransform` at each frame from any splines.
 
-        Returns a list of lists (blocks) of `QsTransform` instances sorted into sub-lists by frame. Each list holds
-        all the `QsTransforms` (generally one per bone) for that frame, as mapped by an `hkaAnimationBinding` instance
+        Returns a list of lists (blocks) of `TRSTransform` instances sorted into sub-lists by frame. Each list holds
+        all the `TRSTransforms` (generally one per bone) for that frame, as mapped by an `hkaAnimationBinding` instance
         in the HKX file.
         """
         # TODO: Track count should be passed in, rather than continuing to assume one block only.
