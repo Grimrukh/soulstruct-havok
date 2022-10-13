@@ -10,6 +10,12 @@ SHAPE_TYPING = tp.Union[
 CONVEX_SHAPE_TYPES = (
     hk2010.hkpConvexShape, hk2015.hkpConvexShape
 )
+BOX_SHAPE_TYPES = (
+    hk2015.hkpBoxShape
+)
+CONVEX_TRANSLATE_SHAPE_TYPES = (
+    hk2015.hkpConvexTranslateShape
+)
 CAPSULE_SHAPE_TYPES = (
     hk2010.hkpCapsuleShape, hk2015.hkpCapsuleShape
 )
@@ -47,9 +53,13 @@ BALL_SOCKET_CHAIN_DATA_TYPES = (
 def scale_shape(shape: SHAPE_TYPING, factor: float):
     if isinstance(shape, CONVEX_SHAPE_TYPES):
         shape.radius *= factor
-        if isinstance(shape, CAPSULE_SHAPE_TYPES):
+        if isinstance(shape, BOX_SHAPE_TYPES):
+            shape.halfExtents *= factor
+        elif isinstance(shape, CAPSULE_SHAPE_TYPES):
             shape.vertexA *= factor
             shape.vertexB *= factor
+        elif isinstance(shape, CONVEX_TRANSLATE_SHAPE_TYPES):
+            shape.translation *= factor
     elif isinstance(shape, MOPP_BV_TREE_SHAPE_TYPES):
         scale_shape(shape.child.childShape, factor)
     elif isinstance(shape, EXTENDED_MESH_SHAPE_TYPES):

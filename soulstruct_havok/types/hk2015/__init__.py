@@ -167,6 +167,11 @@ from .hkpLimitedHingeConstraintData import hkpLimitedHingeConstraintData
 from .hkpLimitedHingeConstraintDataAtoms import hkpLimitedHingeConstraintDataAtoms
 from .hkpAngMotorConstraintAtom import hkpAngMotorConstraintAtom
 from .hkpAngLimitConstraintAtom import hkpAngLimitConstraintAtom
+from .hkpBoxShape import hkpBoxShape
+from .hkpBreakableConstraintData import hkpBreakableConstraintData
+from .hkpConvexTransformShapeBase import hkpConvexTransformShapeBase
+from .hkpConvexTranslateShape import hkpConvexTranslateShape
+from .hkpWrappedConstraintData import hkpWrappedConstraintData
 
 # TODO: from DBZ Xenoverse 2
 from .hknpExternMeshShape import hknpExternMeshShape

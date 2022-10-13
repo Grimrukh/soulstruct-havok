@@ -4,6 +4,7 @@ __all__ = ["VispyWindow"]
 
 import sys
 import numpy as np
+
 import vispy.color as vp_color
 from vispy import app, scene
 

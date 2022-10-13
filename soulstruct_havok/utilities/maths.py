@@ -18,7 +18,6 @@ import typing as tp
 
 import numpy as np
 import transforms3d as t3d
-from scipy.linalg import inv
 from transforms3d._gohlketransforms import quaternion_slerp
 
 from soulstruct.utilities.maths import *
@@ -30,6 +29,10 @@ ARRAYLIKE = tp.Union[tuple, list, np.ndarray, Vector3, Vector4]
 
 
 def invert_matrix(matrix: np.ndarray):
+    try:
+        from scipy.linalg import inv
+    except ImportError:
+        raise ModuleNotFoundError("`scipy` package required to use `invert_matrix()`.")
     return inv(matrix)
 
 

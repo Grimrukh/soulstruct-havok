@@ -10,7 +10,7 @@ from pathlib import Path
 from soulstruct.base.game_file import GameFile, InvalidGameFileTypeError
 from soulstruct.containers import Binder
 from soulstruct.containers.base import BaseBinder
-from soulstruct.containers.dcx import DCXType
+from soulstruct.containers.dcx import DCXType, decompress
 from soulstruct.containers.entry import BinderEntry
 from soulstruct.utilities.binary import BinaryReader
 
@@ -94,8 +94,21 @@ class HKX(GameFile):
             file_source = file_source.data
         if isinstance(file_source, Path):
             file_source = file_source.open("rb")
+
         if isinstance(file_source, (bytes, io.BufferedIOBase, BinaryReader)):
             reader = BinaryReader(file_source)
+
+            # Process DCX now before trying to detect `hk_format`.
+            if self._is_dcx(reader):
+                if self.dcx_type != DCXType.Null:
+                    reader.close()
+                    raise ValueError("Cannot manually set `dcx_type` before reading a DCX file source.")
+                try:
+                    data, self.dcx_type = decompress(reader)
+                finally:
+                    reader.close()
+                reader = BinaryReader(data)
+
             detected_hk_format = self._detect_hk_format(reader)
             if detected_hk_format is None:
                 raise InvalidGameFileTypeError("`file_source` was not an HKX packfile or tagfile.")

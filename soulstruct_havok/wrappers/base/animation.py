@@ -184,7 +184,9 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
                 for track_index in range(len(frame)):
                     frame[track_index].translation = transform.transform_vector(frame[track_index].translation)
         else:
-            raise TypeError("Animation is not interleaved or spline-compressed. Cannot transform data.")
+            raise TypeError(
+                f"Animation is not interleaved or spline-compressed: {type(self.animation)}. Cannot transform data."
+            )
 
         self.try_transform_root_motion(transform)
 
