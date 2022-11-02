@@ -46,6 +46,7 @@ class BaseAnimationManager(abc.ABC):
             self.default_anim_id = list(animations)[0]
         else:
             self.default_anim_id = None  # undecided
+        self._is_world_space = {}
         for anim_id in self.animations:
             self._is_world_space[anim_id] = False
 

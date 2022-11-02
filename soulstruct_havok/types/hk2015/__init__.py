@@ -172,6 +172,11 @@ from .hkpBreakableConstraintData import hkpBreakableConstraintData
 from .hkpConvexTransformShapeBase import hkpConvexTransformShapeBase
 from .hkpConvexTranslateShape import hkpConvexTranslateShape
 from .hkpWrappedConstraintData import hkpWrappedConstraintData
+from .hkpBallAndSocketConstraintData import hkpBallAndSocketConstraintData
+from .hkpBallAndSocketConstraintDataAtoms import hkpBallAndSocketConstraintDataAtoms
+from .hkpSetLocalTranslationsConstraintAtom import hkpSetLocalTranslationsConstraintAtom
+from .hkpConvexVerticesShape import hkpConvexVerticesShape
+from .hkpConvexVerticesConnectivity import hkpConvexVerticesConnectivity
 
 # TODO: from DBZ Xenoverse 2
 from .hknpExternMeshShape import hknpExternMeshShape

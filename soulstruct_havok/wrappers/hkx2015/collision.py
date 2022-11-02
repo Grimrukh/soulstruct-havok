@@ -1,31 +1,23 @@
 from __future__ import annotations
 
 import logging
-import os
-import subprocess as sp
 from pathlib import Path
 
 from soulstruct.containers.dcx import DCXType
-from soulstruct.utilities.files import read_json
 
 from soulstruct_havok.types.hk2015 import *
 from soulstruct_havok.utilities.wavefront import read_obj
-from ..base import BaseWrapperHKX
+from soulstruct_havok.utilities.mopper import mopper
+from soulstruct_havok.wrappers.base import BaseCollisionHKX
 from .core import HKXMixin2015
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class CollisionHKX(BaseWrapperHKX, HKXMixin2015):
-    """Loads HKX objects used as terrain 'hit' geometry, found in `map/mAA_BB_CC_DD` folders."""
-
-    MOPPER_PATH = Path(r"C:\Users\Scott\Downloads\mopper-master\mopper-master\Release\mopper.exe")
+class CollisionHKX(BaseCollisionHKX, HKXMixin2015):
+    """Provies support for MOPP shapes and OBJ file conversion support for them."""
 
     physics_system: hkpPhysicsSystem
-
-    def create_attributes(self):
-        physics_data = self.get_variant_index(0, "hkpPhysicsData")
-        self.physics_system = physics_data.systems[0]
 
     def get_child_shape(self) -> CustomParamStorageExtendedMeshShape:
         """Validates type of collision shape and returns `childShape`."""
@@ -47,7 +39,11 @@ class CollisionHKX(BaseWrapperHKX, HKXMixin2015):
             raise TypeError("Expected collision shape to be `hkpMoppBvTreeShape`.")
         return shape.code
 
+    def get_subpart_materials(self) -> tuple[int]:
+        """Returns a tuple of `materialNameData` integers, one for each subpart mesh."""
+
     def regenerate_mopp_data(self):
+        """Use `mopper.exe` to build new MOPP code, including `code.info.offset` vector."""
         meshstorage = self.get_extended_mesh_meshstorage()
         mopp_code = self.get_mopp_code()
 
@@ -64,7 +60,7 @@ class CollisionHKX(BaseWrapperHKX, HKXMixin2015):
                 mopper_input.append(f"{faces[0]} {faces[1]} {faces[2]}")
                 faces = faces[4:]  # drop 0 after triple
 
-        mopp = self.mopper(mopper_input, mode="-esm")
+        mopp = mopper(mopper_input, mode="-esm")
         new_mopp_code = mopp["hkpMoppCode"]["data"]
         new_offset = mopp["hkpMoppCode"]["offset"]
         mopp_code.data = new_mopp_code
@@ -74,60 +70,59 @@ class CollisionHKX(BaseWrapperHKX, HKXMixin2015):
         return self.physics_system.rigidBodies[0].name
 
     @classmethod
-    def from_obj(
+    def from_meshes(
         cls,
-        obj_path: Path | str,
+        meshes: list[tuple[list[Vector4 | list[float]], list[tuple[int, int, int]]]],
         hkx_name: str,
-        material_name_data: tuple[int] = (),
+        material_indices: tuple[int] = (),
         template_hkx: CollisionHKX = None,
-        invert_x=True,
         dcx_type: DCXType = DCXType.Null,
     ) -> CollisionHKX:
-        """Convert an OBJ file containing vertices and faces for one or more meshes (subparts) to a HKX collision file.
+        """Convert a list of subpart meshes (vertices and faces) to a HKX collision file.
 
-        Uses default values for a bunch of fields, most of which don't matter. Also uses new and improved Mopper.
+        Uses an existing HKX template file rather than constructing one from scratch. A custom template may also be
+        supplied with `template_hkx`. Note that this custom template will be modified in place AND returned, not copied.
 
-        If `template_hkx` is given, it will be used as the base for the new HKX, rather than the stock `template.hkx`.
-        Note that if given, `template_hkx` will be modified in place AND returned.
-
-        Inverts X axis by default, which should also be done in `to_obj()` if used again here (for accurate depiction
-        in Blender, etc.).
+        Also uses default values for new mesh Havok classes, most of which don't matter or are empty. The one non-mesh
+        property that really matters is `materialNameData`, which determines the material of the collision (for sounds,
+        footsteps, terrain params, etc.) and can be supplied manually with `material_index`. If given, `material_index`
+        must be a tuple with the same length as `meshes` (one material index per subpart).
         """
-        obj_meshes = read_obj(obj_path, invert_x=invert_x)
-        if not obj_meshes:
-            raise ValueError("At least one mesh required in OBJ to convert to HKX.")
+        if not meshes:
+            raise ValueError("At least one mesh required to convert to HKX.")
 
         if template_hkx is None:
-            hkx = cls(Path(__file__).parent / "resources/CollisionTemplate2015.hkx")
+            # Use bundled template.
+            hkx = cls(Path(__file__).parent / "../../resources/CollisionTemplate2015.hkx")
         else:
             hkx = template_hkx
         child_shape = hkx.get_child_shape()
-        if len(child_shape.meshstorage) != len(obj_meshes):
-            raise ValueError(
-                f"Number of OBJ meshes ({len(obj_meshes)}) does not match number of existing meshes in template "
-                f"HKX ({len(child_shape.meshstorage)}). Omit `template_hkx` to allow any number of OBJ meshes."
-            )
 
-        if not material_name_data:
-            material_name_data = [material.materialNameData for material in child_shape.materialArray]
-        elif len(material_name_data) != len(obj_meshes):
+        if not material_indices:
+            # Use material data from template.
+            material_indices = [material.materialNameData for material in child_shape.materialArray]
+            if len(material_indices) < len(meshes):
+                extra_mesh_count = len(meshes) - len(material_indices)
+                _LOGGER.warning(f"Adding material index 0 for {extra_mesh_count} extra meshes added to template HKX.")
+                material_indices += [0] * extra_mesh_count
+            while len(material_indices) < len(meshes):
+                material_indices.append(0)
+        elif len(material_indices) != len(meshes):
             raise ValueError(
-                f"Length of `material_name_data` ({len(material_name_data)}) does not match number of meshes in "
-                f"OBJ ({len(obj_meshes)})."
+                f"Length of `material_name_data` ({len(material_indices)}) does not match number of meshes in "
+                f"OBJ ({len(meshes)})."
             )
-        else:
-            material_name_data = [0] * len(obj_meshes)
 
         rigid_body = hkx.physics_system.rigidBodies[0]
         rigid_body.name = hkx_name
 
         # TODO: rigid_body.motion.motionState.objectRadius?
 
-        child_shape.cachedNumChildShapes = sum(len(faces) for _, faces in obj_meshes)
+        child_shape.cachedNumChildShapes = sum(len(faces) for _, faces in meshes)
         child_shape.trianglesSubparts = []
         child_shape.meshstorage = []
         child_shape.materialArray = []
-        for i, (vertices, faces) in enumerate(obj_meshes):
+        for i, (vertices, faces) in enumerate(meshes):
 
             subpart = cls.get_subpart(len(vertices), len(faces))
             child_shape.trianglesSubparts.append(subpart)
@@ -156,20 +151,20 @@ class CollisionHKX(BaseWrapperHKX, HKXMixin2015):
                 vertexDataBuffer=[255] * len(vertices),
                 vertexDataStride=1,
                 primitiveDataBuffer=[],
-                materialNameData=material_name_data[i],
+                materialNameData=material_indices[i],
             )
             child_shape.materialArray.append(material)
 
         # Havok docs say that embedded triangle subpart is only efficient for single-subpart shapes, but From disagrees.
         # Note that it is a fresh instance, not a copy of the first subpart.
-        child_shape.embeddedTrianglesSubpart = cls.get_subpart(len(obj_meshes[0][0]), len(obj_meshes[0][1]))
+        child_shape.embeddedTrianglesSubpart = cls.get_subpart(len(meshes[0][0]), len(meshes[0][1]))
 
-        x_min = min([v.x for mesh, _ in obj_meshes for v in mesh])
-        x_max = max([v.x for mesh, _ in obj_meshes for v in mesh])
-        y_min = min([v.y for mesh, _ in obj_meshes for v in mesh])
-        y_max = max([v.y for mesh, _ in obj_meshes for v in mesh])
-        z_min = min([v.z for mesh, _ in obj_meshes for v in mesh])
-        z_max = max([v.z for mesh, _ in obj_meshes for v in mesh])
+        x_min = min([v.x for mesh, _ in meshes for v in mesh])
+        x_max = max([v.x for mesh, _ in meshes for v in mesh])
+        y_min = min([v.y for mesh, _ in meshes for v in mesh])
+        y_max = max([v.y for mesh, _ in meshes for v in mesh])
+        z_min = min([v.z for mesh, _ in meshes for v in mesh])
+        z_max = max([v.z for mesh, _ in meshes for v in mesh])
         child_shape.aabbHalfExtents = Vector4((x_max - x_min) / 2, (y_max - y_min) / 2, (z_max - z_min) / 2, 0.0)
         child_shape.aabbCenter = Vector4((x_max + x_min) / 2, (y_max + y_min) / 2, (z_max + z_min) / 2, 0.0)
 
@@ -178,6 +173,32 @@ class CollisionHKX(BaseWrapperHKX, HKXMixin2015):
         hkx.dcx_type = dcx_type
 
         return hkx
+
+    @classmethod
+    def from_obj(
+        cls,
+        obj_path: Path | str,
+        hkx_name: str,
+        material_index: tuple[int] = (),
+        template_hkx: CollisionHKX = None,
+        invert_x=True,
+        dcx_type: DCXType = DCXType.Null,
+    ) -> CollisionHKX:
+        """Create a HKX from a template (defaults to package template) and subpart meshes in an OBJ file.
+
+        `invert_x=True` by default, which should also be done in `to_obj()` if used again here (for accurate depiction
+        in Blender, etc.).
+        """
+        obj_meshes = read_obj(obj_path, invert_x=invert_x)
+        if not obj_meshes:
+            raise ValueError("At least one mesh required in OBJ to convert to HKX.")
+        return cls.from_meshes(
+            obj_meshes,
+            hkx_name=hkx_name,
+            material_indices=material_index,
+            template_hkx=template_hkx,
+            dcx_type=dcx_type,
+        )
 
     @staticmethod
     def get_subpart(vertices_count: int, faces_count: int):
@@ -205,6 +226,20 @@ class CollisionHKX(BaseWrapperHKX, HKXMixin2015):
                 scale=Vector4(1.0, 1.0, 1.0, 1.0),
             ),
         )
+
+    def to_meshes(self) -> list[tuple[list[tuple[float, float, float]], list[tuple[int, ...]]]]:
+        """Get a list of subpart meshes, each of which is a list of vertices (four floats) and a list of face tuples."""
+        meshes = []  # type: list[tuple[list[tuple[float, float, float]], list[tuple[int, ...]]]]
+        for i, mesh in enumerate(self.get_extended_mesh_meshstorage()):
+            if len(mesh.indices16) % 4:
+                raise ValueError("`indices16` length must be a multiple of 4.")
+            vertices = [(vert.x, vert.y, vert.z) for vert in mesh.vertices]
+            faces = []
+            for f in range(len(mesh.indices16) // 4):
+                face = tuple(mesh.indices16[4 * f:4 * f + 3])
+                faces.append(face)
+            meshes.append((vertices, faces))
+        return meshes
 
     def to_obj(self, invert_x=True) -> str:
         """Convert raw vertices and triangle faces (zero-separated triplets) from HKX meshes to OBJ file.
@@ -236,18 +271,3 @@ class CollisionHKX(BaseWrapperHKX, HKXMixin2015):
 
     def write_obj(self, obj_path: Path | str):
         Path(obj_path).write_text(self.to_obj())
-
-    @staticmethod
-    def mopper(input_lines: list[str], mode: str) -> dict:
-        if mode not in {"-ccm", "-msm", "-esm"}:
-            raise ValueError("`mode` must be -ccm, -msm, or -esm.")
-        if Path("mopp.json").exists():
-            os.remove("mopp.json")
-        input_text = "\n".join(input_lines) + "\n"
-        # print(input_text)
-        Path("mopper_input.txt").write_text(input_text)
-        _LOGGER.info("# Running mopper...")
-        sp.call([str(CollisionHKX.MOPPER_PATH), mode, "mopper_input.txt"])
-        if not Path("mopp.json").exists():
-            raise FileNotFoundError("Mopper did not produce `mopp.json`.")
-        return read_json("mopp.json")

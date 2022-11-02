@@ -4,7 +4,7 @@ from pathlib import Path
 from soulstruct.base.models.flver import FLVER
 from soulstruct.containers.bnd import BND3
 
-from soulstruct_havok.core import AnimationHKX, ClothHKX, RagdollHKX, SkeletonHKX
+from soulstruct_havok.wrappers.hkx2015 import AnimationHKX, ClothHKX, RagdollHKX, SkeletonHKX
 
 
 def scale_dsr_character(dsr_chr_path: tp.Union[str, Path], model_id: int, scale_factor: float, prefer_bak=False):
@@ -91,23 +91,3 @@ def reverse_animation(
     print("    Done.")
     anibnd.write()
     print(f"New ANIBND written: {anibnd_path}.")
-
-
-def main():
-    from contextlib import redirect_stdout
-    CHARACTER_ID = 2500
-    SCALE = 2.0
-    PREFER_BAK = True
-    # with open("c2930.log", "w") as f:
-    #     with redirect_stdout(f):
-    scale_dsr_character(
-        r"F:\Steam\steamapps\common\DARK SOULS REMASTERED (Nightfall)\chr", CHARACTER_ID, SCALE, PREFER_BAK
-    )
-
-
-if __name__ == '__main__':
-    reverse_animation(
-        r"C:\Steam\steamapps\common\DARK SOULS REMASTERED (Nightfall)\obj\o3350-objbnd-dcx\obj\o3350\o3350.anibnd",
-        animation_id=0,
-        new_animation_id=1,
-    )

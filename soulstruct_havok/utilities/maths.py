@@ -186,6 +186,10 @@ class Quaternion:
             angle = math.radians(angle)
         return Quaternion.from_wxyz(*t3d.quaternions.axangle2quat(axis.normalize(), angle, is_normalized=True))
 
+    def to_axis_angle(self, radians=False) -> tp.Tuple[Vector3, float]:
+        axis, angle = t3d.quaternions.quat2axangle(self.to_wxyz())
+        return Vector3(axis), (angle if radians else math.degrees(angle))
+
     @classmethod
     def axis(cls, x: float, y: float, z: float, angle: float, radians=False) -> Quaternion:
         """Shorter wrapper for the above."""

@@ -9,6 +9,12 @@ from soulstruct_havok.utilities.maths import Vector4
 
 
 def read_obj(obj_path: Path | str, invert_x=True) -> list[tuple[list[Vector4], list[tuple[int, int, int]]]]:
+    """Reads OBJ file and returns a list of meshes, each of which is a list of `Vector4` vertices and a list of faces
+    (vertex index triples).
+
+    If `invert_x=True` (default), X coordinates will be negated, which is sufficient for having collisions appear
+    properly in Blender (assuming they were also negated on conversion to OBJ or import into Blender).
+    """
     meshes = []  # type: list[tuple[list[Vector4], list[tuple[int, int, int]]]]
     mesh = None  # type: None | tuple[list, list]
 

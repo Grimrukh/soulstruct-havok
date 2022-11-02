@@ -18,7 +18,7 @@ ER_CHR = Path("C:/Steam/steamapps/common/ELDEN RING (Vanilla)/Game/chr")
 
 def do_erdtree_retarget_and_adjustment():
 
-    source_id = 3000
+    source_id = 3009
     dest_id = 3000
 
     print("Reading 2015 animation...")
@@ -35,7 +35,7 @@ def do_erdtree_retarget_and_adjustment():
     erdtree_manager.animations[source_id].spline_to_interleaved()
 
     print("Retargeting Erdtree animation...")
-    asylum_manager.auto_retarget_interleaved_animation(erdtree_manager, source_id, 3000, RETARGET)
+    asylum_manager.auto_retarget_interleaved_animation(erdtree_manager, source_id, dest_id, RETARGET)
 
     # TODO: Testing bone length conformation. (Will automatically apply best scale.)
     # asylum_manager.animations[dest_id].scale(1.17)
