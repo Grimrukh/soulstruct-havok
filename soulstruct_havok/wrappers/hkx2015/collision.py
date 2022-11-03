@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+import typing as tp
 
 from soulstruct.containers.dcx import DCXType
 
@@ -41,6 +42,18 @@ class CollisionHKX(BaseCollisionHKX, HKXMixin2015):
 
     def get_subpart_materials(self) -> tuple[int]:
         """Returns a tuple of `materialNameData` integers, one for each subpart mesh."""
+        child_shape = self.get_child_shape()
+        return tuple(material.materialNameData for material in child_shape.materialArray)
+
+    def set_subpart_materials(self, material_indices: tp.Sequence[int]):
+        child_shape = self.get_child_shape()
+        if len(material_indices) != len(child_shape.materialArray):
+            raise ValueError(
+                f"Number of given material indices ({len(material_indices)}) "
+                f"!= number of HKX materials {len(child_shape.materialArray)})."
+            )
+        for material, new_index in zip(child_shape.materialArray, material_indices, strict=True):
+            material.materialNameData = new_index
 
     def regenerate_mopp_data(self):
         """Use `mopper.exe` to build new MOPP code, including `code.info.offset` vector."""
@@ -72,9 +85,9 @@ class CollisionHKX(BaseCollisionHKX, HKXMixin2015):
     @classmethod
     def from_meshes(
         cls,
-        meshes: list[tuple[list[Vector4 | list[float]], list[tuple[int, int, int]]]],
+        meshes: list[tuple[list[Vector4 | tp.Sequence[float, ...]], list[tp.Sequence[int, ...]]]],
         hkx_name: str,
-        material_indices: tuple[int] = (),
+        material_indices: tp.Sequence[int] = (),
         template_hkx: CollisionHKX = None,
         dcx_type: DCXType = DCXType.Null,
     ) -> CollisionHKX:
@@ -130,10 +143,12 @@ class CollisionHKX(BaseCollisionHKX, HKXMixin2015):
             indices = []
             for face in faces:
                 indices.extend(face)
+                if len(face) == 3:
+                    indices.append(0)
             storage = hkpStorageExtendedMeshShapeMeshSubpartStorage(
                 memSizeAndFlags=0,
                 refCount=0,
-                vertices=vertices,
+                vertices=[Vector4(*v[:3], 0.0) for v in vertices],
                 indices8=[],
                 indices16=indices,
                 indices32=[],
@@ -159,12 +174,12 @@ class CollisionHKX(BaseCollisionHKX, HKXMixin2015):
         # Note that it is a fresh instance, not a copy of the first subpart.
         child_shape.embeddedTrianglesSubpart = cls.get_subpart(len(meshes[0][0]), len(meshes[0][1]))
 
-        x_min = min([v.x for mesh, _ in meshes for v in mesh])
-        x_max = max([v.x for mesh, _ in meshes for v in mesh])
-        y_min = min([v.y for mesh, _ in meshes for v in mesh])
-        y_max = max([v.y for mesh, _ in meshes for v in mesh])
-        z_min = min([v.z for mesh, _ in meshes for v in mesh])
-        z_max = max([v.z for mesh, _ in meshes for v in mesh])
+        x_min = min([v[0] for mesh, _ in meshes for v in mesh])
+        x_max = max([v[0] for mesh, _ in meshes for v in mesh])
+        y_min = min([v[1] for mesh, _ in meshes for v in mesh])
+        y_max = max([v[1] for mesh, _ in meshes for v in mesh])
+        z_min = min([v[2] for mesh, _ in meshes for v in mesh])
+        z_max = max([v[2] for mesh, _ in meshes for v in mesh])
         child_shape.aabbHalfExtents = Vector4((x_max - x_min) / 2, (y_max - y_min) / 2, (z_max - z_min) / 2, 0.0)
         child_shape.aabbCenter = Vector4((x_max + x_min) / 2, (y_max + y_min) / 2, (z_max + z_min) / 2, 0.0)
 

@@ -8,14 +8,14 @@ from pathlib import Path
 from soulstruct_havok.utilities.maths import Vector4
 
 
-def read_obj(obj_path: Path | str, invert_x=True) -> list[tuple[list[Vector4], list[tuple[int, int, int]]]]:
+def read_obj(obj_path: Path | str, invert_x=True) -> list[tuple[list[Vector4], list[tuple[int, int, int, int]]]]:
     """Reads OBJ file and returns a list of meshes, each of which is a list of `Vector4` vertices and a list of faces
     (vertex index triples).
 
     If `invert_x=True` (default), X coordinates will be negated, which is sufficient for having collisions appear
     properly in Blender (assuming they were also negated on conversion to OBJ or import into Blender).
     """
-    meshes = []  # type: list[tuple[list[Vector4], list[tuple[int, int, int]]]]
+    meshes = []  # type: list[tuple[list[Vector4], list[tuple[int, int, int, int]]]]
     mesh = None  # type: None | tuple[list, list]
 
     o_re = re.compile(r"^o .*$")
@@ -44,7 +44,7 @@ def read_obj(obj_path: Path | str, invert_x=True) -> list[tuple[list[Vector4], l
                     raise ValueError("Found 'f' face line before an 'o' object definition.")
                 if not mesh[0]:
                     raise ValueError("Found 'f' face line before a 'v' vertex lines.")
-                # Switch to 0-indexing, localize vertex indices, and insert zero that appears between triplets.
+                # Switch to 0-indexing, localize vertex indices, and insert zero that appears between triplets in HKX.
                 face = (
                     int(f.group(1)) - global_v_i - 1,
                     int(f.group(2)) - global_v_i - 1,

@@ -16,19 +16,28 @@ import logging
 import math
 import typing as tp
 
-import numpy as np
-import transforms3d as t3d
-from transforms3d._gohlketransforms import quaternion_slerp
+try:
+    import numpy
+except ImportError:
+    numpy = None
+try:
+    import transforms3d as t3d
+    from transforms3d._gohlketransforms import quaternion_slerp
+except ImportError:
+    t3d = quaternion_slerp = None
 
 from soulstruct.utilities.maths import *
 from soulstruct.utilities.conversion import floatify
 
 _LOGGER = logging.getLogger(__name__)
 
-ARRAYLIKE = tp.Union[tuple, list, np.ndarray, Vector3, Vector4]
+if numpy:
+    ARRAYLIKE = tp.Union[tuple, list, numpy.ndarray, Vector3, Vector4]
+else:
+    ARRAYLIKE = tp.Union[tuple, list, Vector3, Vector4]
 
 
-def invert_matrix(matrix: np.ndarray):
+def invert_matrix(matrix: numpy.ndarray):
     try:
         from scipy.linalg import inv
     except ImportError:
@@ -44,15 +53,16 @@ class Quaternion:
     """
     THREECOMP40_START = -math.sqrt(2) / 2  # -0.7071067811865476
     THREECOMP40_STEP = math.sqrt(2) / 4095  # 0.00034535129728280713
+    _IDENTITY = [0.0, 0.0, 0.0, 1.0]
 
-    _data: np.ndarray
+    _data: list[float, float, float, float]
 
     def __init__(self, x: float | ARRAYLIKE | Quaternion, y: float = None, z: float = None, w: float = None):
         if y is None and z is None and w is None:
             x, y, z, w = x
         elif y is None or z is None or w is None:
             raise ValueError("Quaternion must be constructed with a four-element array or four separate arguments.")
-        self._data = np.array([x, y, z, w], dtype=np.float64)
+        self._data = [x, y, z, w]
 
     @property
     def x(self):
@@ -100,12 +110,12 @@ class Quaternion:
 
     def __eq__(self, other: Quaternion):
         if isinstance(other, Quaternion):
-            return np.allclose(self._data, other._data)
+            return all(math.isclose(self._data[i], other._data[i], rel_tol=1.e-5, abs_tol=1.e-8) for i in range(4))
         raise TypeError("Can only compare equality for `Quaternion` with another `Quaternion`.")
 
     def normalize(self) -> Quaternion:
         magnitude = abs(self)
-        return Quaternion(self._data / magnitude)
+        return Quaternion([v / magnitude for v in self._data])
 
     @classmethod
     def from_wxyz(cls, w: float | ARRAYLIKE | Quaternion, x: float = None, y: float = None, z: float = None):
@@ -115,11 +125,11 @@ class Quaternion:
             raise ValueError("Quaternion must be constructed with a four-element array or four separate arguments.")
         return cls(x, y, z, w)
 
-    def to_wxyz(self) -> np.ndarray:
-        return np.array([self._data[3], self._data[0], self._data[1], self._data[2]])
+    def to_wxyz(self) -> list[float, float, float, float]:
+        return [self._data[3], self._data[0], self._data[1], self._data[2]]
 
     def is_identity(self) -> bool:
-        return np.allclose(self._data, [0.0, 0.0, 0.0, 1.0])
+        return all(math.isclose(self._data[i], self._IDENTITY[i], rel_tol=1.e-5, abs_tol=1.3-8) for i in range(4))
 
     @classmethod
     def identity(cls) -> Quaternion:
@@ -132,23 +142,7 @@ class Quaternion:
     @classmethod
     def from_vector_change(cls, v1: Vector3, v2: Vector3):
         """Get `Quaternion` representing the rotation from `v1` to `v2`."""
-        """
-        quaternion q;
-        vector3 c = cross(v1,v2);
-        q.v = c;
-        if ( vectors are known to be unit length ) {
-           q.w = 1 + dot(v1,v2);
-        } else {
-            q.w = sqrt(v1.length_squared() * v2.length_squared()) + dot(v1,v2);
-        }
-        q.normalize();
-        return q;
-        """
         dot = v1.dot(v2)
-        # if dot > 0.999999:  # parallel
-        #     return cls.identity()
-        # elif dot < -0.999999:  # opposite
-        #     return cls(1.0, 0.0, 0.0, 0.0)  # 180 degrees (arbitrarily around X)
         xyz = v1.cross(v2)
         w = math.sqrt(v1.get_squared_magnitude() * v2.get_squared_magnitude()) + dot
         return cls(*xyz, w).normalize()
@@ -158,35 +152,51 @@ class Quaternion:
         return Quaternion.from_wxyz(*func(self.to_wxyz()))
 
     def inverse(self) -> Quaternion:
+        if t3d is None:
+            raise ModuleNotFoundError("Module `transforms3d` required to calculate Quaternion inverse.")
         return self._call_t3d(t3d.quaternions.qinverse)
 
     def conjugate(self) -> Quaternion:
+        if t3d is None:
+            raise ModuleNotFoundError("Module `transforms3d` required to calculate Quaternion conjugate.")
         return self._call_t3d(t3d.quaternions.qconjugate)
 
     # region Format Conversions
     @classmethod
-    def from_matrix3(cls, matrix3: np.ndarray):
+    def from_matrix3(cls, matrix3: numpy.ndarray):
+        if t3d is None:
+            raise ModuleNotFoundError("Module `transforms3d` required to convert Matrix3 to Quaternion.")
         return Quaternion.from_wxyz(t3d.quaternions.mat2quat(matrix3))
 
-    def to_matrix3(self) -> np.ndarray:
+    def to_matrix3(self) -> numpy.ndarray:
+        if t3d is None:
+            raise ModuleNotFoundError("Module `transforms3d` required to convert Quaternion to Matrix3.")
         return t3d.quaternions.quat2mat(self.to_wxyz())
 
     @classmethod
-    def from_matrix4(cls, matrix4: np.ndarray):
+    def from_matrix4(cls, matrix4: numpy.ndarray):
+        if t3d is None:
+            raise ModuleNotFoundError("Module `transforms3d` required to convert Matrix4 to Quaternion.")
         return Quaternion.from_wxyz(t3d.quaternions.mat2quat(matrix4[:3, :3]))
 
-    def to_matrix4(self) -> np.ndarray:
+    def to_matrix4(self) -> numpy.ndarray:
+        if t3d is None:
+            raise ModuleNotFoundError("Module `transforms3d` required to convert Quaternion to Matrix4.")
         matrix3 = t3d.quaternions.quat2mat(self._data)
-        matrix34 = np.c_[matrix3, np.zeros((3, 1))]
-        return np.r_[matrix34, [0.0, 0.0, 0.0, 1.0]]
+        matrix34 = numpy.c_[matrix3, numpy.zeros((3, 1))]
+        return numpy.r_[matrix34, [0.0, 0.0, 0.0, 1.0]]
 
     @classmethod
     def from_axis_angle(cls, axis: Vector3, angle: float, radians=False) -> Quaternion:
+        if t3d is None:
+            raise ModuleNotFoundError("Module `transforms3d` required to convert axis-angle to Quaternion.")
         if not radians:
             angle = math.radians(angle)
         return Quaternion.from_wxyz(*t3d.quaternions.axangle2quat(axis.normalize(), angle, is_normalized=True))
 
     def to_axis_angle(self, radians=False) -> tp.Tuple[Vector3, float]:
+        if t3d is None:
+            raise ModuleNotFoundError("Module `transforms3d` required to convert Quaternion to axis-angle.")
         axis, angle = t3d.quaternions.quat2axangle(self.to_wxyz())
         return Vector3(axis), (angle if radians else math.degrees(angle))
 
@@ -198,35 +208,40 @@ class Quaternion:
 
     # region Arithmetic
 
-    def dot(self, other: Quaternion | np.ndarray) -> Quaternion:
+    def dot(self, other: Quaternion | numpy.ndarray) -> Quaternion:
         """Simple element-wise multiplication."""
         if isinstance(other, Quaternion):
-            return Quaternion(np.dot(self._data, other._data))
+            return Quaternion(*[self._data[i] * other._data[i] for i in range(4)])
+        raise TypeError(f"Cannot dot-product Quaternion with {type(other).__name__}.")
 
     def __add__(self, other: Quaternion | float) -> Quaternion:
         if isinstance(other, Quaternion):
-            return Quaternion(self._data + other._data)
+            return Quaternion(*[v + o for v, o in zip(self._data, other._data)])
         elif isinstance(other, float):
-            return Quaternion(self._data + other)
+            return Quaternion(*[v + other for v in self._data])
         raise TypeError(f"Cannot left-add Quaternion with {type(other).__name__}.")
 
     __radd__ = __add__
 
     def __mul__(self, other: Quaternion | float) -> Quaternion:
         if isinstance(other, Quaternion):
+            if t3d is None:
+                raise ModuleNotFoundError("Module `transforms3d` required to multiply two Quaternions.")
             return Quaternion.from_wxyz(t3d.quaternions.qmult(self.to_wxyz(), other.to_wxyz()))
         elif isinstance(other, float):
-            return Quaternion(other * self._data)
+            return Quaternion(*[v * other for v in self._data])
         raise TypeError(f"Cannot left-multiply Quaternion with {type(other).__name__}.")
 
     def __rmul__(self, other: Quaternion) -> Quaternion:
         if isinstance(other, Quaternion):
             return other.__mul__(self)
         elif isinstance(other, float):
-            return Quaternion(other * self._data)
+            return Quaternion(*[v * other for v in self._data])
         raise TypeError(f"Cannot right-multiply Quaternion with {type(other).__name__}.")
 
     def __abs__(self) -> float:
+        if t3d is None:
+            raise ModuleNotFoundError("Module `transforms3d` required to normalize Quaternion.")
         return t3d.quaternions.qnorm(self._data)  # element order does not matter
 
     # endregion
@@ -325,7 +340,7 @@ class Quaternion:
     def encode_ThreeComp40(self) -> int:
         """Encode Quaternion into a 40-bit (five-byte) integer. Most common quantization used in FromSoft splines."""
         mask = (1 << 12) - 1  # twelve 1-bits (4095)
-        implicit_dimension = int(np.argmax(abs(self._data)))
+        implicit_dimension = self._data.index(max(self._data))
         implicit_negative = int(self._data[implicit_dimension] < 0)
 
         encoded_floats = []  # type: list[int]
@@ -434,9 +449,9 @@ class TRSTransform:
 
     def is_identity(self) -> bool:
         return (
-            np.allclose(self.translation, [0, 0, 0])
-            and np.allclose(self.rotation, [0, 0, 0, 1])
-            and np.allclose(self.scale, [1, 1, 1])
+            numpy.allclose(self.translation, [0, 0, 0])
+            and numpy.allclose(self.rotation, [0, 0, 0, 1])
+            and numpy.allclose(self.scale, [1, 1, 1])
         )
 
     @classmethod
@@ -496,24 +511,28 @@ class TRSTransform:
         """Shortcut for `compose(other, scale_translation=True)`."""
         return self.compose(other, scale_translation=True)
 
-    def to_matrix4(self) -> np.ndarray:
+    def to_matrix4(self) -> numpy.ndarray:
         """Convert `translate` vector, `rotation` quaternion, and `scale` vector to a 4x4 transform matrix.
 
         The resulting matrix is just the `T @ R @ S` composition of the three transformation types.
         """
+        if numpy is None or t3d is None:
+            raise ModuleNotFoundError("`numpy` and `transforms3d` required to convert TRSTransform to Matrix4.")
         return t3d.affines.compose(
-            T=np.array(self.translation),
+            T=numpy.array(self.translation),
             R=self.rotation.to_matrix3(),
-            Z=np.array(self.scale),
+            Z=numpy.array(self.scale),
             # No shear.
         )
 
     @classmethod
-    def from_matrix4(cls, matrix4: np.ndarray) -> TRSTransform:
+    def from_matrix4(cls, matrix4: numpy.ndarray) -> TRSTransform:
         """Attempt to decompose `matrix4` into translation, rotation, and scale components."""
+        if numpy is None or t3d is None:
+            raise ModuleNotFoundError("`numpy` and `transforms3d` required to convert Matrix4 to TRSTransform.")
         translate, rotation, scale, shear = t3d.affines.decompose44(matrix4)
 
-        if not np.allclose(shear, 0.0):
+        if not numpy.allclose(shear, 0.0):
             raise ValueError(f"Cannot convert a 4x4 matrix with non-zero shear to `TRSTransform`: shear = {shear}")
 
         return TRSTransform(
