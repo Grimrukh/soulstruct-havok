@@ -500,52 +500,52 @@ class TagFileUnpacker:
             # No value is too small to warn about.
         return value
 
-    @staticmethod
-    def read_var_int(reader: BinaryReader, byte_count: int, mask: int):
-        value = 0
-        for bit_shift in range(8 * (byte_count - 1), -1, -8):
-            value |= reader.unpack_value("<B") << bit_shift
-        return value & mask
-
     @classmethod
     def unpack_var_int(cls, reader: BinaryReader) -> int:
-        """First 1-5 bits of next byte indicate the size of the packed integer.
+        """First 1-5 bits of next byte indicate the size of the packed unsigned integer.
 
         Remaining bits after that marker in the first byte form part of the integer.
         """
-        marker_byte = reader.peek_value("B")
+        byte_1 = reader.unpack("<B")[0]
 
-        if marker_byte & 0b10000000 == 0:
+        if byte_1 & 0b10000000 == 0:
             # Use last 7/8 bits.
-            return cls.read_var_int(reader, 1, 0b01111111)
+            return byte_1 & 0b01111111
 
         # TODO: Special cases that have been found (in Elden Ring).
-        if marker_byte == 0b11000011:
+        if byte_1 == 0b11000011:
             # Use last 16/24 bits. TODO: Only observed value so far is 1, so the real bit count may be smaller.
-            return cls.read_var_int(reader, 3, 0b11111111_11111111)
+            bytes_2_3 = reader.unpack("<2B")
+            return (bytes_2_3[0] << 8) | bytes_2_3[1]
 
-        marker = marker_byte >> 3  # examine first five bits
+        marker = byte_1 >> 3  # examine first five bits (a varying number of them may be used)
 
-        if marker in range(0b00010000, 0b00011000):
+        if 0b00010000 <= marker < 0b00011000:
             # Use last 14/16 bits.
-            return cls.read_var_int(reader, 2, 0b00111111_11111111)
+            byte_2 = reader.unpack("<B")[0]
+            return 0b00111111_11111111 & ((byte_1 << 8) | byte_2)
 
-        if marker in range(0b00011000, 0b00011100):
+        if 0b00011000 <= marker < 0b00011100:
             # Use last 21/24 bits.
-            return cls.read_var_int(reader, 3, 0b00011111_11111111_11111111)
+            bytes_2_3 = reader.unpack("<2B")
+            return 0b00011111_11111111_11111111 & ((byte_1 << 16) | (bytes_2_3[0] << 8) | bytes_2_3[1])
 
         if marker == 0b00011100:
             # Use last 27/32 bits.
-            return cls.read_var_int(reader, 4, 0b00000111_11111111_11111111_11111111)
+            reader.seek(-1, 1)
+            return reader.unpack("<I")[0] & 0b00000111_11111111_11111111_11111111
 
         if marker == 0b00011101:
             # Use last 35/40 bits.
-            return cls.read_var_int(reader, 5, 0b00000111_11111111_11111111_11111111_11111111)
+            bytes_2_3_4_5 = reader.unpack("<4B")
+            return 0b00000111_11111111_11111111_11111111_11111111 & (
+                (byte_1 << 32) | (bytes_2_3_4_5[0] << 24) | (bytes_2_3_4_5[1] << 16)
+                | (bytes_2_3_4_5[2] << 8) | bytes_2_3_4_5[3]
+            )
 
         if marker == 0b00011110:
             # Use last 59/64 bits.
-            return cls.read_var_int(
-                reader, 8, 0b00000111_11111111_11111111_11111111_11111111_11111111_11111111_11111111
-            )
+            reader.seek(-1, 1)
+            return reader.unpack("<Q")[0] & 0b00000111_11111111_11111111_11111111_11111111_11111111_11111111_11111111
 
-        raise ValueError(f"Unrecognized marker byte for Havok variable int: {format(marker_byte, '#010b')}")
+        raise ValueError(f"Unrecognized marker byte for Havok variable int: {format(byte_1, '#010b')}")
