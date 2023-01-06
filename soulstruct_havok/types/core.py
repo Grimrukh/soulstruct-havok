@@ -2127,13 +2127,13 @@ def pack_array(
         if tag_data_type == TagDataType.Invalid:
             pass
         elif tag_data_type == TagDataType.Bool:
-            fmt = TagDataType.get_int_fmt(data_hk_type.tag_type_flags, count=item.length)
+            fmt = TagDataType.get_int_fmt(data_hk_type.tag_type_flags, count=new_item.length)
             new_item.writer.pack(fmt, *[int(v) for v in value])
         elif tag_data_type == TagDataType.Int:
-            fmt = TagDataType.get_int_fmt(data_hk_type.tag_type_flags, count=item.length)
+            fmt = TagDataType.get_int_fmt(data_hk_type.tag_type_flags, count=new_item.length)
             new_item.writer.pack(fmt, *value)
         elif data_hk_type.tag_type_flags == _FLOAT_32_TAG_TYPE_FLAGS:
-            new_item.writer.pack(f"<{item.length}f", *value)
+            new_item.writer.pack(f"<{new_item.length}f", *value)
         else:  # non-primitive; recur on data type `pack` method
             for i, element in enumerate(value):
                 data_hk_type.pack(new_item, element, items, existing_items, _item_creation_queue)
@@ -2250,13 +2250,14 @@ def pack_struct(
     if tag_data_type == TagDataType.Invalid:
         pass
     elif tag_data_type == TagDataType.Bool:
-        fmt = TagDataType.get_int_fmt(data_hk_type.tag_type_flags, count=item.length)
+        fmt = TagDataType.get_int_fmt(data_hk_type.tag_type_flags, count=length)
         item.writer.pack(fmt, *[int(v) for v in value])
     elif tag_data_type == TagDataType.Int:
-        fmt = TagDataType.get_int_fmt(data_hk_type.tag_type_flags, count=item.length)
+        fmt = TagDataType.get_int_fmt(data_hk_type.tag_type_flags, count=length)
+        print(f"INT STRUCT: {fmt=}, {value=}")
         item.writer.pack(fmt, *value)
     elif data_hk_type.tag_type_flags == _FLOAT_32_TAG_TYPE_FLAGS:
-        item.writer.pack(f"<{item.length}f", *value)
+        item.writer.pack(f"<{length}f", *value)
     else:  # non-primitive; recur on data type `pack` method
         for i, element in enumerate(value):
             item.writer.pad_to_offset(struct_start_offset + i * data_hk_type.byte_size)

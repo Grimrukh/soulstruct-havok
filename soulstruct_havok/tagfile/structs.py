@@ -35,7 +35,7 @@ class TagFileItem:
     ):
         self.hk_type = hk_type
         self.absolute_offset = absolute_offset
-        self.length = length  # number of contained elements, NOT byte size (usually 1)
+        self.length = length  # number of contained elements if this is an array (otherwise always 1)
         self.is_ptr = is_ptr
         self.in_process = False  # prevents recursion
         self.value = None
