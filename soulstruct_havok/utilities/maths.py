@@ -373,7 +373,23 @@ class Quaternion:
 
         Uses Christoph Gohlke's implementation.
         """
-        return Quaternion(quaternion_slerp(q1._data, q2._data, t, spin=spin, shortestpath=shortest_path))
+        if quaternion_slerp is None:
+            # Hail Mary: try importing from Blender `mathutils`.
+            try:
+                # noinspection PyUnresolvedReferences,PyPackageRequirements
+                from mathutils import Quaternion as BlenderQuaternion
+            except ModuleNotFoundError:
+                raise ModuleNotFoundError(
+                    "Cannot use quaternion slerp without `transforms3d` library or Blender `mathutils`.")
+            else:
+                if spin != 0 or not shortest_path:
+                    raise ValueError("Blender quaternion slerp requires `spin=0` and `shortest_path=True`.")
+                bl_q1 = BlenderQuaternion(q1.to_wxyz())
+                bl_q2 = BlenderQuaternion(q2.to_wxyz())
+                bl_slerp = bl_q1.slerp(bl_q2, t)
+                return Quaternion.from_wxyz(bl_slerp)
+
+        return Quaternion(quaternion_slerp(q1.to_wxyz(), q2.to_wxyz(), t, spin=spin, shortestpath=shortest_path))
 
 
 class TRSTransform:
