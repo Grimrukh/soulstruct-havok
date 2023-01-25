@@ -193,7 +193,7 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
     def scale(self, factor: float):
         """Apply a simple scaling transformation.
 
-        Note that this scales the `translation` data of each bone transform, NOT its `scale` data. This modifies the
+        Note that this scales the `translate` data of each bone transform, NOT its `scale` data. This modifies the
         bones in their parent's frame of reference, rather than scaling the bone's frame of reference itself (though
         you could achieve the same result that way).
         """
@@ -214,22 +214,24 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
 
         self.try_reverse_root_motion()
 
-    def try_transform_root_motion(self, transform: TRSTransform):
+    def try_transform_root_motion(self, transform: TRSTransform) -> bool:
         """Transform root motion vectors if present, or do nothing otherwise."""
         try:
             reference_frame_samples = self.get_reference_frame_samples()
         except TypeError:
-            return
+            return False
         for i in range(len(reference_frame_samples)):
             reference_frame_samples[i] = transform.transform_vector(reference_frame_samples[i])
+        return True
 
-    def try_reverse_root_motion(self):
+    def try_reverse_root_motion(self) -> bool:
         """Reverse root motion vectors if present, or do nothing otherwise."""
         try:
             reference_frame_samples = self.get_reference_frame_samples()
         except TypeError:
-            return
+            return False
         self.set_reference_frame_samples(list(reversed(reference_frame_samples)))
+        return True
 
     def spline_to_interleaved(self):
         """Modify animation data/class in place, from `hkaSplineCompressedAnimation` to

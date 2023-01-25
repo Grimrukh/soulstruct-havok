@@ -862,11 +862,11 @@ class SplineCompressedAnimationData:
             for transform_track_index in range(transform_track_count):
                 track = block[transform_track_index]
                 if frame >= frame_count - 1:
-                    # Need to interpolate between this final frame and the first frame.
+                    # Need to interpolate (t = 0.5) between this final frame and the first frame.
                     current_frame_transform = track.get_quat_transform_at_frame(float(math.floor(frame)))
                     first_frame_transform = self.blocks[0][transform_track_index].get_quat_transform_at_frame(frame=0.0)
                     frame_transforms[frame_index].append(
-                        TRSTransform.lerp(current_frame_transform, first_frame_transform, t=frame % 1)
+                        TRSTransform.lerp(current_frame_transform, first_frame_transform, t=0.5)
                     )
                 else:
                     # Normal frame.

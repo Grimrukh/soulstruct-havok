@@ -11,8 +11,11 @@ import typing as tp
 from pathlib import Path
 
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib import cm
+try:
+    import matplotlib.pyplot as plt
+    from matplotlib import cm
+except ModuleNotFoundError:
+    plt = cm = None
 
 from soulstruct.base.game_file import GameFile
 from soulstruct.containers import Binder
@@ -22,7 +25,11 @@ from soulstruct_havok.tagfile.unpacker import MissingCompendiumError
 from soulstruct_havok.wrappers.base import BaseAnimationHKX, BaseSkeletonHKX
 from soulstruct_havok.wrappers.base.skeleton import BONE_SPEC_TYPING, BONE_TYPING
 from soulstruct_havok.utilities.maths import Quaternion, TRSTransform, Vector3
-from soulstruct_havok.utilities.vispy_window import VispyWindow
+
+try:
+    from soulstruct_havok.utilities.vispy_window import VispyWindow  # could be `None` if `vispy` not installed
+except ImportError:
+    VispyWindow = None
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -67,7 +74,8 @@ class BaseAnimationManager(abc.ABC):
         """Convert all animation transforms from their default local coordinates relative to parent to coordinates in
         world space.
 
-        TODO: Currently only supported for interleaved, but could easily be done for splines too.
+        TODO: Currently only supported for interleaved, but could easily be done for splines too by transforming the
+         control points.
         """
         animation = self.get_animation(anim_id)
         if anim_id is None:
@@ -377,14 +385,14 @@ class BaseAnimationManager(abc.ABC):
                     child_tf.rotation = (parent_tf.rotation * bone_tf.rotation).inverse() * initial_root_rot
 
     def local_to_world_space_on_frame(
-        self, frame: int, bone: BONE_SPEC_TYPING, point_or_transform: Vector3 | TRSTransform, anim_id: int = None
+        self, frame_index: int, bone: BONE_SPEC_TYPING, point_or_transform: Vector3 | TRSTransform, anim_id: int = None
     ) -> Vector3 | TRSTransform:
         """Convert given point or transform (translation and rotation components only) from the local space of `bone`
         to world space by accumulating and applying all parent transforms on `frame`."""
         animation = self.get_animation(anim_id)
         if not animation.is_interleaved:
             raise ValueError("Can only do per-frame transformations for interleaved animations.")
-        animation_frame = animation.interleaved_data[frame]
+        animation_frame = animation.interleaved_data[frame_index]
         if isinstance(point_or_transform, Vector3):
             point = point_or_transform  # type: Vector3
             for parent_index in self.skeleton.get_bone_ascending_parent_indices(bone, include_self=True):
@@ -757,7 +765,7 @@ class BaseAnimationManager(abc.ABC):
                 transforms[i] = parent_transforms[i].compose(transforms[i], scale_translation=True)
         return transforms
 
-    def get_all_world_space_transforms_in_frame(self, frame: int, anim_id: int = None) -> list[TRSTransform]:
+    def get_all_world_space_transforms_in_frame(self, frame_index: int, anim_id: int = None) -> list[TRSTransform]:
         """Resolve all transforms to get world space transforms at the given `frame` index.
 
         TODO: Lots of redundant calculations right now; it would be more efficient to work my way downward rather than
@@ -767,10 +775,10 @@ class BaseAnimationManager(abc.ABC):
         if not animation.is_interleaved:
             raise TypeError("Can only get bone animation tracks for interleaved animation.")
         animation.load_interleaved_data()
-        if frame > len(animation.interleaved_data):
-            raise ValueError(f"Frame must be between 0 and {len(animation.interleaved_data)}, not {frame}.")
+        if frame_index > len(animation.interleaved_data):
+            raise ValueError(f"Frame must be between 0 and {len(animation.interleaved_data)}, not {frame_index}.")
         all_bone_index_hierarchies = self.skeleton.get_all_bone_parent_indices()
-        frame_transforms = animation.interleaved_data[frame]
+        frame_transforms = animation.interleaved_data[frame_index]
         # NOTE: `world_transforms` is ordered by bone, not track. Bones without tracks will have identity transforms.
         world_transforms = [TRSTransform.identity() for _ in self.skeleton.bones]
         mapping = animation.animation_binding.transformTrackToBoneIndices
@@ -810,7 +818,7 @@ class BaseAnimationManager(abc.ABC):
         compendium, compendium_name = cls.ANIMATION_HKX.get_compendium_from_binder(anibnd, compendium_name)
         try:
             skeleton = cls.SKELETON_HKX(
-                anibnd.find_entry_matching_name(r"[Ss]keleton\.[HKX|hkx]"), compendium=compendium
+                anibnd.find_entry_matching_name(r"[Ss]keleton\.[Hh][Kk][Xx]"), compendium=compendium
             )
             animations = {
                 anim_id: cls.ANIMATION_HKX(anibnd[cls.animation_id_to_entry_basename(anim_id)], compendium=compendium)
@@ -862,6 +870,9 @@ class BaseAnimationManager(abc.ABC):
         label_bones=True,
     ):
         """Figure out how to properly resolve bones in a nice way, with connected heads and tails, for Blender."""
+        if VispyWindow is None:
+            raise ModuleNotFoundError("`vispy` package required to plot skeletons.")
+
         # noinspection PyPackageRequirements
         # Even if only some `bone_names` are given, we collect all of them to draw connective lines from parents.
         bone_translations = [
@@ -906,6 +917,9 @@ class BaseAnimationManager(abc.ABC):
         focus_bone=None,
     ):
         """Plot every bone on the given frame of the given animation."""
+        if VispyWindow is None:
+            raise ModuleNotFoundError("`vispy` package required to plot skeletons.")
+
         animation = self.get_animation(anim_id)
         if not animation.is_interleaved:
             raise TypeError("Can only plot interleaved animations.")
@@ -967,6 +981,9 @@ class BaseAnimationManager(abc.ABC):
         axes=None,
     ):
         """Plot interleaved animation transforms (translation only) in both local bone space and world space."""
+        if plt is None or cm is None:
+            raise ModuleNotFoundError("`matplotlib` package required to plot.")
+
         if coord not in ("x", "y", "z", "magnitude"):
             raise ValueError("Coord should be 'x', 'y', 'z', or 'magnitude'.")
         bone = self.skeleton.resolve_bone_spec(bone)
@@ -999,6 +1016,8 @@ class BaseAnimationManager(abc.ABC):
         self, bone: BONE_SPEC_TYPING, coord: str, anim_id: int = None, title: str = None, ylim=None, show=False
     ):
         """Plot a grid for all bones in the hierarchy up to `bone`, including itself."""
+        if plt is None or cm is None:
+            raise ModuleNotFoundError("`matplotlib` package required to plot.")
         bone = self.skeleton.resolve_bone_spec(bone)
         hierarchy = self.skeleton.get_hierarchy_to_bone(bone)
         fig, axes = plt.subplots(ncols=2, figsize=(10, 5))

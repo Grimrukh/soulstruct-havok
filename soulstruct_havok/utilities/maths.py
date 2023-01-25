@@ -194,7 +194,7 @@ class Quaternion:
             angle = math.radians(angle)
         return Quaternion.from_wxyz(*t3d.quaternions.axangle2quat(axis.normalize(), angle, is_normalized=True))
 
-    def to_axis_angle(self, radians=False) -> tp.Tuple[Vector3, float]:
+    def to_axis_angle(self, radians=False) -> tuple[Vector3, float]:
         if t3d is None:
             raise ModuleNotFoundError("Module `transforms3d` required to convert Quaternion to axis-angle.")
         axis, angle = t3d.quaternions.quat2axangle(self.to_wxyz())
@@ -204,6 +204,10 @@ class Quaternion:
     def axis(cls, x: float, y: float, z: float, angle: float, radians=False) -> Quaternion:
         """Shorter wrapper for the above."""
         return cls.from_axis_angle(Vector3(x, y, z), angle, radians)
+
+    def to_euler_angles(self, radians=False) -> Vector3:
+        mat = Matrix3.from_nested_lists(self.to_matrix3())
+        return mat.to_euler_angles(radians=radians)
     # endregion
 
     # region Arithmetic
@@ -389,7 +393,8 @@ class Quaternion:
                 bl_slerp = bl_q1.slerp(bl_q2, t)
                 return Quaternion.from_wxyz(bl_slerp)
 
-        return Quaternion(quaternion_slerp(q1.to_wxyz(), q2.to_wxyz(), t, spin=spin, shortestpath=shortest_path))
+        return Quaternion.from_wxyz(
+            quaternion_slerp(q1.to_wxyz(), q2.to_wxyz(), t, spin=spin, shortestpath=shortest_path))
 
 
 class TRSTransform:
@@ -533,7 +538,7 @@ class TRSTransform:
         The resulting matrix is just the `T @ R @ S` composition of the three transformation types.
         """
         if numpy is None or t3d is None:
-            raise ModuleNotFoundError("`numpy` and `transforms3d` required to convert TRSTransform to Matrix4.")
+            raise ModuleNotFoundError("`numpy` and `transforms3d` required to convert TRSTransform to 4x4 matrix.")
         return t3d.affines.compose(
             T=numpy.array(self.translation),
             R=self.rotation.to_matrix3(),
