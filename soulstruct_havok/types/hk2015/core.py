@@ -209,7 +209,7 @@ class hkVector4f(hkStruct(_float, 4)):
     def unpack(cls, reader: BinaryReader, offset: int, items: list[TagFileItem] = None) -> Vector4:
         # cls.debug_print_unpack(f"Unpacking `{cls.__name__}`... (hkVector4f) <{hex(offset)}>")
         # cls.increment_debug_indent()
-        value = Vector4(super().unpack(reader, offset, items))
+        value = Vector4(*super().unpack(reader, offset, items))
         # cls.decrement_debug_indent()
         # cls.debug_print_unpack(f"-> {repr(value)}")
         return value

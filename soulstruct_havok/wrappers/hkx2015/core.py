@@ -1,16 +1,17 @@
 from __future__ import annotations
 
-__all__ = ["AnimationHKX", "SkeletonHKX", "ClothHKX", "RagdollHKX"]
+__all__ = ["AnimationHKX", "SkeletonHKX", "ClothHKX", "RagdollHKX", "RemoAnimationHKX"]
 
 import subprocess as sp
 
 from soulstruct_havok.packfile.structs import PackFileVersion, PackfileHeaderInfo
 from soulstruct_havok.types import hk, hk2010, hk2015
 from soulstruct_havok.wrappers.base import (
-    BaseAnimationHKX as BaseAnimationHKX,
-    BaseSkeletonHKX as BaseSkeletonHKX,
-    BaseClothHKX as BaseClothHKX,
-    BaseRagdollHKX as BaseRagdollHKX,
+    BaseAnimationHKX,
+    BaseSkeletonHKX,
+    BaseClothHKX,
+    BaseRagdollHKX,
+    BaseRemoAnimationHKX,
 )
 from soulstruct_havok.wrappers.hkx2010 import AnimationHKX as AnimationHKX2010
 from soulstruct_havok.utilities.hk_conversion import convert_hk
@@ -113,4 +114,8 @@ class ClothHKX(HKXMixin2015, BaseClothHKX):
 
 
 class RagdollHKX(HKXMixin2015, BaseRagdollHKX):
+    pass
+
+
+class RemoAnimationHKX(HKXMixin2015, BaseRemoAnimationHKX):
     pass

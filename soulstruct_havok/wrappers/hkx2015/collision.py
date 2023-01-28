@@ -180,8 +180,8 @@ class CollisionHKX(BaseCollisionHKX, HKXMixin2015):
         y_max = max([v[1] for mesh, _ in meshes for v in mesh])
         z_min = min([v[2] for mesh, _ in meshes for v in mesh])
         z_max = max([v[2] for mesh, _ in meshes for v in mesh])
-        child_shape.aabbHalfExtents = Vector4((x_max - x_min) / 2, (y_max - y_min) / 2, (z_max - z_min) / 2, 0.0)
-        child_shape.aabbCenter = Vector4((x_max + x_min) / 2, (y_max + y_min) / 2, (z_max + z_min) / 2, 0.0)
+        child_shape.aabbHalfExtents = Vector4([(x_max - x_min) / 2, (y_max - y_min) / 2, (z_max - z_min) / 2, 0.0])
+        child_shape.aabbCenter = Vector4([(x_max + x_min) / 2, (y_max + y_min) / 2, (z_max + z_min) / 2, 0.0])
 
         hkx.regenerate_mopp_data()
 
@@ -234,11 +234,11 @@ class CollisionHKX(BaseCollisionHKX, HKXMixin2015):
             indexStriding=8,
             stridingType=2,  # 16-bit
             flipAlternateTriangles=0,
-            extrusion=Vector4(0.0, 0.0, 0.0, 0.0),
+            extrusion=Vector4.zero(),
             transform=hkQsTransform(
-                translation=Vector4(0.0, 0.0, 0.0, 0.0),
+                translation=Vector4.zero(),
                 rotation=(0.0, 0.0, 0.0, 1.0),
-                scale=Vector4(1.0, 1.0, 1.0, 1.0),
+                scale=Vector4.ones(),
             ),
         )
 

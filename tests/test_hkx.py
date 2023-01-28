@@ -5,7 +5,7 @@ from pathlib import Path
 from soulstruct.config import DSR_PATH
 from soulstruct_havok.utilities.maths import *
 
-from soulstruct_havok.wrappers.hkx2015.animation_manager import AnimationManager as AnimationManagerDS1
+from soulstruct_havok.wrappers.hkx2015.animation_manager import ANIBND as AnimationManagerDS1
 from soulstruct_havok.wrappers.hkx2018.animation_manager import AnimationManager as AnimationManagerER
 
 GAME_CHR_PATH = DSR_PATH + "/chr"

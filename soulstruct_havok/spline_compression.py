@@ -23,7 +23,7 @@ import struct
 import typing as tp
 from enum import IntEnum
 
-from soulstruct.utilities.binary import BinaryReader, BinaryWriter
+from soulstruct.utilities.binary import BinaryReader, BinaryWriter, ByteOrder
 
 from soulstruct_havok.utilities.maths import Vector3, Vector4, Quaternion, TRSTransform
 
@@ -312,7 +312,7 @@ class TrackVector3:
             return axis_value  # float
 
     def get_vector_at_frame(self, frame: float) -> Vector3:
-        return Vector3([self.get_value_at_frame(frame, axis) for axis in "xyz"])
+        return Vector3(*[self.get_value_at_frame(frame, axis) for axis in "xyz"])
 
     def set_to_static_vector(self, xyz):
         self.x, self.y, self.z = xyz
@@ -589,7 +589,7 @@ class TrackQuaternion:
 
         Uses an independent `BinaryWriter` in case an unsupported quantization error is raised.
         """
-        writer = BinaryWriter(big_endian=big_endian)
+        writer = BinaryWriter(byte_order=ByteOrder.big_endian_bool(big_endian))
 
         if isinstance(self.value, SplineQuaternion):  # spline
             if self.spline_header is None:
@@ -607,7 +607,7 @@ class TrackQuaternion:
 
     def pack_raw(self, big_endian=False) -> bytes:
         """Substitute method that supports reversal, but not actual quaternion modification."""
-        writer = BinaryWriter(big_endian=big_endian)
+        writer = BinaryWriter(ByteOrder.big_endian_bool(big_endian))
 
         if self.spline_header:
             writer.append(self.spline_header.pack())
@@ -766,7 +766,7 @@ class SplineCompressedAnimationData:
         self.raw_data = data
         self.big_endian = big_endian
         self.blocks = []
-        reader = BinaryReader(bytearray(self.raw_data), byte_order=">" if big_endian else "<")
+        reader = BinaryReader(bytearray(self.raw_data), default_byte_order=ByteOrder.big_endian_bool(big_endian))
         self.unpack(reader, block_count, transform_track_count)
 
     def unpack(self, reader: BinaryReader, block_count: int, transform_track_count: int):
@@ -807,7 +807,7 @@ class SplineCompressedAnimationData:
         if not self.blocks:
             raise ValueError("Cannot pack empty spline-compressed animation data.")
 
-        writer = BinaryWriter(big_endian=self.big_endian)
+        writer = BinaryWriter(byte_order=ByteOrder.big_endian_bool(self.big_endian))
         block_count = len(self.blocks)
         transform_track_count = len(self.blocks[0])
         for block in self.blocks:

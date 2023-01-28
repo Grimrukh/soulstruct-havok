@@ -5,7 +5,7 @@ __all__ = ["PackFilePacker"]
 import typing as tp
 from collections import deque
 
-from soulstruct.utilities.binary import BinaryWriter
+from soulstruct.utilities.binary import BinaryWriter, ByteOrder
 
 from soulstruct_havok.types.core import get_py_name, hk, Ptr_
 from .structs import *
@@ -31,7 +31,8 @@ class PackFilePacker:
             )
 
     def pack(self, header_info: PackfileHeaderInfo) -> bytes:
-        writer = BinaryWriter(big_endian=not header_info.is_little_endian)
+        byte_order = ByteOrder.LittleEndian if header_info.is_little_endian else ByteOrder.BigEndian
+        writer = BinaryWriter(byte_order=byte_order)
 
         # TODO: Do the "contents" header indices/offsets vary? I don't imagine so, not for my scope anyway.
         self.header = PackFileHeader(

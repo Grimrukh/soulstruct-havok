@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import abc
+import logging
 import typing as tp
+from dataclasses import dataclass
 
-from soulstruct_havok.utilities.maths import TRSTransform, Vector3
+from soulstruct_havok.utilities.maths import TRSTransform
 from soulstruct_havok.types import hk2010, hk2014, hk2015, hk2018
 
 from .core import BaseWrapperHKX
+
+_LOGGER = logging.getLogger(__name__)
 
 
 SKELETON_TYPING = tp.Union[
@@ -15,189 +19,152 @@ SKELETON_TYPING = tp.Union[
 BONE_TYPING = tp.Union[
     hk2010.hkaBone, hk2014.hkaBone, hk2015.hkaBone, hk2018.hkaBone,
 ]
-BONE_SPEC_TYPING = tp.Union[BONE_TYPING, int, str]
+
+
+@dataclass(slots=True, frozen=True)
+class BoneWrapper:
+    """Wraps the various `hkaBone` Havok classes to add explicit parent references, index information, and so on."""
+    _skeleton: SKELETON_TYPING
+    index: int
+    name: str
+    parent: None | BoneWrapper
+    children: tuple[BoneWrapper] = ()
+    descending_hierarchy: tuple[BoneWrapper] = ()  # descending, inclusive
+    ascending_hierarchy: tuple[BoneWrapper] = ()  # ascending, inclusive
+
+    # Reference poses are likely enough to change that we don't cache them:
+
+    def get_reference_pose(self) -> TRSTransform:
+        return self._skeleton.referencePose[self.index].to_trs_transform()
+
+    def get_reference_pose_in_arma_space(self) -> TRSTransform:
+        """NOTE: If you need ALL bones in armature space, it is better to use:
+            `SkeletonHKX.get_all_reference_poses_in_arma_space()`
+        to avoid excessive, redundant `TRSTransform` creation and multiplication.
+        """
+        transform = TRSTransform.identity()
+        for bone in self.ascending_hierarchy:
+            transform = bone.get_reference_pose() @ transform
+        return transform
+
+    def get_root_parent(self) -> BoneWrapper:
+        bone = self
+        while bone.parent is not None:
+            bone = bone.parent
+        return bone
+
+    def get_all_children(self) -> list[BoneWrapper]:
+        """Recursively get all children of this bone, in depth-first order."""
+
+        children = []
+
+        def get_children(bone: BoneWrapper):
+            for child in bone.children:
+                if child in children:
+                    raise RecursionError(f"Bone {child.name} appears to have multiple parents.")
+                children.append(child)
+                get_children(child)
+
+        get_children(self)
+
+        return children
 
 
 class BaseSkeletonHKX(BaseWrapperHKX, abc.ABC):
     """Loads HKX objects that are found in a "Skeleton" HKX file (inside `anibnd` binder, usually `Skeleton.HKX`)."""
 
     skeleton: SKELETON_TYPING
-    bones: list[BONE_TYPING]
+
+    bones: list[BoneWrapper]
+    bones_by_name: None | dict[str, BoneWrapper]  # only available if all names are unique
 
     def create_attributes(self):
         animation_container = self.get_variant_index(0, "hkaAnimationContainer")
         self.skeleton = animation_container.skeletons[0]
-        self.bones = self.skeleton.bones
+        self.regenerate_bone_wrappers()
+
+    def regenerate_bone_wrappers(self):
+
+        bones_by_index = {}  # type: dict[int, BoneWrapper]
+        all_child_indices = {}
+        all_descending_hierarchy_indices = {}
+
+        found_names = set()
+        repeated_names = []
+
+        def _create_bone_wrapper(hka_bone: BONE_TYPING, parent: None | BoneWrapper, parent_indices: list[int]):
+            index = self.skeleton.bones.index(hka_bone)
+            descending_indices = all_descending_hierarchy_indices[index] = parent_indices + [index]
+            child_indices = [i for i, parent_index in enumerate(self.skeleton.parentIndices) if parent_index == index]
+            all_child_indices[index] = child_indices
+            bone_wrapper = BoneWrapper(
+                _skeleton=self.skeleton,
+                index=index,
+                name=hka_bone.name,
+                parent=parent,  # reference definitely already created
+                # Other reference tuples assigned below.
+            )
+            bones_by_index[index] = bone_wrapper
+            if hka_bone.name in found_names:
+                repeated_names.append(hka_bone.name)
+            else:
+                found_names.add(hka_bone.name)
+
+            for child_index in child_indices:
+                _create_bone_wrapper(self.skeleton.bones[child_index], bone_wrapper, descending_indices)
+
+        root_hka_bones = [b for i, b in enumerate(self.skeleton.bones) if self.skeleton.parentIndices[i] == -1]
+
+        for root_hka_bone in root_hka_bones:
+            _create_bone_wrapper(root_hka_bone, None, [])
+
+        self.bones = list(bones_by_index.values())
+
+        # Assign bone references (bypassing `frozen=True`).
+        for bone in self.bones:
+            children = tuple(self.bones[i] for i in all_child_indices[bone.index])
+            descending_hierarchy = tuple(self.bones[i] for i in all_descending_hierarchy_indices[bone.index])
+            object.__setattr__(bone, "children", children)
+            object.__setattr__(bone, "descending_hierarchy", descending_hierarchy)
+            object.__setattr__(bone, "ascending_hierarchy", tuple(reversed(descending_hierarchy)))
+
+        if repeated_names:
+            _LOGGER.warning(
+                f"Repeated bone names in this skeleton: {repeated_names}. `SkeletonHKX.bones_by_name` not available. "
+                f"Bones must be accessed by index from `SkeletonHKX.bones`.")
+            self.bones_by_name = None
+        else:
+            self.bones_by_name = {bone.name: bone for bone in self.bones}  # ordered by skeleton index
+
+    def get_root_bones(self) -> list[BoneWrapper]:
+        """Get all root (i.e. parent-less) bones."""
+        return [bone for bone in self.bones if bone.parent is None]
+
+    def get_root_bone_indices(self) -> list[int]:
+        """Get all root (i.e. parent-less) bone indices."""
+        return [i for i, bone in enumerate(self.bones) if bone.parent is None]
 
     def scale(self, factor: float):
         """Scale all bone translations in place by `factor`."""
+        # TODO: rename `scale_all_bone_translations`
         for pose in self.skeleton.referencePose:
             pose.translation = tuple(x * factor for x in pose.translation)
 
-    def get_bone_index(self, bone: BONE_SPEC_TYPING):
-        bone = self.resolve_bone_spec(bone)
-        return self.skeleton.bones.index(bone)
-
-    def get_bone_parent_index(self, bone: BONE_SPEC_TYPING) -> int:
-        bone = self.resolve_bone_spec(bone)
-        bone_index = self.skeleton.bones.index(bone)
-        return self.skeleton.parentIndices[bone_index]
-
-    def get_bone_parent(self, bone: BONE_SPEC_TYPING) -> tp.Optional[BONE_TYPING]:
-        parent_index = self.get_bone_parent_index(bone)
-        if parent_index == -1:
-            return None
-        return self.skeleton.bones[parent_index]
-
-    def get_bone_highest_parent(self, bone: BONE_SPEC_TYPING) -> tp.Optional[BONE_TYPING]:
-        parent_bone = bone
-        parent_index = self.get_bone_parent_index(bone)
-        while parent_index != -1:
-            parent_bone = self.skeleton.bones[parent_index]
-            parent_index = self.get_bone_parent_index(parent_bone)
-        return parent_bone
-
-    def get_immediate_bone_children_indices(self, bone: BONE_SPEC_TYPING) -> list[int]:
-        bone = self.resolve_bone_spec(bone)
-        bone_index = self.skeleton.bones.index(bone)
-        return [i for i, b in enumerate(self.skeleton.bones) if self.get_bone_parent_index(b) == bone_index]
-
-    def get_immediate_bone_children(self, bone: BONE_SPEC_TYPING) -> list[BONE_TYPING]:
-        bone = self.resolve_bone_spec(bone)
-        bone_index = self.skeleton.bones.index(bone)
-        return [b for b in self.skeleton.bones if self.get_bone_parent_index(b) == bone_index]
-
-    def get_all_bone_children(self, bone: BONE_SPEC_TYPING) -> list[BONE_TYPING]:
-        """Recursively get all bones that are children of `bone`."""
-        bone = self.resolve_bone_spec(bone)
-        children = []
-        bone_index = self.skeleton.bones.index(bone)
-        for bone in self.skeleton.bones:
-            parent_index = self.get_bone_parent_index(bone)
-            if parent_index == bone_index:
-                children.append(bone)  # immediate child
-                children += self.get_all_bone_children(bone)  # recur on child
-        return children
-
-    def get_bone_reference_pose_transform(self, bone: BONE_SPEC_TYPING, world_space=False) -> TRSTransform:
-        bone = self.resolve_bone_spec(bone)
-        if world_space:
-            transform = TRSTransform.identity()
-            for hierarchy_transform in self.get_hierarchy_transforms(bone):
-                transform = transform @ hierarchy_transform
-            return transform
-        else:
-            bone_index = self.skeleton.bones.index(bone)
-            return self.skeleton.referencePose[bone_index].to_trs_transform()
-
-    def get_hierarchy_to_bone(self, bone: BONE_SPEC_TYPING) -> list[BONE_TYPING]:
-        """Get all parents of `bone` in order from the highest down to itself."""
-        bone = self.resolve_bone_spec(bone)
-        parents = [bone]
-        bone_index = self.skeleton.bones.index(bone)
-        parent_index = self.skeleton.parentIndices[bone_index]
-        while parent_index != -1:
-            bone = self.skeleton.bones[parent_index]
-            parents.append(bone)
-            bone_index = self.skeleton.bones.index(bone)
-            parent_index = self.skeleton.parentIndices[bone_index]
-        return list(reversed(parents))
-
-    def get_bone_ascending_parent_indices(self, bone: BONE_SPEC_TYPING, include_self=False) -> list[int]:
-        """Get indices of bone's parents in ascending order.
-
-        Useful for applying parent transforms in the correct order to get a world space transform of `bone`.
-        """
-        bone = self.resolve_bone_spec(bone)
-        bone_index = self.skeleton.bones.index(bone)
-        parent_indices = []
-        if include_self:
-            parent_indices.append(bone_index)
-        parent_index = self.skeleton.parentIndices[bone_index]
-        while parent_index != -1:
-            parent_indices.append(parent_index)
-            bone = self.skeleton.bones[parent_index]
-            bone_index = self.skeleton.bones.index(bone)
-            parent_index = self.skeleton.parentIndices[bone_index]
-        return parent_indices
-
-    def get_bone_descending_parent_indices(self, bone: BONE_SPEC_TYPING, include_self=False) -> list[int]:
-        """Get indices of bone's parents in descending order from root bone.
-
-        Useful for applying inverse parent transforms in the correcet order to change world space back to local space.
-        """
-        ascending_indices = self.get_bone_ascending_parent_indices(bone, include_self=include_self)
-        return ascending_indices[::-1]
-
-    def get_all_bone_parent_indices(self) -> list[list[int]]:
-        """Returns a list of lists of the hierarchical indices up to each bone (inclusive)."""
-        all_indices = []
-        for bone_index, bone in enumerate(self.skeleton.bones):
-            indices = []
-            parent_index = bone_index
-            while parent_index != -1:
-                indices.append(parent_index)
-                parent_index = self.get_bone_parent_index(parent_index)
-            all_indices.append(list(reversed(indices)))
-        return all_indices
-
-    def get_hierarchy_transforms(self, bone: BONE_SPEC_TYPING) -> list[TRSTransform]:
-        """Get all transforms of all parent bones down to `bone`, including it."""
-        return [self.get_bone_reference_pose_transform(b) for b in self.get_hierarchy_to_bone(bone)]
-
-    def get_bone_transforms_and_parents(self):
-        """Construct a dictionary that maps bone names to (`hkQsTransform`, `hkaBone`) pairs of transforms/parents."""
-        bone_transforms = {}
-        for i in range(len(self.skeleton.bones)):
-            bone_name = self.skeleton.bones[i].name
-            parent_index = self.skeleton.parentIndices[i]
-            parent_bone = None if parent_index == -1 else self.skeleton.bones[parent_index]
-            bone_transforms[bone_name] = (self.skeleton.referencePose[i], parent_bone)
-        return bone_transforms
-
-    def delete_bone(self, bone: BONE_SPEC_TYPING) -> int:
+    def delete_bone_index(self, bone_index) -> int:
         """Delete a bone and all of its children. Returns the number of bones deleted."""
-        bone = self.resolve_bone_spec(bone)
-        bones_deleted = 0
-        children = self.get_all_bone_children(bone)
-        for child_bone in children:
-            bones_deleted += self.delete_bone(child_bone)
+        children = self.bones[bone_index].get_all_children()
+        delete_indices = [bone_index] + [child.index for child in children]
+        self.skeleton.bones = [hka_bone for i, hka_bone in enumerate(self.skeleton.bones) if i not in delete_indices]
+        self.regenerate_bone_wrappers()
+        return len(delete_indices)
 
-        # Delete bone.
-        bone_index = self.skeleton.bones.index(bone)
-        self.skeleton.referencePose.pop(bone_index)
-        self.skeleton.parentIndices.pop(bone_index)
-        self.skeleton.bones.pop(bone_index)
+    def print_bone_tree(self, bone_index: int = None, indent=""):
+        """Print indented (depth-first) tree of bone names."""
 
-        return bones_deleted
+        def _print_bone_tree(bone: BoneWrapper, _indent: str):
+            print(indent + bone.name)
+            for child in bone.children:
+                _print_bone_tree(child, _indent + "    ")
 
-    def print_bone_tree(self, bone: BONE_SPEC_TYPING = None, indent=""):
-        """Print indented tree of bone names."""
-        bone = self.skeleton.bones[0] if bone is None else self.resolve_bone_spec(bone)  # 'Master' usually
-        print(indent + bone.name)
-        for child in self.get_immediate_bone_children(bone):
-            self.print_bone_tree(child, indent=indent + "    ")
-
-    def resolve_bone_spec(self, bone_spec: BONE_SPEC_TYPING) -> BONE_TYPING:
-        if isinstance(bone_spec, int):
-            if bone_spec < 0:
-                raise ValueError(f"Can only use non-negative bone indices, not: {bone_spec}")
-            bone = self.bones[bone_spec]
-        elif isinstance(bone_spec, str):
-            bone = self._find_bone_name(bone_spec)
-        elif isinstance(bone_spec, BONE_TYPING):
-            bone = bone_spec
-        else:
-            raise TypeError(f"Invalid specification type for `hkaBone`: {type(bone_spec).__name__}")
-        if bone not in self.skeleton.bones:
-            raise ValueError(f"Bone '{bone}' is not in this skeleton.")
-        return bone
-
-    def _find_bone_name(self, bone_name: str):
-        matches = [bone for bone in self.skeleton.bones if bone.name == bone_name]
-        if len(matches) == 1:
-            return matches[0]
-        elif len(matches) > 1:
-            raise ValueError(f"Multiple bones named '{bone_name}' in skeleton. This is unusual.")
-        else:
-            raise ValueError(f"Bone name not found: '{bone_name}'")
+        top_bone = self.bones[0] if bone_index is None else self.bones[bone_index]
+        _print_bone_tree(top_bone, _indent=indent)

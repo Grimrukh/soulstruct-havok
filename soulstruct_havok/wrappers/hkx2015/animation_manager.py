@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import typing as tp
 
-from soulstruct_havok.wrappers.base.animation_manager import BaseAnimationManager
+from soulstruct.containers.bnd import BND3
+
+from soulstruct_havok.wrappers.base.animation_manager import BaseANIBND
 from .core import AnimationHKX, SkeletonHKX
 
 
-class AnimationManager(BaseAnimationManager):
+class ANIBND(BaseANIBND, BND3):
 
     ANIMATION_HKX = AnimationHKX
     SKELETON_HKX = SkeletonHKX

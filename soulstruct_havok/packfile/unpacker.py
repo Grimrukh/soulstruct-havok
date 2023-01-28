@@ -55,7 +55,7 @@ class PackFileUnpacker:
 
     def unpack(self, reader: BinaryReader, types_only=False):
 
-        self.byte_order = reader.byte_order = "<" if reader.unpack_value("?", offset=0x11) else ">"
+        self.byte_order = reader.default_byte_order = "<" if reader.unpack_value("?", offset=0x11) else ">"
         self.header = PackFileHeader(reader)
 
         self.hk_version = self.header.contents_version_string[3:7].decode()  # from "hk_YYYY" (e.g. "2010")

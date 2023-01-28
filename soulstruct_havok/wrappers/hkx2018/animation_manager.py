@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from soulstruct_havok.wrappers.base.animation_manager import BaseAnimationManager
+from soulstruct_havok.wrappers.base.animation_manager import BaseANIBND
 from .core import AnimationHKX, SkeletonHKX
 
 
-class AnimationManager(BaseAnimationManager):
+class AnimationManager(BaseANIBND):
 
     ANIMATION_HKX = AnimationHKX
     SKELETON_HKX = SkeletonHKX
