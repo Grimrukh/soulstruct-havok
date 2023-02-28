@@ -23,6 +23,7 @@ import struct
 import typing as tp
 from enum import IntEnum
 
+import numpy as np
 from soulstruct.utilities.binary import *
 
 from soulstruct_havok.utilities.maths import Vector3, Vector4, Quaternion, TRSTransform
@@ -166,9 +167,28 @@ def find_knot_span(degree: int, value: float, control_point_count: int, knots: l
     return guess  # found knot index
 
 
-def get_single_point(
-    knot_span_index: int, degree: int, frame: float, knots: list[int], control_points: list[tp.Union[float, Quaternion]]
-) -> tp.Union[float, Quaternion]:
+def get_single_point_float(
+    knot_span_index: int, degree: int, frame: float, knots: list[int], control_points: list[float]
+) -> float:
+    """Basis_ITS1, GetPoint_NR1, TIME-EFFICIENT NURBS CURVE EVALUATION ALGORITHMS, pages 64 & 65"""
+    n = [1.0, 0.0, 0.0, 0.0, 0.0]
+
+    for i in range(1, degree + 1):
+        for j in range(i - 1, -1, -1):
+            a = (frame - knots[knot_span_index - j]) / (knots[knot_span_index + i - j] - knots[knot_span_index - j])
+            tmp = n[j] * a
+            n[j + 1] += n[j] - tmp
+            n[j] = tmp
+
+    value = 0.0
+    for i in range(0, degree + 1):
+        value += control_points[knot_span_index - i] * n[i]
+    return value
+
+
+def get_single_point_quaternion(
+    knot_span_index: int, degree: int, frame: float, knots: list[int], control_points: list[Quaternion]
+) -> Quaternion:
     """Basis_ITS1, GetPoint_NR1, TIME-EFFICIENT NURBS CURVE EVALUATION ALGORITHMS, pages 64 & 65
 
     Works for either `float` or `Quaternion` control points.
@@ -182,10 +202,11 @@ def get_single_point(
             n[j + 1] += n[j] - tmp
             n[j] = tmp
 
-    value = Quaternion.identity() if isinstance(control_points[0], Quaternion) else 0.0
+    # NOTE: `Quaternion` cannot be used as the accumulator here because it cannot hold zero-norm quaternions.
+    value = np.zeros(4, dtype=np.float32)
     for i in range(0, degree + 1):
-        value += control_points[knot_span_index - i] * n[i]
-    return value
+        value += control_points[knot_span_index - i].data * n[i]
+    return Quaternion(value)
 
 
 class SplineHeader:
@@ -306,7 +327,9 @@ class TrackVector3:
         axis_value = getattr(self, axis)
         if isinstance(axis_value, SplineFloat):
             knot_span = find_knot_span(self.spline_header.degree, frame, len(axis_value), self.spline_header.knots)
-            return get_single_point(knot_span, self.spline_header.degree, frame, self.spline_header.knots, axis_value)
+            return get_single_point_float(
+                knot_span, self.spline_header.degree, frame, self.spline_header.knots, axis_value
+            )
             # return get_single_point_new(self.spline_header.degree, frame, self.spline_header.knots, axis_value)
         else:
             return axis_value  # float
@@ -518,7 +541,9 @@ class TrackQuaternion:
     def get_quaternion_at_frame(self, frame: float) -> Quaternion:
         if isinstance(self.value, SplineQuaternion):
             knot_span = find_knot_span(self.spline_header.degree, frame, len(self.value), self.spline_header.knots)
-            return get_single_point(knot_span, self.spline_header.degree, frame, self.spline_header.knots, self.value)
+            return get_single_point_quaternion(
+                knot_span, self.spline_header.degree, frame, self.spline_header.knots, self.value
+            )
         else:
             return self.value  # Quaternion
 

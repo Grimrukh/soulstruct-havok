@@ -36,14 +36,14 @@ class Quaternion:
     _IDENTITY: tp.ClassVar[Rotation] = Rotation.identity()
 
     rotation: Rotation = field(default_factory=Rotation.identity)
-    _data: tuple[float, float, float, float] = None
+    _data: np.ndarray = None
 
     def __init__(self, xyzw: np.ndarray | list | tuple | Vector4 | Quaternion | Rotation):
         if isinstance(xyzw, Rotation):
             object.__setattr__(self, "rotation", xyzw)
             object.__setattr__(self, "_data", None)  # will be generated on first access
         else:
-            object.__setattr__(self, "_data", tuple(xyzw))
+            object.__setattr__(self, "_data", np.array(xyzw))  # could be zero-norm
             try:
                 object.__setattr__(self, "rotation", Rotation.from_quat(xyzw))
             except ValueError:
@@ -59,7 +59,7 @@ class Quaternion:
     def data(self):
         """Returns the quaternion as a tuple of 4 floats. Cached on first access."""
         if self._data is None:
-            object.__setattr__(self, "_data", tuple(self.rotation.as_quat()))
+            object.__setattr__(self, "_data", self.rotation.as_quat())
         return self._data
 
     def get_real(self) -> float:
@@ -167,9 +167,12 @@ class Quaternion:
         """Shorter wrapper for the above."""
         return cls.from_axis_angle(Vector3(xyz), angle, radians)
 
-    def to_euler_angles(self, radians=False) -> Vector3:
-        mat = Matrix3(self.to_matrix3())
-        return mat.to_euler_angles(radians=radians)
+    def to_euler_angles(self, radians=False, order="xzy") -> Vector3:
+        """Decompose Quaternion (via Matrix3 representation) into Euler angles.
+
+        NOTE: Can only decompose in 'xzy' order right now and will raise an error if the order is not 'xzy'.
+        """
+        return self.to_matrix3().to_euler_angles(radians=radians, order=order)
 
     # endregion
 
@@ -325,6 +328,11 @@ class Quaternion:
 
     @staticmethod
     def slerp(q1: Quaternion, q2: Quaternion, t: float) -> Quaternion:
-        """Spherically interpolate between two Quaternions by parameter `t` in interval [0, 1]."""
-        scipy_slerp = Slerp([0, 1], Rotation.concatenate([q1.rotation, q2.rotation]))
+        """Spherically interpolate between two Quaternions by parameter `t` in interval [0, 1].
+
+        NOTE: As `Rotation` cannot hold zero-norm quaternions -- but we sometimes need to slerp with these -- the
+        `data` representation is used.
+        """
+        # print(q1.data, q2.data)
+        scipy_slerp = Slerp([0, 1], Rotation.concatenate([Rotation.from_quat(q1.data), Rotation.from_quat(q2.data)]))
         return Quaternion(scipy_slerp(t))

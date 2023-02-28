@@ -57,7 +57,10 @@ class BaseANIBND(Binder, abc.ABC):
 
     def __post_init__(self):
         if not self.entries:
-            return  # no Binder entries to process
+            # No Binder entries to process. Just check default animation ID assignment.
+            if self.default_anim_id is None and len(self.animations_hkx) == 1:
+                self.default_anim_id = list(self.animations_hkx)[0]
+            return
 
         compendium, compendium_name = self.ANIMATION_HKX.get_compendium_from_binder(self)
         try:
@@ -105,7 +108,7 @@ class BaseANIBND(Binder, abc.ABC):
     def bones_by_name(self) -> dict[str, Bone]:
         return self.skeleton.bones_by_name
 
-    def get_animation(self, anim_id: int = None) -> AnimationContainer:
+    def get_animation_container(self, anim_id: int = None) -> AnimationContainer:
         if anim_id is None:
             if self.default_anim_id is None:
                 raise ValueError("Default animation ID has not been set.")
@@ -113,7 +116,7 @@ class BaseANIBND(Binder, abc.ABC):
         return self.animations_hkx[anim_id].animation_container
 
     def __getitem__(self, anim_id: int) -> AnimationContainer:
-        return self.get_animation(anim_id)
+        return self.get_animation_container(anim_id)
 
     def copy_animation(self, anim_id: int, new_anim_id: int, overwrite=False):
         """Make a deep copy of an `AnimationHKX` file instance (corresponding to a new or overwritten Binder entry)."""
@@ -133,7 +136,7 @@ class BaseANIBND(Binder, abc.ABC):
         If `compensate_children=True` (NOT default), children of `bone` will be transformed in a way that preserves
         their transforms in world space.
         """
-        animation = self.get_animation(anim_id)
+        animation = self.get_animation_container(anim_id)
         if not animation.is_interleaved:
             raise TypeError("Can only use `proper_transform_bone_track()` for interleaved animations.")
         bone_tfs = self.get_bone_interleaved_transforms(bone, anim_id)
@@ -274,7 +277,7 @@ class BaseANIBND(Binder, abc.ABC):
             )
         if freeze_rotation and not rotate_parent:
             raise ValueError("Can only use `freeze_rotation=True` if `rotate_parent=True`.")
-        animation = self.get_animation(anim_id)
+        animation = self.get_animation_container(anim_id)
         if not animation.is_interleaved:
             raise TypeError("Can only use `proper_transform_bone_track()` for interleaved animations.")
         bone_tfs = self.get_bone_interleaved_transforms(bone, anim_id)
@@ -404,8 +407,8 @@ class BaseANIBND(Binder, abc.ABC):
 
         `bone_name_mapping` should map the names of bones in THIS skeleton to those in `source_manager`'s skeleton.
         """
-        source_animation = source_manager.get_animation(source_anim_id)
-        dest_animation = self.get_animation(dest_anim_id)
+        source_animation = source_manager.get_animation_container(source_anim_id)
+        dest_animation = self.get_animation_container(dest_anim_id)
         source_animation.load_interleaved_data()
         dest_animation.load_interleaved_data()
 
@@ -487,8 +490,8 @@ class BaseANIBND(Binder, abc.ABC):
 
         `bone_name_mapping` should map the names of bones in THIS skeleton to those in `source_manager`'s skeleton.
         """
-        source_animation = source_manager.get_animation(source_anim_id)
-        dest_animation = self.get_animation(dest_anim_id)
+        source_animation = source_manager.get_animation_container(source_anim_id)
+        dest_animation = self.get_animation_container(dest_anim_id)
         source_animation.load_spline_data()
         dest_animation.load_spline_data()
 
@@ -540,7 +543,7 @@ class BaseANIBND(Binder, abc.ABC):
 
         Use `extra_scale` to apply global scaling to all bone lengths.
         """
-        animation = self.get_animation(anim_id)
+        animation = self.get_animation_container(anim_id)
         if not animation.is_interleaved:
             # TODO: Should be able to conform spline control points as well.
             raise TypeError("Can only confirm bone length for interleaved animations.")
@@ -596,7 +599,7 @@ class BaseANIBND(Binder, abc.ABC):
         return [bone_qs_transform.to_trs_transform() for _ in range(frame_count)]
 
     def get_bone_spline_animation_track(self, bone: Bone, anim_id: int = None) -> SplineTransformTrack:
-        animation = self.get_animation(anim_id)
+        animation = self.get_animation_container(anim_id)
         if not animation.is_spline:
             raise TypeError("Can only get bone animation tracks for spline-compressed animation.")
         animation.load_spline_data()
@@ -608,7 +611,7 @@ class BaseANIBND(Binder, abc.ABC):
         self, parent_bone: Bone, anim_id: int = None
     ) -> list[tuple[int, SplineTransformTrack]]:
         """Get a list of `(int, track)` tuples for all immediate child bones of `parent_bone_name_or_index`."""
-        animation = self.get_animation(anim_id)
+        animation = self.get_animation_container(anim_id)
         if not animation.is_spline:
             raise TypeError("Can only get bone animation tracks for spline-compressed animation.")
         animation.load_spline_data()
@@ -621,7 +624,7 @@ class BaseANIBND(Binder, abc.ABC):
         self, bone: Bone, anim_id: int = None, in_armature_space=False,
     ) -> list[TRSTransform]:
         """Get all frame transforms (optionally in armature space) for given bone."""
-        animation = self.get_animation(anim_id)
+        animation = self.get_animation_container(anim_id)
         if not animation.is_interleaved:
             raise TypeError("Can only get bone animation tracks for interleaved animation.")
         animation.load_interleaved_data()
@@ -646,7 +649,7 @@ class BaseANIBND(Binder, abc.ABC):
         Avoids recomputing transforms multiple times; each bone is only processed once, using parents' accumulating
         world transforms.
         """
-        animation = self.get_animation(anim_id)
+        animation = self.get_animation_container(anim_id)
         if not animation.is_interleaved:
             raise TypeError("Can only get bone animation tracks for interleaved animation.")
         animation.load_interleaved_data()
@@ -675,7 +678,7 @@ class BaseANIBND(Binder, abc.ABC):
         self, parent_bone: Bone, anim_id: int = None
     ) -> list[tuple[Bone, list[TRSTransform]]]:
         """Get a list of `(int, track)` tuples for all immediate child bones of `parent_bone_name_or_index`."""
-        animation = self.get_animation(anim_id)
+        animation = self.get_animation_container(anim_id)
         if not animation.is_interleaved:
             raise TypeError("Can only get bone animation tracks for interleaved animation.")
         animation.load_interleaved_data()
@@ -781,7 +784,7 @@ class BaseANIBND(Binder, abc.ABC):
         if VispyWindow is None:
             raise ModuleNotFoundError("`vispy` package required to plot skeletons.")
 
-        animation = self.get_animation(anim_id)
+        animation = self.get_animation_container(anim_id)
         if not animation.is_interleaved:
             raise TypeError("Can only plot interleaved animations.")
         animation.load_interleaved_data()
@@ -846,7 +849,7 @@ class BaseANIBND(Binder, abc.ABC):
 
         if coord not in ("x", "y", "z", "magnitude"):
             raise ValueError("Coord should be 'x', 'y', 'z', or 'magnitude'.")
-        animation = self.get_animation(anim_id)
+        animation = self.get_animation_container(anim_id)
         if not animation.is_interleaved:
             raise TypeError("Can only plot interleaved animations.")
         animation.load_interleaved_data()

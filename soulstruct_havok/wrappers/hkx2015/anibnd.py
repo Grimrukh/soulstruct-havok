@@ -4,6 +4,7 @@ import typing as tp
 from dataclasses import dataclass, field
 
 from soulstruct_havok.wrappers.base.anibnd import BaseANIBND
+from soulstruct_havok.wrappers.base.animation import AnimationContainer
 from .file_types import AnimationHKX, SkeletonHKX
 
 
@@ -16,7 +17,7 @@ class ANIBND(BaseANIBND):
     skeleton_hkx: SkeletonHKX | None = None
     animations_hkx: dict[int, AnimationHKX] = field(default_factory=dict)
 
-    get_animation: tp.ClassVar[tp.Callable[[int | None], AnimationHKX]]
+    get_animation_container: tp.ClassVar[tp.Callable[[int | None], AnimationContainer]]
 
     def convert_interleaved_to_spline_anim(self, anim_id: int = None):
         """Convert to spline animation by a downgrade -> SDK conversion -> upgrade process."""
