@@ -1,18 +1,18 @@
 from __future__ import annotations
 
-__all__ = ["HKX"]
+__all__ = ["HKX", "HKX_ROOT_TYPING"]
 
-import io
 import logging
 import typing as tp
+from dataclasses import dataclass, field
 from pathlib import Path
+from types import ModuleType
 
-from soulstruct.base.game_file import GameFile, InvalidGameFileTypeError
-from soulstruct.containers import Binder
-from soulstruct.containers.base import BaseBinder
-from soulstruct.containers.dcx import DCXType, decompress
-from soulstruct.containers.entry import BinderEntry
-from soulstruct.utilities.binary import BinaryReader
+from soulstruct.base.game_file import GameFile
+from soulstruct.containers import Binder, BinderEntry
+from soulstruct.containers.dcx import DCXType, decompress, is_dcx
+from soulstruct.utilities.binary import *
+from soulstruct.utilities.future import StrEnum
 
 from .packfile.packer import PackFilePacker
 from .packfile.structs import PackfileHeaderInfo
@@ -22,10 +22,15 @@ from .tagfile.unpacker import TagFileUnpacker, MissingCompendiumError
 from .types import hk2010, hk2014, hk2015, hk2018
 from .types.info import TypeInfo
 
+try:
+    Self = tp.Self
+except AttributeError:  # < Python 3.11
+    Self = "HKX"
+
 
 _LOGGER = logging.getLogger(__name__)
 
-ROOT_TYPING = tp.Union[
+HKX_ROOT_TYPING = tp.Union[
     None,
     hk2010.hkRootLevelContainer,
     hk2014.hkRootLevelContainer,
@@ -34,8 +39,15 @@ ROOT_TYPING = tp.Union[
 ]
 
 
+class HavokFileFormat(StrEnum):
+    """Enum of the two types of Havok files used in FromSoft games."""
+    Packfile = "packfile"
+    Tagfile = "tagfile"
+
+
+@dataclass(slots=True)
 class HKX(GameFile):
-    """Havok data used in FromSoft games to hold model (FLVER) skeletons, animations, ragdoll physica, collisions, etc.
+    """Havok data used in FromSoft games to hold model skeletons, animations, ragdoll physics, collisions, etc.
 
     HKX files are a form of compressed XML used by the Havok physics engine. This class can read from both pre-2015
     `packfile`-type HKX files (used up to and including DS3) and post-2015 `tagfile`-type HKX files (used in DSR and
@@ -44,41 +56,77 @@ class HKX(GameFile):
     Use `write_packfile()` and `write_tagfile()` to specify the format you want to output. If you use `write()`, it will
     default to writing the format that was loaded. Same for `pack()` and its two variants.
     """
-    PACKFILE = "packfile"
-    TAGFILE = "tagfile"
+    # Can be defined by subclasses with utility methods for specific versions of Havok.
+    TYPES_MODULE: tp.ClassVar[ModuleType | None] = None
 
-    root: ROOT_TYPING
-    hk_format: str  # "packfile" or "tagfile"
-    hk_version: str  # e.g., "2010"
-    unpacker: None | TagFileUnpacker | PackFileUnpacker
-    is_compendium: bool
-    compendium_ids: list[bytes]
-    hsh_overrides: dict[str, int]  # maps `hk` type names to non-standard hash values found in file
+    root: HKX_ROOT_TYPING = None
+    hk_format: HavokFileFormat = None
+    hk_version: str = ""  # e.g. "2010"
+    unpacker: None | TagFileUnpacker | PackFileUnpacker = None
+    is_compendium: bool = False
+    compendium_ids: list[bytes] = field(default_factory=list)
+    # Maps `hk` type names to non-standard hash values found in file.
+    hsh_overrides: dict[str, int] = field(default_factory=dict)
 
-    packfile_header_info: None | PackfileHeaderInfo
+    # Extra information retained from the packfile header, if loaded from a packfile.
+    packfile_header_info: None | PackfileHeaderInfo = None
 
-    def __init__(
-        self,
-        file_source: GameFile.Typing = None,
-        dcx_type: None | DCXType = DCXType.Null,
-        compendium: tp.Optional[HKX] = None,
-        hk_format="",
-    ):
-        if hk_format not in {"", self.TAGFILE, self.PACKFILE}:
-            raise ValueError(f"`hk_format` must be 'tagfile' or 'packfile' if given, not: {hk_format}")
-        self.root = None
-        self.all_nodes = []
-        self.hk_format = hk_format
-        self.hk_version = ""
-        self.is_compendium = False
-        self.unpacker = None
-        self.compendium_ids = []
-        self.hsh_overrides = {}
+    @classmethod
+    def from_reader(cls, reader: BinaryReader, hk_format: HavokFileFormat = None, compendium: HKX = None) -> Self:
+        if hk_format is None:
+            # Auto-detect format.
+            hk_format = cls._detect_hk_format(reader)
+            if hk_format is None:
+                raise TypeError("Could not detect if HKX binary data is a packfile or tagfile.")
 
-        # Will be set by `PackFileUnpacker`, but must otherwise be set manually (e.g., to pack converted tagfiles).
-        self.packfile_header_info = None
+        if hk_format == HavokFileFormat.Packfile:
+            if compendium is not None:
+                raise ValueError("`compendium` was passed with HKX packfile source (used only by newer tagfiles).")
+            return cls.from_packfile_reader(reader)
+        elif hk_format == HavokFileFormat.Tagfile:
+            return cls.from_tagfile_reader(reader, compendium=compendium)
 
-        super().__init__(file_source, dcx_type=dcx_type, compendium=compendium, hk_format=hk_format)
+        raise ValueError(f"Invalid `hk_format` value: {hk_format}")
+
+    @classmethod
+    def from_bytes(
+        cls,
+        data: bytes | bytearray | tp.BinaryIO | BinaryReader | BinderEntry,
+        hk_format: HavokFileFormat = None,
+        compendium: HKX = None,
+    ) -> Self:
+        """Load instance from binary data or binary stream (or `BinderEntry.data`)."""
+        reader = BinaryReader(data) if not isinstance(data, BinaryReader) else data  # type: BinaryReader
+
+        if is_dcx(reader):
+            try:
+                data, dcx_type = decompress(reader)
+            finally:
+                reader.close()
+            reader = BinaryReader(data)
+        else:
+            dcx_type = DCXType.Null
+
+        try:
+            binary_file = cls.from_reader(reader, hk_format, compendium)
+            binary_file.dcx_type = dcx_type
+        except Exception:
+            _LOGGER.error(f"Error occurred while reading `{cls.__name__}` from binary data. See traceback.")
+            raise
+        finally:
+            reader.close()
+        return binary_file
+
+    @classmethod
+    def from_path(cls, path: str | Path, hk_format: HavokFileFormat = None, compendium: HKX = None) -> Self:
+        path = Path(path)
+        try:
+            game_file = cls.from_bytes(BinaryReader(path), hk_format, compendium)
+        except Exception:
+            _LOGGER.error(f"Error occurred while reading `{cls.__name__}` with path '{path}'. See traceback.")
+            raise
+        game_file.path = path
+        return game_file
 
     @property
     def hk_type_infos(self) -> list[TypeInfo]:
@@ -86,66 +134,29 @@ class HKX(GameFile):
             raise AttributeError("Unpacker not created. Cannot retrieve Havok `TypeInfo`s.")
         return self.unpacker.hk_type_infos
 
-    def _handle_other_source_types(self, file_source, compendium: tp.Optional[HKX] = None, hk_format=""):
-
-        if isinstance(file_source, str):
-            file_source = Path(file_source)
-        if isinstance(file_source, BinderEntry):
-            file_source = file_source.data
-        if isinstance(file_source, Path):
-            file_source = file_source.open("rb")
-
-        if isinstance(file_source, (bytes, io.BufferedIOBase, BinaryReader)):
-            reader = BinaryReader(file_source)
-
-            # Process DCX now before trying to detect `hk_format`.
-            if self._is_dcx(reader):
-                if self.dcx_type != DCXType.Null:
-                    reader.close()
-                    raise ValueError("Cannot manually set `dcx_type` before reading a DCX file source.")
-                try:
-                    data, self.dcx_type = decompress(reader)
-                finally:
-                    reader.close()
-                reader = BinaryReader(data)
-
-            detected_hk_format = self._detect_hk_format(reader)
-            if detected_hk_format is None:
-                raise InvalidGameFileTypeError("`file_source` was not an HKX packfile or tagfile.")
-            elif self.hk_format and detected_hk_format != self.hk_format:
-                raise ValueError(
-                    f"Detected HKX format {detected_hk_format} does not match passed format: {self.hk_format}"
-                )
-            self.hk_format = detected_hk_format
-            self.unpack(reader, compendium=compendium)
-            return
-
-        raise InvalidGameFileTypeError("`file_source` was not an `XML` file, `HKX` file/stream, or `HKXNode`.")
-
     @classmethod
-    def _detect_hk_format(cls, reader: BinaryReader) -> None | str:
-        """Peek into buffer to find out if it is a "packfile", "tagfile", or unknown (`None`)."""
+    def _detect_hk_format(cls, reader: BinaryReader) -> None | HavokFileFormat:
+        """Peek into HKX `reader` to find out if it is a "packfile", "tagfile", or unknown (`None`)."""
         first_eight_bytes = reader.unpack_bytes(length=8, offset=reader.position)
         if first_eight_bytes == b"\x57\xE0\xE0\x57\x10\xC0\xC0\x10":
-            return cls.PACKFILE
+            return HavokFileFormat.Packfile
         elif first_eight_bytes[4:8] in {b"TAG0", b"TCM0"}:
-            return cls.TAGFILE
+            return HavokFileFormat.Tagfile
         return None
 
     @classmethod
     def from_binder(
         cls,
-        binder_source: GameFile.Typing,
-        entry_id_or_name: tp.Union[int, str],
-        from_bak=False,
+        binder: Binder,
+        entry_id_or_name: int | str,
+        hk_format: HavokFileFormat = None,
         compendium_name: str = "",
     ):
         """Use or auto-detect `{binder_source.name}.compendium` file in binder, if present."""
-        binder = Binder(binder_source, from_bak=from_bak)
         compendium, compendium_name = cls.get_compendium_from_binder(binder, compendium_name)
 
         try:
-            return cls(binder[entry_id_or_name], compendium=compendium)
+            return cls.from_bytes(binder[entry_id_or_name], hk_format=hk_format, compendium=compendium)
         except MissingCompendiumError:
             if compendium_name != "":
                 raise MissingCompendiumError(
@@ -158,7 +169,7 @@ class HKX(GameFile):
             )
 
     @staticmethod
-    def get_compendium_from_binder(binder: BaseBinder, compendium_name="") -> tuple[HKX, str]:
+    def get_compendium_from_binder(binder: Binder, compendium_name="") -> tuple[HKX, str]:
         """Search for '.compendium' HKX type file in `binder`. Name may be given, or the extension alone may be sought.
 
         Returns the compendium found (may be `None`) and its name.
@@ -167,7 +178,7 @@ class HKX(GameFile):
             # Search for '*.compendium' binder entry.
             compendium_entries = binder.find_entries_matching_name(r".*\.compendium")
             if len(compendium_entries) == 1:
-                compendium = HKX(compendium_entries[0])
+                compendium = HKX.from_bytes(compendium_entries[0])
                 compendium_name = compendium_entries[0].name
             elif len(compendium_entries) > 1:
                 raise ValueError(
@@ -177,109 +188,51 @@ class HKX(GameFile):
                 # Otherwise, no compendiums found; assume not needed and complain below if otherwise.
                 compendium = None
         else:
-            if compendium_name in binder.entries_by_basename:
-                compendium = HKX(binder.entries_by_basename[compendium_name])  # always HKX base class
+            if compendium_name in binder.entries_by_name:
+                compendium = HKX.from_bytes(binder.entries_by_name[compendium_name])  # always HKX base class
             else:
                 raise ValueError(f"Compendium file '{compendium_name}' not present in given binder.")
         return compendium, compendium_name
 
     @classmethod
-    def multiple_from_binder(
-        cls,
-        binder_source: GameFile.Typing,
-        entry_ids_or_names: tp.Sequence[tp.Union[int, str]],
-        from_bak=False,
-        compendium_name: str = "",
-    ):
-        """Open multiple files of this type from the given `entry_ids_or_names` (`str` or `int`) from `Binder` source,
-        with given or auto-detected compendium retrieved from same binder."""
-        from soulstruct.containers import Binder
-        binder = Binder(binder_source, from_bak=from_bak)
+    def from_packfile_reader(cls, reader: BinaryReader) -> Self:
+        """`reader` HKX file format is known to be `packfile`."""
+        unpacker = PackFileUnpacker()
+        unpacker.unpack(reader)
 
-        if compendium_name == "":
-            # Search for '*.compendium' binder entry.
-            compendium_entries = binder.find_entries_matching_name(r".*\.compendium")
-            if len(compendium_entries) == 1:
-                compendium = HKX(compendium_entries[0])  # always HKX base class
-            elif len(compendium_entries) > 1:
-                raise ValueError(
-                    f"Multiple '.compendium' files found in binder: {[e.name for e in compendium_entries]}."
-                )
-            else:
-                # Otherwise, no compendiums found; assume not needed and complain below if otherwise.
-                compendium = None
-        else:
-            if compendium_name in binder.entries_by_basename:
-                compendium = HKX(binder.entries_by_basename[compendium_name])
-            else:
-                raise ValueError(f"Compendium file '{compendium_name}' not present in given binder.")
+        return cls(
+            unpacker=unpacker,
+            root=unpacker.root,
+            packfile_header_info=unpacker.get_header_info(),
+        )
 
-        return [cls(binder[entry_id_or_name], compendium=compendium) for entry_id_or_name in entry_ids_or_names]
-
-    def unpack(self, reader: BinaryReader, hk_format="", compendium: tp.Optional[HKX] = None):
-        if not hk_format:
-            hk_format = self.hk_format
-        if hk_format == self.PACKFILE:
-            if compendium is not None:
-                raise ValueError("`compendium` was passed with HKX packfile source (used only by newer tagfiles).")
-            self.unpack_packfile(reader)
-        elif hk_format == self.TAGFILE:
-            self.unpack_tagfile(reader, compendium=compendium)
-        else:
-            raise ValueError(
-                f"`hk_format` must be 'packfile' or 'tagfile' for `HKX.unpack()`, not {repr(hk_format)}."
-            )
-
-    def unpack_packfile(self, reader: BinaryReader):
-        """Buffer is known to be `packfile`."""
-        self.unpacker = PackFileUnpacker()
-        self.unpacker.unpack(reader)
-        self.root = self.unpacker.root
-        self.is_compendium = False  # not supported by any packfile versions, I believe
-        self.compendium_ids = []
-
-        # NOTE: All of this must be set manually if you are converted to packfile from another format.
-        self.packfile_header_info = self.unpacker.get_header_info()
-
-    def unpack_tagfile(self, reader: BinaryReader, compendium: tp.Optional[HKX] = None):
+    @classmethod
+    def from_tagfile_reader(cls, reader: BinaryReader, compendium: tp.Optional[HKX] = None) -> Self:
         """Buffer is known to be `tagfile`."""
-        self.unpacker = TagFileUnpacker()
-        self.unpacker.unpack(reader, compendium=compendium)
-        self.root = self.unpacker.root
-        self.is_compendium = self.unpacker.is_compendium
-        self.compendium_ids = self.unpacker.compendium_ids
-        self.hsh_overrides = self.unpacker.hsh_overrides
+        unpacker = TagFileUnpacker()
+        unpacker.unpack(reader, compendium=compendium)
 
-    def pack(self, hk_format="") -> bytes:
-        if hk_format == "":
-            hk_format = self.hk_format
-        if hk_format.lower() == "packfile":
+        return cls(
+            unpacker=unpacker,
+            root=unpacker.root,
+            is_compendium=unpacker.is_compendium,
+            compendium_ids=unpacker.compendium_ids,
+            hsh_overrides=unpacker.hsh_overrides,
+        )
+
+    def to_writer(self) -> BinaryWriter:
+        if self.hk_format == HavokFileFormat.Packfile:
             if not self.packfile_header_info:
-                raise ValueError("You must set `hkx.packfile_header_info` before you can pack to packfile format.")
-            return PackFilePacker(self).pack(self.packfile_header_info)
-        elif hk_format.lower() == "tagfile":
-            return TagFilePacker(self).pack(hsh_overrides=self.hsh_overrides)
-        raise ValueError(f"Invalid `hk_format` for `HKX.pack()`: {hk_format}. Should be 'packfile' or 'tagfile'.")
-
-    def pack_packfile(self) -> bytes:
-        return self.pack("packfile")
-
-    def pack_tagfile(self) -> bytes:
-        return self.pack("tagfile")
-
-    def write(self, file_path: tp.Union[None, str, Path] = None, make_dirs=True, check_hash=False, hk_format=""):
-        super().write(file_path, make_dirs=make_dirs, check_hash=check_hash, hk_format=hk_format)
-
-    def write_packfile(self, file_path: tp.Union[None, str, Path] = None, make_dirs=True, check_hash=False):
-        self.write(file_path, make_dirs=make_dirs, check_hash=check_hash, hk_format="packfile")
-
-    def write_tagfile(self, file_path: tp.Union[None, str, Path] = None, make_dirs=True, check_hash=False):
-        self.write(file_path, make_dirs=make_dirs, check_hash=check_hash, hk_format="tagfile")
+                raise ValueError("You must set `hkx.packfile_header_info` before you can write to packfile format.")
+            return PackFilePacker(self).to_writer(self.packfile_header_info)
+        elif self.hk_format == HavokFileFormat.Tagfile:
+            return TagFilePacker(self).to_writer(hsh_overrides=self.hsh_overrides)
+        raise ValueError(f"Invalid `hk_format`: {self.hk_format}. Should be 'packfile' or 'tagfile'.")
 
     def get_root_tree_string(self, max_primitive_sequence_size=-1) -> str:
         return self.root.get_tree_string(max_primitive_sequence_size=max_primitive_sequence_size)
 
-    # ~~~ CONVERSION METHODS ~~~ #
+    # region OUTDATED CONVERSION METHODS
     # TODO: All ridiculously outdated, but contains info I need to move elsewhere.
 
     # Call these to PERMANENTLY convert the HKX instance to the given Havok version. This works by iterating over all
@@ -402,3 +355,4 @@ class HKX(GameFile):
                     value={"value": uint8_node},
                 )
                 self.all_nodes.append(node.value["velocityStabilizationFactor"])
+    # endregion

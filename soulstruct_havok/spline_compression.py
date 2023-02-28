@@ -23,7 +23,7 @@ import struct
 import typing as tp
 from enum import IntEnum
 
-from soulstruct.utilities.binary import BinaryReader, BinaryWriter, ByteOrder
+from soulstruct.utilities.binary import *
 
 from soulstruct_havok.utilities.maths import Vector3, Vector4, Quaternion, TRSTransform
 
@@ -182,7 +182,7 @@ def get_single_point(
             n[j + 1] += n[j] - tmp
             n[j] = tmp
 
-    value = Quaternion.zero() if isinstance(control_points[0], Quaternion) else 0.0
+    value = Quaternion.identity() if isinstance(control_points[0], Quaternion) else 0.0
     for i in range(0, degree + 1):
         value += control_points[knot_span_index - i] * n[i]
     return value
@@ -312,7 +312,7 @@ class TrackVector3:
             return axis_value  # float
 
     def get_vector_at_frame(self, frame: float) -> Vector3:
-        return Vector3(*[self.get_value_at_frame(frame, axis) for axis in "xyz"])
+        return Vector3([self.get_value_at_frame(frame, axis) for axis in "xyz"])
 
     def set_to_static_vector(self, xyz):
         self.x, self.y, self.z = xyz
@@ -337,7 +337,7 @@ class TrackVector3:
         """
         if not self.spline_header:
             # No splines. Can just rotate static vector.
-            self.x, self.y, self.z = rotate.rotate_vector(Vector3(self.x, self.y, self.z))
+            self.x, self.y, self.z = rotate.rotate_vector(Vector3((self.x, self.y, self.z)))
             return
 
         # Static values may end up becoming splines, and (less likely) vice versa.
@@ -350,7 +350,7 @@ class TrackVector3:
                 old_splines.append([axis_value] * self.spline_header.control_point_count)
         new_control_points = []  # will contain (x, y, z) control points to be unzipped below
         for x, y, z in zip(*old_splines):
-            rotated_control_point = rotate.rotate_vector(Vector3(x, y, z))
+            rotated_control_point = rotate.rotate_vector(Vector3((x, y, z)))
             new_control_points.append(rotated_control_point)
         spline_x = SplineFloat([v.x for v in new_control_points])
         spline_y = SplineFloat([v.y for v in new_control_points])
@@ -428,7 +428,7 @@ class TrackVector3:
                     if isinstance(axis_value, SplineFloat):
                         self.pack_quantized_float(writer, axis_value[i], *quantized_bounds[axis])
 
-        return writer.finish()
+        return bytes(writer)
 
     def unpack_quantized_float(
         self, reader: BinaryReader, minimum: float, maximum: float,
@@ -529,7 +529,7 @@ class TrackQuaternion:
     def rotate(self, rotate: Quaternion):
         """Simply left-multiply every value by `rotate`."""
         if isinstance(self.value, Quaternion):
-            self.value = rotate * self.value
+            self.value = rotate @ self.value
         else:
             self.value = SplineQuaternion([rotate * quat for quat in self.value])
 
@@ -562,24 +562,26 @@ class TrackQuaternion:
         if isinstance(self.value, SplineQuaternion):  # spline
             flags = TrackFlags.SplineW
             for quat in self.value:
-                if quat.x != 0.0:
+                x, y, z = quat.get_imag()
+                if x != 0.0:
                     flags |= TrackFlags.SplineX
-                if quat.y != 0.0:
+                if y != 0.0:
                     flags |= TrackFlags.SplineY
-                if quat.z != 0.0:
+                if z != 0.0:
                     flags |= TrackFlags.SplineZ
             return flags
         elif isinstance(self.value, Quaternion):  # static
             if self.value == Quaternion.identity():
                 return 0  # default
             flags = 0
-            if self.value.x != 0.0:
+            x, y, z, w = self.value.data
+            if x != 0.0:
                 flags |= TrackFlags.StaticX
-            if self.value.y != 0.0:
+            if y != 0.0:
                 flags |= TrackFlags.StaticY
-            if self.value.z != 0.0:
+            if z != 0.0:
                 flags |= TrackFlags.StaticZ
-            if self.value.w < 0.999:  # note 'default' value for W is 1.0 (with some tolerance)
+            if w < 0.999:  # note 'default' value for W is 1.0 (with some tolerance)
                 flags |= TrackFlags.StaticW
             return flags
         raise TypeError("`TrackQuaternion.value` was not a `Quaternion` or `SplineQuaternion`.")
@@ -603,7 +605,7 @@ class TrackQuaternion:
             if self.value != Quaternion.identity():
                 pack_quantized_quaternion(writer, self.value, self.rotation_quantization_type)
 
-        return writer.finish()
+        return bytes(writer)
 
     def pack_raw(self, big_endian=False) -> bytes:
         """Substitute method that supports reversal, but not actual quaternion modification."""
@@ -620,7 +622,7 @@ class TrackQuaternion:
         else:
             pass  # identity, nothing to pack
 
-        return writer.finish()
+        return bytes(writer)
 
     def __repr__(self) -> str:
         if isinstance(self.value, SplineQuaternion):
@@ -835,7 +837,7 @@ class SplineCompressedAnimationData:
                 writer.append(track.scale.pack(default=1.0, big_endian=self.big_endian))
             writer.pad_align(16)
 
-        data = list(writer.finish())
+        data = list(bytes(writer))
 
         return data, block_count, transform_track_count
 

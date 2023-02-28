@@ -8,6 +8,7 @@ import abc
 import copy
 import logging
 import typing as tp
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -17,13 +18,15 @@ try:
 except ModuleNotFoundError:
     plt = cm = None
 
-from soulstruct.base.game_file import GameFile
-from soulstruct.containers import Binder, BaseBND
+from soulstruct.containers import Binder
 
 from soulstruct_havok.spline_compression import *
 from soulstruct_havok.tagfile.unpacker import MissingCompendiumError
-from soulstruct_havok.wrappers.base import BaseAnimationHKX, BaseSkeletonHKX, BoneWrapper
 from soulstruct_havok.utilities.maths import Quaternion, TRSTransform, Vector3
+
+from .file_types import AnimationHKX, SkeletonHKX
+from .animation import AnimationContainer
+from .skeleton import Skeleton, Bone
 
 try:
     from soulstruct_havok.utilities.vispy_window import VispyWindow  # could be `None` if `vispy` not installed
@@ -33,85 +36,94 @@ except ImportError:
 _LOGGER = logging.getLogger(__name__)
 
 
-class BaseANIBND(BaseBND, abc.ABC):
+@dataclass(slots=True)
+class BaseANIBND(Binder, abc.ABC):
 
-    ANIMATION_HKX: tp.Type[BaseAnimationHKX]
-    SKELETON_HKX: tp.Type[BaseSkeletonHKX]
+    ANIMATION_HKX: tp.ClassVar[tp.Type[AnimationHKX]]
+    SKELETON_HKX: tp.ClassVar[tp.Type[SkeletonHKX]]
     # TODO: TAE support?
 
-    skeleton: None | BaseSkeletonHKX
-    animations: dict[int, BaseAnimationHKX]
-    default_anim_id: int | None
+    # Actual HKX files loaded from Binder entries, which will be written again.
+    # These should not be directly modified. The `skeleton` property and `__getitem__[anim_id]` method (which returns an
+    # `AnimationContainer` wrapper) should be used instead.
+    skeleton_hkx: SkeletonHKX | None = None
+    animations_hkx: dict[int, AnimationHKX] = field(default_factory=dict)
 
-    def __init__(self, file_source: GameFile.Typing = None, dcx_type=None, animation_ids: tp.Sequence[int] = None):
-        super().__init__(file_source, dcx_type)
+    # `default_anim_id` will be set to a single animation if only one is loaded. This allows various animation-affecting
+    # methods to be used without specifying that lone animation ID every time. It can also be passed in manually.
+    default_anim_id: int | None = None
+    # Can be passed to the constructor to only load certain animations from the Binder.
+    animation_ids_to_load: list[int] = field(default_factory=list)
+
+    def __post_init__(self):
         if not self.entries:
-            self.skeleton = None
-            self.animations = {}
-            self.default_anim_id = None
-            return
+            return  # no Binder entries to process
 
         compendium, compendium_name = self.ANIMATION_HKX.get_compendium_from_binder(self)
         try:
-            self.skeleton = self.SKELETON_HKX(
-                self.find_entry_matching_name(r"[Ss]keleton\.[Hh][Kk][Xx]"), compendium=compendium
-            )
-            if animation_ids is None:
-                self.animations = {}
-                for entry in self.find_entries_matching_name(r"a[\d_]+\.[Hh][Kk][Xx]"):
-                    anim_id = int(entry.minimal_stem[1:])
-                    self.animations[anim_id] = self.ANIMATION_HKX(entry, compendium=compendium)
-            else:  # selected animation IDs only
-                self.animations = {
-                    anim_id: self.ANIMATION_HKX(
-                        self[self.animation_id_to_entry_basename(anim_id)], compendium=compendium
-                    ) for anim_id in animation_ids
-                }
+            skeleton_entry = self.find_entry_matching_name(r"[Ss]keleton\.[Hh][Kk][Xx]")
+            self.skeleton_hkx = self.SKELETON_HKX.from_bytes(skeleton_entry, compendium=compendium)
+
+            if not self.animation_ids_to_load:
+                self.animations_hkx = {}
+                for anim_entry in self.find_entries_matching_name(r"a[\d_]+\.[Hh][Kk][Xx]"):
+                    anim_id = int(anim_entry.minimal_stem[1:])
+                    self.animations_hkx[anim_id] = self.ANIMATION_HKX.from_bytes(anim_entry, compendium=compendium)
+            else:  # selected (also asserted) animation IDs only
+                self.animations_hkx = {}
+                for anim_id in self.animation_ids_to_load:
+                    entry_name = self.animation_id_to_entry_basename(anim_id)
+                    try:
+                        anim_entry = self.entries_by_name[entry_name]
+                    except KeyError:
+                        raise ValueError(f"Could not find animation entry '{entry_name}' for animation ID {anim_id}.")
+                    self.animations_hkx[anim_id] = self.ANIMATION_HKX.from_bytes(anim_entry, compendium=compendium)
+
         except MissingCompendiumError:
             if compendium_name != "":
                 raise MissingCompendiumError(
-                    f"Binder HKX entry requires a compendium, but compendium '{compendium_name}' "
-                    f"could not be found in given binder. Use `compendium_name` argument if it has another name."
+                    f"One or more Binder HKX entries require a compendium, but compendium '{compendium_name}' "
+                    f"could not be found in the Binder. Use `compendium_name` argument if it has another name."
                 )
             raise MissingCompendiumError(
-                f"Binder HKX entry requires a compendium, but `compendium_name` was not given and a "
-                f"'.compendium' entry could not be found in the given binder."
+                f"One or more Binder HKX entries require a compendium, but `compendium_name` was not given and a "
+                f"'.compendium' entry could not be found in the Binder."
             )
 
-        self.default_anim_id = list(self.animations)[0] if len(self.animations) == 1 else None
-
-    @classmethod
-    def from_skeleton_and_animations(cls, skeleton: BaseSkeletonHKX, animations: dict[int, BaseAnimationHKX]):
-        self = cls(None)
-
-        self.skeleton = skeleton
-        self.animations = animations
-        self.default_anim_id = list(animations)[0] if len(animations) == 1 else None
+        # Only set default if a single animation was loaded from the ANIBND.
+        self.default_anim_id = list(self.animations_hkx)[0] if len(self.animations_hkx) == 1 else None
 
     @property
-    def bones(self) -> list[BoneWrapper]:
+    def skeleton(self) -> Skeleton:
+        return self.skeleton_hkx.skeleton
+
+    @property
+    def bones(self) -> list[Bone]:
         return self.skeleton.bones
 
     @property
-    def bones_by_name(self) -> dict[str, BoneWrapper]:
+    def bones_by_name(self) -> dict[str, Bone]:
         return self.skeleton.bones_by_name
 
-    def get_animation(self, anim_id: int = None) -> BaseAnimationHKX:
+    def get_animation(self, anim_id: int = None) -> AnimationContainer:
         if anim_id is None:
-            if self.default_anim_id is not None:
-                return self.animations[self.default_anim_id]
-            raise ValueError("Default animation ID has not been set.")
-        return self.animations[anim_id]
+            if self.default_anim_id is None:
+                raise ValueError("Default animation ID has not been set.")
+            anim_id = self.default_anim_id
+        return self.animations_hkx[anim_id].animation_container
+
+    def __getitem__(self, anim_id: int) -> AnimationContainer:
+        return self.get_animation(anim_id)
 
     def copy_animation(self, anim_id: int, new_anim_id: int, overwrite=False):
-        """Make a deep copy of an animation instance.+"""
-        if new_anim_id in self.animations and not overwrite:
+        """Make a deep copy of an `AnimationHKX` file instance (corresponding to a new or overwritten Binder entry)."""
+        if new_anim_id in self.animations_hkx and not overwrite:
             raise ValueError(f"Animation ID {new_anim_id} already exists, and `overwrite=False`.")
-        self.animations[new_anim_id] = self.animations[anim_id].copy()
+        self.animations_hkx[new_anim_id] = self.animations_hkx[anim_id].copy()
 
     def rotate_bone_track(
         self,
-        bone: BoneWrapper,
+        bone: Bone,
         rotation: Quaternion | list[Quaternion],
         anim_id: int = None,
         compensate_children=False,
@@ -174,9 +186,9 @@ class BaseANIBND(BaseBND, abc.ABC):
 
     def swivel_bone_track(
         self,
-        parent_bone: BoneWrapper,
-        swiveling_bone: BoneWrapper,
-        child_bone: BoneWrapper,
+        parent_bone: Bone,
+        swiveling_bone: Bone,
+        child_bone: Bone,
         angle: float | list[float],
         anim_id: int = None,
         radians=False,
@@ -225,12 +237,12 @@ class BaseANIBND(BaseBND, abc.ABC):
 
     def transform_bone_track(
         self,
-        bone: BoneWrapper,
+        bone: Bone,
         transform: TRSTransform | list[TRSTransform],
         anim_id: int = None,
         rotate_parent=True,
         compensate_children=False,
-        rotation_orbits_child: BoneWrapper = None,
+        rotation_orbits_child: Bone = None,
         freeze_rotation=False,
     ):
         """Apply `transform` to every animation frame for `bone`. Depending on usage, may also affect local parent and
@@ -521,7 +533,7 @@ class BaseANIBND(BaseBND, abc.ABC):
 
         _LOGGER.info(f"Auto-retarget complete. Animation {dest_anim_id} saved.")
 
-    def conform_bone_length_in_animation(self, bone: BoneWrapper, anim_id: int = None, extra_scale=1.0):
+    def conform_bone_length_in_animation(self, bone: Bone, anim_id: int = None, extra_scale=1.0):
         """Scale length of `bone` (translation vector magnitude) in every frame to match its length in the skeleton's
         reference pose. Useful after retargeting, but will generally break IK (such as feet on ground, two-handed
         weapons).
@@ -548,7 +560,7 @@ class BaseANIBND(BaseBND, abc.ABC):
             self.conform_bone_length_in_animation(bone, anim_id, extra_scale)
 
     def realign_foot_to_ground(
-        self, *foot_bones: BoneWrapper, anim_id: int = None, root_bone: BoneWrapper = None, ground_height=0.0
+        self, *foot_bones: Bone, anim_id: int = None, root_bone: Bone = None, ground_height=0.0
     ):
         """Find the highest shared parent of all `foot_bones` (usually 'Master') and offset its Y translation in every
         frame so that the LOWEST `foot_bone` on that frame has a world-space Y coordinate of `ground_height` (typically
@@ -583,7 +595,7 @@ class BaseANIBND(BaseBND, abc.ABC):
         bone_qs_transform = self.skeleton.skeleton.referencePose[bone_index]
         return [bone_qs_transform.to_trs_transform() for _ in range(frame_count)]
 
-    def get_bone_spline_animation_track(self, bone: BoneWrapper, anim_id: int = None) -> SplineTransformTrack:
+    def get_bone_spline_animation_track(self, bone: Bone, anim_id: int = None) -> SplineTransformTrack:
         animation = self.get_animation(anim_id)
         if not animation.is_spline:
             raise TypeError("Can only get bone animation tracks for spline-compressed animation.")
@@ -593,7 +605,7 @@ class BaseANIBND(BaseBND, abc.ABC):
         return animation.spline_data.blocks[0][track_index]
 
     def get_immediate_child_bone_spline_animation_tracks(
-        self, parent_bone: BoneWrapper, anim_id: int = None
+        self, parent_bone: Bone, anim_id: int = None
     ) -> list[tuple[int, SplineTransformTrack]]:
         """Get a list of `(int, track)` tuples for all immediate child bones of `parent_bone_name_or_index`."""
         animation = self.get_animation(anim_id)
@@ -606,7 +618,7 @@ class BaseANIBND(BaseBND, abc.ABC):
         return [(i, block[i]) for i in child_track_indices]
 
     def get_bone_interleaved_transforms(
-        self, bone: BoneWrapper, anim_id: int = None, in_armature_space=False,
+        self, bone: Bone, anim_id: int = None, in_armature_space=False,
     ) -> list[TRSTransform]:
         """Get all frame transforms (optionally in armature space) for given bone."""
         animation = self.get_animation(anim_id)
@@ -629,9 +641,9 @@ class BaseANIBND(BaseBND, abc.ABC):
         return transforms
 
     def get_all_armature_space_transforms_in_frame(self, frame_index: int, anim_id: int = None) -> list[TRSTransform]:
-        """Resolve all transforms to get world space transforms at the given `frame` index.
+        """Resolve all transforms to get all bones' armature space transforms at the given `frame_index`.
 
-        Avoid recomputing transforms multiple times; each bone is only processed once, using parents' accumulating
+        Avoids recomputing transforms multiple times; each bone is only processed once, using parents' accumulating
         world transforms.
         """
         animation = self.get_animation(anim_id)
@@ -646,7 +658,7 @@ class BaseANIBND(BaseBND, abc.ABC):
         track_world_transforms = [TRSTransform.identity() for _ in self.bones]
         track_bone_indices = animation.animation_binding.transformTrackToBoneIndices
 
-        def bone_local_to_world(bone: BoneWrapper, world_transform: TRSTransform):
+        def bone_local_to_world(bone: Bone, world_transform: TRSTransform):
             track_index = track_bone_indices.index(bone.index)
             track_world_transforms[track_index] = world_transform @ frame_local_transforms[track_index]
             # Recur on children, using this bone's just-computed world transform.
@@ -660,8 +672,8 @@ class BaseANIBND(BaseBND, abc.ABC):
         return track_world_transforms
 
     def get_immediate_child_bone_interleaved_animation_transforms(
-        self, parent_bone: BoneWrapper, anim_id: int = None
-    ) -> list[tuple[BoneWrapper, list[TRSTransform]]]:
+        self, parent_bone: Bone, anim_id: int = None
+    ) -> list[tuple[Bone, list[TRSTransform]]]:
         """Get a list of `(int, track)` tuples for all immediate child bones of `parent_bone_name_or_index`."""
         animation = self.get_animation(anim_id)
         if not animation.is_interleaved:
@@ -684,25 +696,32 @@ class BaseANIBND(BaseBND, abc.ABC):
     def write_anim_ids_into_anibnd(
         self, anibnd_path: Path | str, *anim_ids: int, from_bak=False, write_path: Path | str = None
     ):
-        anibnd = Binder(anibnd_path, from_bak=from_bak)
+        """Open an existing `.anibnd` Binder, write given `anim_ids` into it, and write it back to disk at `write_path`
+        (or back to `anibnd_path` by default)."""
+        anibnd = Binder.from_bak(anibnd_path) if from_bak else Binder.from_path(anibnd_path)
         for anim_id in anim_ids:
-            animation = self.animations[anim_id]
-            anibnd[self.animation_id_to_entry_basename(anim_id)].set_uncompressed_data(animation.pack_dcx())
+            animation_hkx = self.animations_hkx[anim_id]
+            anibnd[self.animation_id_to_entry_basename(anim_id)].set_from_game_file(animation_hkx)
         if write_path is None:
             write_path = anibnd_path
-        anibnd.write(file_path=write_path)  # will default to same path
+        anibnd.write(file_path=write_path)
         if write_path != anibnd_path:
             _LOGGER.info(f"Animations {', '.join(str(x) for x in anim_ids)} written to {anibnd_path} at {write_path}.")
         else:
             _LOGGER.info(f"Animations {', '.join(str(x) for x in anim_ids)} written into {anibnd_path}.")
 
     def write_all_into_anibnd(self, anibnd_path: Path | str, from_bak=False, write_path: Path | str = None):
-        anibnd = Binder(anibnd_path, from_bak=from_bak)
-        anibnd.find_entry_matching_name(r"[Ss]keleton\.[HKX|hkx]").set_uncompressed_data(self.skeleton.pack_dcx())
-        for anim_id, animation in self.animations.items():
-            anibnd[self.animation_id_to_entry_basename(anim_id)].set_uncompressed_data(animation.pack_dcx())
+        """Open an existing `.anibnd` Binder, write the opened skeleton and ALL opened animations into it, and write it
+        back to disk at `write_path` (or back to `anibnd_path` by default)."""
+        anibnd = Binder.from_bak(anibnd_path) if from_bak else Binder.from_path(anibnd_path)
+        anibnd.find_entry_matching_name(r"[Ss]keleton\.[HKX|hkx]").set_from_game_file(self.skeleton_hkx)
+        for anim_id, animation_hkx in self.animations_hkx.items():
+            anibnd[self.animation_id_to_entry_basename(anim_id)].set_from_game_file(animation_hkx)
         anibnd.write(file_path=write_path)  # will default to same path
+        _LOGGER.info(f"Skeleton and all animations written into {anibnd_path}.")
     # endregion
+
+    # region Plotting Methods
 
     def plot_tpose_skeleton(
         self,
@@ -790,8 +809,8 @@ class BaseANIBND(BaseBND, abc.ABC):
 
             # Draw axes along X (red) and Z (green) axes.
             rotation = bone_world_transform.rotation
-            x_end = (bone_world_transform.translation + rotation.rotate_vector(Vector3(0.1, 0, 0))).to_xzy()  # X
-            z_end = (bone_world_transform.translation + rotation.rotate_vector(Vector3(0, 0, 0.1))).to_xzy()  # Z
+            x_end = (bone_world_transform.translation + rotation.rotate_vector(Vector3((0.1, 0, 0)))).to_xzy()  # X
+            z_end = (bone_world_transform.translation + rotation.rotate_vector(Vector3((0, 0, 0.1)))).to_xzy()  # Z
 
             x_arrow_line_points += [translation, x_end]
             z_arrow_line_points += [translation, z_end]
@@ -811,7 +830,7 @@ class BaseANIBND(BaseBND, abc.ABC):
 
     def plot_interleaved_translation(
         self,
-        bone: BoneWrapper,
+        bone: Bone,
         coord: str,
         anim_id: int = None,
         title: str = None,
@@ -853,7 +872,7 @@ class BaseANIBND(BaseBND, abc.ABC):
             plt.show()
 
     def plot_hierarchy_interleaved_translation(
-        self, bone: BoneWrapper, coord: str, anim_id: int = None, title: str = None, ylim=None, show=False
+        self, bone: Bone, coord: str, anim_id: int = None, title: str = None, ylim=None, show=False
     ):
         """Plot a grid for all bones in the hierarchy up to `bone`, including itself."""
         if plt is None or cm is None:
@@ -873,6 +892,8 @@ class BaseANIBND(BaseBND, abc.ABC):
         axes[0].legend()
         if show:
             plt.show()
+
+    # endregion
 
     @staticmethod
     @abc.abstractmethod

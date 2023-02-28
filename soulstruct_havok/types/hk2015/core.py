@@ -209,7 +209,7 @@ class hkVector4f(hkStruct(_float, 4)):
     def unpack(cls, reader: BinaryReader, offset: int, items: list[TagFileItem] = None) -> Vector4:
         # cls.debug_print_unpack(f"Unpacking `{cls.__name__}`... (hkVector4f) <{hex(offset)}>")
         # cls.increment_debug_indent()
-        value = Vector4(*super().unpack(reader, offset, items))
+        value = Vector4(super().unpack(reader, offset, items))
         # cls.decrement_debug_indent()
         # cls.debug_print_unpack(f"-> {repr(value)}")
         return value
@@ -364,9 +364,9 @@ class hkQsTransformf(hk):
     @classmethod
     def from_trs_transform(cls, transform: TRSTransform):
         return cls(
-            translation=Vector4(*transform.translation, 1.0),
+            translation=Vector4((*transform.translation, 1.0)),
             rotation=transform.rotation,
-            scale=Vector4(*transform.scale, 1.0),
+            scale=Vector4((*transform.scale, 1.0)),
         )
 
 

@@ -15,6 +15,8 @@ if tp.TYPE_CHECKING:
 
 
 class PackFilePacker:
+    """Handles a single `HKX` packfile packing operation."""
+    # TODO: Broken.
 
     def __init__(self, hkx: HKX):
         self.hkx = hkx
@@ -30,7 +32,7 @@ class PackFilePacker:
                 f"Only versions '2010' and '2014' are supported for packfile packing, not '{hkx.hk_version}'."
             )
 
-    def pack(self, header_info: PackfileHeaderInfo) -> bytes:
+    def to_writer(self, header_info: PackfileHeaderInfo) -> BinaryWriter:
         byte_order = ByteOrder.LittleEndian if header_info.is_little_endian else ByteOrder.BigEndian
         writer = BinaryWriter(byte_order=byte_order)
 
@@ -156,7 +158,7 @@ class PackFilePacker:
             end_offset=end_offset,
         )
 
-        return writer.finish()
+        return writer
 
     def collect_class_names(self, instance: hk, class_names: list[str]) -> list[str]:
         """Collect names of all `Ptr` data types from `instance`, recursively."""
@@ -191,7 +193,7 @@ class PackFilePacker:
                 delayed_array_or_string_pack(sub_data_pack_queue)  # may enqueue additional "pointer" items
 
             item.writer.pad_align(16)  # TODO: could also align when data is packed together
-            item.raw_data = item.writer.finish()
+            item.raw_data = item.bytes(writer)
             self.packed_items.append(item)  # ordered only as they are packed, not created
 
             # Recur on newly collected items.

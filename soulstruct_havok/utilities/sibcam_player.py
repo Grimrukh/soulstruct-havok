@@ -129,7 +129,7 @@ class SibcamPlayer:
 
     @staticmethod
     def sibcam_frame_to_trs_transform(sibcam_frame_transform: CameraFrameTransform):
-        translation = sibcam_frame_transform.position * Vector3(1, 1, -1)
+        translation = sibcam_frame_transform.position * Vector3((1, 1, -1))
         scale = sibcam_frame_transform.scale
         rotation_mat = Matrix3.from_euler_angles(
             rx=-(sibcam_frame_transform.rotation.x + math.pi / 2.0),

@@ -37,7 +37,7 @@ def read_obj(obj_path: Path | str, invert_x=True) -> list[tuple[list[Vector4], l
                 if mesh[1]:
                     raise ValueError("Found 'v' vertex line after 'f' face lines.")
                 x, y, z = float(v.group(1)), float(v.group(2)), float(v.group(3))
-                vertex = Vector4([(-x if invert_x else x), y, z, 0.0])
+                vertex = Vector4((-x if invert_x else x), y, z, 0.0)
                 mesh[0].append(vertex)
             elif f := f_re.match(line):
                 if mesh is None:

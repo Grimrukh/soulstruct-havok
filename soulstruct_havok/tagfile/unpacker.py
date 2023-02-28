@@ -9,7 +9,7 @@ from pathlib import Path
 from types import ModuleType
 
 import colorama
-from soulstruct.utilities.binary import BinaryReader
+from soulstruct.utilities.binary import *
 
 from soulstruct_havok.types.core import hk
 from soulstruct_havok.types.exceptions import HavokTypeError, VersionModuleError, TypeNotDefinedError, TypeMatchError
@@ -471,32 +471,32 @@ class TagFileUnpacker:
         If `warn_small_size=True`, a warning will be printed (for debugging purposes) if the number is unpacked could
         have fit in a smaller varint. This helps for detecting obstacles in the way of byte-perfect writes.
         """
-        byte = reader.unpack_value("B")
-        if byte & 0b1000_0000:
-            if byte & 0b0100_0000:
-                if byte & 0b0010_0000:
+        b = reader.unpack_value("B")
+        if b & 0b1000_0000:
+            if b & 0b0100_0000:
+                if b & 0b0010_0000:
                     next_byte, next_short = reader.unpack(">BH")
-                    value = (byte << 24 | next_byte << 16 | next_short) & 0b00000111_11111111_11111111_11111111
+                    value = (b << 24 | next_byte << 16 | next_short) & 0b00000111_11111111_11111111_11111111
                     if warn_small_size and value < 0b00011111_11111111_11111111:
                         print(f"WARNING: varint {value} could have used less than 27 bits.")
                 else:
                     next_short = reader.unpack_value(">H")
 
-                    bit_21_int = (byte << 16 | next_short) & 0b00011111_11111111_11111111
+                    bit_21_int = (b << 16 | next_short) & 0b00011111_11111111_11111111
                     if bit_21_int == 196609:
                         # Weird representation of 1 (first eight bits are 11000011, rest are all zeroes except the last)
                         return 1
 
-                    value = (byte << 16 | next_short) & 0b00011111_11111111_11111111
+                    value = (b << 16 | next_short) & 0b00011111_11111111_11111111
                     if warn_small_size and value < 0b00111111_11111111:
                         print(f"WARNING: varint {value} could have used less than 21 bits.")
             else:
                 next_byte = reader.unpack_value("B")
-                value = (byte << 8 | next_byte) & 0b00111111_11111111
+                value = (b << 8 | next_byte) & 0b00111111_11111111
                 if warn_small_size and value < 0b01111111:
                     print(f"WARNING: varint {value} could have used less than 14 bits.")
         else:
-            value = byte & 0b01111111
+            value = b & 0b01111111
             # No value is too small to warn about.
         return value
 

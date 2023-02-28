@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from soulstruct_havok.wrappers.base.animation_manager import BaseANIBND
+from soulstruct_havok.wrappers.base.anibnd import BaseANIBND
 from .core import AnimationHKX, SkeletonHKX
 
 

@@ -1,69 +1,64 @@
 from __future__ import annotations
 
-import abc
+__all__ = ["AnimationContainer"]
+
 import logging
 import typing as tp
+from types import ModuleType
 
-from soulstruct_havok.utilities.maths import TRSTransform, Vector4
-from soulstruct_havok.types import hk2010, hk2014, hk2015, hk2018
 from soulstruct_havok.spline_compression import SplineCompressedAnimationData
+from soulstruct_havok.utilities.maths import TRSTransform, Vector4
 
-from .core import BaseWrapperHKX
+from .type_vars import (
+    ANIMATION_CONTAINER_T,
+    ANIMATION_T,
+    ANIMATION_BINDING_T,
+    INTERLEAVED_ANIMATION_T,
+    SPLINE_ANIMATION_T,
+    DEFAULT_ANIMATED_REFERENCE_FRAME_T,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 
-ANIMATION_TYPING = tp.Union[
-    hk2010.hkaAnimation, hk2014.hkaAnimation, hk2015.hkaAnimation, hk2018.hkaAnimation,
-]
-ANIMATION_BINDING_TYPING = tp.Union[
-    hk2010.hkaAnimationBinding, hk2014.hkaAnimationBinding, hk2015.hkaAnimationBinding, hk2018.hkaAnimationBinding,
-]
-INTERLEAVED_ANIMATION_TYPES = (
-    hk2010.hkaInterleavedUncompressedAnimation, hk2015.hkaInterleavedUncompressedAnimation,
-)
-INTERLEAVED_ANIMATION_TYPING = tp.Union[
-    hk2010.hkaInterleavedUncompressedAnimation, hk2015.hkaInterleavedUncompressedAnimation,
-]
-SPLINE_ANIMATION_TYPES = (
-    hk2010.hkaSplineCompressedAnimation, hk2015.hkaSplineCompressedAnimation, hk2018.hkaSplineCompressedAnimation,
-)
-SPLINE_ANIMATION_TYPING = tp.Union[
-    hk2015.hkaSplineCompressedAnimation, hk2018.hkaSplineCompressedAnimation,
-]
-DEFAULT_ANIMATED_REFERENCE_FRAME_TYPES = (
-    hk2015.hkaDefaultAnimatedReferenceFrame, hk2018.hkaDefaultAnimatedReferenceFrame
-)
-DEFAULT_ANIMATED_REFERENCE_FRAME_TYPING = tp.Union[
-    hk2015.hkaDefaultAnimatedReferenceFrame, hk2018.hkaDefaultAnimatedReferenceFrame
-]
+class AnimationContainer(tp.Generic[
+    ANIMATION_CONTAINER_T, ANIMATION_T, ANIMATION_BINDING_T,
+    INTERLEAVED_ANIMATION_T, SPLINE_ANIMATION_T, DEFAULT_ANIMATED_REFERENCE_FRAME_T
+]):
+    """Manages/manipulates a Havok animation container containing a single animation and a single binding.
 
+    NOTE: Does not manage `hkaSkeleton` inside container. See `wrappers.base.skeleton.Skeleton` for that.
+    """
 
-class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
-    """Loads HKX objects that are found in an "Animation" HKX file (inside `anibnd` binder, e.g. `a00_3000.hkx`)."""
+    types_module: ModuleType | None
+    animation_container: ANIMATION_CONTAINER_T
 
-    animation: ANIMATION_TYPING
-    animation_binding: ANIMATION_BINDING_TYPING
-
-    # Loaded upon first use or explicit `load_spline_data()` call. Will be resaved on `pack()` if present, or with
-    # explicit `save_spline_data()` call.
-    spline_data: tp.Optional[SplineCompressedAnimationData] = None
-
-    # Loaded upon first use or explicit `load_interleaved_data()` call. Will be resaved on `pack()` if present, or with
-    # explicit `save_spline_data()` call. All this data does is split the frame transforms into separate 'track' lists.
-    interleaved_data: list[list[TRSTransform]] = None
-
-    def create_attributes(self):
-        animation_container = self.get_variant_index(0, "hkaAnimationContainer")
-        self.animation = animation_container.animations[0]
-        self.animation_binding = animation_container.bindings[0]
+    def __init__(self, types_module: ModuleType, animation_container: ANIMATION_CONTAINER_T):
+        self.types_module = types_module
+        self.animation_container = animation_container
 
         if self.is_interleaved:  # basic enough to do outomatically
             self.load_interleaved_data()
 
+    @property
+    def animation(self) -> ANIMATION_T:
+        return self.animation_container.animations[0]
+
+    @property
+    def animation_binding(self) -> ANIMATION_BINDING_T:
+        return self.animation_container.bindings[0]
+
+    # Loaded upon first use or explicit `load_spline_data()` call. Will be resaved on `pack()` if present, or with
+    # explicit `save_spline_data()` call.
+    spline_data: SplineCompressedAnimationData | None = None
+
+    # Loaded upon first use or explicit `load_interleaved_data()` call. Will be resaved on `pack()` if present, or with
+    # explicit `save_spline_data()` call. All this data does is split the frame transforms into separate 'track' lists,
+    # since by default, all the tracks and frames are in a single merged list
+    interleaved_data: list[list[TRSTransform]] | None = None
+
     def load_spline_data(self, reload=False):
         if self.is_spline:
-            self.animation: SPLINE_ANIMATION_TYPING
             if self.spline_data is not None and not reload:
                 # Already exists. Do nothing.
                 return
@@ -86,7 +81,6 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
             numberOfTransformTracks
         """
         if self.is_spline:
-            self.animation: SPLINE_ANIMATION_TYPING
             if not self.spline_data:
                 raise ValueError("Spline data has not been loaded yet. Nothing to save.")
             data, block_count, track_count = self.spline_data.pack()
@@ -100,7 +94,6 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
 
     def load_interleaved_data(self, reload=False):
         if self.is_interleaved:
-            self.animation: INTERLEAVED_ANIMATION_TYPING
             if self.interleaved_data is not None and not reload:
                 # Already exists. Do nothing.
                 return
@@ -121,10 +114,9 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
 
     def save_interleaved_data(self):
         if self.is_interleaved:
-            self.animation: INTERLEAVED_ANIMATION_TYPING
             if not self.interleaved_data:
                 raise ValueError("Interleaved data has not been loaded yet. Nothing to save.")
-            qs_transform_cls = self.TYPES_MODULE.hkQsTransform
+            qs_transform_cls = self.types_module.hkQsTransform
             transforms = []
             for frame in self.interleaved_data:
                 transforms += [qs_transform_cls.from_trs_transform(t) for t in frame]
@@ -136,14 +128,14 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
     def get_reference_frame_samples(self) -> list[Vector4]:
         if self.animation.extractedMotion:
             extracted_motion = self.animation.extractedMotion
-            if isinstance(extracted_motion, DEFAULT_ANIMATED_REFERENCE_FRAME_TYPES):
+            if hasattr(extracted_motion, "referenceFrameSamples"):
                 return [Vector4(v) for v in extracted_motion.referenceFrameSamples]
         raise TypeError("No root motion for this animation reference frame class.")
 
     def set_reference_frame_samples(self, samples: list[Vector4]):
         if self.animation.extractedMotion:
             extracted_motion = self.animation.extractedMotion
-            if isinstance(extracted_motion, DEFAULT_ANIMATED_REFERENCE_FRAME_TYPES):
+            if hasattr(extracted_motion, "referenceFrameSamples"):
                 extracted_motion.referenceFrameSamples = samples
                 return
         raise TypeError("No root motion for this animation reference frame class.")
@@ -152,7 +144,7 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
         """Set duration in both the animation and (if applicable) the reference frame."""
         self.animation.duration = duration
         extracted_motion = self.animation.extractedMotion
-        if isinstance(extracted_motion, DEFAULT_ANIMATED_REFERENCE_FRAME_TYPES):
+        if hasattr(extracted_motion, "duration"):
             extracted_motion.duration = duration
 
     def get_track_index_of_bone(self, bone_index: int):
@@ -174,11 +166,9 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
         relative to their parent. It does not affect the rotation or scale of the bone transforms (frames).
         """
         if self.is_spline:
-            self.animation: SPLINE_ANIMATION_TYPING
             self.load_spline_data()
             self.spline_data.apply_transform_to_all_track_translations(transform)
         elif self.is_interleaved:
-            self.animation: INTERLEAVED_ANIMATION_TYPING
             self.load_interleaved_data()
             for frame in self.interleaved_data:
                 for track_index in range(len(frame)):
@@ -190,7 +180,7 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
 
         self.try_transform_root_motion(transform)
 
-    def scale(self, factor: float):
+    def scale_all_translations(self, factor: float):
         """Apply a simple scaling transformation.
 
         Note that this scales the `translate` data of each bone transform, NOT its `scale` data. This modifies the
@@ -200,14 +190,12 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
         self.transform(TRSTransform(scale=factor))
 
     def reverse(self):
-        """Reverses all control points/static transforms, and also root motion (reference frame samples)."""
+        """Reverses all control points/static transforms and root motion (reference frame samples) in-place."""
         if self.is_spline:
-            self.animation: SPLINE_ANIMATION_TYPING
             if not self.spline_data:
                 self.load_spline_data()
             self.spline_data.reverse()
         elif self.is_interleaved:
-            self.animation: INTERLEAVED_ANIMATION_TYPING
             self.animation.transforms = list(reversed(self.animation.transforms))
         else:
             raise TypeError("Animation is not interleaved or spline-compressed. Cannot reverse data.")
@@ -234,23 +222,22 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
         return True
 
     def spline_to_interleaved(self):
-        """Modify animation data/class in place, from `hkaSplineCompressedAnimation` to
+        """Change animation data type in-place from `hkaSplineCompressedAnimation` to
         `hkaInterleavedUncompressedAnimation`.
 
         Note that this is much more complicated to reverse: the entire Havok file must be downgraded to 2010,
-        converted with an executable compiled by Horkrux, and upgraded back to the desired version.
+        converted with an executable compiled by Horkrux, and upgraded back to the desired version (which only Havok
+        2015 currently supports).
         """
         if not self.is_spline:
             raise TypeError("Animation is not spline-compressed. Cannot convert to interleaved.")
-        self.animation: SPLINE_ANIMATION_TYPING
         if not self.spline_data:
             self.load_spline_data()
 
         try:
-            interleaved_cls = self.TYPES_MODULE.hkaInterleavedUncompressedAnimation
+            interleaved_cls = self.types_module.hkaInterleavedUncompressedAnimation
         except AttributeError:
             raise TypeError("No `hkaInterleavedUncompressedAnimation` class exists for this Havok version.")
-        interleaved_cls: tp.Type[INTERLEAVED_ANIMATION_TYPING]
 
         self.interleaved_data = self.spline_data.to_interleaved_transforms(
             self.animation.numFrames,
@@ -258,13 +245,13 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
         )
 
         # Save interleaved data to concatenated list (for writing directly to new Havok instance).
-        qs_transform_cls = self.TYPES_MODULE.hkQsTransform
+        qs_transform_cls = self.types_module.hkQsTransform
         transforms = []
         for frame in self.interleaved_data:
             transforms += [qs_transform_cls.from_trs_transform(t) for t in frame]
 
         # TODO: Some arguments will differ for older versions. Move to abstract method.
-        self.animation = interleaved_cls(
+        animation = interleaved_cls(
             memSizeAndFlags=0,
             refCount=0,
             type=1,  # correct for all Havok versions
@@ -278,33 +265,24 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
         )
 
         # Set Havok instance.
-        animation_container = self.get_variant_index(0, "hkaAnimationContainer")
-        animation_container.animations = [self.animation]
+        self.animation_container.animations = [animation]
 
         self.spline_data = None
 
-    def pack(self, hk_format="") -> bytes:
+    def save_data(self):
+        """Save managed spline or interleaved data. Should be called before writing HKX file."""
         if self.is_spline and self.spline_data:
             self.save_spline_data()
         elif self.is_interleaved and self.interleaved_data:
             self.save_interleaved_data()
-        return super().pack(hk_format)
 
     @property
-    def is_spline(self):
-        try:
-            spline_cls = self.TYPES_MODULE.hkaSplineCompressedAnimation
-        except AttributeError:
-            return False
-        return isinstance(self.animation, spline_cls)
+    def is_spline(self) -> bool:
+        return type(self.animation).__name__ == "hkaSplineCompressedAnimation"
 
     @property
-    def is_interleaved(self):
-        try:
-            interleaved_cls = self.TYPES_MODULE.hkaInterleavedUncompressedAnimation
-        except AttributeError:
-            return False
-        return isinstance(self.animation, interleaved_cls)
+    def is_interleaved(self) -> bool:
+        return type(self.animation).__name__ == "hkaInterleavedUncompressedAnimation"
 
     @property
     def track_count(self):
@@ -313,9 +291,7 @@ class BaseAnimationHKX(BaseWrapperHKX, abc.ABC):
     @property
     def frame_count(self):
         if self.is_spline:
-            self.animation: SPLINE_ANIMATION_TYPING
             return self.animation.numFrames
         elif self.is_interleaved:
-            self.animation: INTERLEAVED_ANIMATION_TYPING
             return len(self.animation.transforms) // self.animation.numberOfTransformTracks
         raise TypeError("Cannot infer animation frame count from non-spline, non-interleaved animation type.")

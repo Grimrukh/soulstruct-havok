@@ -1,27 +1,28 @@
 from __future__ import annotations
 
 import typing as tp
+from dataclasses import dataclass, field
 
-from soulstruct.containers.bnd import BND3
-
-from soulstruct_havok.wrappers.base.animation_manager import BaseANIBND
-from .core import AnimationHKX, SkeletonHKX
+from soulstruct_havok.wrappers.base.anibnd import BaseANIBND
+from .file_types import AnimationHKX, SkeletonHKX
 
 
-class ANIBND(BaseANIBND, BND3):
+@dataclass(slots=True)
+class ANIBND(BaseANIBND):
 
-    ANIMATION_HKX = AnimationHKX
-    SKELETON_HKX = SkeletonHKX
-    skeleton: SkeletonHKX
-    animations: dict[int, AnimationHKX]
+    ANIMATION_HKX: tp.ClassVar = AnimationHKX
+    SKELETON_HKX: tp.ClassVar = SkeletonHKX
 
-    get_animation: tp.Callable[[tp.Optional[int]], AnimationHKX]
+    skeleton_hkx: SkeletonHKX | None = None
+    animations_hkx: dict[int, AnimationHKX] = field(default_factory=dict)
+
+    get_animation: tp.ClassVar[tp.Callable[[int | None], AnimationHKX]]
 
     def convert_interleaved_to_spline_anim(self, anim_id: int = None):
         """Convert to spline animation by a downgrade -> SDK conversion -> upgrade process."""
         animation = self.get_animation(anim_id)
         spline_anim = animation.to_spline_animation()
-        self.animations[anim_id] = spline_anim
+        self._animations_hkx[anim_id] = spline_anim
 
     @staticmethod
     def animation_id_to_entry_basename(animation_id: int) -> str:

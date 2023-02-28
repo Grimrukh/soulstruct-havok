@@ -5,8 +5,8 @@ from pathlib import Path
 from soulstruct.config import DSR_PATH
 from soulstruct_havok.utilities.maths import *
 
-from soulstruct_havok.wrappers.hkx2015.animation_manager import ANIBND as AnimationManagerDS1
-from soulstruct_havok.wrappers.hkx2018.animation_manager import AnimationManager as AnimationManagerER
+from soulstruct_havok.wrappers.hkx2015.anibnd import ANIBND as AnimationManagerDS1
+from soulstruct_havok.wrappers.hkx2018.anibnd import AnimationManager as AnimationManagerER
 
 GAME_CHR_PATH = DSR_PATH + "/chr"
 
@@ -72,7 +72,7 @@ def do_erdtree_adjustment(asylum_manager: AnimationManagerDS1 = None, source_id=
     # Weapon rotation.
     asylum_manager.rotate_bone_track(
         "R_weapon",
-        rotation=Quaternion.axis(0, 0, 1, 90.0),
+        rotation=Quaternion.axis((0, 0, 1), 90.0),
         compensate_children=False,  # no children
     )
 

@@ -105,9 +105,9 @@ class PackFileTypeUnpacker:
 
     def unpack_type_item(self, entry: PackFileTypeItem):
         if self.pointer_size == 4:
-            type_item_header = entry.reader.unpack_struct(entry.TYPE_STRUCT_32)
+            type_item_header = entry.TYPE_STRUCT_32.from_bytes(entry.reader)
         else:
-            type_item_header = entry.reader.unpack_struct(entry.TYPE_STRUCT_64)
+            type_item_header = entry.TYPE_STRUCT_64.from_bytes(entry.reader)
 
         name = entry.reader.unpack_string(offset=entry.child_pointers[0], encoding="utf-8")
         py_name = get_py_name(name)
@@ -124,7 +124,7 @@ class PackFileTypeUnpacker:
         # Names of enum values defined (redundantly) in the class are recorded for future byte-perfect writes. I don't
         # think it's necessary for the file to be valid, though.
         class_enums = {}  # type: dict[str, PackFileTypeUnpacker.EnumValues]
-        if type_item_header["enums_count"]:
+        if type_item_header.enums_count:
             enums_offset = entry.child_pointers[16 if self.pointer_size == 4 else 24]
             with entry.reader.temp_offset(enums_offset):
                 enum_dict = self.unpack_enum_type(entry, align_before_name=False, enum_offset=enums_offset)
@@ -137,17 +137,17 @@ class PackFileTypeUnpacker:
         member_data_offset = entry.child_pointers.get(24 if self.pointer_size == 4 else 40)
         if member_data_offset is not None:
             with entry.reader.temp_offset(member_data_offset):
-                for _ in range(type_item_header["member_count"]):
+                for _ in range(type_item_header.member_count):
                     member_offset = entry.reader.position
                     if self.pointer_size == 4:
-                        member = entry.reader.unpack_struct(entry.MEMBER_TYPE_STRUCT_32)
+                        member = entry.MEMBER_TYPE_STRUCT.from_bytes(entry.reader, long_varints=False)
                     else:
-                        member = entry.reader.unpack_struct(entry.MEMBER_TYPE_STRUCT_64)
+                        member = entry.MEMBER_TYPE_STRUCT.from_bytes(entry.reader, long_varints=True)
                     member_name_offset = entry.child_pointers[member_offset]
                     member_name = entry.reader.unpack_string(offset=member_name_offset, encoding="utf-8")
-                    _DEBUG(f"    Member \"{member_name}\" ({member_offset} | {hex(member_offset)}) ({member['flags']})")
-                    member_type = PackMemberType(member["member_type"])
-                    member_subtype = PackMemberType(member["member_subtype"])
+                    _DEBUG(f"    Member \"{member_name}\" ({member_offset} | {hex(member_offset)}) ({member.flags})")
+                    member_type = PackMemberType(member.member_type)
+                    member_subtype = PackMemberType(member.member_subtype)
                     _DEBUG(f"      {member_type.name} | {member_subtype.name}")
                     member_type_item = entry.get_referenced_type_item(member_offset + self.pointer_size)
 
@@ -167,7 +167,7 @@ class PackFileTypeUnpacker:
                                 # TODO: How to tell when to use `hkRefPtr`? (Doesn't actually affect unpack anyway?)
                                 class_name = get_py_name(member_type_item.get_type_name())
                                 type_py_name = f"hkArray[Ptr[{class_name}]]"
-                                if member["flags"] & PackMemberFlags.NOT_OWNED:  # `hkViewPtr`
+                                if member.flags & PackMemberFlags.NOT_OWNED:  # `hkViewPtr`
                                     member_py_name = f"hkArray(Ptr(hkViewPtr(\"{class_name}\")))"
                                     # Class name not required.
                                 elif class_name == py_name:
@@ -285,15 +285,15 @@ class PackFileTypeUnpacker:
 
                     # `hkStruct` indication is simply that "c_array_size" is greater than zero; the type just defined
                     # above goes inside a struct.
-                    if member["c_array_size"] > 0:
+                    if member.c_array_size > 0:
                         type_py_name = f"hkStruct[{type_py_name}]"
-                        member_py_name = f"hkStruct({member_py_name}, {member['c_array_size']})"
+                        member_py_name = f"hkStruct({member_py_name}, {member.c_array_size})"
                         type_hint = f"tuple[{type_hint}, ...]"
 
                     member_info = MemberInfo(
                         name=member_name,
-                        flags=MemberFlags.from_packfile_member_flags(member["flags"]),
-                        offset=member["offset"],
+                        flags=MemberFlags.from_packfile_member_flags(member.flags),
+                        offset=member.offset,
                         type_py_name=type_py_name,
                         # `TypeInfo` of member assigned after all type items unpacked.
                     )
@@ -310,10 +310,10 @@ class PackFileTypeUnpacker:
                     #     raise TypeError(f"No such Python type `{py_type_name}` for member \"{member_name}\".")
 
         type_info.pointer_type_index = 0  # only `hkClass` types are ever unpacked here and never have a pointer type
-        type_info.version = type_item_header["version"] if type_item_header["version"] > 0 else None
-        type_info.byte_size = type_item_header["byte_size"]
+        type_info.version = type_item_header.version if type_item_header.version > 0 else None
+        type_info.byte_size = type_item_header.byte_size
         # TODO: Can I use member flags to help with alignment?
-        type_info.alignment = min(16, next_power_of_two(type_item_header["byte_size"]))
+        type_info.alignment = min(16, next_power_of_two(type_item_header.byte_size))
         # TODO: abstract_value?
         type_info.hsh = self.type_hashes.get(name, None)
         type_info.tag_format_flags = TagFormatFlags.get_packfile_type_flags(has_version=False)  # all versions are zero
@@ -332,9 +332,9 @@ class PackFileTypeUnpacker:
         """
 
         if self.pointer_size == 4:
-            enum_type_struct = enum_type_item.reader.unpack_struct(enum_type_item.ENUM_TYPE_STRUCT_32)
+            enum_type_struct = enum_type_item.ENUM_TYPE_STRUCT.from_bytes(enum_type_item.reader, long_varints=False)
         else:
-            enum_type_struct = enum_type_item.reader.unpack_struct(enum_type_item.ENUM_TYPE_STRUCT_64)
+            enum_type_struct = enum_type_item.ENUM_TYPE_STRUCT.from_bytes(enum_type_item.reader, long_varints=True)
         if align_before_name:
             enum_type_item.reader.align(16)
         name = enum_type_item.reader.unpack_string(
@@ -343,7 +343,7 @@ class PackFileTypeUnpacker:
         items = []
         enum_str = f"class {name}(IntEnum):\n"
         with enum_type_item.reader.temp_offset(enum_type_item.child_pointers[enum_offset + self.pointer_size]):
-            for _ in range(enum_type_struct["items_count"]):
+            for _ in range(enum_type_struct.items_count):
                 item_value = enum_type_item.reader.unpack_value("<I" if self.pointer_size == 4 else "<Q")
                 item_name_offset = enum_type_item.child_pointers[enum_type_item.reader.position]
                 item_name = enum_type_item.reader.unpack_string(offset=item_name_offset, encoding="utf-8")

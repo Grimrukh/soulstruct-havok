@@ -12,8 +12,17 @@ from soulstruct_havok.types.exceptions import VersionModuleError, TypeNotDefined
 from soulstruct_havok.types.info import TypeInfo, get_py_name
 from .structs import *
 from .type_unpacker import PackFileTypeUnpacker
+from ..types import hk2010, hk2014, hk2015, hk2018
 
 _LOGGER = logging.getLogger(__name__)
+
+ROOT_TYPING = tp.Union[
+    None,
+    hk2010.hkRootLevelContainer,
+    hk2014.hkRootLevelContainer,
+    hk2015.hkRootLevelContainer,
+    hk2018.hkRootLevelContainer,
+]
 
 _DEBUG_PRINT = []
 _DEBUG_MSG = True
@@ -27,18 +36,22 @@ def _DEBUG(*args, **kwargs):
 
 class SectionInfo(tp.NamedTuple):
     raw_data: bytes
-    child_pointers: list[dict[str, int]]
-    item_pointers: list[dict[str, int]]
-    entry_specs: list[dict[str, int]]
+    child_pointers: list[ChildPointerStruct]
+    item_pointers: list[ItemPointerStruct]
+    entry_specs: list[ItemSpecStruct]
     end_offset: int
 
 
 class PackFileUnpacker:
+    """Manages a single `HKX` packfile unpacking operation.
+
+    Not all packfiles contain type information, so the unpacker will attempt to use existing type information for them.
+    """
 
     items: list[PackFileItemEntry]
     hk_version: str
     hk_types_info: list[TypeInfo]
-    root: hk
+    root: ROOT_TYPING
 
     def __init__(self):
         self.hk_types_module = None
@@ -56,13 +69,13 @@ class PackFileUnpacker:
     def unpack(self, reader: BinaryReader, types_only=False):
 
         self.byte_order = reader.default_byte_order = "<" if reader.unpack_value("?", offset=0x11) else ">"
-        self.header = PackFileHeader(reader)
+        self.header = PackFileHeader.from_bytes(reader)
 
         self.hk_version = self.header.contents_version_string[3:7].decode()  # from "hk_YYYY" (e.g. "2010")
         _LOGGER.info(f"Unpacking packfile with hk version: {self.hk_version}")
 
         if self.header.version.has_header_extension:
-            self.header_extension = PackFileHeaderExtension(reader)
+            self.header_extension = PackFileHeaderExtension.from_bytes(reader)
             reader.seek(self.header_extension.section_offset + 0x40)
         elif reader.unpack_value("I") != 0xFFFFFFFF:
             raise ValueError(f"Expected 0xFFFFFFFF after packfile header (version {hex(self.header.version)}).")
@@ -80,7 +93,7 @@ class PackFileUnpacker:
 
         type_section_info = self.unpack_section(reader)
         for type_section_entry_pointer in type_section_info.item_pointers:
-            if type_section_entry_pointer["dest_section_index"] != 1:
+            if type_section_entry_pointer.dest_section_index != 1:
                 raise AssertionError("type global error")
 
         data_section_info = self.unpack_section(reader)
@@ -149,16 +162,16 @@ class PackFileUnpacker:
     @staticmethod
     def localize_pointers(
         items: tp.Union[list[PackFileTypeItem], list[PackFileItemEntry]],
-        child_pointers: list[dict[str, int]],
-        item_pointers: list[dict[str, int]],
+        child_pointers: list[ChildPointerStruct],
+        item_pointers: list[ItemPointerStruct],
     ):
         """Resolve pointers and attach them to their source objects."""
         for child_pointer in child_pointers:
             # Find source item and offset local to its data.
             for item in items:
-                if (item_source_offset := item.get_offset_in_entry(child_pointer["source_offset"])) != -1:
+                if (item_source_offset := item.get_offset_in_entry(child_pointer.source_offset)) != -1:
                     # Check that source object is also dest object.
-                    if (item_dest_offset := item.get_offset_in_entry(child_pointer["dest_offset"])) == -1:
+                    if (item_dest_offset := item.get_offset_in_entry(child_pointer.dest_offset)) == -1:
                         raise AssertionError("Child pointer source object was NOT dest object. Not expected!")
                     item.child_pointers[item_source_offset] = item_dest_offset
                     break
@@ -167,13 +180,13 @@ class PackFileUnpacker:
 
         for item_pointer in item_pointers:
             for item in items:
-                if (item_source_offset := item.get_offset_in_entry(item_pointer["source_offset"])) != -1:
+                if (item_source_offset := item.get_offset_in_entry(item_pointer.source_offset)) != -1:
                     source_item = item
                     break
             else:
                 raise ValueError(f"Could not find source item of item pointer: {item_pointer}.")
             for item in items:
-                if (item_dest_offset := item.get_offset_in_entry(item_pointer["dest_offset"])) != -1:
+                if (item_dest_offset := item.get_offset_in_entry(item_pointer.dest_offset)) != -1:
                     source_item.item_pointers[item_source_offset] = (item, item_dest_offset)
                     break
             else:
@@ -185,7 +198,7 @@ class PackFileUnpacker:
             - Packed section data (e.g. class name strings or packed entries).
             -
         """
-        section = PackFileSectionHeader(reader)
+        section = PackFileSectionHeader.from_bytes(reader)
 
         if self.hk_version == "2014":
             if reader.read(16).strip(b"\xFF"):
@@ -206,17 +219,17 @@ class PackFileUnpacker:
             for _ in range(child_pointer_count):
                 if reader.unpack_value("I", offset=reader.position) == 0xFFFFFFFF:
                     break  # padding reached
-                child_pointers.append(reader.unpack_struct(CHILD_POINTER_STRUCT))
+                child_pointers.append(ChildPointerStruct.from_bytes(reader))
         with reader.temp_offset(offset=absolute_data_start + section.item_pointers_offset):
             for _ in range(item_pointer_count):
                 if reader.unpack_value("I", offset=reader.position) == 0xFFFFFFFF:
                     break  # padding reached
-                item_pointers.append(reader.unpack_struct(ITEM_POINTER_STRUCT))
+                item_pointers.append(ItemPointerStruct.from_bytes(reader))
         with reader.temp_offset(offset=absolute_data_start + section.item_specs_offset):
             for _ in range(item_spec_count):
                 if reader.unpack_value("I", offset=reader.position) == 0xFFFFFFFF:
                     break  # padding reached
-                item_specs.append(reader.unpack_struct(ITEM_SPEC_STRUCT))
+                item_specs.append(ItemSpecStruct.from_bytes(reader))
 
         return SectionInfo(section_data, child_pointers, item_pointers, item_specs, section_data_end)
 
@@ -241,7 +254,7 @@ class PackFileUnpacker:
     def unpack_type_entries(
         self,
         type_section_reader: BinaryReader,
-        entry_specs: list[dict[str, int]],
+        entry_specs: list[ItemSpecStruct],
         section_end_offset: int,
     ) -> list[PackFileTypeItem]:
         """Meow's "virtual fixups" are really just offsets to class names. I don't track them, because they only need
@@ -249,14 +262,14 @@ class PackFileUnpacker:
         """
         type_entries = []
         for i, entry_spec in enumerate(entry_specs):
-            class_name = self.class_names[entry_spec["type_name_offset"]]
+            class_name = self.class_names[entry_spec.type_name_offset]
 
             if i < len(entry_specs) - 1:
-                data_size = entry_specs[i + 1]["local_data_offset"] - entry_spec["local_data_offset"]
+                data_size = entry_specs[i + 1].local_data_offset - entry_spec.local_data_offset
             else:
-                data_size = section_end_offset - entry_spec["local_data_offset"]
+                data_size = section_end_offset - entry_spec.local_data_offset
 
-            type_section_reader.seek(entry_spec["local_data_offset"])
+            type_section_reader.seek(entry_spec.local_data_offset)
             type_entry = PackFileTypeItem(class_name)
             type_entry.unpack(type_section_reader, data_size=data_size)
             type_entries.append(type_entry)
@@ -266,7 +279,7 @@ class PackFileUnpacker:
     def unpack_item_entries(
         self,
         data_section_reader: BinaryReader,
-        item_entry_specs: list[dict[str, int]],
+        item_entry_specs: list[ItemSpecStruct],
         section_end_offset: int,
     ) -> list[PackFileItemEntry]:
         """Assign `raw_data` to each packfile item.
@@ -276,7 +289,7 @@ class PackFileUnpacker:
         """
         data_entries = []
         for i, entry_spec in enumerate(item_entry_specs):
-            type_name = self.class_names[entry_spec["type_name_offset"]]
+            type_name = self.class_names[entry_spec.type_name_offset]
             type_py_name = get_py_name(type_name)
             # print(f"Item: {i, type_py_name, entry_spec}")
             try:
@@ -300,11 +313,11 @@ class PackFileUnpacker:
                 )
 
             if i < len(item_entry_specs) - 1:
-                data_size = item_entry_specs[i + 1]["local_data_offset"] - entry_spec["local_data_offset"]
+                data_size = item_entry_specs[i + 1].local_data_offset - entry_spec.local_data_offset
             else:
-                data_size = section_end_offset - entry_spec["local_data_offset"]
+                data_size = section_end_offset - entry_spec.local_data_offset
 
-            data_section_reader.seek(entry_spec["local_data_offset"])
+            data_section_reader.seek(entry_spec.local_data_offset)
             data_entry = PackFileItemEntry(hk_type)
             data_entry.unpack(data_section_reader, data_size=data_size)
             data_entries.append(data_entry)
@@ -313,7 +326,7 @@ class PackFileUnpacker:
 
     def get_header_info(self) -> PackfileHeaderInfo:
         if not self.header:
-            raise ValueError("PackFileUnpacker header has not been set yet.")
+            raise ValueError("`PackFileUnpacker` header has not been set yet.")
         return PackfileHeaderInfo(
             header_version=self.header.version,
             pointer_size=self.header.pointer_size,

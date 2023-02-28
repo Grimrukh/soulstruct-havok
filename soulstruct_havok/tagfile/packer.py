@@ -5,7 +5,7 @@ import typing as tp
 from collections import deque
 from contextlib import contextmanager
 
-from soulstruct.utilities.binary import BinaryWriter
+from soulstruct.utilities.binary import *
 
 from soulstruct_havok.enums import TagFormatFlags
 from soulstruct_havok.types.core import hk, hkArray_, TypeInfoGenerator
@@ -75,7 +75,7 @@ class TagFilePacker:
             types = "\n    ".join(lines)
             print(f"{GREEN}Final packed type list:\n    {types}{RESET}")
 
-    def pack(self, hsh_overrides: dict[str, int] = None) -> bytes:
+    def to_writer(self, hsh_overrides: dict[str, int] = None) -> BinaryWriter:
         """Pack a tagfile using the `hkRootLevelContainer` (`hkx.root`).
 
         First, we scan the full structure and collect types to write into the tagfile's TYPE section. During this, we
@@ -85,7 +85,7 @@ class TagFilePacker:
         if hsh_overrides is None:
             hsh_overrides = {}
 
-        writer = BinaryWriter(big_endian=False)  # TODO: big_endian always false?
+        writer = BinaryWriter(byte_order=ByteOrder.LittleEndian)  # TODO: big_endian always false?
 
         with self.pack_section(writer, "TAG0", flag=False):
 
@@ -102,7 +102,7 @@ class TagFilePacker:
 
             self.pack_index_section(writer, data_start_offset)
 
-        return writer.finish()
+        return writer
 
     def pack_data_section(self, writer: BinaryWriter) -> int:
         data_start_offset = writer.position
