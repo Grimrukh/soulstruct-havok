@@ -388,7 +388,7 @@ class TrackVector3:
             self.spline_header = None
 
     def scale(self, factor: float | Vector3):
-        """Scale static values or control points by `factor` or its appropriate component if it's a vector."""
+        """Scale static values or control points by `scale_factor` or its appropriate component if it's a vector."""
         for axis in "xyz":
             axis_value = getattr(self, axis)
             scale_value = factor if isinstance(factor, float) else getattr(factor, axis)

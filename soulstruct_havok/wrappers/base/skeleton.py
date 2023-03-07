@@ -8,9 +8,9 @@ import typing as tp
 from dataclasses import dataclass
 from types import ModuleType
 
-from soulstruct_havok.utilities.maths import TRSTransform
+from soulstruct_havok.utilities.maths import TRSTransform, Vector3, Vector4
 
-from .type_vars import ANIMATION_CONTAINER_T, SKELETON_T, SKELETON_MAPPER_T, BONE_T
+from .type_vars import SKELETON_T, SKELETON_MAPPER_T, BONE_T
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -142,10 +142,12 @@ class Skeleton(tp.Generic[SKELETON_T, BONE_T], abc.ABC):
         """Get all root (i.e. parent-less) bone indices."""
         return [i for i, bone in enumerate(self.bones) if bone.parent is None]
 
-    def scale_all_translations(self, factor: float):
-        """Scale all bone translations in place by `factor`."""
+    def scale_all_translations(self, scale_factor: float | Vector3 | Vector4):
+        """Scale all bone translations in place by `scale_factor`."""
+        if isinstance(scale_factor, Vector3):
+            scale_factor = Vector4.from_vector3(scale_factor)
         for pose in self.skeleton.referencePose:
-            pose.translation = tuple(x * factor for x in pose.translation)
+            pose.translation *= scale_factor
 
     def delete_bone_index(self, bone_index) -> int:
         """Delete a bone and all of its children. Returns the number of bones deleted."""
@@ -176,8 +178,10 @@ class SkeletonMapper(tp.Generic[SKELETON_MAPPER_T]):
         self.types_module = types_module
         self.skeleton_mapper = skeleton_mapper
 
-    def scale_all_translations(self, factor: float):
+    def scale_all_translations(self, scale_factor: float | Vector3 | Vector4):
+        if isinstance(scale_factor, Vector3):
+            scale_factor = Vector4.from_vector3(scale_factor)
         for simple in self.skeleton_mapper.mapping.simpleMappings:
-            simple.aFromBTransform.translation *= factor
+            simple.aFromBTransform.translation *= scale_factor
         for chain in self.skeleton_mapper.mapping.chainMappings:
-            chain.startAFromBTransform.translation *= factor
+            chain.startAFromBTransform.translation *= scale_factor

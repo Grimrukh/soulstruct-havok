@@ -7,7 +7,7 @@ import typing as tp
 from types import ModuleType
 
 from soulstruct_havok.spline_compression import SplineCompressedAnimationData
-from soulstruct_havok.utilities.maths import TRSTransform, Vector4
+from soulstruct_havok.utilities.maths import TRSTransform, Vector3, Vector4
 
 from .type_vars import (
     ANIMATION_CONTAINER_T,
@@ -164,6 +164,8 @@ class AnimationContainer(tp.Generic[
 
         This transforms the `translate` vectors -- that is, bone POSITIONS can be translated, rotated, and/or scaled
         relative to their parent. It does not affect the rotation or scale of the bone transforms (frames).
+
+        Acts upon spline control points for spline-type animation data, which still has the desired result.
         """
         if self.is_spline:
             self.load_spline_data()
@@ -180,14 +182,20 @@ class AnimationContainer(tp.Generic[
 
         self.try_transform_root_motion(transform)
 
-    def scale_all_translations(self, factor: float):
+    def scale_all_translations(self, scale_factor: float | Vector3 | Vector4):
         """Apply a simple scaling transformation.
 
         Note that this scales the `translate` data of each bone transform, NOT its `scale` data. This modifies the
         bones in their parent's frame of reference, rather than scaling the bone's frame of reference itself (though
         you could achieve the same result that way).
+
+        Saves the transformed interleaved/spline data automatically.
         """
-        self.transform(TRSTransform(scale=factor))
+        if isinstance(scale_factor, float):
+            scale_factor = Vector3((scale_factor, scale_factor, scale_factor))
+        elif isinstance(scale_factor, Vector4):
+            scale_factor = Vector3((scale_factor.x, scale_factor.y, scale_factor.z))
+        self.transform(TRSTransform(scale=scale_factor))
 
     def reverse(self):
         """Reverses all control points/static transforms and root motion (reference frame samples) in-place."""

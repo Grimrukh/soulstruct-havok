@@ -22,7 +22,7 @@ from types import ModuleType
 
 from soulstruct_havok.core import HKX
 from soulstruct_havok.types import hk
-from soulstruct_havok.utilities.maths import TRSTransform
+from soulstruct_havok.utilities.maths import TRSTransform, Vector3, Vector4
 
 from .animation import AnimationContainer
 from .skeleton import Skeleton, SkeletonMapper, Bone
@@ -114,7 +114,7 @@ class RagdollHKX(BaseWrappedHKX, abc.ABC):
         self.standard_to_ragdoll_skeleton_mapper = SkeletonMapper(
             self.TYPES_MODULE, self.get_variant(4, *SKELETON_MAPPER_T.__constraints__))
 
-    def scale_all_translations(self, factor: float):
+    def scale_all_translations(self, scale_factor: float | Vector3 | Vector4):
         """Scale all translation information, including:
             - bones in both the standard and ragdoll skeletons
             - rigid body collidables
@@ -124,11 +124,13 @@ class RagdollHKX(BaseWrappedHKX, abc.ABC):
         This is currently working well, though since actual "ragdoll mode" only occurs when certain enemies die, any
         mismatched (and probably harmless) physics will be more of an aesthetic issue.
         """
-        self.standard_skeleton.scale_all_translations(factor)
-        self.ragdoll_skeleton.scale_all_translations(factor)
-        self.physics_data.scale_all_translations(factor)
-        self.ragdoll_to_standard_skeleton_mapper.scale_all_translations(factor)
-        self.standard_to_ragdoll_skeleton_mapper.scale_all_translations(factor)
+        if isinstance(scale_factor, Vector3):
+            scale_factor = Vector4.from_vector3(scale_factor)
+        self.standard_skeleton.scale_all_translations(scale_factor)
+        self.ragdoll_skeleton.scale_all_translations(scale_factor)
+        self.physics_data.scale_all_translations(scale_factor)
+        self.ragdoll_to_standard_skeleton_mapper.scale_all_translations(scale_factor)
+        self.standard_to_ragdoll_skeleton_mapper.scale_all_translations(scale_factor)
 
 
 @dataclass(slots=True)

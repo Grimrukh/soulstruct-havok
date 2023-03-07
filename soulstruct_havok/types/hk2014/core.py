@@ -51,7 +51,7 @@ __all__ = [
 
 import typing as tp
 
-from soulstruct_havok.utilities.maths import Quaternion, TRSTransform, Vector4
+from soulstruct_havok.utilities.maths import Quaternion, TRSTransform, Vector3, Vector4
 from soulstruct_havok.enums import MemberFlags
 from soulstruct_havok.types.core import *
 
@@ -331,7 +331,7 @@ class hkQsTransformf(hk):
     scale: Vector4
 
     def to_trs_transform(self) -> TRSTransform:
-        return TRSTransform(self.translation, self.rotation, self.scale)
+        return TRSTransform(Vector3.from_vector4(self.translation), self.rotation, Vector3.from_vector4(self.scale))
 
     @classmethod
     def from_trs_transform(cls, transform: TRSTransform):

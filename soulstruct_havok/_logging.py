@@ -57,7 +57,7 @@ LOG_PATH = str(Path(_path_source).parent / "soulstruct_havok.log")
 FILE_FORMATTER = logging.Formatter(
     fmt="{levelname:>7} :: {asctime} :: {name:<35} :: Line {lineno:>4d} :: {message}", style="{"
 )
-FILE_HANDLER = logging.FileHandler(LOG_PATH, mode="w", encoding="shift_jis_2004")
+FILE_HANDLER = logging.FileHandler(LOG_PATH, mode="w", encoding="utf-8")
 FILE_HANDLER.setFormatter(FILE_FORMATTER)
 FILE_HANDLER.setLevel(logging.DEBUG)  # default
 
@@ -65,6 +65,17 @@ _LOGGER = logging.getLogger("soulstruct_havok")
 _LOGGER.setLevel(1)  # All filtering is done by handlers.
 _LOGGER.addHandler(CONSOLE_HANDLER)
 _LOGGER.addHandler(FILE_HANDLER)
+
+
+def handle_unhandled_exception(exc_type, exc_value, exc_traceback):
+    if issubclass(exc_type, KeyboardInterrupt):
+        # Use default `excepthook` for KeyboardInterrupts.
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+    else:
+        _LOGGER.critical("Unhandled exception: ", exc_info=(exc_type, exc_value, exc_traceback))
+
+
+sys.excepthook = handle_unhandled_exception
 
 _LOGGER.info(
     f"Log file {LOG_PATH} opened with level {logging.getLevelName(FILE_HANDLER.level)} ({FILE_HANDLER.level})."

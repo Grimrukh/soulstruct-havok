@@ -67,6 +67,8 @@ from .hkpConstraintMotor import hkpConstraintMotor
 from .hkpConstraintMotorMotorType import hkpConstraintMotorMotorType
 from .hkpConvexListFilter import hkpConvexListFilter
 from .hkpConvexShape import hkpConvexShape
+from .hkpConvexTransformShape import hkpConvexTransformShape
+from .hkpCylinderShape import hkpCylinderShape
 from .hkpEntity import hkpEntity
 from .hkpEntityExtendedListeners import hkpEntityExtendedListeners
 from .hkpEntitySmallArraySerializeOverrideType import hkpEntitySmallArraySerializeOverrideType
@@ -96,6 +98,7 @@ from .hkpShape import hkpShape
 from .hkpShapeBase import hkpShapeBase
 from .hkpShapeCollectionFilter import hkpShapeCollectionFilter
 from .hkpSphereRepShape import hkpSphereRepShape
+from .hkpSphereShape import hkpSphereShape
 from .hkpTwistLimitConstraintAtom import hkpTwistLimitConstraintAtom
 from .hkpTypedBroadPhaseHandle import hkpTypedBroadPhaseHandle
 from .hkpWorldCinfo import hkpWorldCinfo

@@ -26,7 +26,7 @@ class RemoPart:
     part_name: str  # e.g. 'c5260_0000' or 'd0000_0010'
     part: MSBPart | None  # `None` for dummies
     # Maps cut names to animation data for this part in that cut, which maps standard bone names to lists of transforms.
-    cut_transforms: dict[str, dict[str, list[TRSTransform]]]
+    cut_arma_transforms: dict[str, dict[str, list[TRSTransform]]]
 
 
 @dataclass(slots=True)
@@ -133,7 +133,7 @@ class RemoCut:
             for part_bone_name, bone in part_bones.items():
                 arma_transforms[part_bone_name].append(bone_world_transforms[bone.name])
 
-        remo_part.cut_transforms[self.name] = arma_transforms
+        remo_part.cut_arma_transforms[self.name] = arma_transforms
         return remo_part
 
 
@@ -148,7 +148,7 @@ class RemoBND(Binder):
 
     tae_entry: BinderEntry = None
     cutscene_name: str = ""  # e.g. 'scn100100'
-    # All `RemoPart` instances created for this cutscene (across all cuts). Their `cut_transforms` dictionary maps
+    # All `RemoPart` instances created for this cutscene (across all cuts). Their `cut_arma_transforms` dictionary maps
     # cut names (e.g. 'cut0050') to animation transforms for that cut, keyed by standard part bone name.
     remo_parts: dict[str, RemoPart] = field(default_factory=dict)
     cuts: list[RemoCut] = field(default_factory=list)

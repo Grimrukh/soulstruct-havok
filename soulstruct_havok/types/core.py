@@ -2254,7 +2254,6 @@ def pack_struct(
         item.writer.pack(fmt, *[int(v) for v in value])
     elif tag_data_type == TagDataType.Int:
         fmt = TagDataType.get_int_fmt(data_hk_type.tag_type_flags, count=length)
-        print(f"INT STRUCT: {fmt=}, {value=}")
         item.writer.pack(fmt, *value)
     elif data_hk_type.tag_type_flags == _FLOAT_32_TAG_TYPE_FLAGS:
         item.writer.pack(f"<{length}f", *value)
