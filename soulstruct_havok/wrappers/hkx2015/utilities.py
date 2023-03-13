@@ -28,19 +28,19 @@ def scale_chrbnd(chrbnd: Binder, scale_factor: float | Vector3):
     flver_entry = chrbnd.find_entry_matching_name(r".*\.flver")
     if flver_entry.entry_id != 200:
         _LOGGER.warning(f"FLVER entry ID is {flver_entry.entry_id}, not 200.")
-    model = flver_entry.to_game_file(FLVER)
+    model = flver_entry.to_binary_file(FLVER)
     model.scale_all_translations(scale_factor)
-    flver_entry.set_from_game_file(model)
+    flver_entry.set_from_binary_file(model)
     _LOGGER.info(f"{flver_entry.name} model scaled by {scale_factor}.")
 
     model_name = flver_entry.name.split(".")[0]
     ragdoll_entry = chrbnd[f"{model_name}.hkx"]
     if ragdoll_entry.entry_id != 300:
         _LOGGER.warning(f"Ragdoll entry ID is {ragdoll_entry.entry_id}, not 300.")
-    ragdoll_hkx = ragdoll_entry.to_game_file(RagdollHKX)
+    ragdoll_hkx = ragdoll_entry.to_binary_file(RagdollHKX)
     ragdoll_hkx.hk_format = HavokFileFormat.Tagfile
     ragdoll_hkx.scale_all_translations(scale_factor)
-    chrbnd[f"{model_name}.hkx"].set_from_game_file(ragdoll_hkx)
+    chrbnd[f"{model_name}.hkx"].set_from_binary_file(ragdoll_hkx)
     _LOGGER.info(f"{ragdoll_entry.name} ragdoll physics scaled by {scale_factor}.")
 
     try:
@@ -51,10 +51,10 @@ def scale_chrbnd(chrbnd: Binder, scale_factor: float | Vector3):
     else:
         if cloth_entry.entry_id != 700:
             _LOGGER.warning(f"Cloth entry ID is {cloth_entry.entry_id}, not 700.")
-        cloth_hkx = cloth_entry.to_game_file(ClothHKX)
+        cloth_hkx = cloth_entry.to_binary_file(ClothHKX)
         cloth_hkx.hk_format = HavokFileFormat.Tagfile
         cloth_hkx.cloth_physics_data.scale_all_translations(scale_factor)
-        cloth_entry.set_from_game_file(cloth_hkx)
+        cloth_entry.set_from_binary_file(cloth_hkx)
         _LOGGER.info(f"{cloth_entry.name} cloth physics scaled by {scale_factor}.")
 
     _LOGGER.info("CHRBND scaling complete.")
@@ -63,27 +63,24 @@ def scale_chrbnd(chrbnd: Binder, scale_factor: float | Vector3):
 def scale_anibnd(anibnd: Binder, scale_factor: float | Vector3):
     """Scale skeleton (if present) and all animations in ANIBND in-place."""
 
-    try:
-        skeleton_entry = anibnd.find_entry_matching_name(r"[Ss]keleton\.(HKX|hkx)")
-    except BinderEntryNotFoundError:
-        _LOGGER.info("No skeleton HKX found in ANIBND.")
-    else:
-        if skeleton_entry.entry_id != 1000000:
-            _LOGGER.warning(f"Skeleton entry ID is {skeleton_entry.entry_id}, not 1000000.")
-        skeleton_hkx = skeleton_entry.to_game_file(SkeletonHKX)
+    skeleton_entries = anibnd.find_entries_matching_name(r"[Ss]keleton.*\.(HKX|hkx)")
+    for i, entry in enumerate(skeleton_entries):
+        if entry.entry_id != 1000000 + i:
+            _LOGGER.warning(f"Skeleton entry ID is {entry.entry_id}, not 1000000.")
+        skeleton_hkx = entry.to_binary_file(SkeletonHKX)
         skeleton_hkx.hk_format = HavokFileFormat.Tagfile
         skeleton_hkx.skeleton.scale_all_translations(scale_factor)
-        skeleton_entry.set_from_game_file(skeleton_hkx)
-        _LOGGER.info(f"{skeleton_entry.name} skeleton scaled by {scale_factor}.")
+        entry.set_from_binary_file(skeleton_hkx)
+        _LOGGER.info(f"{entry.name} skeleton scaled by {scale_factor}.")
 
     animation_entries = anibnd.find_entries_matching_name(r"a.*\.hkx")
     for entry in animation_entries:
         _LOGGER.info(f"  Scaling animation {entry.entry_id} by {scale_factor}...")
-        animation_hkx = entry.to_game_file(AnimationHKX)  # "aXX_XXXX.hkx"
+        animation_hkx = entry.to_binary_file(AnimationHKX)  # "aXX_XXXX.hkx"
         animation_hkx.hk_format = HavokFileFormat.Tagfile
         animation_hkx.animation_container.scale_all_translations(scale_factor)
         animation_hkx.animation_container.save_data()
-        entry.set_from_game_file(animation_hkx)
+        entry.set_from_binary_file(animation_hkx)
 
     _LOGGER.info("ANIBND scaling complete.")
 
@@ -100,9 +97,9 @@ def scale_objbnd(objbnd: Binder, scale_factor: float | Vector3):
         for i, flver_entry in enumerate(flver_entries):
             if flver_entry.entry_id != 200 + i:
                 _LOGGER.warning(f"FLVER entry ID is {flver_entry.entry_id}, not {200 + i}.")
-            model = flver_entry.to_game_file(FLVER)
+            model = flver_entry.to_binary_file(FLVER)
             model.scale_all_translations(scale_factor)
-            flver_entry.set_from_game_file(model)
+            flver_entry.set_from_binary_file(model)
             _LOGGER.info(f"{flver_entry.name} model scaled by {scale_factor}.")
 
     anibnd_hkx_entries = objbnd.find_entries_matching_name(r".*\.anibnd")
@@ -113,6 +110,7 @@ def scale_objbnd(objbnd: Binder, scale_factor: float | Vector3):
             anibnd = Binder.from_bytes(anibnd_hkx_entry.data)
             scale_anibnd(anibnd, scale_factor)
             _LOGGER.info(f"{anibnd_hkx_entry.name} scaled by {scale_factor}.")
+            anibnd_hkx_entry.set_from_binary_file(anibnd)
 
     collision_hkx_entries = objbnd.find_entries_matching_name(r".*\.hkx")
     if not collision_hkx_entries:  # many objects do not have collision
@@ -121,10 +119,10 @@ def scale_objbnd(objbnd: Binder, scale_factor: float | Vector3):
         for i, collision_hkx_entry in enumerate(collision_hkx_entries):
             if collision_hkx_entry.entry_id != 300 + i:
                 _LOGGER.warning(f"Collision entry ID is {collision_hkx_entry.entry_id}, not {300 + i}.")
-            collision_hkx = collision_hkx_entry.to_game_file(CollisionHKX)
+            collision_hkx = collision_hkx_entry.to_binary_file(CollisionHKX)
             collision_hkx.hk_format = HavokFileFormat.Tagfile
             collision_hkx.physics_data.scale_all_translations(scale_factor)
-            collision_hkx_entry.set_from_game_file(collision_hkx)
+            collision_hkx_entry.set_from_binary_file(collision_hkx)
             _LOGGER.info(f"{collision_hkx_entry.name} collision rigid bodies scaled by {scale_factor}.")
 
     _LOGGER.info("OBJBND scaling complete.")
@@ -169,12 +167,12 @@ def reverse_animation_in_anibnd_file(
         animation_entry = anibnd.entries_by_id[source_animation_id]
     except KeyError:
         raise KeyError(f"Could not find animation ID {source_animation_id} in '{anibnd_path.name}'.")
-    animation = animation_entry.to_game_file(AnimationHKX)
+    animation = animation_entry.to_binary_file(AnimationHKX)
     _LOGGER.info(f"Reversing animation {source_animation_id}...")
     animation.animation_container.reverse()
     if new_animation_id is None or new_animation_id == source_animation_id:
         # In-place modification is complete.
-        animation_entry.set_from_game_file(animation)
+        animation_entry.set_from_binary_file(animation)
     else:
         if new_animation_id in anibnd.entries_by_id:
             raise KeyError(
@@ -185,7 +183,7 @@ def reverse_animation_in_anibnd_file(
         new_entry = animation_entry.copy()
         new_entry.entry_id = new_animation_id
         new_entry.path = str(Path(new_entry.path).parent / f"{new_entry_stem}.hkx")
-        new_entry.set_from_game_file(animation)
+        new_entry.set_from_binary_file(animation)
         _LOGGER.info(f"    Saving as new animation {new_animation_id}.")
     anibnd.write()
     _LOGGER.info(f"Modified `anibnd` '{anibnd_path}' written successfully.")

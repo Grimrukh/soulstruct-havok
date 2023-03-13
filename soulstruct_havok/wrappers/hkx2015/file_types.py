@@ -27,7 +27,6 @@ from soulstruct_havok.wrappers.base.file_types import (
     BaseWrappedHKX,
     AnimationHKX as BaseAnimationHKX,
     SkeletonHKX as BaseSkeletonHKX,
-    Bone,
     ClothHKX as BaseClothHKX,
     RagdollHKX as BaseRagdollHKX,
     RemoAnimationHKX as BaseRemoAnimationHKX,
@@ -208,8 +207,8 @@ class MapCollisionHKX(BaseWrappedHKX):
 
         Also uses default values for new mesh Havok classes, most of which don't matter or are empty. The one non-mesh
         property that really matters is `materialNameData`, which determines the material of the collision (for sounds,
-        footsteps, terrain params, etc.) and can be supplied manually with `material_index`. If given, `material_index`
-        must be a tuple with the same length as `meshes` (one material index per subpart).
+        footsteps, terrain params, etc.) and can be supplied manually with `material_indices`. If given,
+        `material_indices` must be a tuple with the same length as `meshes` (one material index per subpart).
         """
         if not meshes:
             raise ValueError("At least one mesh must given to `from_meshes()`.")
@@ -312,7 +311,7 @@ class MapCollisionHKX(BaseWrappedHKX):
         cls,
         obj_path: Path | str,
         hkx_name: str,
-        material_index: tuple[int] = (),
+        material_indices: tuple[int] = (),
         template_hkx: MapCollisionHKX = None,
         invert_x=True,
         dcx_type: DCXType = DCXType.Null,
@@ -328,7 +327,7 @@ class MapCollisionHKX(BaseWrappedHKX):
         return cls.from_meshes(
             obj_meshes,
             hkx_name=hkx_name,
-            material_indices=material_index,
+            material_indices=material_indices,
             template_hkx=template_hkx,
             dcx_type=dcx_type,
         )

@@ -169,8 +169,8 @@ class RemoBND(Binder):
                     sibcam_entry = self.entries_by_path[f"\\{cut_name}\\camera_win32.sibcam"]
                 except KeyError:
                     raise KeyError(f"Could not find SIBCAM file corresponding to cut HKX entry: {entry.name}")
-                sibcam = sibcam_entry.to_game_file(SIBCAM)
-                animation = entry.to_game_file(RemoAnimationHKX)
+                sibcam = sibcam_entry.to_binary_file(SIBCAM)
+                animation = entry.to_binary_file(RemoAnimationHKX)
                 animation.animation_container.spline_to_interleaved()
                 cut = RemoCut(cut_name, animation, sibcam)
                 print(f"Loaded Remo cut: {cut_name}")

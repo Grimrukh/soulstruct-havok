@@ -704,7 +704,7 @@ class BaseANIBND(Binder, abc.ABC):
         anibnd = Binder.from_bak(anibnd_path) if from_bak else Binder.from_path(anibnd_path)
         for anim_id in anim_ids:
             animation_hkx = self.animations_hkx[anim_id]
-            anibnd[self.animation_id_to_entry_basename(anim_id)].set_from_game_file(animation_hkx)
+            anibnd[self.animation_id_to_entry_basename(anim_id)].set_from_binary_file(animation_hkx)
         if write_path is None:
             write_path = anibnd_path
         anibnd.write(file_path=write_path)
@@ -717,9 +717,9 @@ class BaseANIBND(Binder, abc.ABC):
         """Open an existing `.anibnd` Binder, write the opened skeleton and ALL opened animations into it, and write it
         back to disk at `write_path` (or back to `anibnd_path` by default)."""
         anibnd = Binder.from_bak(anibnd_path) if from_bak else Binder.from_path(anibnd_path)
-        anibnd.find_entry_matching_name(r"[Ss]keleton\.[HKX|hkx]").set_from_game_file(self.skeleton_hkx)
+        anibnd.find_entry_matching_name(r"[Ss]keleton\.[HKX|hkx]").set_from_binary_file(self.skeleton_hkx)
         for anim_id, animation_hkx in self.animations_hkx.items():
-            anibnd[self.animation_id_to_entry_basename(anim_id)].set_from_game_file(animation_hkx)
+            anibnd[self.animation_id_to_entry_basename(anim_id)].set_from_binary_file(animation_hkx)
         anibnd.write(file_path=write_path)  # will default to same path
         _LOGGER.info(f"Skeleton and all animations written into {anibnd_path}.")
     # endregion
