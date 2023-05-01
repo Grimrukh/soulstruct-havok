@@ -30,7 +30,7 @@ class TRSTransform:
 
     translation: Vector3 = field(default_factory=Vector3.zero)
     rotation: Quaternion = field(default_factory=Quaternion.identity)
-    scale: Vector3 = field(default_factory=Vector3.ones)
+    scale: Vector3 = field(default_factory=Vector3.one)
 
     def __post_init__(self):
         if self.WARN_NONUNIFORM_SCALE and (self.scale.x != self.scale.y or self.scale.x != self.scale.z):

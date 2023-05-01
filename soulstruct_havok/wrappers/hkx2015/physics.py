@@ -116,6 +116,6 @@ class MapCollisionPhysicsData(PhysicsData[hkpPhysicsData, hkpPhysicsSystem]):
             transform=hkQsTransform(
                 translation=Vector4.zero(),
                 rotation=Quaternion.identity(),
-                scale=Vector4.ones(),
+                scale=Vector4.one(),
             ),
         )

@@ -246,7 +246,7 @@ def convert_hknp_ragdoll_hkx_to_hkp(
         hknp_quat_transform = TRSTransform(
             Vector3(hknp_body_c_info.position[:3]),
             Quaternion(hknp_body_c_info.orientation),
-            Vector3.ones(),  # normal scale
+            Vector3.one(),  # normal scale
         )
 
         hkp_physics_system.rigidBodies.append(
