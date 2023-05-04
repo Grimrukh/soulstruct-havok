@@ -66,21 +66,23 @@ class AnimationHKX(BaseAnimationHKX):
         """
         if not self.animation_container.is_interleaved:
             raise TypeError("Can only convert interleaved animations to spline animations.")
-        print("Downgrading to 2010...")
+        _LOGGER.debug("Downgrading to 2010...")
         hkx2010 = self.to_2010_hkx()
-        print("Writing 2010 file...")
+        _LOGGER.debug("Writing 2010 file...")
         hkx2010.write("__temp_interleaved__.hkx")
-        print("Calling `CompressAnim`...")
+        _LOGGER.debug("Calling `CompressAnim`...")
         ret_code = sp.call(
             ["C:\\Dark Souls\\CompressAnim.exe", "__temp_interleaved__.hkx", "__temp_spline__.hkx", "1", "0.001"]
         )
-        print(f"Done. Return code: {ret_code}")
+        _LOGGER.debug(f"Done. Return code: {ret_code}")
         if ret_code != 0:
             raise RuntimeError(f"`CompressAnim.exe` had return code {ret_code}.")
-        print("Reading 2010 spline-compressed animation...")
+        _LOGGER.debug("Reading 2010 spline-compressed animation...")
         hkx2010_spline = AnimationHKX2010.from_path("__temp_spline__.hkx")
-        print("Upgrading to 2015...")
-        return AnimationHKX.from_2010_hkx(hkx2010_spline)
+        _LOGGER.debug("Upgrading to 2015...")
+        anim_2015 = AnimationHKX.from_2010_hkx(hkx2010_spline)
+        _LOGGER.info("Successfully converted interleaved animation to hk2015 spline animation.")
+        return anim_2015
 
     def to_2010_hkx(self) -> AnimationHKX2010:
         """Construct a 2010 Havok file (with packfile type) from this 2015 tagfile.

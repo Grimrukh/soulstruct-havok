@@ -161,7 +161,7 @@ class Skeleton(tp.Generic[SKELETON_T, BONE_T], abc.ABC):
         """Print indented (depth-first) tree of bone names."""
 
         def _print_bone_tree(bone: Bone, _indent: str):
-            print(indent + bone.name)
+            print(_indent + bone.name)
             for child in bone.children:
                 _print_bone_tree(child, _indent + "    ")
 

@@ -33,10 +33,10 @@ class PackFileBaseEntry(abc.ABC):
 
     child_pointers: dict[int, int]  # maps source offset to dest offset inside same entry
     item_pointers: dict[int, tuple[PackFileBaseEntry, int]]  # maps source offset to dest entry from same section
-    hk_type: tp.Optional[tp.Type[hk | hkArray_ | Ptr_]]
+    hk_type: tp.Type[hk | hkArray_ | Ptr_] | None
 
-    reader: tp.Optional[BinaryReader]
-    writer: tp.Optional[BinaryWriter]
+    reader: BinaryReader | None
+    writer: BinaryWriter | None
 
     def __init__(self):
         self.local_data_offset = -1
@@ -78,6 +78,7 @@ class PackFileBaseEntry(abc.ABC):
 @dataclass(slots=True)
 class PackFileTypeItem(PackFileBaseEntry):
 
+    @dataclass(slots=True)
     class TYPE_STRUCT_32(BinaryStruct):
         type_name_pointer: uint = field(init=False, **Binary(asserted=0))  # child pointer
         parent_type_pointer: uint = field(init=False, **Binary(asserted=0))  # entry pointer
@@ -91,6 +92,7 @@ class PackFileTypeItem(PackFileBaseEntry):
         flags: uint  # always zero so far in packfiles (could be padding!)
         version: uint  # always zero so far in packfiles (could be padding!)
 
+    @dataclass(slots=True)
     class TYPE_STRUCT_64(BinaryStruct):
         """NOTE: Differences are not entirely just `varint` size."""
         type_name_pointer: ulong = field(init=False, **Binary(asserted=0))  # child pointer
@@ -107,6 +109,7 @@ class PackFileTypeItem(PackFileBaseEntry):
         _pad2: bytes = field(init=False, **BinaryPad(16))  # TODO: padding could be earlier (but after member count)
         version: uint  # always zero in 2010
 
+    @dataclass(slots=True)
     class ENUM_TYPE_STRUCT(BinaryStruct):
         name_pointer: varuint = field(init=False, **Binary(asserted=0))  # child pointer
         items_pointer: varuint = field(init=False, **Binary(asserted=0))  # child pointer
@@ -115,6 +118,7 @@ class PackFileTypeItem(PackFileBaseEntry):
         flags: uint
         # 12 bytes of padding here in actual type entries (16 align), but no padding in "embedded" enums inside types.
 
+    @dataclass(slots=True)
     class MEMBER_TYPE_STRUCT(BinaryStruct):
         name_pointer: varuint = field(init=False, **Binary(asserted=0))  # child pointer
         type_pointer: varuint = field(init=False, **Binary(asserted=0))  # entry pointer
@@ -230,11 +234,10 @@ class PackFileHeaderExtension(BinaryStruct):
     unk_x4C: uint
 
 
-# TODO: up to here
 @dataclass(slots=True)
 class PackFileSectionHeader(BinaryStruct):
     """Packfile section header structure."""
-    section_tag: bytes = field(**BinaryString(19))  # e.g. "__classnames__" (type section)
+    section_tag: bytes = field(**BinaryString(19))  # e.g. b"__classnames__" (type section)
     minus_one: byte = field(init=False, **Binary(asserted=0xFF))
     absolute_data_start: uint
     child_pointers_offset: uint
@@ -243,6 +246,20 @@ class PackFileSectionHeader(BinaryStruct):
     exports_offset: uint
     imports_offset: uint
     end_offset: uint
+    
+    @classmethod
+    def get_reserved_header(cls, section_tag: bytes):
+        """Return an instance of this class with all fields reserved except given `section_tag`."""
+        return cls(
+            section_tag=section_tag,
+            absolute_data_start=RESERVED,
+            child_pointers_offset=RESERVED,
+            item_pointers_offset=RESERVED,
+            item_specs_offset=RESERVED,
+            exports_offset=RESERVED,
+            imports_offset=RESERVED,
+            end_offset=RESERVED,
+        )
 
     def fill_type_name_or_type_section(self, writer: BinaryWriter, absolute_data_start: int, end_offset: int):
         writer.fill("absolute_data_start", absolute_data_start, obj=self)
@@ -266,7 +283,7 @@ class PackfileHeaderInfo:
     padding_option: int
     contents_version_string: bytes
     flags: int
-    header_extension: None | PackFileHeaderExtension = None  # optional (version 0x0B -- a la Bloodborne -- only)
+    header_extension: None | PackFileHeaderExtension = None  # optional (only in version 0x0B: Bloodborne)
 
 
 @dataclass(slots=True)

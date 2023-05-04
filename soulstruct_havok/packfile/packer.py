@@ -29,7 +29,7 @@ class PackFilePacker:
             self.hk_types_module = hk2014
         else:
             raise ValueError(
-                f"Only versions '2010' and '2014' are supported for packfile packing, not '{hkx.hk_version}'."
+                f"Only versions '2010' and '2014' are currently supported for packfile packing, not '{hkx.hk_version}'."
             )
 
     def to_writer(self, header_info: PackfileHeaderInfo) -> BinaryWriter:
@@ -46,25 +46,25 @@ class PackFilePacker:
             flags=header_info.flags,
         )
 
-        self.header.default_pack(writer)
+        self.header.to_writer(writer)
         if self.header.version.has_header_extension:
             if header_info.header_extension is None:
                 raise NotImplementedError(
                     f"HKX packfile version {self.header.version} requires `packfile_header_extension`."
                 )
-            header_info.header_extension.default_pack(writer)
+            header_info.header_extension.to_writer(writer)
         writer.pad_align(16, b"\xFF")
 
-        class_name_section = PackFileSectionHeader(section_tag=b"__classnames__")
-        class_name_section.pack(writer)
+        class_name_section = PackFileSectionHeader.get_reserved_header(section_tag=b"__classnames__")
+        class_name_section.to_writer(writer)
         if self.hkx.hk_version == "2014":
             writer.pad(16, b"\xFF")
-        types_section = PackFileSectionHeader(section_tag=b"__types__")
-        types_section.pack(writer)
+        types_section = PackFileSectionHeader.get_reserved_header(section_tag=b"__types__")
+        types_section.to_writer(writer)
         if self.hkx.hk_version == "2014":
             writer.pad(16, b"\xFF")
-        data_section = PackFileSectionHeader(section_tag=b"__data__")
-        data_section.pack(writer)
+        data_section = PackFileSectionHeader.get_reserved_header(section_tag=b"__data__")
+        data_section.to_writer(writer)
         if self.hkx.hk_version == "2014":
             writer.pad(16, b"\xFF")
 
@@ -147,7 +147,7 @@ class PackFilePacker:
         writer.pad_align(16, b"\xFF")
 
         end_offset = writer.position - data_absolute_start
-        data_section.fill(
+        data_section.fill_multiple(
             writer,
             absolute_data_start=data_absolute_start,
             child_pointers_offset=data_child_pointers_offset,
@@ -185,7 +185,7 @@ class PackFilePacker:
         while item_pack_queue:
             sub_data_pack_queue = {"pointer": deque(), "array_or_string": deque()}
             delayed_item_pack = item_pack_queue.popleft()
-            item = delayed_item_pack(sub_data_pack_queue)
+            item = delayed_item_pack(sub_data_pack_queue)  # type: PackFileItemEntry
 
             # Immediately pack arrays and strings.
             while sub_data_pack_queue["array_or_string"]:
@@ -193,7 +193,7 @@ class PackFilePacker:
                 delayed_array_or_string_pack(sub_data_pack_queue)  # may enqueue additional "pointer" items
 
             item.writer.pad_align(16)  # TODO: could also align when data is packed together
-            item.raw_data = item.bytes(writer)
+            item.raw_data = bytes(item.writer)
             self.packed_items.append(item)  # ordered only as they are packed, not created
 
             # Recur on newly collected items.

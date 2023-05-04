@@ -458,9 +458,11 @@ class TrackVector3:
     ):
         ratio = -1.0
         if self.scalar_quantization_type == ScalarQuantizationType.Bits8:
-            ratio = reader.unpack_value("B") / 255.0
+            quantized = reader.unpack_value("B")
+            ratio = quantized / 255.0
         elif self.scalar_quantization_type == ScalarQuantizationType.Bits16:
-            ratio = reader.unpack_value("H") / 65535.0
+            quantized = reader.unpack_value("H")
+            ratio = quantized / 65535.0
         return minimum + (maximum - minimum) * ratio
 
     def pack_quantized_float(
@@ -474,9 +476,11 @@ class TrackVector3:
         else:
             ratio = (q_float - minimum) / (maximum - minimum)
         if self.scalar_quantization_type == ScalarQuantizationType.Bits8:
-            writer.pack("B", int(ratio * 255))
+            quantized = int(round(ratio * 255))
+            writer.pack("B", quantized)
         elif self.scalar_quantization_type == ScalarQuantizationType.Bits16:
-            writer.pack("H", int(ratio * 65535))
+            quantized = int(round(ratio * 65535))
+            writer.pack("H", quantized)
         else:
             raise ValueError(f"Invalid `ScalarQuantizationType`: {self.scalar_quantization_type}")
 
@@ -486,9 +490,9 @@ class TrackVector3:
 
 class TrackQuaternion:
 
-    spline_header: tp.Optional[SplineHeader]
-    raw_value: tp.Union[None, bytes, list[bytes]]  # one or multiple quantized quaternions
-    value: tp.Union[None, SplineQuaternion, Quaternion]
+    spline_header: SplineHeader | None
+    raw_value: bytes | list[int] | None  # one or multiple quantized quaternions
+    value: SplineQuaternion | Quaternion | None  # single (static) or spline quaternion
 
     def __init__(
         self,
@@ -556,7 +560,7 @@ class TrackQuaternion:
         if isinstance(self.value, Quaternion):
             self.value = rotate @ self.value
         else:
-            self.value = SplineQuaternion([rotate * quat for quat in self.value])
+            self.value = SplineQuaternion([rotate @ quat for quat in self.value])
 
     def reverse(self):
         """Reverses all control points if `value` is a `SplineQuaternion`.
@@ -582,18 +586,20 @@ class TrackQuaternion:
             setattr(quat, axis2, axis1_value)
 
     def get_flags(self) -> int:
-        """`SplineW` or `StaticW` is always flagged for the corresponding type, but other dimensions are only flagged
-        if any control points (or the single static value) have non-zero data in that dimension."""
+        """Dimensions are only flagged if any control points (or the single static value) have non-default data in that
+        dimension. Default values are 0.0 for XYZ and 1.0 (with some tolerance) for W."""
         if isinstance(self.value, SplineQuaternion):  # spline
-            flags = TrackFlags.SplineW
+            flags = 0
             for quat in self.value:
-                x, y, z = quat.get_imag()
+                x, y, z, w = quat.data
                 if x != 0.0:
                     flags |= TrackFlags.SplineX
                 if y != 0.0:
                     flags |= TrackFlags.SplineY
                 if z != 0.0:
                     flags |= TrackFlags.SplineZ
+                if w < 0.999:  # note 'default' value for W is 1.0 (with some tolerance for rounding errors)
+                    flags |= TrackFlags.SplineW
             return flags
         elif isinstance(self.value, Quaternion):  # static
             if self.value == Quaternion.identity():
@@ -606,7 +612,7 @@ class TrackQuaternion:
                 flags |= TrackFlags.StaticY
             if z != 0.0:
                 flags |= TrackFlags.StaticZ
-            if w < 0.999:  # note 'default' value for W is 1.0 (with some tolerance)
+            if w < 0.999:  # note 'default' value for W is 1.0 (with some tolerance for rounding errors)
                 flags |= TrackFlags.StaticW
             return flags
         raise TypeError("`TrackQuaternion.value` was not a `Quaternion` or `SplineQuaternion`.")
@@ -625,10 +631,11 @@ class TrackQuaternion:
             writer.pad_align(self.rotation_quantization_type.get_rotation_align())
             for control_point_quaternion in self.value:
                 pack_quantized_quaternion(writer, control_point_quaternion, self.rotation_quantization_type)
-        elif isinstance(self.value, Quaternion):  # static
+        elif isinstance(self.value, Quaternion):  # static / default
             # No spline header.
-            if self.value != Quaternion.identity():
+            if not self.value.is_identity():
                 pack_quantized_quaternion(writer, self.value, self.rotation_quantization_type)
+            # Otherwise, pack nothing (`Default` flag).
 
         return bytes(writer)
 
@@ -649,6 +656,11 @@ class TrackQuaternion:
 
         return bytes(writer)
 
+    def __len__(self):
+        if isinstance(self.value, SplineQuaternion):
+            return len(self.value)
+        return 1
+
     def __repr__(self) -> str:
         if isinstance(self.value, SplineQuaternion):
             # return f"TrackQuaternion(\n    " + "\n    ".join(str(v) for v in self.value) + "\n)"
@@ -657,6 +669,7 @@ class TrackQuaternion:
 
 
 class TrackHeader:
+    """Four-byte header containing information about how each track is compressed and packed."""
 
     translation_quantization: ScalarQuantizationType
     rotation_quantization: RotationQuantizationType
@@ -830,6 +843,13 @@ class SplineCompressedAnimationData:
         """Pack spline-compressed animation data to binary data, then return it as a list of integers for assignment
         to the `data` member of a `hkaSplineCompressedAnimation` object, along with the final transform track count and
         block count.
+
+        NOTE: Pack is currently byte-perfect EXCEPT for the presence/absence of the `SplineW` flag. In vanilla files,
+        this seems to be omitted if all spline control points have a `w` value close to 1.0, but the exact tolerance
+        seems to vary (or is not just based on the most distant `w` value). Packed files only omit this flag if all
+        control point `w` values are above 0.999. Thankfully, since compressed quaternions are used if ANY rotation
+        spline flag is present (unlike translation/scale vectors), this has absolutely no effect on the packed data,
+        which is still byte-perfect.
         """
         if not self.blocks:
             raise ValueError("Cannot pack empty spline-compressed animation data.")
@@ -855,7 +875,8 @@ class SplineCompressedAnimationData:
                 writer.append(track.translation.pack(default=0.0, big_endian=self.big_endian))
                 writer.pad_align(4)
                 try:
-                    writer.append(track.rotation.pack(self.big_endian))
+                    packed_rotation = track.rotation.pack(self.big_endian)
+                    writer.append(packed_rotation)
                 except UnsupportedRotationQuantizationError:
                     writer.append(track.rotation.pack_raw(self.big_endian))
                 writer.pad_align(4)

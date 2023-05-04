@@ -4,8 +4,9 @@ __all__ = ["PackFileUnpacker"]
 
 import logging
 import typing as tp
+from types import ModuleType
 
-from soulstruct.utilities.binary import BinaryReader
+from soulstruct.utilities.binary import BinaryReader, ByteOrder
 
 from soulstruct_havok.types.core import hk
 from soulstruct_havok.types.exceptions import VersionModuleError, TypeNotDefinedError
@@ -48,27 +49,38 @@ class PackFileUnpacker:
     Not all packfiles contain type information, so the unpacker will attempt to use existing type information for them.
     """
 
-    items: list[PackFileItemEntry]
+    hk_types_module: ModuleType | None
+    byte_order: ByteOrder
     hk_version: str
-    hk_types_info: list[TypeInfo]
+    header: PackFileHeader | None
+    header_extension: PackFileHeaderExtension | None
+
+    type_entries: list[PackFileTypeItem]
+    hk_types_infos: list[TypeInfo]
+    class_names: dict[int, str]
+    class_hashes: dict[str, int]
+    items: list[PackFileItemEntry]
     root: ROOT_TYPING
 
     def __init__(self):
         self.hk_types_module = None
-        self.byte_order = "<"
+        self.byte_order = ByteOrder.LittleEndian
         self.hk_version = ""
-        self.header = None  # type: tp.Optional[PackFileHeader]
-        self.header_extension = None  # type: tp.Optional[PackFileHeaderExtension]
+        self.header = None
+        self.header_extension = None
 
-        self.type_entries = []  # type: list[PackFileTypeItem]
-        self.hk_type_infos = []  # type: list[None | TypeInfo]
-        self.class_names = {}  # type: dict[int, str]  # maps class name offsets to names
-        self.class_hashes = {}  # type: dict[str, int]  # maps class names to hashes
-        self.items = []  # type: list[PackFileItemEntry]
+        self.type_entries = []
+        self.hk_type_infos = []
+        self.class_names = {}  # maps class name offsets to names
+        self.class_hashes = {}   # maps class names to hashes
+        self.items = []
+        self.root = None
 
     def unpack(self, reader: BinaryReader, types_only=False):
 
-        self.byte_order = reader.default_byte_order = "<" if reader.unpack_value("?", offset=0x11) else ">"
+        self.byte_order = reader.default_byte_order = ByteOrder.big_endian_bool(
+            not reader.unpack_value("?", offset=0x11)
+        )
         self.header = PackFileHeader.from_bytes(reader)
 
         self.hk_version = self.header.contents_version_string[3:7].decode()  # from "hk_YYYY" (e.g. "2010")

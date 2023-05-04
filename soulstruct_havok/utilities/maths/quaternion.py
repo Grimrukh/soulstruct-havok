@@ -32,8 +32,7 @@ class Quaternion:
     last.
     """
     THREECOMP40_START: tp.ClassVar[float] = -math.sqrt(2) / 2  # -0.7071067811865476
-    THREECOMP40_STEP: tp.ClassVar[float] = math.sqrt(2) / 4095  # 0.00034535129728280713
-    _IDENTITY: tp.ClassVar[Rotation] = Rotation.identity()
+    THREECOMP40_STEP: tp.ClassVar[float] = math.sqrt(2) / 4094  # 0.000345435652753565 (2047 => 0.0, 4094 => sqrt(2)/2)
 
     rotation: Rotation = field(default_factory=Rotation.identity)
     _data: np.ndarray = None
@@ -108,7 +107,7 @@ class Quaternion:
         return self.w, self.x, self.y, self.z
 
     def is_identity(self) -> bool:
-        return self.rotation == self._IDENTITY
+        return np.equal(self._data, [0.0, 0.0, 0.0, 1.0]).all()
 
     @classmethod
     def identity(cls) -> Quaternion:
@@ -283,7 +282,7 @@ class Quaternion:
         implicit_dimension = (c_val >> 36) & 0b0011  # next two bits
         implicit_negative = ((c_val >> 38) & 1) > 0  # final two bits
 
-        # Multiply masked values by fractal to convert to [-sqrt(2), sqrt(2)] range.
+        # Scale masked values to convert to [-sqrt(2), sqrt(2)] range.
         q = [cls.THREECOMP40_START + v * cls.THREECOMP40_STEP for v in (v0, v1, v2)]  # still missing implicit dimension
 
         # Calculate implicit dimension from unit magnitude.
@@ -302,7 +301,7 @@ class Quaternion:
         """Encode Quaternion into a 40-bit (five-byte) integer. Most common quantization used in FromSoft splines."""
         mask = (1 << 12) - 1  # twelve 1-bits (4095)
         quat = self.rotation.as_quat()
-        implicit_dimension = quat.argmax()
+        implicit_dimension = np.abs(quat).argmax()
         implicit_negative = int(quat[implicit_dimension] < 0)
 
         encoded_floats = []  # type: list[int]

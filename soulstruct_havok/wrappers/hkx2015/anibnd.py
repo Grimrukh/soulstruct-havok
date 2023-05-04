@@ -21,9 +21,9 @@ class ANIBND(BaseANIBND):
 
     def convert_interleaved_to_spline_anim(self, anim_id: int = None):
         """Convert to spline animation by a downgrade -> SDK conversion -> upgrade process."""
-        animation = self.get_animation(anim_id)
+        animation = self.animations_hkx[anim_id]
         spline_anim = animation.to_spline_animation()
-        self._animations_hkx[anim_id] = spline_anim
+        self.animations_hkx[anim_id] = spline_anim
 
     @staticmethod
     def animation_id_to_entry_basename(animation_id: int) -> str:

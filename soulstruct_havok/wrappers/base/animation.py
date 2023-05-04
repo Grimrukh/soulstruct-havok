@@ -33,9 +33,24 @@ class AnimationContainer(tp.Generic[
     types_module: ModuleType | None
     animation_container: ANIMATION_CONTAINER_T
 
+    # Loaded upon first use or explicit `load_spline_data()` call. Will be resaved on `pack()` if present, or with
+    # explicit `save_spline_data()` call.
+    spline_data: SplineCompressedAnimationData | None = None
+
+    # Loaded upon first use or explicit `load_interleaved_data()` call. Will be resaved on `pack()` if present, or with
+    # explicit `save_spline_data()` call. All this data does is split the frame transforms into separate 'track' lists,
+    # since by default, all the tracks and frames are in a single merged list.
+    # Note that the outer list is frames and the inner list is bones! In other words, iterate over it like this:
+    #     for frame in self.interleaved_data:
+    #         for bone_transforms in frame:
+    #             ...
+    interleaved_data: list[list[TRSTransform]] | None = None
+
     def __init__(self, types_module: ModuleType, animation_container: ANIMATION_CONTAINER_T):
         self.types_module = types_module
         self.animation_container = animation_container
+        self.spline_data = None
+        self.interleaved_data = None
 
         if self.is_interleaved:  # basic enough to do outomatically
             self.load_interleaved_data()
@@ -47,15 +62,6 @@ class AnimationContainer(tp.Generic[
     @property
     def animation_binding(self) -> ANIMATION_BINDING_T:
         return self.animation_container.bindings[0]
-
-    # Loaded upon first use or explicit `load_spline_data()` call. Will be resaved on `pack()` if present, or with
-    # explicit `save_spline_data()` call.
-    spline_data: SplineCompressedAnimationData | None = None
-
-    # Loaded upon first use or explicit `load_interleaved_data()` call. Will be resaved on `pack()` if present, or with
-    # explicit `save_spline_data()` call. All this data does is split the frame transforms into separate 'track' lists,
-    # since by default, all the tracks and frames are in a single merged list
-    interleaved_data: list[list[TRSTransform]] | None = None
 
     def load_spline_data(self, reload=False):
         if self.is_spline:
@@ -72,13 +78,13 @@ class AnimationContainer(tp.Generic[
             raise TypeError(f"Animation type `{type(self.animation).__name__}` is not spline-compressed.")
 
     def save_spline_data(self):
-        """NOTE: If any animation properties such as `duration` or `numFrames` changes, you must set those yourself.
+        """NOTE: If any animation properties such as `duration` or `numFrames` change, they must be set separately.
 
         This method will only modify these members using the spline data:
-            data
-            numBlocks
-            floatBlockOffsets
-            numberOfTransformTracks
+            `data`
+            `numBlocks`
+            `floatBlockOffsets`
+            `numberOfTransformTracks`
         """
         if self.is_spline:
             if not self.spline_data:
