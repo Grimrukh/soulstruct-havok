@@ -240,6 +240,8 @@ class TagDataType(IntEnum):
     Float16 = 0b00000111_01000110 << 8  # has a `hkInt16` member called "value"
     Float32 = 0b00010111_01000110 << 8
 
+    FloatAndFloat32 = Float | Float32
+
     def has_flag(self, tagfile_types: int):
         return bool(tagfile_types & self.value)
 

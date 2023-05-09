@@ -4,6 +4,7 @@ __all__ = ["PackFileUnpacker"]
 
 import logging
 import typing as tp
+from dataclasses import dataclass, field
 from types import ModuleType
 
 from soulstruct.utilities.binary import BinaryReader, ByteOrder
@@ -38,43 +39,30 @@ def _DEBUG(*args, **kwargs):
 class SectionInfo(tp.NamedTuple):
     raw_data: bytes
     child_pointers: list[ChildPointerStruct]
-    item_pointers: list[ItemPointerStruct]
-    entry_specs: list[ItemSpecStruct]
+    entry_pointers: list[EntryPointerStruct]
+    entry_specs: list[EntrySpecStruct]
     end_offset: int
 
 
+@dataclass(slots=True)
 class PackFileUnpacker:
     """Manages a single `HKX` packfile unpacking operation.
 
     Not all packfiles contain type information, so the unpacker will attempt to use existing type information for them.
     """
 
-    hk_types_module: ModuleType | None
-    byte_order: ByteOrder
-    hk_version: str
-    header: PackFileHeader | None
-    header_extension: PackFileHeaderExtension | None
+    hk_types_module: ModuleType | None = None
+    byte_order: ByteOrder = ByteOrder.LittleEndian
+    hk_version: str = ""
+    header: PackFileHeader | None = None
+    header_extension: PackFileHeaderExtension | None = None
 
-    type_entries: list[PackFileTypeItem]
-    hk_types_infos: list[TypeInfo]
-    class_names: dict[int, str]
-    class_hashes: dict[str, int]
-    items: list[PackFileItemEntry]
-    root: ROOT_TYPING
-
-    def __init__(self):
-        self.hk_types_module = None
-        self.byte_order = ByteOrder.LittleEndian
-        self.hk_version = ""
-        self.header = None
-        self.header_extension = None
-
-        self.type_entries = []
-        self.hk_type_infos = []
-        self.class_names = {}  # maps class name offsets to names
-        self.class_hashes = {}   # maps class names to hashes
-        self.items = []
-        self.root = None
+    type_entries: list[PackFileTypeEntry] = field(default_factory=list)
+    hk_type_infos: list[TypeInfo] = field(default_factory=list)
+    class_names: dict[int, str] = field(default_factory=dict)  # maps class name offsets to names
+    class_hashes: dict[str, int] = field(default_factory=dict)  # maps class names to hashes
+    item_entries: list[PackFileItemEntry] = field(default_factory=list)
+    root: ROOT_TYPING = None
 
     def unpack(self, reader: BinaryReader, types_only=False):
 
@@ -98,13 +86,13 @@ class PackFileUnpacker:
         class_name_info = self.unpack_section(reader)
         if class_name_info.child_pointers:
             raise AssertionError("Type name section has local references. Not expected!")
-        if class_name_info.item_pointers:
+        if class_name_info.entry_pointers:
             raise AssertionError("Type name section has global references. Not expected!")
         if class_name_info.entry_specs:
             raise AssertionError("Type name section has data entries. Not expected!")
 
         type_section_info = self.unpack_section(reader)
-        for type_section_entry_pointer in type_section_info.item_pointers:
+        for type_section_entry_pointer in type_section_info.entry_pointers:
             if type_section_entry_pointer.dest_section_index != 1:
                 raise AssertionError("type global error")
 
@@ -120,18 +108,19 @@ class PackFileUnpacker:
         self.localize_pointers(
             self.type_entries,
             type_section_info.child_pointers,
-            type_section_info.item_pointers,
+            type_section_info.entry_pointers,
         )
 
         if self.type_entries:
             _LOGGER.info("Found type entries in packfile.")
             # Types defined inside file, minus some primitive types that are supplied manually.
-            self.hk_type_infos = PackFileTypeUnpacker(
+            type_unpacker = PackFileTypeUnpacker(
                 self.type_entries, self.class_hashes, self.header.pointer_size, self.hk_types_module
-            ).type_infos
+            )
+            self.hk_type_infos = type_unpacker.get_type_infos()
         else:
             self.hk_type_infos = []
-            _LOGGER.info("NO type entries in packfile.")
+            _LOGGER.info("No type entries in packfile.")
 
         if types_only:
             return
@@ -151,58 +140,56 @@ class PackFileUnpacker:
         else:
             raise VersionModuleError(f"No Havok type module for version: {self.hk_version}")
 
-        self.items = self.unpack_item_entries(
+        self.item_entries = self.unpack_item_entries(
             BinaryReader(data_section_info.raw_data),
             item_entry_specs=data_section_info.entry_specs,
             section_end_offset=data_section_info.end_offset,
         )
         self.localize_pointers(
-            self.items,
+            self.item_entries,
             data_section_info.child_pointers,
-            data_section_info.item_pointers,
+            data_section_info.entry_pointers,
         )
 
-        root_entry = self.items[0]
+        root_entry = self.item_entries[0]
         if root_entry.hk_type != self.hk_types_module.hkRootLevelContainer:
             raise TypeError(f"First data entry in HKX was not root node: {root_entry.hk_type.__name__}")
         root_entry.start_reader()
         with hk.set_types_dict(self.hk_types_module):
-            self.root = self.hk_types_module.hkRootLevelContainer.unpack_packfile(
-                root_entry, pointer_size=self.header.pointer_size
-            )
+            self.root = self.hk_types_module.hkRootLevelContainer.unpack_packfile(root_entry)
 
     @staticmethod
     def localize_pointers(
-        items: tp.Union[list[PackFileTypeItem], list[PackFileItemEntry]],
+        entries: list[PackFileTypeEntry] | list[PackFileItemEntry],
         child_pointers: list[ChildPointerStruct],
-        item_pointers: list[ItemPointerStruct],
+        entry_pointers: list[EntryPointerStruct],
     ):
-        """Resolve pointers and attach them to their source objects."""
+        """Resolve pointers and attach them to their source entry objects."""
         for child_pointer in child_pointers:
-            # Find source item and offset local to its data.
-            for item in items:
-                if (item_source_offset := item.get_offset_in_entry(child_pointer.source_offset)) != -1:
+            # Find source entry and offset local to its data.
+            for entry in entries:
+                if (entry_source_offset := entry.get_offset_in_entry(child_pointer.source_offset)) != -1:
                     # Check that source object is also dest object.
-                    if (item_dest_offset := item.get_offset_in_entry(child_pointer.dest_offset)) == -1:
+                    if (entry_dest_offset := entry.get_offset_in_entry(child_pointer.dest_offset)) == -1:
                         raise AssertionError("Child pointer source object was NOT dest object. Not expected!")
-                    item.child_pointers[item_source_offset] = item_dest_offset
+                    entry.child_pointers[entry_source_offset] = entry_dest_offset
                     break
             else:
                 raise ValueError(f"Could not find source/dest entry of child pointer: {child_pointer}.")
 
-        for item_pointer in item_pointers:
-            for item in items:
-                if (item_source_offset := item.get_offset_in_entry(item_pointer.source_offset)) != -1:
-                    source_item = item
+        for entry_pointer in entry_pointers:
+            for entry in entries:
+                if (entry_source_offset := entry.get_offset_in_entry(entry_pointer.source_offset)) != -1:
+                    source_entry = entry
                     break
             else:
-                raise ValueError(f"Could not find source item of item pointer: {item_pointer}.")
-            for item in items:
-                if (item_dest_offset := item.get_offset_in_entry(item_pointer.dest_offset)) != -1:
-                    source_item.item_pointers[item_source_offset] = (item, item_dest_offset)
+                raise ValueError(f"Could not find source entry of entry pointer: {entry_pointer}.")
+            for entry in entries:
+                if (entry_dest_offset := entry.get_offset_in_entry(entry_pointer.dest_offset)) != -1:
+                    source_entry.entry_pointers[entry_source_offset] = (entry, entry_dest_offset)
                     break
             else:
-                raise ValueError(f"Could not find dest item of item pointer: {item_pointer}.")
+                raise ValueError(f"Could not find dest entry of entry pointer: {entry_pointer}.")
 
     def unpack_section(self, reader: BinaryReader) -> SectionInfo:
         """Section structure is:
@@ -219,34 +206,34 @@ class PackFileUnpacker:
         absolute_data_start = section.absolute_data_start
         section_data_end = section.child_pointers_offset
         section_data = reader.unpack_bytes(length=section_data_end, offset=absolute_data_start, strip=False)
-        child_pointer_count = (section.item_pointers_offset - section.child_pointers_offset) // 8
-        item_pointer_count = (section.item_specs_offset - section.item_pointers_offset) // 12
-        item_spec_count = (section.exports_offset - section.item_specs_offset) // 12
+        child_pointer_count = (section.entry_pointers_offset - section.child_pointers_offset) // 8
+        entry_pointer_count = (section.entry_specs_offset - section.entry_pointers_offset) // 12
+        entry_spec_count = (section.exports_offset - section.entry_specs_offset) // 12
 
         child_pointers = []
-        item_pointers = []
-        item_specs = []
+        entry_pointers = []
+        entry_specs = []
 
         with reader.temp_offset(offset=absolute_data_start + section.child_pointers_offset):
             for _ in range(child_pointer_count):
                 if reader.unpack_value("I", offset=reader.position) == 0xFFFFFFFF:
                     break  # padding reached
                 child_pointers.append(ChildPointerStruct.from_bytes(reader))
-        with reader.temp_offset(offset=absolute_data_start + section.item_pointers_offset):
-            for _ in range(item_pointer_count):
+        with reader.temp_offset(offset=absolute_data_start + section.entry_pointers_offset):
+            for _ in range(entry_pointer_count):
                 if reader.unpack_value("I", offset=reader.position) == 0xFFFFFFFF:
                     break  # padding reached
-                item_pointers.append(ItemPointerStruct.from_bytes(reader))
-        with reader.temp_offset(offset=absolute_data_start + section.item_specs_offset):
-            for _ in range(item_spec_count):
+                entry_pointers.append(EntryPointerStruct.from_bytes(reader))
+        with reader.temp_offset(offset=absolute_data_start + section.entry_specs_offset):
+            for _ in range(entry_spec_count):
                 if reader.unpack_value("I", offset=reader.position) == 0xFFFFFFFF:
                     break  # padding reached
-                item_specs.append(ItemSpecStruct.from_bytes(reader))
+                entry_specs.append(EntrySpecStruct.from_bytes(reader))
 
-        return SectionInfo(section_data, child_pointers, item_pointers, item_specs, section_data_end)
+        return SectionInfo(section_data, child_pointers, entry_pointers, entry_specs, section_data_end)
 
     def unpack_class_names(self, class_name_data: bytes):
-        """Returns a dictionary mapping offsets (within class name section) to HKX class names and signatures."""
+        """Constructs dictionaries mapping offsets (within class name section) to HKX class names and signatures."""
         self.class_names = {}
         self.class_hashes = {}
 
@@ -266,11 +253,11 @@ class PackFileUnpacker:
     def unpack_type_entries(
         self,
         type_section_reader: BinaryReader,
-        entry_specs: list[ItemSpecStruct],
+        entry_specs: list[EntrySpecStruct],
         section_end_offset: int,
-    ) -> list[PackFileTypeItem]:
+    ) -> list[PackFileTypeEntry]:
         """Meow's "virtual fixups" are really just offsets to class names. I don't track them, because they only need
-        to be reconstructed again on `pack()`.
+        to be reconstructed again on write.
         """
         type_entries = []
         for i, entry_spec in enumerate(entry_specs):
@@ -282,8 +269,8 @@ class PackFileUnpacker:
                 data_size = section_end_offset - entry_spec.local_data_offset
 
             type_section_reader.seek(entry_spec.local_data_offset)
-            type_entry = PackFileTypeItem(class_name)
-            type_entry.unpack(type_section_reader, data_size=data_size)
+            type_entry = PackFileTypeEntry(class_name=class_name)
+            type_entry.unpack(type_section_reader, data_size=data_size, long_varints=self.header.pointer_size == 8)
             type_entries.append(type_entry)
 
         return type_entries
@@ -291,7 +278,7 @@ class PackFileUnpacker:
     def unpack_item_entries(
         self,
         data_section_reader: BinaryReader,
-        item_entry_specs: list[ItemSpecStruct],
+        item_entry_specs: list[EntrySpecStruct],
         section_end_offset: int,
     ) -> list[PackFileItemEntry]:
         """Assign `raw_data` to each packfile item.
@@ -330,8 +317,8 @@ class PackFileUnpacker:
                 data_size = section_end_offset - entry_spec.local_data_offset
 
             data_section_reader.seek(entry_spec.local_data_offset)
-            data_entry = PackFileItemEntry(hk_type)
-            data_entry.unpack(data_section_reader, data_size=data_size)
+            data_entry = PackFileItemEntry(hk_type=hk_type)
+            data_entry.unpack(data_section_reader, data_size=data_size, long_varints=self.header.pointer_size == 8)
             data_entries.append(data_entry)
 
         return data_entries
@@ -351,7 +338,7 @@ class PackFileUnpacker:
 
     def raw_repr(self):
         lines = ["Entries:"]
-        for item in self.items:
+        for item in self.item_entries:
             lines.append(f"    Type: {item.hk_type.__name__}")
             lines.append(
                 f"        Location: ["
@@ -361,8 +348,8 @@ class PackFileUnpacker:
             lines.append(f"        Child pointers ({len(item.child_pointers)}):")
             for ref_source, ref_dest in item.child_pointers.items():
                 lines.append(f"            Local Offset: {ref_source} -> {ref_dest}")
-            lines.append(f"        Item pointers ({len(item.item_pointers)}):")
-            for ref_source, (dest_item, ref_dest) in item.item_pointers.items():
+            lines.append(f"        Entry pointers ({len(item.entry_pointers)}):")
+            for ref_source, (dest_item, ref_dest) in item.entry_pointers.items():
                 lines.append(f"            Global Offset: {ref_source} -> {ref_dest} ({dest_item.hk_type.__name__})")
             lines.append(f"        Raw data length: {len(item.raw_data)}")
         return "\n".join(lines)

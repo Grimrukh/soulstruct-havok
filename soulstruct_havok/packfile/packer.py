@@ -4,6 +4,8 @@ __all__ = ["PackFilePacker"]
 
 import typing as tp
 from collections import deque
+from dataclasses import dataclass
+from types import ModuleType
 
 from soulstruct.utilities.binary import BinaryWriter, ByteOrder
 
@@ -14,9 +16,19 @@ if tp.TYPE_CHECKING:
     from soulstruct_havok.core import HKX
 
 
+@dataclass(slots=True, init=False)
 class PackFilePacker:
     """Handles a single `HKX` packfile packing operation."""
     # TODO: Broken.
+
+    hkx: HKX
+    hk_types_module: ModuleType
+
+    header: PackFileHeader
+    # Tracks item entries that have already been created.
+    item_entries: dict[hk, PackFileItemEntry]
+    # Tracks item entries that have been packed.
+    packed_items: list[PackFileItemEntry]
 
     def __init__(self, hkx: HKX):
         self.hkx = hkx
@@ -104,16 +116,16 @@ class PackFilePacker:
 
         # ITEM (DATA) SECTION
         data_absolute_start = writer.position
-        self.items = {}  # type: dict[hk, PackFileItemEntry]  # tracks items that have already been created
-        self.packed_items = []  # type: list[PackFileItemEntry]  # items only added here once packed
-        root_item = PackFileItemEntry(self.hkx.root.__class__)  # hkRootLevelContainer
+        self.item_entries = {}
+        self.packed_items = []
+        root_item = PackFileItemEntry(self.hkx.root.__class__, long_varints=header_info.long_varints)  # hkRootLevelContainer
         root_item.value = self.hkx.root
-        self.items[self.hkx.root] = root_item
+        self.item_entries[self.hkx.root] = root_item
 
         def delayed_root_item_pack(_data_pack_queue: dict[str, deque[tp.Callable]]):
             root_item.start_writer()
             self.hkx.root.pack_packfile(
-                root_item, self.hkx.root, self.items, _data_pack_queue, header_info.pointer_size
+                root_item, self.hkx.root, self.item_entries, _data_pack_queue
             )
             return root_item
 
@@ -135,13 +147,13 @@ class PackFilePacker:
 
         data_item_pointers_offset = writer.position - data_absolute_start
         for item in self.packed_items:
-            for source_offset, (dest_item, dest_item_offset) in item.item_pointers.items():
+            for source_offset, (dest_entry, dest_entry_offset) in item.entry_pointers.items():
                 writer.pack(
-                    "III", item.local_data_offset + source_offset, 2, dest_item.local_data_offset + dest_item_offset
+                    "III", item.local_data_offset + source_offset, 2, dest_entry.local_data_offset + dest_entry_offset
                 )
         writer.pad_align(16, b"\xFF")
 
-        item_specs_offset = writer.position - data_absolute_start
+        entry_specs_offset = writer.position - data_absolute_start
         for item in self.packed_items:
             writer.pack("III", item.local_data_offset, 0, class_name_offsets[item.get_class_name()])
         writer.pad_align(16, b"\xFF")
@@ -152,7 +164,7 @@ class PackFilePacker:
             absolute_data_start=data_absolute_start,
             child_pointers_offset=data_child_pointers_offset,
             item_pointers_offset=data_item_pointers_offset,
-            item_specs_offset=item_specs_offset,
+            item_specs_offset=entry_specs_offset,
             exports_offset=end_offset,
             imports_offset=end_offset,
             end_offset=end_offset,

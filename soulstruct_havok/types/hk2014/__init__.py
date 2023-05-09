@@ -32,6 +32,8 @@ from .hkaSkeletonMapperDataMappingType import hkaSkeletonMapperDataMappingType
 from .hkaSkeletonMapperDataPartitionMappingRange import hkaSkeletonMapperDataPartitionMappingRange
 from .hkaSkeletonMapperDataSimpleMapping import hkaSkeletonMapperDataSimpleMapping
 from .hkaSkeletonPartition import hkaSkeletonPartition
+from .hkHalf16 import hkHalf16
+from .hkMotionState import hkMotionState
 from .hknpBodyCinfo import hknpBodyCinfo
 from .hknpBodyQuality import hknpBodyQuality
 from .hknpBodyQualityLibrary import hknpBodyQualityLibrary
@@ -77,9 +79,13 @@ from .hkpConstraintAtomAtomType import hkpConstraintAtomAtomType
 from .hkpConstraintData import hkpConstraintData
 from .hkpConstraintMotor import hkpConstraintMotor
 from .hkpConstraintMotorMotorType import hkpConstraintMotorMotorType
+from .hkpKeyframedRigidMotion import hkpKeyframedRigidMotion
 from .hkpLimitedForceConstraintMotor import hkpLimitedForceConstraintMotor
 from .hkpLimitedHingeConstraintData import hkpLimitedHingeConstraintData
 from .hkpLimitedHingeConstraintDataAtoms import hkpLimitedHingeConstraintDataAtoms
+from .hkpMaxSizeMotion import hkpMaxSizeMotion
+from .hkpMotion import hkpMotion
+from .hkpMotionMotionType import hkpMotionMotionType
 from .hkpPositionConstraintMotor import hkpPositionConstraintMotor
 from .hkpRagdollConstraintData import hkpRagdollConstraintData
 from .hkpRagdollConstraintDataAtoms import hkpRagdollConstraintDataAtoms
@@ -87,6 +93,7 @@ from .hkpRagdollMotorConstraintAtom import hkpRagdollMotorConstraintAtom
 from .hkpSetLocalTransformsConstraintAtom import hkpSetLocalTransformsConstraintAtom
 from .hkpSetupStabilizationAtom import hkpSetupStabilizationAtom
 from .hkpTwistLimitConstraintAtom import hkpTwistLimitConstraintAtom
+from .hkUFloat8 import hkUFloat8
 from .hkxAttribute import hkxAttribute
 from .hkxAttributeGroup import hkxAttributeGroup
 from .hkxAttributeHolder import hkxAttributeHolder

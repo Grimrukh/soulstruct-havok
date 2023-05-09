@@ -18,10 +18,11 @@ from soulstruct_havok.enums import TagDataType, TagFormatFlags, MemberFlags
 from .exceptions import HavokTypeError, TypeNotDefinedError, TypeMatchError
 
 if tp.TYPE_CHECKING:
-    from .core import hk
+    from .hk import hk
 
 
 # Any type whose real Havok name does not start with one of these will have an underscore prepended to its Python name.
+# (The 'Custom' prefix is for at least one FromSoftware mesh subtype.)
 HAVOK_TYPE_PREFIXES = ("hk", "hcl", "Custom")
 
 

@@ -1,15 +1,10 @@
 from __future__ import annotations
 
-import typing as tp
-
 from soulstruct_havok.enums import *
 from soulstruct_havok.types.core import *
 from .core import *
 from .hkMotionState import hkMotionState
 from .hkpMotionMotionType import hkpMotionMotionType
-
-if tp.TYPE_CHECKING:
-    from .hkpMaxSizeMotion import hkpMaxSizeMotion
 
 
 class hkpMotion(hkReferencedObject):
@@ -29,7 +24,7 @@ class hkpMotion(hkReferencedObject):
         Member(224, "angularVelocity", hkVector4),
         Member(240, "deactivationRefPosition", hkStruct(hkVector4, 2)),
         Member(272, "deactivationRefOrientation", hkStruct(hkUint32, 2)),
-        Member(280, "savedMotion", Ptr(DefType("hkpMaxSizeMotion", lambda: hkpMaxSizeMotion))),
+        Member(280, "savedMotion", Ptr(DefType("hkpMotion", lambda: hkpMotion))),
         Member(284, "savedQualityTypeIndex", hkUint16),
         Member(286, "gravityFactor", hkHalf16),
     )
@@ -44,6 +39,6 @@ class hkpMotion(hkReferencedObject):
     angularVelocity: Vector4
     deactivationRefPosition: tuple[hkVector4, ...]
     deactivationRefOrientation: tuple[int, ...]
-    savedMotion: hkpMaxSizeMotion
+    savedMotion: hkpMotion
     savedQualityTypeIndex: int
     gravityFactor: hkHalf16

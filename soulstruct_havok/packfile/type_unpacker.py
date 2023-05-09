@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+__all__ = ["PackFileTypeUnpacker"]
+
 import typing as tp
+from dataclasses import dataclass, field
+from types import ModuleType
 
 from soulstruct_havok.enums import PackMemberType, TagFormatFlags, TagDataType, MemberFlags, PackMemberFlags
 from soulstruct_havok.types.info import TypeInfo, MemberInfo, get_py_name
 
 if tp.TYPE_CHECKING:
-    from .unpacker import PackFileTypeItem
+    from .unpacker import PackFileTypeEntry
 
 
 _DEBUG_MSG = False
@@ -23,63 +27,81 @@ def _DEBUG_ENUM(enum_str: str):
         print(enum_str)
 
 
+class EnumValues(dict[str, int]):
+
+    def __init__(self, name: str, items: tp.Sequence[tuple[str, int]]):
+        super().__init__()
+        self.name = name
+        for item in items:
+            self[item[0]] = item[1]
+
+    def __repr__(self):
+        items = ", ".join(f"{k}={v}" for k, v in self.items())
+        return f"{self.name}({items})"
+
+
+@dataclass(slots=True, init=False)
 class PackFileTypeUnpacker:
     """Unpacks type entries into `TypeInfo` instances and assigns `py_class` to them."""
 
-    class EnumValues(dict[str, int]):
+    type_items: list[None | PackFileTypeEntry]
+    type_hashes: dict[str, int]
+    long_varints: bool
+    pointer_size: int
 
-        def __init__(self, name: str, items: tp.Sequence[tuple[str, int]]):
-            super().__init__()
-            self.name = name
-            for item in items:
-                self[item[0]] = item[1]
-
-        def __repr__(self):
-            items = ", ".join(f"{k}={v}" for k, v in self.items())
-            return f"{self.name}({items})"
-
-    type_items: list[None | PackFileTypeItem]
+    hk_types_module: ModuleType | None = None
+    # Maps Python parent names to lists of Python child names.
+    parent_children: dict[str, list[str]] = field(default_factory=dict)
+    enum_dicts: dict[str, EnumValues] = field(default_factory=dict)
+    enum_storage_types: dict[str, PackMemberType] = field(default_factory=dict)
 
     def __init__(
         self,
-        type_items: list[None | PackFileTypeItem],
+        type_items: list[None | PackFileTypeEntry],
         type_hashes: dict[str, int],
         pointer_size: int,
         hk_types_module=None,
     ):
         self.type_items = [None] + type_items  # for one-indexing
         self.type_hashes = type_hashes
-        self.pointer_size = pointer_size
+        if pointer_size == 8:
+            self.long_varints = True
+            self.pointer_size = 8
+        elif pointer_size == 4:
+            self.long_varints = False
+            self.pointer_size = 4
+        else:
+            raise ValueError(f"Invalid pointer size: {pointer_size}. Must be 4 or 8.")
         self.hk_types_module = hk_types_module
 
-        print(f"Running `PackFileTypeUnpacker` with pointer size {self.pointer_size}.")
+    def get_type_infos(self) -> list[None | TypeInfo]:
 
-        self.parent_children = {}  # maps Python parent names to lists of Python child names
+        print(f"Running `PackFileTypeUnpacker` with `long_varints = {self.long_varints}`.")
 
-        # Maps enum names to unpacked dictionaries.
-        self.enum_dicts = {}  # type: dict[str, PackFileTypeUnpacker.EnumValues]
+        self.parent_children = {}
+        self.enum_dicts = {}  # type: dict[str, EnumValues]
         self.enum_storage_types = {}  # type: dict[str, PackMemberType]
 
-        self.type_infos = [None]  # type: list[None | TypeInfo]
+        type_infos = [None]  # type: list[None | TypeInfo]  # first element is `None` to mimic 1-indexing
 
         for item in self.type_items[1:]:
             # TODO: What about other types? Just generic?
             if item.class_name == "hkClass":
                 item.start_reader()
-                self.type_infos.append(self.unpack_type_item(item))
+                type_infos.append(self.unpack_type_item(item))
 
         # Assign `TypeInfo` to members and parents. (Pointer types always zero, as these are only classes.)
-        for type_info in self.type_infos[1:]:
+        for type_info in type_infos[1:]:
             if type_info.parent_type_py_name:
-                type_info.parent_type_info = [
-                    t for t in self.type_infos[1:] if t.py_name == type_info.parent_type_py_name
-                ][0]
+                type_info.parent_type_info = next(
+                    t for t in type_infos[1:] if t.py_name == type_info.parent_type_py_name
+                )
             for member in type_info.members:
                 try:
-                    member.type_info = [t for t in self.type_infos[1:] if t.py_name == member.type_py_name][0]
+                    member.type_info = [t for t in type_infos[1:] if t.py_name == member.type_py_name][0]
                 except IndexError:
                     if not PackMemberType.is_builtin_type(member.type_py_name):
-                        print([t.name for t in self.type_infos[1:]])
+                        print([t.name for t in type_infos[1:]])
                         print(f"Cannot find member type: {member.type_py_name}")
                         raise
 
@@ -101,13 +123,15 @@ class PackFileTypeUnpacker:
             elif enum_type_info.tag_type_flags & TagDataType.Int64:
                 enum_type_info.byte_size = 8
                 enum_type_info.alignment = 8
-            self.type_infos.append(enum_type_info)
+            type_infos.append(enum_type_info)
 
-    def unpack_type_item(self, entry: PackFileTypeItem):
-        if self.pointer_size == 4:
-            type_item_header = entry.TYPE_STRUCT_32.from_bytes(entry.reader)
-        else:
+        return type_infos
+
+    def unpack_type_item(self, entry: PackFileTypeEntry):
+        if self.long_varints:
             type_item_header = entry.TYPE_STRUCT_64.from_bytes(entry.reader)
+        else:
+            type_item_header = entry.TYPE_STRUCT_32.from_bytes(entry.reader)
 
         name = entry.reader.unpack_string(offset=entry.child_pointers[0], encoding="utf-8")
         py_name = get_py_name(name)
@@ -123,9 +147,9 @@ class PackFileTypeUnpacker:
 
         # Names of enum values defined (redundantly) in the class are recorded for future byte-perfect writes. I don't
         # think it's necessary for the file to be valid, though.
-        class_enums = {}  # type: dict[str, PackFileTypeUnpacker.EnumValues]
+        class_enums = {}  # type: dict[str, EnumValues]
         if type_item_header.enums_count:
-            enums_offset = entry.child_pointers[16 if self.pointer_size == 4 else 24]
+            enums_offset = entry.child_pointers[24 if self.long_varints else 16]
             with entry.reader.temp_offset(enums_offset):
                 enum_dict = self.unpack_enum_type(entry, align_before_name=False, enum_offset=enums_offset)
                 if enum_dict.name in class_enums:
@@ -134,15 +158,12 @@ class PackFileTypeUnpacker:
                 self.enum_dicts[f"{name}::{enum_dict.name}"] = enum_dict
 
         type_info.members = []
-        member_data_offset = entry.child_pointers.get(24 if self.pointer_size == 4 else 40)
+        member_data_offset = entry.child_pointers.get(40 if self.long_varints else 24)
         if member_data_offset is not None:
             with entry.reader.temp_offset(member_data_offset):
                 for _ in range(type_item_header.member_count):
                     member_offset = entry.reader.position
-                    if self.pointer_size == 4:
-                        member = entry.MEMBER_TYPE_STRUCT.from_bytes(entry.reader, long_varints=False)
-                    else:
-                        member = entry.MEMBER_TYPE_STRUCT.from_bytes(entry.reader, long_varints=True)
+                    member = entry.MEMBER_TYPE_STRUCT.from_bytes(entry.reader, long_varints=self.long_varints)
                     member_name_offset = entry.child_pointers[member_offset]
                     member_name = entry.reader.unpack_string(offset=member_name_offset, encoding="utf-8")
                     _DEBUG(f"    Member \"{member_name}\" ({member_offset} | {hex(member_offset)}) ({member.flags})")
@@ -243,7 +264,7 @@ class PackFileTypeUnpacker:
                             raise AssertionError(f"Invalid data type for Ptr: {member_subtype.name}")
 
                     elif member_type == PackMemberType.TYPE_ENUM:
-                        enum_offset = member_offset + (8 if self.pointer_size == 4 else 16)
+                        enum_offset = member_offset + (16 if self.long_varints else 8)
                         enum_type_item = entry.get_referenced_type_item(enum_offset)
                         storage_type_name = member_subtype.get_py_type_name()
                         if enum_type_item:
@@ -267,7 +288,7 @@ class PackFileTypeUnpacker:
                         required_types = [enum_type_name, storage_type_name]
 
                     elif member_type == PackMemberType.TYPE_FLAGS:
-                        # storage_offset = member_offset + (8 if self.pointer_size == 4 else 16)
+                        # storage_offset = member_offset + (16 if self.long_varints else 8)
                         # storage_type_item = entry.get_referenced_type_item(storage_offset)
                         type_py_name = f"hkFlags[{member_subtype.get_py_type_name()}]"
                         member_py_name = f"hkFlags({member_subtype.get_py_type_name()})"
@@ -321,7 +342,7 @@ class PackFileTypeUnpacker:
 
         return type_info
 
-    def unpack_enum_type(self, enum_type_item: PackFileTypeItem, align_before_name: bool, enum_offset=0) -> EnumValues:
+    def unpack_enum_type(self, enum_type_item: PackFileTypeEntry, align_before_name: bool, enum_offset=0) -> EnumValues:
         """Unpack and return an `EnumValues` name -> value dictionary.
 
         These are packed on their own, as genuine `type_entries`, and are also embedded inside the class entries that
@@ -331,10 +352,9 @@ class PackFileTypeUnpacker:
         writing these packfiles).
         """
 
-        if self.pointer_size == 4:
-            enum_type_struct = enum_type_item.ENUM_TYPE_STRUCT.from_bytes(enum_type_item.reader, long_varints=False)
-        else:
-            enum_type_struct = enum_type_item.ENUM_TYPE_STRUCT.from_bytes(enum_type_item.reader, long_varints=True)
+        enum_type_struct = enum_type_item.ENUM_TYPE_STRUCT.from_bytes(
+            enum_type_item.reader, long_varints=self.long_varints
+        )
         if align_before_name:
             enum_type_item.reader.align(16)
         name = enum_type_item.reader.unpack_string(
@@ -344,16 +364,16 @@ class PackFileTypeUnpacker:
         enum_str = f"class {name}(IntEnum):\n"
         with enum_type_item.reader.temp_offset(enum_type_item.child_pointers[enum_offset + self.pointer_size]):
             for _ in range(enum_type_struct.items_count):
-                item_value = enum_type_item.reader.unpack_value("<I" if self.pointer_size == 4 else "<Q")
+                item_value = enum_type_item.reader.unpack_value("<Q" if self.long_varints else "<I")
                 item_name_offset = enum_type_item.child_pointers[enum_type_item.reader.position]
                 item_name = enum_type_item.reader.unpack_string(offset=item_name_offset, encoding="utf-8")
-                enum_type_item.reader.unpack_value("<I" if self.pointer_size == 4 else "<Q", asserted=0)
+                enum_type_item.reader.unpack_value("<Q" if self.long_varints else "<I", asserted=0)
                 enum_str += f"    {item_name} = {item_value}\n"
                 items.append((item_name, item_value))
 
         _DEBUG_ENUM(enum_str)
 
-        return PackFileTypeUnpacker.EnumValues(name, items)
+        return EnumValues(name, items)
 
 
 def next_power_of_two(n) -> int:
