@@ -11,7 +11,7 @@ from types import ModuleType
 import colorama
 from soulstruct.utilities.binary import *
 
-from soulstruct_havok.types.core import hk
+from soulstruct_havok.types.hk import hk
 from soulstruct_havok.types.exceptions import HavokTypeError, VersionModuleError, TypeNotDefinedError, TypeMatchError
 from soulstruct_havok.types.info import *
 from soulstruct_havok.enums import TagFormatFlags
@@ -99,9 +99,8 @@ class TagFileUnpacker:
                     modules_to_create = []  # type: list[tuple[TypeInfo, str, str]]
                     clashing_modules = []  # type: list[tuple[Exception, TypeInfo, str]]
 
-                    from soulstruct_havok.types import core
-                    base = self.hk_types_module.core
-                    base_names = list(vars(core)) + list(vars(base))
+                    module_core = self.hk_types_module.core
+                    module_names = list(vars(module_core))  # key names of typed `core` module
 
                     for type_info in self.hk_type_infos[1:]:
                         if type_info.name in type_info.GENERIC_TYPE_NAMES:
@@ -110,13 +109,13 @@ class TagFileUnpacker:
                             py_class = getattr(self.hk_types_module, type_info.py_name)  # type: tp.Type[hk]
                         except AttributeError:
                             # Missing Python definition. Create a (possibly rough) Python definition to print.
-                            type_module_def, init_import = type_info.get_new_type_module_and_import(base_names)
+                            type_module_def, init_import = type_info.get_new_type_module_and_import(module_names)
                             modules_to_create.append((type_info, type_module_def, init_import))
                         else:
                             try:
                                 type_info.check_py_class_match(py_class)
                             except TypeMatchError as ex:
-                                type_module_def, _ = type_info.get_new_type_module_and_import(base_names)
+                                type_module_def, _ = type_info.get_new_type_module_and_import(module_names)
                                 clashing_modules.append((ex, type_info, type_module_def))
                             else:
                                 type_info.py_class = py_class
@@ -178,7 +177,7 @@ class TagFileUnpacker:
 
             with hk.set_types_dict(self.hk_types_module):
                 # This call will recursively unpack all items.
-                self.root = root_item.hk_type.unpack(reader, root_item.absolute_offset, self.items)
+                self.root = root_item.hk_type.unpack_tagfile(reader, root_item.absolute_offset, self.items)
             root_item.value = self.root
 
     def unpack_type_section(self, reader: BinaryReader, compendium: tp.Optional[HKX] = None) -> list[TypeInfo]:

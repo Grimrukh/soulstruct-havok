@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 from .hkxMesh import hkxMesh
@@ -8,6 +7,7 @@ from .hkaSkeleton import hkaSkeleton
 from .hkaMeshBindingMapping import hkaMeshBindingMapping
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkaMeshBinding(hkReferencedObject):
     alignment = 16
     byte_size = 80

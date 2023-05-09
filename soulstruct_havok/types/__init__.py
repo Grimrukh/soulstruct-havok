@@ -1,1 +1,1 @@
-from .core import hk
+from .hk import hk

@@ -8,8 +8,11 @@ from contextlib import contextmanager
 from soulstruct.utilities.binary import *
 
 from soulstruct_havok.enums import TagFormatFlags
-from soulstruct_havok.types.core import hk, hkArray_, TypeInfoGenerator
+from soulstruct_havok.types.base import hkArray_
+from soulstruct_havok.types.hk import hk
 from soulstruct_havok.types.info import TypeInfo
+from soulstruct_havok.types.type_info_generator import TypeInfoGenerator
+
 from .structs import *
 
 if tp.TYPE_CHECKING:
@@ -142,7 +145,7 @@ class TagFilePacker:
 
             # Pack `hkRefPtr` item and iterate through it (but not beyond members requiring new item creations)
             # to accumulate item creation funcs into `ref_subqueue`.
-            ref_item.value.pack(ref_item, ref_item.value, self.items, existing_items, ref_subqueue)
+            ref_item.value.pack_tagfile(ref_item, ref_item.value, self.items, existing_items, ref_subqueue)
 
             # Array packing may create more items in the same subqueue, so we keep checking it.
             while any(ref_subqueue.values()):

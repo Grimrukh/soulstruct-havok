@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 from .hclOperator import hclOperator
@@ -8,6 +7,7 @@ from .hclOperator import hclOperator
 from .hclRuntimeConversionInfo import hclRuntimeConversionInfo
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hclInputConvertOperator(hclOperator):
     alignment = 8
     byte_size = 128

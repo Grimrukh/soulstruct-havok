@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 from .hkpConstraintData import hkpConstraintData
@@ -11,6 +10,7 @@ from .hkpConstraintInstanceOnDestructionRemapInfo import hkpConstraintInstanceOn
 from .hkpConstraintInstanceSmallArraySerializeOverrideType import hkpConstraintInstanceSmallArraySerializeOverrideType
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkpConstraintInstance(hkReferencedObject):
     alignment = 8
     byte_size = 112

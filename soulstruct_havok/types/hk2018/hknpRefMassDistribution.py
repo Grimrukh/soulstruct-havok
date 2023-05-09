@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 
 from .hknpMassDistribution import hknpMassDistribution
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hknpRefMassDistribution(hkReferencedObject):
     alignment = 16
     byte_size = 80

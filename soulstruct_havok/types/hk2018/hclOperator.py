@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 
@@ -10,6 +9,7 @@ from .hclClothStateBufferAccess import hclClothStateBufferAccess
 from .hclClothStateTransformSetAccess import hclClothStateTransformSetAccess
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hclOperator(hkReferencedObject):
     alignment = 8
     byte_size = 72

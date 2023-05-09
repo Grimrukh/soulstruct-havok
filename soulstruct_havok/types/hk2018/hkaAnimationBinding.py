@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 
@@ -10,6 +9,7 @@ from .hkaAnimation import hkaAnimation
 from .hkaAnimationBindingBlendHint import hkaAnimationBindingBlendHint
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkaAnimationBinding(hkReferencedObject):
     alignment = 8
     byte_size = 96

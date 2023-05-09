@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 from .hkPackedVector3 import hkPackedVector3
 
 
-
-
+@dataclass(slots=True, eq=False, repr=False)
 class hkCompressedMassProperties(hk):
     alignment = 12296
     byte_size = 32

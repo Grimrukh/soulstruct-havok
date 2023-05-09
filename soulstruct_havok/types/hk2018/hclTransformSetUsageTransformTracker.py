@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from soulstruct_havok.enums import *
-from soulstruct_havok.types.core import *
+from .core import *
 from .hkBitField import hkBitField
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hclTransformSetUsageTransformTracker(hk):
     alignment = 8
     byte_size = 72

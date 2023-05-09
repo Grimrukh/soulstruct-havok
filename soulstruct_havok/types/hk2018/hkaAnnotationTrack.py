@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 
 from .hkaAnnotationTrackAnnotation import hkaAnnotationTrackAnnotation
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkaAnnotationTrack(hk):
     alignment = 8
     byte_size = 24

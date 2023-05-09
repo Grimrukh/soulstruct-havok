@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 from .hkaBone import hkaBone
 from .hkaSkeletonLocalFrameOnBone import hkaSkeletonLocalFrameOnBone
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkaSkeleton(hkReferencedObject):
     alignment = 16
     byte_size = 84

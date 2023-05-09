@@ -4,7 +4,7 @@ from pathlib import Path
 from soulstruct import DSR_PATH, PTDE_PATH, DS3_PATH, Binder
 
 from soulstruct_havok.core import HKX
-from soulstruct_havok.types.core import SET_DEBUG_PRINT
+from soulstruct_havok.types.debug import SET_DEBUG_PRINT
 
 
 def ptde_c2500_test():
@@ -96,6 +96,7 @@ def ptde_packfile_test():
     # capra_skeleton = HKX.from_path("resources/PTDE/c2240/Skeleton.HKX")
     print("Reading Capra Demon ragdoll...")
     capra_ragdoll = HKX.from_path("resources/PTDE/c2240/c2240.hkx")
+    print(capra_ragdoll.get_root_tree_string())
 
 
 if __name__ == '__main__':

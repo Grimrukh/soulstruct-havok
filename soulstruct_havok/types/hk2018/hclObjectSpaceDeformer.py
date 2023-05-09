@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 from .hclObjectSpaceDeformerEightBlendEntryBlock import hclObjectSpaceDeformerEightBlendEntryBlock
@@ -13,9 +12,7 @@ from .hclObjectSpaceDeformerTwoBlendEntryBlock import hclObjectSpaceDeformerTwoB
 from .hclObjectSpaceDeformerOneBlendEntryBlock import hclObjectSpaceDeformerOneBlendEntryBlock
 
 
-
-
-
+@dataclass(slots=True, eq=False, repr=False)
 class hclObjectSpaceDeformer(hk):
     alignment = 8
     byte_size = 152

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 __all__ = [
-    "PackFileTypeEntry",
-    "PackFileItemEntry",
+    "PackFileType",
+    "PackFileItem",
     "PackFileHeader",
     "PackFileHeaderExtension",
     "PackFileSectionHeader",
@@ -23,7 +23,8 @@ from soulstruct.utilities.binary import *
 
 if tp.TYPE_CHECKING:
     from collections import deque
-    from soulstruct_havok.types.core import hk, hkArray_, Ptr_
+    from soulstruct_havok.types.hk import hk
+    from soulstruct_havok.types.base import hkArray_, Ptr_
 
 
 @dataclass(slots=True)
@@ -72,7 +73,7 @@ class PackFileBaseEntry(abc.ABC):
 
 
 @dataclass(slots=True)
-class PackFileTypeEntry(PackFileBaseEntry):
+class PackFileType(PackFileBaseEntry):
 
     @dataclass(slots=True)
     class TYPE_STRUCT_32(BinaryStruct):
@@ -130,7 +131,7 @@ class PackFileTypeEntry(PackFileBaseEntry):
 
     class_name: str = ""
     # Type override.
-    entry_pointers: dict[int, tuple[PackFileTypeEntry, int]] = field(default_factory=dict)
+    entry_pointers: dict[int, tuple[PackFileType, int]] = field(default_factory=dict)
 
     def get_type_name(self) -> str | None:
         """Quickly look up type name from raw data. Returns `None` if `child_pointers` is undefined/empty."""
@@ -141,8 +142,8 @@ class PackFileTypeEntry(PackFileBaseEntry):
     def get_byte_size(self) -> int:
         return BinaryReader(self.raw_data).unpack_value("I", offset=8)
 
-    def get_referenced_type_item(self, offset: int) -> PackFileTypeEntry | None:
-        """Look for `self.entry_pointers[offset]` and recover the pointed `PackFileTypeEntry`."""
+    def get_referenced_type_item(self, offset: int) -> PackFileType | None:
+        """Look for `self.entry_pointers[offset]` and recover the pointed `PackFileType`."""
         if offset in self.entry_pointers:
             type_item, zero = self.entry_pointers[offset]
             if zero != 0:
@@ -152,13 +153,13 @@ class PackFileTypeEntry(PackFileBaseEntry):
         return None
 
     def __repr__(self):
-        return f"PackFileTypeEntry({self.get_type_name()})"
+        return f"PackFileType({self.get_type_name()})"
 
 
 @dataclass(slots=True, kw_only=True)
-class PackFileItemEntry(PackFileBaseEntry):
+class PackFileItem(PackFileBaseEntry):
 
-    entry_pointers: dict[int, tuple[PackFileItemEntry, int]] = field(default_factory=dict)
+    entry_pointers: dict[int, tuple[PackFileItem, int]] = field(default_factory=dict)
     hk_type: tp.Type[hk | hkArray_ | Ptr_] | None = None
     value: None | hk | bool | int | float | list | tuple = None
     # Packer-managed lists of functions that fill in array jumps later.
@@ -177,7 +178,7 @@ class PackFileItemEntry(PackFileBaseEntry):
             )
 
     def __repr__(self):
-        return f"PackFileItemEntry({self.hk_type.__name__ if self.hk_type else None})"
+        return f"PackFileItem({self.hk_type.__name__ if self.hk_type else None})"
 
 
 class PackFileVersion(IntEnum):

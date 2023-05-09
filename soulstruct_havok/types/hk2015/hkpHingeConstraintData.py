@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from soulstruct_havok.enums import *
-from soulstruct_havok.types.core import *
+from .core import *
 from .hkpConstraintData import hkpConstraintData
 from .hkpHingeConstraintDataAtoms import hkpHingeConstraintDataAtoms
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkpHingeConstraintData(hkpConstraintData):
     alignment = 16
     byte_size = 224

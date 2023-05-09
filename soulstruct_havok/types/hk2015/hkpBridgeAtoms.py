@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from soulstruct_havok.enums import *
-from soulstruct_havok.types.core import *
+from .core import *
 from .hkpBridgeConstraintAtom import hkpBridgeConstraintAtom
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkpBridgeAtoms(hk):
     alignment = 16
     byte_size = 32

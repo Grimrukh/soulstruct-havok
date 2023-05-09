@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 from .hkpLimitedForceConstraintMotor import hkpLimitedForceConstraintMotor
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkpPositionConstraintMotor(hkpLimitedForceConstraintMotor):
     alignment = 16
     byte_size = 48

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from soulstruct_havok.enums import *
-from soulstruct_havok.types.core import *
+from .core import *
 from .hkxVertexDescriptionElementDecl import hkxVertexDescriptionElementDecl
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkxVertexDescription(hk):
     alignment = 8
     byte_size = 16

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from soulstruct_havok.enums import *
-from soulstruct_havok.types.core import *
+from .core import *
 from .hkGeometry import hkGeometry
 from .hknpExternMeshShapeGeometry import hknpExternMeshShapeGeometry
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hknpDefaultExternMeshShapeGeometry(hknpExternMeshShapeGeometry):
     alignment = 16
     byte_size = 16

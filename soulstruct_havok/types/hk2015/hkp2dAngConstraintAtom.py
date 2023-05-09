@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 
@@ -8,6 +7,7 @@ from .core import *
 from .hkpConstraintAtom import hkpConstraintAtom
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkp2dAngConstraintAtom(hkpConstraintAtom):
     alignment = 16
     byte_size = 16

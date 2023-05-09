@@ -27,7 +27,7 @@ def create_module_from_files(version: str, *file_paths: str | Path, is_tagfile=T
         "from __future__ import annotations\n"
         "\n"
         "from soulstruct_havok.enums import TagDataType, MemberFlags\n"
-        "from soulstruct_havok.types.core import *\n"
+        "from .core import *\n"
     )
 
     # TODO: Detect if file is tag/pack, then open it, but extract `TypeInfo` list only. (Don't need any generic types.)

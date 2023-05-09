@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from soulstruct_havok.enums import *
-from soulstruct_havok.types.core import *
+from .core import *
 from .hclConstraintSet import hclConstraintSet
 from .hclStretchLinkConstraintSetLink import hclStretchLinkConstraintSetLink
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hclStretchLinkConstraintSet(hclConstraintSet):
     alignment = 8
     byte_size = 56

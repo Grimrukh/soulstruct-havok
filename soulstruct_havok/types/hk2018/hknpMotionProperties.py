@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 
@@ -10,6 +9,7 @@ from .hknpMotionPropertiesDeactivationSettings import hknpMotionPropertiesDeacti
 from .hknpMotionPropertiesFullCastSettings import hknpMotionPropertiesFullCastSettings
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hknpMotionProperties(hk):
     alignment = 16
     byte_size = 112

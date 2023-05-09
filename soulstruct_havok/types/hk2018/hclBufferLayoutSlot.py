@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 from .hclBufferLayoutSlotFlags import hclBufferLayoutSlotFlags
 
 
-
+@dataclass(slots=True, eq=False, repr=False)
 class hclBufferLayoutSlot(hk):
     alignment = 1
     byte_size = 2

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 
@@ -9,6 +8,7 @@ from .hkpStorageExtendedMeshShapeMaterial import hkpStorageExtendedMeshShapeMate
 from .hkpNamedMeshMaterial import hkpNamedMeshMaterial
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkpStorageExtendedMeshShapeMeshSubpartStorage(hkReferencedObject):
     alignment = 8
     byte_size = 144

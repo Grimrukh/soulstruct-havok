@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 
@@ -10,10 +9,7 @@ from .core import *
 from .hclShape import hclShape
 
 
-
-
-
-
+@dataclass(slots=True, eq=False, repr=False)
 class hclCollidable(hkReferencedObject):
     alignment = 16
     byte_size = 160

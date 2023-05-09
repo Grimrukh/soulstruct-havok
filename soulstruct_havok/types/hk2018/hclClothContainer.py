@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 
@@ -8,6 +7,7 @@ from .hclCollidable import hclCollidable
 from .hclClothData import hclClothData
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hclClothContainer(hkReferencedObject):
     alignment = 8
     byte_size = 56

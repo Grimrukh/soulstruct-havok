@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from soulstruct_havok.enums import *
-from soulstruct_havok.types.core import *
+from .core import *
 from .hkpEntitySmallArraySerializeOverrideType import hkpEntitySmallArraySerializeOverrideType
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkpEntityExtendedListeners(hk):
     alignment = 8
     byte_size = 32

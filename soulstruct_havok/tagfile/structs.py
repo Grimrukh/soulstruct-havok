@@ -9,25 +9,26 @@ from soulstruct_havok.enums import TagDataType
 
 if tp.TYPE_CHECKING:
     from soulstruct.utilities.binary import BinaryWriter
-    from soulstruct_havok.types.core import hk, hkArray_, Ptr_
+    from soulstruct_havok.types.hk import hk, HK_TYPE
+    from soulstruct_havok.types.base import Ptr_, hkArray_
 
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class TagFileItem:
-    """Analogous to `PackFileItemEntry` in `packfile`-type HKX files. Appears in "ITEM" section of HKX tagfiles.
+    """Analogous to `PackFileItem` in `packfile`-type HKX files. Appears in "ITEM" section of HKX tagfiles.
 
     HKX types are baked into these instances, rather than the usual reference index, because they are constructed only
     temporarily during tagfile unpack and pack.
     """
 
-    hk_type: tp.Type[hk] | None
+    hk_type: HK_TYPE | None
     value: hk | bool | int | float | list | tuple | None
 
     def __init__(
         self,
-        hk_type: tp.Type[hk],  # may be a pointer or array
+        hk_type: HK_TYPE,  # may be a pointer or array
         absolute_offset=0,
         length=1,
         is_ptr=False,

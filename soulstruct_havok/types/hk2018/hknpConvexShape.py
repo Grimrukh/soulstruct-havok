@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 from .hknpShape import hknpShape
 from .hkHalf16 import hkHalf16
 
 
-
-
+@dataclass(slots=True, eq=False, repr=False)
 class hknpConvexShape(hknpShape):
     alignment = 8
     byte_size = 56

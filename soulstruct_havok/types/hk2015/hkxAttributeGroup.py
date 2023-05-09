@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 from .hkxAttribute import hkxAttribute
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkxAttributeGroup(hk):
     alignment = 8
     byte_size = 24

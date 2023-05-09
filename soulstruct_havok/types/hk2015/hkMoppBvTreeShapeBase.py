@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 
@@ -9,6 +8,7 @@ from .hkpBvTreeShape import hkpBvTreeShape
 from .hkpMoppCode import hkpMoppCode
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkMoppBvTreeShapeBase(hkpBvTreeShape):
     alignment = 16
     byte_size = 80

@@ -9,12 +9,13 @@ from types import ModuleType
 
 from soulstruct.utilities.binary import BinaryReader, ByteOrder
 
-from soulstruct_havok.types.core import hk
+from soulstruct_havok.types import hk2010, hk2014, hk2015, hk2018
+from soulstruct_havok.types.hk import hk
 from soulstruct_havok.types.exceptions import VersionModuleError, TypeNotDefinedError
 from soulstruct_havok.types.info import TypeInfo, get_py_name
+
 from .structs import *
 from .type_unpacker import PackFileTypeUnpacker
-from ..types import hk2010, hk2014, hk2015, hk2018
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -57,11 +58,11 @@ class PackFileUnpacker:
     header: PackFileHeader | None = None
     header_extension: PackFileHeaderExtension | None = None
 
-    type_entries: list[PackFileTypeEntry] = field(default_factory=list)
+    type_entries: list[PackFileType] = field(default_factory=list)
     hk_type_infos: list[TypeInfo] = field(default_factory=list)
     class_names: dict[int, str] = field(default_factory=dict)  # maps class name offsets to names
     class_hashes: dict[str, int] = field(default_factory=dict)  # maps class names to hashes
-    item_entries: list[PackFileItemEntry] = field(default_factory=list)
+    item_entries: list[PackFileItem] = field(default_factory=list)
     root: ROOT_TYPING = None
 
     def unpack(self, reader: BinaryReader, types_only=False):
@@ -160,7 +161,7 @@ class PackFileUnpacker:
 
     @staticmethod
     def localize_pointers(
-        entries: list[PackFileTypeEntry] | list[PackFileItemEntry],
+        entries: list[PackFileType] | list[PackFileItem],
         child_pointers: list[ChildPointerStruct],
         entry_pointers: list[EntryPointerStruct],
     ):
@@ -255,7 +256,7 @@ class PackFileUnpacker:
         type_section_reader: BinaryReader,
         entry_specs: list[EntrySpecStruct],
         section_end_offset: int,
-    ) -> list[PackFileTypeEntry]:
+    ) -> list[PackFileType]:
         """Meow's "virtual fixups" are really just offsets to class names. I don't track them, because they only need
         to be reconstructed again on write.
         """
@@ -269,7 +270,7 @@ class PackFileUnpacker:
                 data_size = section_end_offset - entry_spec.local_data_offset
 
             type_section_reader.seek(entry_spec.local_data_offset)
-            type_entry = PackFileTypeEntry(class_name=class_name)
+            type_entry = PackFileType(class_name=class_name)
             type_entry.unpack(type_section_reader, data_size=data_size, long_varints=self.header.pointer_size == 8)
             type_entries.append(type_entry)
 
@@ -280,7 +281,7 @@ class PackFileUnpacker:
         data_section_reader: BinaryReader,
         item_entry_specs: list[EntrySpecStruct],
         section_end_offset: int,
-    ) -> list[PackFileItemEntry]:
+    ) -> list[PackFileItem]:
         """Assign `raw_data` to each packfile item.
 
         NOTE: Meow's "virtual fixups" are really just offsets to class names. I don't track them, because they only need
@@ -317,7 +318,7 @@ class PackFileUnpacker:
                 data_size = section_end_offset - entry_spec.local_data_offset
 
             data_section_reader.seek(entry_spec.local_data_offset)
-            data_entry = PackFileItemEntry(hk_type=hk_type)
+            data_entry = PackFileItem(hk_type=hk_type)
             data_entry.unpack(data_section_reader, data_size=data_size, long_varints=self.header.pointer_size == 8)
             data_entries.append(data_entry)
 

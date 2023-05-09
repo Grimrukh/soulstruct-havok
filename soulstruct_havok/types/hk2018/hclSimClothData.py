@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 
@@ -24,6 +23,7 @@ from .hclSimClothDataCollidablePinchingData import hclSimClothDataCollidablePinc
 from .hclVirtualCollisionPointsData import hclVirtualCollisionPointsData
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hclSimClothData(hkReferencedObject):
     alignment = 16
     byte_size = 736

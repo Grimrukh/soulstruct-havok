@@ -10,7 +10,7 @@ from soulstruct_havok.enums import PackMemberType, TagFormatFlags, TagDataType, 
 from soulstruct_havok.types.info import TypeInfo, MemberInfo, get_py_name
 
 if tp.TYPE_CHECKING:
-    from .unpacker import PackFileTypeEntry
+    from .unpacker import PackFileType
 
 
 _DEBUG_MSG = False
@@ -44,7 +44,7 @@ class EnumValues(dict[str, int]):
 class PackFileTypeUnpacker:
     """Unpacks type entries into `TypeInfo` instances and assigns `py_class` to them."""
 
-    type_items: list[None | PackFileTypeEntry]
+    type_items: list[None | PackFileType]
     type_hashes: dict[str, int]
     long_varints: bool
     pointer_size: int
@@ -57,7 +57,7 @@ class PackFileTypeUnpacker:
 
     def __init__(
         self,
-        type_items: list[None | PackFileTypeEntry],
+        type_items: list[None | PackFileType],
         type_hashes: dict[str, int],
         pointer_size: int,
         hk_types_module=None,
@@ -127,7 +127,7 @@ class PackFileTypeUnpacker:
 
         return type_infos
 
-    def unpack_type_item(self, entry: PackFileTypeEntry):
+    def unpack_type_item(self, entry: PackFileType):
         if self.long_varints:
             type_item_header = entry.TYPE_STRUCT_64.from_bytes(entry.reader)
         else:
@@ -342,7 +342,7 @@ class PackFileTypeUnpacker:
 
         return type_info
 
-    def unpack_enum_type(self, enum_type_item: PackFileTypeEntry, align_before_name: bool, enum_offset=0) -> EnumValues:
+    def unpack_enum_type(self, enum_type_item: PackFileType, align_before_name: bool, enum_offset=0) -> EnumValues:
         """Unpack and return an `EnumValues` name -> value dictionary.
 
         These are packed on their own, as genuine `type_entries`, and are also embedded inside the class entries that

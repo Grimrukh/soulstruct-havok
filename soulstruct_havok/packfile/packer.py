@@ -9,7 +9,9 @@ from types import ModuleType
 
 from soulstruct.utilities.binary import BinaryWriter, ByteOrder
 
-from soulstruct_havok.types.core import get_py_name, hk, Ptr_
+from soulstruct_havok.types.hk import hk
+from soulstruct_havok.types.base import Ptr_
+from soulstruct_havok.types.info import get_py_name
 from .structs import *
 
 if tp.TYPE_CHECKING:
@@ -26,9 +28,9 @@ class PackFilePacker:
 
     header: PackFileHeader
     # Tracks item entries that have already been created.
-    item_entries: dict[hk, PackFileItemEntry]
+    item_entries: dict[hk, PackFileItem]
     # Tracks item entries that have been packed.
-    packed_items: list[PackFileItemEntry]
+    packed_items: list[PackFileItem]
 
     def __init__(self, hkx: HKX):
         self.hkx = hkx
@@ -118,7 +120,7 @@ class PackFilePacker:
         data_absolute_start = writer.position
         self.item_entries = {}
         self.packed_items = []
-        root_item = PackFileItemEntry(self.hkx.root.__class__, long_varints=header_info.long_varints)  # hkRootLevelContainer
+        root_item = PackFileItem(self.hkx.root.__class__, long_varints=header_info.long_varints)  # hkRootLevelContainer
         root_item.value = self.hkx.root
         self.item_entries[self.hkx.root] = root_item
 
@@ -197,7 +199,7 @@ class PackFilePacker:
         while item_pack_queue:
             sub_data_pack_queue = {"pointer": deque(), "array_or_string": deque()}
             delayed_item_pack = item_pack_queue.popleft()
-            item = delayed_item_pack(sub_data_pack_queue)  # type: PackFileItemEntry
+            item = delayed_item_pack(sub_data_pack_queue)  # type: PackFileItem
 
             # Immediately pack arrays and strings.
             while sub_data_pack_queue["array_or_string"]:

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 from .hkxAttributeHolder import hkxAttributeHolder
@@ -10,6 +9,7 @@ from .hkxMaterialTransparency import hkxMaterialTransparency
 from .hkxMaterialProperty import hkxMaterialProperty
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkxMaterial(hkxAttributeHolder):
     alignment = 16
     byte_size = 224

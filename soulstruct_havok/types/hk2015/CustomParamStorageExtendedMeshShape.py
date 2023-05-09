@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from soulstruct_havok.enums import *
-from soulstruct_havok.types.core import *
+from .core import *
 from .CustomMeshParameter import CustomMeshParameter
 from .hkpStorageExtendedMeshShape import hkpStorageExtendedMeshShape
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class CustomParamStorageExtendedMeshShape(hkpStorageExtendedMeshShape):
     alignment = 16
     byte_size = 368

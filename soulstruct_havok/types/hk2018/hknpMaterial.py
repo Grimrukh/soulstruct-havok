@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 
@@ -16,7 +15,7 @@ from .hknpMaterialMassChangerCategory import hknpMaterialMassChangerCategory
 from .hknpSurfaceVelocity import hknpSurfaceVelocity
 
 
-
+@dataclass(slots=True, eq=False, repr=False)
 class hknpMaterial(hkReferencedObject):
     alignment = 16
     byte_size = 112

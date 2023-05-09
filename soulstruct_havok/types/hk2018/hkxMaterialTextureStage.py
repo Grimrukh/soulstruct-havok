@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 
 from .hkxMaterialTextureType import hkxMaterialTextureType
 
 
-
+@dataclass(slots=True, eq=False, repr=False)
 class hkxMaterialTextureStage(hk):
     alignment = 8
     byte_size = 16

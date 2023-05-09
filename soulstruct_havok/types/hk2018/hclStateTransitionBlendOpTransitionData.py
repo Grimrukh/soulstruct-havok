@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 
@@ -8,7 +7,7 @@ from .hclStateTransitionTransitionType import hclStateTransitionTransitionType
 from .hclBlendSomeVerticesOperatorBlendWeightType import hclBlendSomeVerticesOperatorBlendWeightType
 
 
-
+@dataclass(slots=True, eq=False, repr=False)
 class hclStateTransitionBlendOpTransitionData(hk):
     alignment = 8
     byte_size = 48

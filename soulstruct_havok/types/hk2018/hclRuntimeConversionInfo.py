@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 from .hclRuntimeConversionInfoSlotConversion import hclRuntimeConversionInfoSlotConversion
 from .hclRuntimeConversionInfoElementConversion import hclRuntimeConversionInfoElementConversion
 
 
-
+@dataclass(slots=True, eq=False, repr=False)
 class hclRuntimeConversionInfo(hk):
     alignment = 1
     byte_size = 42

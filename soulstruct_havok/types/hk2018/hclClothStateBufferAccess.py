@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 
 from .hclBufferUsage import hclBufferUsage
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hclClothStateBufferAccess(hk):
     alignment = 4
     byte_size = 16

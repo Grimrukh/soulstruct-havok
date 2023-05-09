@@ -28,7 +28,7 @@ from . import tagfile, packfile, debug
 if tp.TYPE_CHECKING:
     from collections import deque
     from soulstruct.utilities.binary import BinaryReader
-    from soulstruct_havok.packfile.structs import PackFileItemEntry
+    from soulstruct_havok.packfile.structs import PackFileItem
 
 
 class hkBasePointer(hk):
@@ -99,7 +99,7 @@ class Ptr_(hkBasePointer):
         return value
 
     @classmethod
-    def unpack_packfile(cls, entry: PackFileItemEntry, offset: int = None):
+    def unpack_packfile(cls, entry: PackFileItem, offset: int = None):
         offset = entry.reader.seek(offset) if offset is not None else entry.reader.position
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(f"Unpacking `{cls.__name__}`... (-> {cls.get_tag_data_type().name}) <{hex(offset)}>")
@@ -127,9 +127,9 @@ class Ptr_(hkBasePointer):
     @classmethod
     def pack_packfile(
         cls,
-        item: PackFileItemEntry,
+        item: PackFileItem,
         value: hk,
-        existing_items: dict[hk, PackFileItemEntry],
+        existing_items: dict[hk, PackFileItem],
         data_pack_queue: dict[str, deque[tp.Callable]],
     ):
         if debug.DEBUG_PRINT_PACK:
@@ -392,7 +392,7 @@ class hkRelArray_(hkBasePointer):
         return value
 
     @classmethod
-    def unpack_packfile(cls, entry: PackFileItemEntry, offset: int = None) -> list:
+    def unpack_packfile(cls, entry: PackFileItem, offset: int = None) -> list:
         offset = entry.reader.seek(offset) if offset is not None else entry.reader.position
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(f"Unpacking `{cls.__name__}`... ({cls.get_data_type().__name__}) <{hex(offset)}>")
@@ -429,9 +429,9 @@ class hkRelArray_(hkBasePointer):
     @classmethod
     def pack_packfile(
         cls,
-        item: PackFileItemEntry,
+        item: PackFileItem,
         value: tuple,
-        existing_items: dict[hk, PackFileItemEntry],
+        existing_items: dict[hk, PackFileItem],
         data_pack_queue: dict[str, deque[tp.Callable]],
     ):
         """Registers a function that will write the `hkRelArray` contents, and fill its length/jump where appropriate.
@@ -510,7 +510,7 @@ class hkArray_(hkBasePointer):
         return value
 
     @classmethod
-    def unpack_packfile(cls, entry: PackFileItemEntry, offset: int = None):
+    def unpack_packfile(cls, entry: PackFileItem, offset: int = None):
         offset = entry.reader.seek(offset) if offset is not None else entry.reader.position
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(f"Unpacking `{cls.__name__}`... <{hex(offset)}>")
@@ -543,9 +543,9 @@ class hkArray_(hkBasePointer):
     @classmethod
     def pack_packfile(
         cls,
-        item: PackFileItemEntry,
+        item: PackFileItem,
         value: list[hk] | list[int] | list[float] | list[str] | list[bool],
-        existing_items: dict[hk, PackFileItemEntry],
+        existing_items: dict[hk, PackFileItem],
         data_pack_queue: dict[str, deque[tp.Callable]],
     ):
         """Remember that array length can be variable, unlike `hkStruct`."""
@@ -606,7 +606,7 @@ class hkEnum_(hk):
         return cls.storage_type.unpack_tagfile(reader, offset, items)
 
     @classmethod
-    def unpack_packfile(cls, entry: PackFileItemEntry, offset: int = None):
+    def unpack_packfile(cls, entry: PackFileItem, offset: int = None):
         # TODO: Parse using storage type or data type? Storage, I think...
         return cls.storage_type.unpack_packfile(entry, offset)
 
@@ -624,9 +624,9 @@ class hkEnum_(hk):
     @classmethod
     def pack_packfile(
         cls,
-        item: PackFileItemEntry,
+        item: PackFileItem,
         value: tp.Any,
-        existing_items: dict[hk, PackFileItemEntry],
+        existing_items: dict[hk, PackFileItem],
         data_pack_queue: dict[str, deque[tp.Callable]],
     ):
         return cls.storage_type.pack_packfile(item, value, existing_items, data_pack_queue)
@@ -678,7 +678,7 @@ class hkStruct_(hkBasePointer):
         return value
 
     @classmethod
-    def unpack_packfile(cls, entry: PackFileItemEntry, offset: int = None) -> tuple:
+    def unpack_packfile(cls, entry: PackFileItem, offset: int = None) -> tuple:
         offset = entry.reader.seek(offset) if offset is not None else entry.reader.position
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(f"Unpacking `{cls.__name__}`... (Struct) <{hex(offset)}>")
@@ -704,9 +704,9 @@ class hkStruct_(hkBasePointer):
     @classmethod
     def pack_packfile(
         cls,
-        item: PackFileItemEntry,
+        item: PackFileItem,
         value: tp.Any,
-        existing_items: dict[hk, PackFileItemEntry],
+        existing_items: dict[hk, PackFileItem],
         data_pack_queue: dict[str, deque[tp.Callable]],
     ):
         packfile.pack_struct(

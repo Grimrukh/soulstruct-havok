@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from soulstruct_havok.enums import *
+from .core import *
 from .hkpEntity import hkpEntity
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkpRigidBody(hkpEntity):
     alignment = 16
     byte_size = 544

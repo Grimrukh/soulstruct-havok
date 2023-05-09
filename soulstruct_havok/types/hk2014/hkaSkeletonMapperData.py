@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 from .hkaSkeleton import hkaSkeleton
@@ -10,6 +9,7 @@ from .hkaSkeletonMapperDataChainMapping import hkaSkeletonMapperDataChainMapping
 from .hkaSkeletonMapperDataMappingType import hkaSkeletonMapperDataMappingType
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkaSkeletonMapperData(hk):
     alignment = 16
     byte_size = 176

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 from .hkFreeListArrayhknpMaterialhknpMaterialId8hknpMaterialFreeListArrayOperations import hkFreeListArrayhknpMaterialhknpMaterialId8hknpMaterialFreeListArrayOperations
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hknpMaterialLibrary(hkReferencedObject):
     alignment = 16
     byte_size = 64

@@ -2,6 +2,47 @@
 from __future__ import annotations
 
 __all__ = [
+    "dataclass",
+
+    # hk
+    "hk",
+    "HK_TYPE",
+    "TemplateType",
+    "TemplateValue",
+    "Member",
+    "Interface",
+    "DefType",
+
+    # base
+    "hkBasePointer",
+    "hkContainerHeapAllocator",
+    "Ptr_",
+    "hkReflectQualifiedType_",
+    "hkRefPtr_",
+    "hkRefVariant_",
+    "hkViewPtr_",
+    "hkRelArray_",
+    "hkArray_",
+    "hkEnum_",
+    "hkStruct_",
+    "hkFreeListArray_",
+    "hkFlags_",
+
+    # 32-bit factory functions
+    "Ptr",
+    "hkRefPtr",
+    "hkRefVariant",
+    "hkArray",
+    "hkViewPtr",
+    "hkRelArray",
+    "hkEnum",
+    "hkStruct",
+    "hkGenericStruct",
+    "hkFreeListArrayElement",
+    "hkFreeListArray",
+    "hkFlags",
+
+    # hk2010
     "Vector4",
     "hkReflectDetailOpaque",
     "_int",
@@ -50,23 +91,26 @@ __all__ = [
 ]
 
 import typing as tp
+from dataclasses import dataclass
 
 from soulstruct_havok.utilities.maths import Quaternion, TRSTransform, Vector3, Vector4
 from soulstruct_havok.enums import MemberFlags
-from soulstruct_havok.types.core import *
+from soulstruct_havok.types.hk32 import *
 
 if tp.TYPE_CHECKING:
     from soulstruct.utilities.binary import BinaryReader
     from soulstruct_havok.tagfile.structs import TagFileItem
+    from soulstruct_havok.packfile.structs import PackFileItem
 
 
 # --- Invalid Types --- #
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkReflectDetailOpaque(hk):
     alignment = 0
     byte_size = 0
-    tag_format_flags = 9
+    __tag_format_flags = 9
     tag_type_flags = 1
     __real_name = "hkReflect::Detail::Opaque"
     local_members = ()
@@ -75,10 +119,11 @@ class hkReflectDetailOpaque(hk):
 # --- Primitive Types --- #
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class _int(hk):
     alignment = 4
     byte_size = 4
-    tag_format_flags = 9
+    __tag_format_flags = 9
     tag_type_flags = 33284
 
     __hsh = 4062341138
@@ -86,28 +131,31 @@ class _int(hk):
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class _const_char(hk):
     alignment = 4
     byte_size = 4
-    tag_format_flags = 9
+    __tag_format_flags = 9
     tag_type_flags = 3
     __real_name = "const char*"
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class _unsigned_short(hk):
     alignment = 2
     byte_size = 2
-    tag_format_flags = 9
+    __tag_format_flags = 9
     tag_type_flags = 16388
     __real_name = "unsigned short"
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class _char(hk):
     alignment = 1
     byte_size = 1
-    tag_format_flags = 9
+    __tag_format_flags = 9
     tag_type_flags = 8196
 
     __hsh = 4184862313
@@ -115,64 +163,71 @@ class _char(hk):
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class _float(hk):
     alignment = 4
     byte_size = 4
-    tag_format_flags = 9
+    __tag_format_flags = 9
     tag_type_flags = 1525253
     __real_name = "float"
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class _short(hk):
     alignment = 2
     byte_size = 2
-    tag_format_flags = 9
+    __tag_format_flags = 9
     tag_type_flags = 16900
     __real_name = "short"
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class _signed_char(hk):
     alignment = 1
     byte_size = 1
-    tag_format_flags = 9
+    __tag_format_flags = 9
     tag_type_flags = 8708
     __real_name = "signed char"
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class _unsigned_long_long(hk):
     alignment = 8
     byte_size = 8
-    tag_format_flags = 9
+    __tag_format_flags = 9
     tag_type_flags = 65540
     __real_name = "unsigned long long"
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class _unsigned_int(hk):
     alignment = 4
     byte_size = 4
-    tag_format_flags = 9
+    __tag_format_flags = 9
     tag_type_flags = 32772
     __real_name = "unsigned int"
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class _unsigned_char(hk):
     alignment = 1
     byte_size = 1
-    tag_format_flags = 9
+    __tag_format_flags = 9
     tag_type_flags = 8196
     __real_name = "unsigned char"
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class _void(hk):
     alignment = 0
     byte_size = 0
-    tag_format_flags = 25
+    __tag_format_flags = 25
     tag_type_flags = 0
 
     __abstract_value = 1
@@ -183,27 +238,30 @@ class _void(hk):
 # --- Havok Struct Types --- #
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkVector4f(hkStruct(_float, 4)):
     alignment = 16
     byte_size = 16
-    tag_format_flags = 11
+    __tag_format_flags = 11
     tag_type_flags = 1064
     local_members = ()
 
     @classmethod
-    def unpack(cls, reader: BinaryReader, offset: int, items: list[TagFileItem] = None) -> Vector4:
-        # cls.debug_print_unpack(f"Unpacking `{cls.__name__}`... (hkVector4f) <{hex(offset)}>")
-        # cls.increment_debug_indent()
-        value = Vector4(super().unpack(reader, offset, items))
-        # cls.decrement_debug_indent()
-        # cls.debug_print_unpack(f"-> {repr(value)}")
+    def unpack_tagfile(cls, reader: BinaryReader, offset: int, items: list[TagFileItem] = None) -> Vector4:
+        value = Vector4(super(hkVector4f, cls).unpack_tagfile(reader, offset, items))        
+        return value
+    
+    @classmethod
+    def unpack_packfile(cls, entry: PackFileItem, offset: int = None) -> Vector4:
+        value = Vector4(super(hkVector4f, cls).unpack_packfile(entry, offset))        
         return value
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkQuaternionf(hkStruct(_float, 4)):
     alignment = 16
     byte_size = 16
-    tag_format_flags = 43
+    __tag_format_flags = 43
     tag_type_flags = 1064
 
     local_members = (
@@ -214,19 +272,21 @@ class hkQuaternionf(hkStruct(_float, 4)):
     vec: Vector4
 
     @classmethod
-    def unpack(cls, reader: BinaryReader, offset: int, items: list[TagFileItem] = None) -> Quaternion:
-        # cls.debug_print_unpack(f"Unpacking `{cls.__name__}`... (hkQuaternionf) <{hex(offset)}>")
-        # cls.increment_debug_indent()
-        value = Quaternion(super().unpack(reader, offset, items))
-        # cls.decrement_debug_indent()
-        # cls.debug_print_unpack(f"-> {repr(value)}")
+    def unpack_tagfile(cls, reader: BinaryReader, offset: int, items: list[TagFileItem] = None) -> Quaternion:
+        value = Quaternion(super(hkQuaternionf, cls).unpack_tagfile(reader, offset, items))
+        return value
+    
+    @classmethod
+    def unpack_packfile(cls, entry: PackFileItem, offset: int = None) -> Quaternion:
+        value = Quaternion(super(hkQuaternionf, cls).unpack_packfile(entry, offset))
         return value
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkRotationImpl(hkStruct(_float, 4)):
     alignment = 16
     byte_size = 48
-    tag_format_flags = 11
+    __tag_format_flags = 11
     tag_type_flags = 3112
     local_members = ()
 
@@ -235,15 +295,17 @@ class hkRotationImpl(hkStruct(_float, 4)):
     )
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkVector4(hkVector4f):
     """Havok alias."""
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkMatrix3Impl(hkStruct(_float, 4)):
     alignment = 16
     byte_size = 48
-    tag_format_flags = 11
+    __tag_format_flags = 11
     tag_type_flags = 3112
     local_members = ()
 
@@ -252,10 +314,11 @@ class hkMatrix3Impl(hkStruct(_float, 4)):
     )
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkMatrix4f(hkStruct(_float, 16)):
     alignment = 16
     byte_size = 64
-    tag_format_flags = 43
+    __tag_format_flags = 43
     tag_type_flags = 4136
 
     local_members = (
@@ -272,25 +335,29 @@ class hkMatrix4f(hkStruct(_float, 16)):
     col3: Vector4
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkRotationf(hkRotationImpl):
     """Havok alias."""
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkMatrix3f(hkMatrix3Impl):
     """Havok alias."""
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkMatrix4(hkMatrix4f):
     """Havok alias."""
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkTransformf(hkStruct(_float, 16)):
     alignment = 16
     byte_size = 64
-    tag_format_flags = 43
+    __tag_format_flags = 43
     tag_type_flags = 4136
 
     local_members = (
@@ -303,20 +370,23 @@ class hkTransformf(hkStruct(_float, 16)):
     translation: Vector4
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkMatrix3(hkMatrix3f):
     """Havok alias."""
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkTransform(hkTransformf):
     """Havok alias."""
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkQsTransformf(hk):
     alignment = 16
     byte_size = 48
-    tag_format_flags = 41
+    __tag_format_flags = 41
     tag_type_flags = 7
 
     local_members = (
@@ -342,6 +412,7 @@ class hkQsTransformf(hk):
         )
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkQsTransform(hkQsTransformf):
     """Havok alias."""
     __hsh = 3766916239
@@ -351,52 +422,62 @@ class hkQsTransform(hkQsTransformf):
 # --- Havok Wrappers --- #
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkUint16(_unsigned_short):
     """Havok alias."""
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkReal(_float):
     """Havok alias."""
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkInt16(_short):
     """Havok alias."""
     __hsh = 1556469994
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkInt32(_int):
     """Havok alias."""
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkInt8(_signed_char):
     """Havok alias."""
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkUlong(_unsigned_long_long):
     """Havok alias."""
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkUint32(_unsigned_int):
     """Havok alias."""
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkUint8(_unsigned_char):
     """Havok alias."""
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkUint64(_unsigned_long_long):
     """Havok alias."""
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkUintReal(_unsigned_int):
     """Havok alias."""
     local_members = ()
@@ -405,18 +486,20 @@ class hkUintReal(_unsigned_int):
 # --- Havok Core Types --- #
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkBaseObject(hk):
     alignment = 8
     byte_size = 8
-    tag_format_flags = 41
+    __tag_format_flags = 41
     tag_type_flags = 7
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkReferencedObject(hkBaseObject):
     alignment = 8
     byte_size = 8
-    tag_format_flags = 41
+    __tag_format_flags = 41
     tag_type_flags = 7
 
     local_members = (
@@ -429,10 +512,11 @@ class hkReferencedObject(hkBaseObject):
     referenceCount: int
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkRefVariant(hk):
     alignment = 8
     byte_size = 8
-    tag_format_flags = 43
+    __tag_format_flags = 43
     tag_type_flags = 6
 
     __hsh = 2872857893
@@ -445,10 +529,11 @@ class hkRefVariant(hk):
     ptr: hkReferencedObject
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkUFloat8(hk):
     alignment = 2
     byte_size = 1
-    tag_format_flags = 41
+    __tag_format_flags = 41
     tag_type_flags = 7
 
     local_members = (
@@ -459,20 +544,22 @@ class hkUFloat8(hk):
     value: hkUint8
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkContainerHeapAllocator(hk):
     alignment = 1
     byte_size = 1
-    tag_format_flags = 57
+    __tag_format_flags = 57
     tag_type_flags = 7
 
     __abstract_value = 16
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkStringPtr(hk):
     alignment = 4
     byte_size = 4
-    tag_format_flags = 41
+    __tag_format_flags = 41
     tag_type_flags = 3
 
     __hsh = 2837000324
@@ -485,10 +572,11 @@ class hkStringPtr(hk):
     stringAndFlag: _const_char
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkBool(hk):
     alignment = 1
     byte_size = 1
-    tag_format_flags = 41
+    __tag_format_flags = 41
     tag_type_flags = 8194
 
     local_members = (
@@ -499,10 +587,11 @@ class hkBool(hk):
     bool: _char
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkHalf16(hk):
     alignment = 2
     byte_size = 2
-    tag_format_flags = 41
+    __tag_format_flags = 41
     tag_type_flags = 476677
 
     local_members = (

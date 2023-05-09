@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+
+
 import typing as tp
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 from .hkpWorldObject import hkpWorldObject
@@ -17,6 +18,7 @@ if tp.TYPE_CHECKING:
     from .hkpConstraintInstance import hkpConstraintInstance
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkpEntity(hkpWorldObject):
     alignment = 16
     byte_size = 544

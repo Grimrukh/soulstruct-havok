@@ -4,6 +4,7 @@ from __future__ import annotations
 __all__ = [
     # hk
     "hk",
+    "HK_TYPE",
     "TemplateType",
     "TemplateValue",
     "Member",
@@ -47,7 +48,7 @@ from .hk import *
 from .base import *
 
 
-def Ptr(data_type: tp.Type[hk] | DefType, hsh: int = None) -> tp.Type[Ptr_]:
+def Ptr(data_type: HK_TYPE | DefType, hsh: int = None) -> tp.Type[Ptr_]:
     """Create a `_Ptr` subclass dynamically, pointing to a particular type."""
     data_type_name = data_type.type_name if isinstance(data_type, DefType) else data_type.__name__
     # noinspection PyTypeChecker
@@ -59,7 +60,7 @@ def Ptr(data_type: tp.Type[hk] | DefType, hsh: int = None) -> tp.Type[Ptr_]:
     return ptr_type
 
 
-def hkRefPtr(data_type: tp.Type[hk] | DefType, hsh: int = None) -> tp.Type[hkRefPtr_]:
+def hkRefPtr(data_type: HK_TYPE | DefType, hsh: int = None) -> tp.Type[hkRefPtr_]:
     """Create a `_hkRefPtr` subclass dynamically, pointing to a particular type."""
     data_type_name = data_type.type_name if isinstance(data_type, DefType) else data_type.__name__
     # noinspection PyTypeChecker
@@ -71,7 +72,7 @@ def hkRefPtr(data_type: tp.Type[hk] | DefType, hsh: int = None) -> tp.Type[hkRef
     return ptr_type
 
 
-def hkRefVariant(data_type: tp.Type[hk] | DefType, hsh: int = None) -> tp.Type[hkRefVariant_]:
+def hkRefVariant(data_type: HK_TYPE | DefType, hsh: int = None) -> tp.Type[hkRefVariant_]:
     """Create a `hkRefVariant_` subclass dynamically, pointing to a particular type.
 
     Note that the pointed type must always be "hkReferencedObject".
@@ -90,7 +91,7 @@ def hkRefVariant(data_type: tp.Type[hk] | DefType, hsh: int = None) -> tp.Type[h
     return ptr_type
 
 
-def hkArray(data_type: tp.Type[hk] | hkRefPtr_ | hkViewPtr_, hsh: int = None) -> tp.Type[hkArray_]:
+def hkArray(data_type: HK_TYPE | hkRefPtr_ | hkViewPtr_, hsh: int = None) -> tp.Type[hkArray_]:
     """Generates an array class with given `data_type` and (optionally) hash."""
     # noinspection PyTypeChecker
     array_type = type(f"hkArray[{data_type.__name__}]", (hkArray_,), {})  # type: tp.Type[hkArray_]
@@ -113,7 +114,7 @@ def hkViewPtr(data_type_name: str, hsh: int = None) -> tp.Type[hkViewPtr_]:
     return ptr_type
 
 
-def hkRelArray(data_type: tp.Type[hk]) -> tp.Type[hkRelArray_]:
+def hkRelArray(data_type: HK_TYPE) -> tp.Type[hkRelArray_]:
     """Create a `hkRelArray_` subclass dynamically."""
     data_type_name = data_type.type_name if isinstance(data_type, DefType) else data_type.__name__
     # noinspection PyTypeChecker
@@ -122,7 +123,7 @@ def hkRelArray(data_type: tp.Type[hk]) -> tp.Type[hkRelArray_]:
     return rel_array_type
 
 
-def hkEnum(enum_type: tp.Type[hk], storage_type: tp.Type[hk]) -> tp.Type[hkEnum_]:
+def hkEnum(enum_type: HK_TYPE, storage_type: HK_TYPE) -> tp.Type[hkEnum_]:
     """Generates a `_hkEnum` subclass dynamically."""
     # noinspection PyTypeChecker
     wrapper_type = type(f"hkEnum[{enum_type.__name__}]", (hkEnum_,), {})  # type: tp.Type[hkEnum_]
@@ -131,7 +132,7 @@ def hkEnum(enum_type: tp.Type[hk], storage_type: tp.Type[hk]) -> tp.Type[hkEnum_
     return wrapper_type
 
 
-def hkStruct(data_type: tp.Type[hk], length: int) -> tp.Type[hkStruct_]:
+def hkStruct(data_type: HK_TYPE, length: int) -> tp.Type[hkStruct_]:
     """Generates a `hkStruct_` subclass dynamically.
 
     Needs all the basic `hk` information, unfortunately, as it can vary (except `tag_format_flags`, which is always 11).
@@ -147,7 +148,7 @@ def hkStruct(data_type: tp.Type[hk], length: int) -> tp.Type[hkStruct_]:
     return struct_type
 
 
-def hkGenericStruct(data_type: tp.Type[hk], length: int) -> tp.Type[hkStruct_]:
+def hkGenericStruct(data_type: HK_TYPE, length: int) -> tp.Type[hkStruct_]:
     """Generates a `hkStruct_` subclass dynamically.
 
     Needs all the basic `hk` information, unfortunately, as it can vary (except `tag_format_flags`, which is always 11).
@@ -163,17 +164,17 @@ def hkGenericStruct(data_type: tp.Type[hk], length: int) -> tp.Type[hkStruct_]:
     return struct_type
 
 
-def hkFreeListArrayElement(parent_type: tp.Type[hk]):
+def hkFreeListArrayElement(parent_type: HK_TYPE):
     """NOTE: This super-shallow subclass is not represented anywhere else."""
     # noinspection PyTypeChecker
-    element_type = type(f"hkFreeListArrayElement[{parent_type.__name__}]", (parent_type,), {})  # type: tp.Type[hk]
+    element_type = type(f"hkFreeListArrayElement[{parent_type.__name__}]", (parent_type,), {})  # type: HK_TYPE
     element_type.set_tag_format_flags(0)  # shallow subclass
     return element_type  # nothing else to change
 
 
 def hkFreeListArray(
-    elements_data_type: tp.Type[hk],
-    first_free_data_type: tp.Type[hk],
+    elements_data_type: HK_TYPE,
+    first_free_data_type: HK_TYPE,
     elements_hsh: int = None,
 ) -> tp.Type[hkFreeListArray_]:
     if isinstance(elements_data_type, DefType):
@@ -195,7 +196,7 @@ def hkFreeListArray(
     return hk_free_list_array_type
 
 
-def hkFlags(storage_type: tp.Type[hk], hsh: int = None) -> tp.Type[hkFlags_]:
+def hkFlags(storage_type: HK_TYPE, hsh: int = None) -> tp.Type[hkFlags_]:
     # noinspection PyTypeChecker
     flags_type = type(f"hkFlags[{storage_type.__name__}]", (hkFlags_,), {})  # type: tp.Type[hkFlags_]
     flags_type.alignment = storage_type.alignment

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 
@@ -8,6 +7,7 @@ from .core import *
 from .hkcdSimdTreeNode import hkcdSimdTreeNode
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkcdSimdTree(hkBaseObject):
     alignment = 4
     byte_size = 12

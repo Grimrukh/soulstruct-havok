@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from soulstruct_havok.enums import *
-from soulstruct_havok.types.core import *
+from .core import *
 from .hclObjectSpaceDeformerLocalBlockPN import hclObjectSpaceDeformerLocalBlockPN
 from .hclObjectSpaceDeformerLocalBlockUnpackedPN import hclObjectSpaceDeformerLocalBlockUnpackedPN
 from .hclObjectSpaceSkinOperator import hclObjectSpaceSkinOperator
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hclObjectSpaceSkinPNOperator(hclObjectSpaceSkinOperator):
     alignment = 8
     byte_size = 296

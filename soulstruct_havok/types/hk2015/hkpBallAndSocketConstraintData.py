@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 
@@ -9,6 +8,7 @@ from .hkpConstraintData import hkpConstraintData
 from .hkpBallAndSocketConstraintDataAtoms import hkpBallAndSocketConstraintDataAtoms
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkpBallAndSocketConstraintData(hkpConstraintData):
     alignment = 16
     byte_size = 112

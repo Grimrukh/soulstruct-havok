@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 
@@ -8,6 +7,7 @@ from .core import *
 from .hkaAnimatedReferenceFrame import hkaAnimatedReferenceFrame
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkaDefaultAnimatedReferenceFrame(hkaAnimatedReferenceFrame):
     alignment = 16
     byte_size = 96

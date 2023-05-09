@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 from .hkxVertexBufferVertexData import hkxVertexBufferVertexData
 from .hkxVertexDescription import hkxVertexDescription
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkxVertexBuffer(hkReferencedObject):
     alignment = 16
     byte_size = 136

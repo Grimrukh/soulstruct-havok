@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 from .hkaAnimation import hkaAnimation
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkaSplineCompressedAnimation(hkaAnimation):
     alignment = 8
     byte_size = 176

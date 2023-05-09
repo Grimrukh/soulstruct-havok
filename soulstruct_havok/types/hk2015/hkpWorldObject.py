@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 from .hkpLinkedCollidable import hkpLinkedCollidable
@@ -8,6 +7,7 @@ from .hkMultiThreadCheck import hkMultiThreadCheck
 from .hkSimpleProperty import hkSimpleProperty
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkpWorldObject(hkReferencedObject):
     alignment = 8
     byte_size = 200

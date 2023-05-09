@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 from .hknpPhysicsSystemData import hknpPhysicsSystemData
 from .hknpRefWorldCinfo import hknpRefWorldCinfo
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hknpPhysicsSceneData(hkReferencedObject):
     alignment = 16
     byte_size = 40

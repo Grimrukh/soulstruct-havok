@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 from .hkpConvexShape import hkpConvexShape
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkpCapsuleShape(hkpConvexShape):
     alignment = 16
     byte_size = 64

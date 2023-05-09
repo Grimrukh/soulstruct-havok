@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 
@@ -9,6 +8,7 @@ from .hkxVertexBuffer import hkxVertexBuffer
 from .hkxVertexAnimationUsageMap import hkxVertexAnimationUsageMap
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkxVertexAnimation(hkReferencedObject):
     alignment = 8
     byte_size = 208

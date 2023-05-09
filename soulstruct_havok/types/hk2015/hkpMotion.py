@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 from .hkpMotionMotionType import hkpMotionMotionType
@@ -8,6 +7,7 @@ from .hkMotionState import hkMotionState
 from .hkHalf16 import hkHalf16
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkpMotion(hkReferencedObject):
     alignment = 16
     byte_size = 320

@@ -4,7 +4,7 @@ from collections import deque
 
 from colorama import init as colorama_init, Fore
 
-from soulstruct_havok.packfile.structs import PackFileItemEntry
+from soulstruct_havok.packfile.structs import PackFileItem
 from soulstruct_havok.tagfile.structs import TagFileItem
 
 from .base import *
@@ -12,7 +12,7 @@ from .hk import *
 from .info import *
 
 if tp.TYPE_CHECKING:
-    from soulstruct_havok.packfile.structs import PackFileItemEntry
+    from soulstruct_havok.packfile.structs import PackFileItem
 
 
 colorama_init()
@@ -23,7 +23,7 @@ class TypeInfoGenerator:
 
     _DEBUG_PRINT = False
 
-    def __init__(self, items: list[TagFileItem | PackFileItemEntry], hk_types_module):
+    def __init__(self, items: list[TagFileItem | PackFileItem], hk_types_module):
         self.type_infos = {}  # type: dict[str, TypeInfo]
         self._module = hk_types_module
         self._scanned_type_names = set()

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from soulstruct_havok.enums import *
-from soulstruct_havok.types.core import *
+from .core import *
 from .hclBoneSpaceDeformerLocalBlockP import hclBoneSpaceDeformerLocalBlockP
 from .hclBoneSpaceDeformerLocalBlockUnpackedP import hclBoneSpaceDeformerLocalBlockUnpackedP
 from .hclBoneSpaceMeshMeshDeformOperator import hclBoneSpaceMeshMeshDeformOperator
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hclBoneSpaceMeshMeshDeformPOperator(hclBoneSpaceMeshMeshDeformOperator):
     alignment = 8
     byte_size = 224

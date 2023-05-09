@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 
@@ -11,6 +10,7 @@ from .hclClothStateTransformSetAccess import hclClothStateTransformSetAccess
 from .hclStateDependencyGraph import hclStateDependencyGraph
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hclClothState(hkReferencedObject):
     alignment = 8
     byte_size = 104

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from soulstruct_havok.enums import *
-from soulstruct_havok.types.core import *
+from .core import *
 from .hkcdStaticTreeCodec3Axis6 import hkcdStaticTreeCodec3Axis6
 
 
+@dataclass(slots=True, eq=False, repr=False)
 class hkcdStaticTreeDynamicStorage(hk):
     alignment = 4
     byte_size = 12

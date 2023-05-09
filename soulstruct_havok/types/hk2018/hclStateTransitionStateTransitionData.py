@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from soulstruct_havok.types.core import *
 from soulstruct_havok.enums import *
 from .core import *
 from .hclStateTransitionSimClothTransitionData import hclStateTransitionSimClothTransitionData
 from .hclStateTransitionBlendOpTransitionData import hclStateTransitionBlendOpTransitionData
 
 
-
+@dataclass(slots=True, eq=False, repr=False)
 class hclStateTransitionStateTransitionData(hk):
     alignment = 8
     byte_size = 40

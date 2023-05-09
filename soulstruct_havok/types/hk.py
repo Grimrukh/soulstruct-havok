@@ -2,6 +2,7 @@ from __future__ import annotations
 
 __all__ = [
     "hk",
+    "HK_TYPE",
     "TemplateType",
     "TemplateValue",
     "Member",
@@ -26,7 +27,7 @@ from soulstruct_havok.utilities.maths import Quaternion, Vector4
 from . import packfile, tagfile, debug
 
 if tp.TYPE_CHECKING:
-    from soulstruct_havok.packfile.structs import PackFileItemEntry
+    from soulstruct_havok.packfile.structs import PackFileItem
 
 
 # region Supporting Types
@@ -70,7 +71,7 @@ class DefType:
 # endregion
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, eq=False, repr=False)
 class hk:
     """Absolute base of every Havok type."""
 
@@ -103,7 +104,7 @@ class hk:
     __templates: tp.ClassVar[tuple[TemplateValue | TemplateType, ...]] = ()
     __interfaces: tp.ClassVar[tuple[TemplateValue | TemplateType, ...]] = ()
     
-    # No instance variables. All defined by subclasses.
+    # No instance variables in this base class. All defined by subclasses.
 
     def copy(self):
         """Make a deep copy of this `hk` instance by calling `copy()` on `hk`-type members and built-in `deepcopy()` on
@@ -247,7 +248,7 @@ class hk:
         return value
 
     @classmethod
-    def unpack_packfile(cls, entry: PackFileItemEntry, offset: int = None):
+    def unpack_packfile(cls, entry: PackFileItem, offset: int = None):
         """Unpack Python data from a Havok packfile.
 
         If `offset` is None, the `entry.reader` continues from its current position.
@@ -348,9 +349,9 @@ class hk:
     @classmethod
     def pack_packfile(
         cls,
-        item: PackFileItemEntry,
+        item: PackFileItem,
         value: tp.Any,
-        existing_items: dict[hk, PackFileItemEntry],
+        existing_items: dict[hk, PackFileItem],
         data_pack_queue: dict[str, deque[tp.Callable]],
     ):
         """Use this `hk` type to process and pack the Python `value`.
@@ -510,13 +511,13 @@ class hk:
                 # Reference is likely to be circular: a value that has not even finished being written yet (and we
                 # don't know what the instance number will be yet).
                 lines.append(
-                    f"    {member.name} = {member_value.__class__.__name__},"
+                    f"    {member.name} = {member_value.__class__.__name__}(),"
                     f"  # <VIEW>"
                 )
             elif isinstance(member_value, hk):
                 if member_value in instances_shown:
                     lines.append(
-                        f"    {member.name} = {member_value.__class__.__name__},"
+                        f"    {member.name} = {member_value.__class__.__name__}(),"
                         f"  # <{instances_shown.index(member_value)}>")
                 else:
                     lines.append(
@@ -595,5 +596,12 @@ class hk:
         lines.append(")")
         return f"\n{' ' * indent}".join(lines)
 
+    def __eq__(self, other: hk):
+        """Compares by object ID."""
+        return self is other
+
     def __repr__(self):
         return f"{type(self).__name__}()"
+
+
+HK_TYPE = tp.Type[hk]
