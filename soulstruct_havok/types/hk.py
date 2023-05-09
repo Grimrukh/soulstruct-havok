@@ -599,6 +599,10 @@ class hk:
     def __eq__(self, other: hk):
         """Compares by object ID."""
         return self is other
+    
+    def __hash__(self):
+        """Hashes by object ID."""
+        return id(self)
 
     def __repr__(self):
         return f"{type(self).__name__}()"

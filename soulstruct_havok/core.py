@@ -202,6 +202,7 @@ class HKX(GameFile):
 
         return cls(
             unpacker=unpacker,
+            hk_version=unpacker.hk_version,
             hk_format=HavokFileFormat.Packfile,
             root=unpacker.root,
             packfile_header_info=unpacker.get_header_info(),
@@ -215,6 +216,7 @@ class HKX(GameFile):
 
         return cls(
             unpacker=unpacker,
+            hk_version=unpacker.hk_version,
             hk_format=HavokFileFormat.Tagfile,
             root=unpacker.root,
             is_compendium=unpacker.is_compendium,

@@ -90,13 +90,16 @@ def ptde_packfile_test():
     """Test HKX Packfile format with c2240 from Dark Souls: Prepare to Die Edition."""
     # print("Reading Capra Demon animation 0...")
     # capra_anim_0 = HKX.from_path("resources/PTDE/c2240/a00_0000.hkx")
+
     # print("Reading Capra Demon animation 3000...")
     # capra_anim_3000 = HKX.from_path("resources/PTDE/c2240/a00_3000.hkx")
-    # print("Reading Capra Demon skeleton...")
-    # capra_skeleton = HKX.from_path("resources/PTDE/c2240/Skeleton.HKX")
-    print("Reading Capra Demon ragdoll...")
-    capra_ragdoll = HKX.from_path("resources/PTDE/c2240/c2240.hkx")
-    print(capra_ragdoll.get_root_tree_string())
+
+    print("Reading Capra Demon skeleton...")
+    capra_skeleton = HKX.from_path("resources/PTDE/c2240/Skeleton.HKX")
+
+    # print("Reading Capra Demon ragdoll...")
+    # capra_ragdoll = HKX.from_path("resources/PTDE/c2240/c2240.hkx")
+    # print(capra_ragdoll.get_root_tree_string())
 
 
 if __name__ == '__main__':

@@ -22,17 +22,18 @@ __all__ = [
 ]
 
 import typing as tp
+from collections import deque
 
 from soulstruct.utilities.inspection import get_hex_repr
+
 from soulstruct_havok.enums import TagDataType
+from soulstruct_havok.packfile.structs import PackFileItem
 from .info import get_py_name
 
 from . import debug
 
 if tp.TYPE_CHECKING:
-    from collections import deque
     from soulstruct.utilities.binary import BinaryReader
-    from soulstruct_havok.packfile.structs import PackFileItem
     from .hk import hk
     from .base import hkArray_
 

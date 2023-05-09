@@ -28,7 +28,7 @@ class PackFilePacker:
 
     header: PackFileHeader
     # Tracks item entries that have already been created.
-    item_entries: dict[hk, PackFileItem]
+    items: dict[hk, PackFileItem]
     # Tracks item entries that have been packed.
     packed_items: list[PackFileItem]
 
@@ -118,16 +118,16 @@ class PackFilePacker:
 
         # ITEM (DATA) SECTION
         data_absolute_start = writer.position
-        self.item_entries = {}
+        self.items = {}
         self.packed_items = []
-        root_item = PackFileItem(self.hkx.root.__class__, long_varints=header_info.long_varints)  # hkRootLevelContainer
+        root_item = PackFileItem(hk_type=self.hkx.root.__class__, long_varints=header_info.long_varints)
         root_item.value = self.hkx.root
-        self.item_entries[self.hkx.root] = root_item
+        self.items[self.hkx.root] = root_item
 
         def delayed_root_item_pack(_data_pack_queue: dict[str, deque[tp.Callable]]):
             root_item.start_writer()
             self.hkx.root.pack_packfile(
-                root_item, self.hkx.root, self.item_entries, _data_pack_queue
+                root_item, self.hkx.root, self.items, _data_pack_queue
             )
             return root_item
 
@@ -147,7 +147,7 @@ class PackFilePacker:
                 writer.pack("II", item.local_data_offset + source_offset, item.local_data_offset + dest_offset)
         writer.pad_align(16, b"\xFF")
 
-        data_item_pointers_offset = writer.position - data_absolute_start
+        entry_pointers_offset = writer.position - data_absolute_start
         for item in self.packed_items:
             for source_offset, (dest_entry, dest_entry_offset) in item.entry_pointers.items():
                 writer.pack(
@@ -165,8 +165,8 @@ class PackFilePacker:
             writer,
             absolute_data_start=data_absolute_start,
             child_pointers_offset=data_child_pointers_offset,
-            item_pointers_offset=data_item_pointers_offset,
-            item_specs_offset=entry_specs_offset,
+            entry_pointers_offset=entry_pointers_offset,
+            entry_specs_offset=entry_specs_offset,
             exports_offset=end_offset,
             imports_offset=end_offset,
             end_offset=end_offset,

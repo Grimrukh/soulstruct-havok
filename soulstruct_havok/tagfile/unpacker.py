@@ -5,6 +5,7 @@ __all__ = ["MissingCompendiumError", "TagFileUnpacker"]
 import logging
 import typing as tp
 from contextlib import contextmanager
+from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
 
@@ -42,29 +43,18 @@ class MissingCompendiumError(Exception):
     """Raised when a TCRF-type HKX file is given with no compendium HKX."""
 
 
+@dataclass(slots=True)
 class TagFileUnpacker:
     
-    hk_types_version: str
-    hk_types_module: None | ModuleType
-    root: None | hk2015.hkRootLevelContainer | hk2018.hkRootLevelContainer
-    hk_type_infos: list[TypeInfo]
-    items: list[TagFileItem]
-    is_compendium: bool
-    compendium_ids: list[bytes]
-    hsh_overrides: dict[str, int | None]
-    hk_version: str
-
-    def __init__(self):
-
-        self.hk_types_version = ""
-        self.hk_types_module = None
-        self.root = None
-        self.hk_type_infos = []
-        self.items = []
-        self.is_compendium = False
-        self.compendium_ids = []
-        self.hsh_overrides = {}
-        self.hk_version = ""
+    hk_types_version: str = ""
+    hk_types_module: None | ModuleType = None
+    root: None | hk2015.hkRootLevelContainer | hk2018.hkRootLevelContainer = None
+    hk_type_infos: list[TypeInfo] = field(default_factory=list)
+    items: list[TagFileItem] = field(default_factory=list)
+    is_compendium: bool = False
+    compendium_ids: list[bytes] = field(default_factory=list)
+    hsh_overrides: dict[str, int | None] = field(default_factory=dict)
+    hk_version: str = ""
 
     def unpack(self, reader: BinaryReader, compendium: tp.Optional[HKX] = None, types_only=False):
 
