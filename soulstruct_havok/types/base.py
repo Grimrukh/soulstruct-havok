@@ -397,6 +397,8 @@ class hkRelArray_(hkBasePointer):
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(f"Unpacking `{cls.__name__}`... ({cls.get_data_type().__name__}) <{hex(offset)}>")
 
+        if debug.DEBUG_PRINT_UNPACK:
+            debug.increment_debug_indent()
         source_offset = entry.reader.position
         length, jump = entry.reader.unpack("<HH")
         with entry.reader.temp_offset(source_offset + jump):
@@ -408,6 +410,8 @@ class hkRelArray_(hkBasePointer):
                     offset=array_start_offset + i * data_type.byte_size,
                 ) for i in range(length)
             ]
+        if debug.DEBUG_PRINT_UNPACK:
+            debug.decrement_debug_indent()
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(f"-> {value}")
         entry.reader.seek(offset + cls.byte_size)
@@ -550,7 +554,7 @@ class hkArray_(hkBasePointer):
     ):
         """Remember that array length can be variable, unlike `hkStruct`."""
         if debug.DEBUG_PRINT_PACK:
-            debug.debug_print(f"Packing `{cls.__name__}`... (length = {len(value)})")
+            debug.debug_print(f"Packing `{cls.__name__}`... (length = {len(value)}) at {item.writer.position_hex}")
         packfile.pack_array(cls, item, value, existing_items, data_pack_queue)
         if debug.REQUIRE_INPUT:
             input("Continue?")

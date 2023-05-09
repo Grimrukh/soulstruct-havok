@@ -135,7 +135,7 @@ class MemberInfo:
 
     def __repr__(self):
         return (
-            f"MemberInfo(\"{self.name}\", {self.type_py_name} <{self.type_index}>, "
+            f"MemberInfo(\"{self.name}\" | {self.member_py_name}, {self.type_py_name} <{self.type_index}>, "
             f"flags={self.flags}, offset={self.offset})"
         )
 
@@ -430,6 +430,10 @@ class TypeInfo:
         return self._PY_DEF_HEADER + py_def, f"from .{py_name} import {py_name}"
 
     def __repr__(self) -> str:
+        members = "["
+        for m in self.members:
+            members += f"\n        {m},"
+        members += "\n    ]"
         return (
             f"TypeInfo(\n"
             f"    name={self.name},\n"
@@ -442,7 +446,7 @@ class TypeInfo:
             f"    byte_size={self.byte_size},\n"
             f"    alignment={self.alignment},\n"
             f"    abstract_value={self.abstract_value},\n"
-            f"    members={self.members},\n"
+            f"    members={members},\n"
             f"    interfaces={self.interfaces},\n"
             f")"
         )

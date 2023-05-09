@@ -288,29 +288,39 @@ class PackFileUnpacker:
         to be reconstructed again on `pack()`.
         """
         data_entries = []
+        missing_type_infos = {}  # type: dict[str, tuple[str, TypeInfo | None]]
         for i, entry_spec in enumerate(item_entry_specs):
             type_name = self.class_names[entry_spec.type_name_offset]
             type_py_name = get_py_name(type_name)
-            # print(f"Item: {i, type_py_name, entry_spec}")
             try:
                 hk_type = getattr(self.hk_types_module, type_py_name)
             except AttributeError:
-                # Missing type. Print `TypeInfo`.
-                type_info_matches = [t for t in self.hk_type_infos[1:] if t.name == type_name]
-                if not type_info_matches:
-                    # No type info in file.
-                    if type_py_name == type_name:
-                        raise TypeNotDefinedError(
-                            f"Type `{type_py_name}` is unknown and not defined in this file."
-                            if type_py_name == type_name else
-                            f"Type `{type_py_name}` (real name `{type_name}`) is unknown and not defined in this file."
-                        )
-                print(type_info_matches[0])
-                raise TypeNotDefinedError(
-                    f"Type `{type_py_name}` is unknown, but its info was found in this file."
-                    if type_py_name == type_name else
-                    f"Type `{type_py_name}` (real name `{type_name}`) is unknown, but its info was found in this file."
-                )
+                if type_py_name not in missing_type_infos:
+                    # Missing type. Print `TypeInfo` below.
+                    type_info_matches = [t for t in self.hk_type_infos[1:] if t.name == type_name]
+                    if not type_info_matches:
+                        # No type info in file.
+                        missing_type_infos[type_py_name] = (type_name, None)
+                    else:
+                        type_info = type_info_matches[0]
+                        missing_type_infos[type_py_name] = (type_name, type_info)
+                        # Recursively check member types.
+                        members_to_check = type_info.members.copy()
+                        while members_to_check:
+                            member_info = members_to_check.pop(0)
+                            member_type_py_name = get_py_name(member_info.type_py_name)
+                            if (
+                                member_info.type_info
+                                and member_type_py_name not in self.hk_types_module.__dict__
+                                and member_type_py_name not in missing_type_infos
+                            ):
+                                missing_type_infos[member_type_py_name] = (
+                                    member_info.type_info.name, member_info.type_info
+                                )
+                                for member_member_info in member_info.type_info.members:
+                                    members_to_check.append(member_member_info)
+
+                continue  # error will be raised below; skip data loading
 
             if i < len(item_entry_specs) - 1:
                 data_size = item_entry_specs[i + 1].local_data_offset - entry_spec.local_data_offset
@@ -321,6 +331,16 @@ class PackFileUnpacker:
             data_entry = PackFileItem(hk_type=hk_type)
             data_entry.unpack(data_section_reader, data_size=data_size, long_varints=self.header.pointer_size == 8)
             data_entries.append(data_entry)
+
+        if missing_type_infos:
+            for type_py_name, (type_name, type_info) in missing_type_infos.items():
+                if type_info:
+                    print(f"Type `{type_py_name}` (real name `{type_name}`) is unknown, but its type data was found:")
+                    print(type_info)
+                else:
+                    print(f"Type `{type_py_name}` (real name `{type_name}`) is unknown and no type datas was found.")
+            py_names = ", ".join(f"`{type_py_name}`" for type_py_name in missing_type_infos)
+            raise TypeNotDefinedError(f"Types {py_names} are unknown. See above for info to generate Python classes.")
 
         return data_entries
 

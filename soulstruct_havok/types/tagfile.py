@@ -105,8 +105,7 @@ def unpack_class(hk_type: tp.Type[hk], reader: BinaryReader, items: list[TagFile
     NOTE: This is not used for `hkRootLevelContainerNamedVariant`, which uses a special dynamic unpacker to detect the
     appropriate `hkReferencedObject` subclass it points to with its `hkRefVariant` pointer.
     """
-    if instance is None:
-        instance = hk_type()
+    kwargs = {}
     member_start_offset = reader.position
 
     if _DEBUG_PRINT_UNPACK:
@@ -114,7 +113,7 @@ def unpack_class(hk_type: tp.Type[hk], reader: BinaryReader, items: list[TagFile
     for member in hk_type.members:
         if _DEBUG_PRINT_UNPACK:
             debug_print(f"Member '{member.name}' (type `{member.type.__name__}`):")
-        member_value = member.type.unpack(reader, member_start_offset + member.offset, items)
+        member_value = member.type.unpack_tagfile(reader, member_start_offset + member.offset, items)
         if _DEBUG_PRINT_UNPACK:
             debug_print(f"    -> Real type: {type(member_value).__name__}")
         # TODO: For finding the floor material hex offset in map collisions.
@@ -123,8 +122,14 @@ def unpack_class(hk_type: tp.Type[hk], reader: BinaryReader, items: list[TagFile
         #         f"Custom mesh parameter member {member.name} offset: "
         #         f"{hex(member_start_offset + member.offset)} ({member_value})"
         #     )
-        setattr(instance, member.name, member_value)  # type hint will be given in class definition
+        kwargs[member.name] = member_value  # type hint will be given in class definition
     decrement_debug_indent()
+    if instance is None:
+        # noinspection PyArgumentList
+        instance = hk_type(**kwargs)
+    else:
+        for key, value in kwargs.items():
+            setattr(instance, key, value)
     return instance
 
 
@@ -145,7 +150,7 @@ def pack_class(
             debug_print(f"Member '{member.name}' (type `{member.type.__name__}`):")
         # Member offsets may not be perfectly packed together, so we always pad up to the proper offset.
         item.writer.pad_to_offset(member_start_offset + member.offset)
-        member.type.pack(item, value[member.name], items, existing_items, item_creation_queue)
+        member.type.pack_tagfile(item, value[member.name], items, existing_items, item_creation_queue)
     if _DEBUG_PRINT_UNPACK:
         decrement_debug_indent()
 
@@ -181,12 +186,12 @@ def unpack_pointer(data_hk_type: tp.Type[hk], reader: BinaryReader, items: list[
         if item.hk_type.get_tag_data_type() == TagDataType.Class and not is_named_variant:
             # Create and assign instance to item here, before unpacker unpacks its members, so recursive views to
             # it can be assigned to the right instance (as `item.value` will not be None next time).
-            item.value = item.hk_type()
+            item.value = item.hk_type.get_empty_instance()  # all member values are `None` but will be assigned below
             reader.seek(item.absolute_offset)
-            unpack_class(item.hk_type, reader, items, item.value)
+            unpack_class(item.hk_type, reader, items, instance=item.value)
         else:
             # No risk of recursion.
-            item.value = item.hk_type.unpack(reader, item.absolute_offset, items)
+            item.value = item.hk_type.unpack_tagfile(reader, item.absolute_offset, items)
         item.in_process = False
     return item.value
 
@@ -234,7 +239,7 @@ def pack_pointer(
             debug_print(f"{Fore.YELLOW}Created item {len(items)}: {ptr_hk_type.__name__}{Fore.RESET}")
         items.append(new_item)
         new_item.writer = BinaryWriter()
-        # Item does NOT recur `.pack()` here. It is packed when this item is iterated over.
+        # Item does NOT recur `.pack_tagfile()` here. It is packed when this item is iterated over.
         return new_item
 
     item_creation_queue.setdefault("pointer", deque()).append(delayed_item_creation)
@@ -271,7 +276,7 @@ def unpack_array(data_hk_type: tp.Type[hk], reader: BinaryReader, items: list[Ta
             item.value = [Vector4(vector_floats[i:i + 4]) for i in range(0, item.length * 4, 4)]
         else:  # non-primitive; recur on data type `unpack` method
             item.value = [
-                data_hk_type.unpack(
+                data_hk_type.unpack_tagfile(
                     reader,
                     offset=item.absolute_offset + i * data_hk_type.byte_size,
                     items=items,
@@ -356,7 +361,7 @@ def unpack_struct(
         return reader.unpack(f"<{length}f")
     else:  # non-primitive; recur on data type `unpack` method (and do not assume tight packing)
         return tuple(
-            data_hk_type.unpack(
+            data_hk_type.unpack_tagfile(
                 reader,
                 offset=struct_start_offset + i * data_hk_type.byte_size,
                 items=items,
@@ -394,7 +399,7 @@ def pack_struct(
     else:  # non-primitive; recur on data type `pack` method
         for i, element in enumerate(value):
             item.writer.pad_to_offset(struct_start_offset + i * data_hk_type.byte_size)
-            data_hk_type.pack(item, element, items, existing_items, item_creation_queue)
+            data_hk_type.pack_tagfile(item, element, items, existing_items, item_creation_queue)
 
 
 def unpack_string(reader: BinaryReader, items: list[TagFileItem]) -> str:
@@ -460,18 +465,18 @@ def unpack_named_variant(
     hk_type: tp.Type[hk], reader: BinaryReader, items: list[TagFileItem], types_module: dict
 ) -> hk:
     """Detects `variant` type dynamically from `className` member."""
-    instance = hk_type()
+    kwargs = {}
     member_start_offset = reader.position
     # "variant" member type is a subclass of `hkReferencedObject` with name "className".
     name_member, class_name_member, variant_member = hk_type.members[:3]
-    name = name_member.type.unpack(
+    name = name_member.type.unpack_tagfile(
         reader, member_start_offset + name_member.offset, items
     )
-    setattr(instance, name_member.name, name)
-    variant_type_name = class_name_member.type.unpack(
+    kwargs[name_member.name] = name
+    variant_type_name = class_name_member.type.unpack_tagfile(
         reader, member_start_offset + class_name_member.offset, items
     )
-    setattr(instance, class_name_member.name, variant_type_name)
+    kwargs[class_name_member.name] = variant_type_name
     variant_py_name = get_py_name(variant_type_name)
     variant_type = types_module[variant_py_name]
     reader.seek(member_start_offset + variant_member.offset)
@@ -482,8 +487,9 @@ def unpack_named_variant(
     if _DEBUG_PRINT_UNPACK:
         decrement_debug_indent()
         debug_print(f"--> {variant_instance}")
-    setattr(instance, variant_member.name, variant_instance)
-    return instance
+    kwargs[variant_member.name] = variant_instance
+    # noinspection PyArgumentList
+    return hk_type(**kwargs)
 
 
 def pack_named_variant(
@@ -509,13 +515,13 @@ def pack_named_variant(
     item.writer.pad_to_offset(member_start_offset + class_name_member.offset)
     if _DEBUG_PRINT_PACK:
         debug_print(f"Member 'className' (type `{class_name_member.type.__name__}`):")
-    class_name_member.type.pack(item, value["className"], items, existing_items, item_creation_queue)
+    class_name_member.type.pack_tagfile(item, value["className"], items, existing_items, item_creation_queue)
 
     variant_member = hk_type.members[2]
     item.writer.pad_to_offset(member_start_offset + variant_member.offset)
     if _DEBUG_PRINT_PACK:
         debug_print(f"Member 'variant' (type `{variant_member.type.__name__}`):")
-    variant_member.type.pack(item, value["variant"], items, existing_items, item_creation_queue)
+    variant_member.type.pack_tagfile(item, value["variant"], items, existing_items, item_creation_queue)
 
     if _DEBUG_PRINT_UNPACK:
         decrement_debug_indent()

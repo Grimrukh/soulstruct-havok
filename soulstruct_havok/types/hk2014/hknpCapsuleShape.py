@@ -8,15 +8,15 @@ from .hknpConvexPolytopeShape import hknpConvexPolytopeShape
 @dataclass(slots=True, eq=False, repr=False)
 class hknpCapsuleShape(hknpConvexPolytopeShape):
     alignment = 16
-    byte_size = 112
+    byte_size = 96
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     __hsh = 1621581644
 
     local_members = (
-        Member(80, "a", hkVector4),
-        Member(96, "b", hkVector4),
+        Member(64, "a", hkVector4),
+        Member(80, "b", hkVector4),
     )
     members = hknpConvexPolytopeShape.members + local_members
 

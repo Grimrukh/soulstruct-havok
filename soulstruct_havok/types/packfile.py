@@ -79,18 +79,21 @@ def unpack_class(hk_type: tp.Type[hk], entry: PackFileItem, instance=None) -> hk
     """
     kwargs = {}
 
-    if debug.DEBUG_PRINT_UNPACK:
-        debug.increment_debug_indent()
     member_start_offset = entry.reader.position
     for member in hk_type.members:
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(
-                f"Member '{member.name}' at offset {entry.reader.position_hex} (`{member.type.__name__}`):"
+                f"Unpacking member '{member.name}' of type `{member.type.__name__}` at offset {hex(member.offset)} "
+                f"(entry offset {hex(member_start_offset + member.offset)}):"
             )
+        if debug.DEBUG_PRINT_UNPACK:
+            debug.increment_debug_indent()
         member_value = member.type.unpack_packfile(
             entry,
             offset=member_start_offset + member.offset,
         )
+        if debug.DEBUG_PRINT_UNPACK:
+            debug.decrement_debug_indent()
         kwargs[member.name] = member_value
 
     if instance is None:
@@ -100,8 +103,6 @@ def unpack_class(hk_type: tp.Type[hk], entry: PackFileItem, instance=None) -> hk
         for name, value in kwargs.items():
             setattr(instance, name, value)  # type hint will be given in class definition
 
-    if debug.DEBUG_PRINT_UNPACK:
-        debug.decrement_debug_indent()
     return instance
 
 
@@ -122,12 +123,13 @@ def pack_class(
         debug.increment_debug_indent()
     item.pending_rel_arrays.append(deque())
     for member in hk_type.members:
-        if debug.DEBUG_PRINT_PACK:
-            debug.debug_print(
-                f"Member '{member.name}' (type `{type(value[member.name]).__name__} : {member.type.__name__}`):"
-            )
         # Member offsets may not be perfectly packed together, so we always pad up to the proper offset.
         item.writer.pad_to_offset(member_start_offset + member.offset)
+        if debug.DEBUG_PRINT_PACK:
+            debug.debug_print(
+                f"Member '{member.name}' (type `{type(value[member.name]).__name__} : {member.type.__name__}`) "
+                f"at {item.writer.position_hex}:"
+            )
         # TODO: with_flag = member.name != "partitions" ?
         member.type.pack_packfile(item, value[member.name], existing_items, data_pack_queue)
         # TODO: Used to pad to member alignment here, but seems redundant.
@@ -166,6 +168,8 @@ def unpack_pointer(data_hk_type: tp.Type[hk], item: PackFileItem) -> hk | None:
         )
     if pointed_item.value is None:
         # Unpack entry (first time).
+        if debug.DEBUG_PRINT_UNPACK:
+            debug.debug_print(f"Unpacking NEW ITEM: {pointed_item.hk_type.__name__}")
         pointed_item.start_reader()
         if debug.DEBUG_PRINT_UNPACK:
             debug.increment_debug_indent()
@@ -175,7 +179,7 @@ def unpack_pointer(data_hk_type: tp.Type[hk], item: PackFileItem) -> hk | None:
             debug.decrement_debug_indent()
     else:
         if debug.DEBUG_PRINT_UNPACK:
-            debug.debug_print(f"Existing item: {type(pointed_item.value).__name__}")
+            debug.debug_print(f"Existing pointed item: {type(pointed_item.value).__name__}")
     return pointed_item.value
 
 
@@ -186,6 +190,7 @@ def pack_pointer(
     existing_items: dict[hk, PackFileItem],
     data_pack_queue: dict[str, deque[tp.Callable]],
 ):
+    """Pointer to another item, which may or may not have already been created."""
     if value is None:
         # Null pointer. Space is left for a global fixup, but it will never have a fixup.
         item.writer.pack("<V", 0)  # global item fixup
@@ -198,8 +203,8 @@ def pack_pointer(
             debug.debug_print(f"Existing item: {type(existing_items[value]).__name__}")
         return
     else:
-        # NOTE: This uses the data type, NOT the `Ptr` type.
-        new_item = existing_items[value] = PackFileItem(hk_type=data_hk_type)
+        # NOTE: This uses the data type, NOT the `Ptr` type. Copies `long_varints` from source item.
+        new_item = existing_items[value] = PackFileItem(hk_type=data_hk_type, long_varints=item.writer.long_varints)
         new_item.value = value
         item.entry_pointers[item.writer.position] = (new_item, 0)
         item.writer.pack("<V", 0)  # global item fixup
@@ -267,9 +272,15 @@ def pack_array(
     with_flag=True,  # TODO: only found one array that doesn't use the flag (hkaBone["partitions"]).
 ):
     array_ptr_pos = item.writer.position
+    if debug.DEBUG_PRINT_PACK:
+        debug.debug_print(f"Array pointer position: {item.writer.position_hex} ({item.writer.long_varints})")
     item.writer.pack("<V", 0)  # where the fixup would go, if it was actually resolved
+    if debug.DEBUG_PRINT_PACK:
+        debug.debug_print(f"Array length position: {item.writer.position_hex}")
     item.writer.pack("<I", len(value))  # array length
     # Capacity is same as length, and highest bit is enabled (flags "do not free memory", I believe).
+    if debug.DEBUG_PRINT_PACK:
+        debug.debug_print(f"Array cap/flags position: {item.writer.position_hex}")
     item.writer.pack("<I", len(value) | (1 << 31 if with_flag else 0))  # highest bit on
     data_hk_type = array_hk_type.get_data_type()
 
@@ -340,13 +351,17 @@ def unpack_string(entry: PackFileItem) -> str:
         return ""
     if debug.DEBUG_PRINT_UNPACK:
         debug.debug_print(f"Unpacking string at offset {hex(string_offset)}")
-    return entry.reader.unpack_string(offset=string_offset, encoding="shift_jis_2004")
+    string = entry.reader.unpack_string(offset=string_offset, encoding="shift_jis_2004")
+    if debug.DEBUG_PRINT_UNPACK:
+        debug.debug_print(f"-> '{string}'")
+    return string
 
 
 def pack_string(
     item: PackFileItem,
     value: str,
     data_pack_queue: dict[str, deque[tp.Callable]],
+    is_variant_name=False,
 ):
     """Note that string type (like `hkStringPtr`) is never explicitly defined in packfiles, since they do not have
     their own items, unlike in tagfiles."""
@@ -361,7 +376,10 @@ def pack_string(
         item.writer.append(value.encode("shift_jis_2004") + b"\0")
         item.writer.pad_align(16)
 
-    data_pack_queue.setdefault("array_or_string", deque()).append(delayed_string_write)
+    data_pack_queue.setdefault(
+        "name_variant_string" if is_variant_name else "array_or_string",
+        deque(),
+    ).append(delayed_string_write)
 
 
 def unpack_named_variant(
@@ -384,7 +402,7 @@ def unpack_named_variant(
     variant_type = types_module[variant_py_name]
     item.reader.seek(member_start_offset + variant_member.offset)
     if debug.DEBUG_PRINT_UNPACK:
-        debug.debug_print(f"Unpacking named variant: {hk_type.__name__}... <{item.reader.position_hex}>")
+        debug.debug_print(f"Unpacking named variant: {variant_py_name}... <{item.reader.position_hex}>")
         debug.increment_debug_indent()
     variant_instance = unpack_pointer(variant_type, item)
     if debug.DEBUG_PRINT_UNPACK:

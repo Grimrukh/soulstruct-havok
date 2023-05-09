@@ -26,7 +26,7 @@ class hkpLimitedHingeConstraintDataAtoms(hk):
         Member(160, "angMotor", hkpAngMotorConstraintAtom),
         Member(200, "angFriction", hkpAngFrictionConstraintAtom),
         Member(216, "angLimit", hkpAngLimitConstraintAtom),
-        Member(232, "2dAng", hkp2dAngConstraintAtom),
+        Member(232, "_2dAng", hkp2dAngConstraintAtom),
         Member(248, "ballSocket", hkpBallSocketConstraintAtom),
     )
     members = local_members
@@ -36,4 +36,5 @@ class hkpLimitedHingeConstraintDataAtoms(hk):
     angMotor: hkpAngMotorConstraintAtom
     angFriction: hkpAngFrictionConstraintAtom
     angLimit: hkpAngLimitConstraintAtom
+    _2dAng: hkp2dAngConstraintAtom
     ballSocket: hkpBallSocketConstraintAtom

@@ -9,16 +9,16 @@ from .hknpConvexPolytopeShapeFace import hknpConvexPolytopeShapeFace
 @dataclass(slots=True, eq=False, repr=False)
 class hknpConvexPolytopeShape(hknpConvexShape):
     alignment = 16
-    byte_size = 80
+    byte_size = 64
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     __version = 1
 
     local_members = (
-        Member(64, "planes", hkRelArray(hkVector4)),
-        Member(68, "faces", hkRelArray(hknpConvexPolytopeShapeFace)),
-        Member(72, "indices", hkRelArray(hkUint8)),
+        Member(44, "planes", hkRelArray(hkVector4)),
+        Member(48, "faces", hkRelArray(hknpConvexPolytopeShapeFace)),
+        Member(52, "indices", hkRelArray(hkUint8)),
     )
     members = hknpConvexShape.members + local_members
 

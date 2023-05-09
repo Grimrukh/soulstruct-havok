@@ -26,6 +26,11 @@ from soulstruct_havok.utilities.maths import Quaternion, Vector4
 
 from . import packfile, tagfile, debug
 
+try:
+    Self = tp.Self
+except AttributeError:
+    Self = "hk"
+
 if tp.TYPE_CHECKING:
     from soulstruct_havok.packfile.structs import PackFileItem
 
@@ -203,6 +208,15 @@ class hk:
         return cls._TYPES_DICT[type_name]
 
     @classmethod
+    def get_empty_instance(cls) -> Self:
+        """`hk` dataclasses normally do not have any default values, but this method will return an instance with all
+        dataclass fields set to `None`. This is required for unpacking some items that recursively reference themselves,
+        as we need to create the item instance before reading its members.
+        """
+        # noinspection PyArgumentList
+        return cls(**{m.name: None for m in cls.members})
+
+    @classmethod
     def unpack_tagfile(cls, reader: BinaryReader, offset: int, items: list[TagFileItem] = None) -> tp.Any:
         """Unpack a `hk` instance from `reader` for a newer Havok tagfile.
 
@@ -359,7 +373,8 @@ class hk:
         Primitive types and structs can be packed immediately, without creating a new item (whichever item the `writer`
         is currently in is correct). For types with members (Class types), any pointer, array, and string member types
         will cause a new item to be created with its own `BinaryWriter`; this item's data, once complete, will be stored
-        in its `data` attribute, and all items' data can be assembled in order at the end.
+        in its `raw_data` attribute, and all items' data can be appended in order at the end, followed by their internal
+        (child) and external reference pointers.
         """
         if debug.DEBUG_PRINT_PACK:
             debug.debug_print(

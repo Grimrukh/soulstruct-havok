@@ -13,6 +13,7 @@ class hkaAnimationBinding(hkReferencedObject):
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
+    __hsh = 1548920428
     __version = 3
 
     local_members = (

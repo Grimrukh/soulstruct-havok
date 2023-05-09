@@ -117,7 +117,7 @@ class PackFilePacker:
         types_section.fill_type_name_or_type_section(writer, absolute_data_start=writer.position, end_offset=0)
 
         # ITEM (DATA) SECTION
-        data_absolute_start = writer.position
+        data_start_offset = writer.position
         self.items = {}
         self.packed_items = []
         root_item = PackFileItem(hk_type=self.hkx.root.__class__, long_varints=header_info.long_varints)
@@ -138,16 +138,16 @@ class PackFilePacker:
 
         for item in self.packed_items:
             # Packed entry data.
-            item.local_data_offset = writer.position - data_absolute_start  # offset in data section
+            item.local_data_offset = writer.position - data_start_offset  # offset in data section
             writer.append(item.raw_data)
 
-        data_child_pointers_offset = writer.position - data_absolute_start
+        data_child_pointers_offset = writer.position - data_start_offset
         for item in self.packed_items:
             for source_offset, dest_offset in item.child_pointers.items():
                 writer.pack("II", item.local_data_offset + source_offset, item.local_data_offset + dest_offset)
         writer.pad_align(16, b"\xFF")
 
-        entry_pointers_offset = writer.position - data_absolute_start
+        entry_pointers_offset = writer.position - data_start_offset
         for item in self.packed_items:
             for source_offset, (dest_entry, dest_entry_offset) in item.entry_pointers.items():
                 writer.pack(
@@ -155,15 +155,15 @@ class PackFilePacker:
                 )
         writer.pad_align(16, b"\xFF")
 
-        entry_specs_offset = writer.position - data_absolute_start
+        entry_specs_offset = writer.position - data_start_offset
         for item in self.packed_items:
             writer.pack("III", item.local_data_offset, 0, class_name_offsets[item.get_class_name()])
         writer.pad_align(16, b"\xFF")
 
-        end_offset = writer.position - data_absolute_start
+        end_offset = writer.position - data_start_offset
         data_section.fill_multiple(
             writer,
-            absolute_data_start=data_absolute_start,
+            absolute_data_start=data_start_offset,
             child_pointers_offset=data_child_pointers_offset,
             entry_pointers_offset=entry_pointers_offset,
             entry_specs_offset=entry_specs_offset,
@@ -173,6 +173,25 @@ class PackFilePacker:
         )
 
         return writer
+
+    def process_data_pack_queue(self, item_pack_queue: deque[tp.Callable]):
+        while item_pack_queue:
+            sub_data_pack_queue = {"pointer": deque(), "array_or_string": deque()}
+            delayed_item_pack = item_pack_queue.popleft()
+            item = delayed_item_pack(sub_data_pack_queue)  # type: PackFileItem
+
+            # Immediately pack arrays and strings.
+            while sub_data_pack_queue["array_or_string"]:
+                delayed_array_or_string_pack = sub_data_pack_queue["array_or_string"].popleft()
+                item.writer.pad_align(16)
+                delayed_array_or_string_pack(sub_data_pack_queue)  # may enqueue additional "pointer" items
+
+            item.writer.pad_align(16)
+            item.raw_data = bytes(item.writer)
+            self.packed_items.append(item)  # ordered only as they are packed, not created
+
+            # Recur on newly collected items.
+            self.process_data_pack_queue(sub_data_pack_queue["pointer"])
 
     def collect_class_names(self, instance: hk, class_names: list[str]) -> list[str]:
         """Collect names of all `Ptr` data types from `instance`, recursively."""
@@ -191,24 +210,8 @@ class PackFilePacker:
                 for v in member_value:
                     if isinstance(v, hk):
                         if issubclass(member.type.get_data_type(), Ptr_):
-                            class_names.append(type(v).get_real_name())
+                            v_type_name = type(v).get_real_name()
+                            if v_type_name not in class_names:
+                                class_names.append(type(v).get_real_name())
                         self.collect_class_names(v, class_names)
         return class_names
-
-    def process_data_pack_queue(self, item_pack_queue: deque[tp.Callable]):
-        while item_pack_queue:
-            sub_data_pack_queue = {"pointer": deque(), "array_or_string": deque()}
-            delayed_item_pack = item_pack_queue.popleft()
-            item = delayed_item_pack(sub_data_pack_queue)  # type: PackFileItem
-
-            # Immediately pack arrays and strings.
-            while sub_data_pack_queue["array_or_string"]:
-                delayed_array_or_string_pack = sub_data_pack_queue["array_or_string"].popleft()
-                delayed_array_or_string_pack(sub_data_pack_queue)  # may enqueue additional "pointer" items
-
-            item.writer.pad_align(16)  # TODO: could also align when data is packed together
-            item.raw_data = bytes(item.writer)
-            self.packed_items.append(item)  # ordered only as they are packed, not created
-
-            # Recur on newly collected items.
-            self.process_data_pack_queue(sub_data_pack_queue["pointer"])

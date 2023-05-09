@@ -4,12 +4,16 @@ from .hkAabb import hkAabb
 from .hkCompressedMassProperties import hkCompressedMassProperties
 from .hkFreeListArrayhknpMaterialhknpMaterialId8hknpMaterialFreeListArrayOperations import hkFreeListArrayhknpMaterialhknpMaterialId8hknpMaterialFreeListArrayOperations
 from .hkFreeListArrayhknpMotionPropertieshknpMotionPropertiesId8hknpMotionPropertiesFreeListArrayOperations import hkFreeListArrayhknpMotionPropertieshknpMotionPropertiesId8hknpMotionPropertiesFreeListArrayOperations
+from .hkHalf16 import hkHalf16
 from .hkLocalFrame import hkLocalFrame
 from .hkMeshBoneIndexMapping import hkMeshBoneIndexMapping
+from .hkMotionState import hkMotionState
 from .hkRefCountedProperties import hkRefCountedProperties
 from .hkRefCountedPropertiesEntry import hkRefCountedPropertiesEntry
 from .hkRootLevelContainer import hkRootLevelContainer
 from .hkRootLevelContainerNamedVariant import hkRootLevelContainerNamedVariant
+from .hkUFloat8 import hkUFloat8
+
 from .hkaAnimatedReferenceFrame import hkaAnimatedReferenceFrame
 from .hkaAnimatedReferenceFramehkaReferenceFrameTypeEnum import hkaAnimatedReferenceFramehkaReferenceFrameTypeEnum
 from .hkaAnimation import hkaAnimation
@@ -21,6 +25,7 @@ from .hkaAnnotationTrack import hkaAnnotationTrack
 from .hkaAnnotationTrackAnnotation import hkaAnnotationTrackAnnotation
 from .hkaBone import hkaBone
 from .hkaBoneAttachment import hkaBoneAttachment
+from .hkaDefaultAnimatedReferenceFrame import hkaDefaultAnimatedReferenceFrame
 from .hkaMeshBinding import hkaMeshBinding
 from .hkaMeshBindingMapping import hkaMeshBindingMapping
 from .hkaSkeleton import hkaSkeleton
@@ -32,8 +37,8 @@ from .hkaSkeletonMapperDataMappingType import hkaSkeletonMapperDataMappingType
 from .hkaSkeletonMapperDataPartitionMappingRange import hkaSkeletonMapperDataPartitionMappingRange
 from .hkaSkeletonMapperDataSimpleMapping import hkaSkeletonMapperDataSimpleMapping
 from .hkaSkeletonPartition import hkaSkeletonPartition
-from .hkHalf16 import hkHalf16
-from .hkMotionState import hkMotionState
+from .hkaSplineCompressedAnimation import hkaSplineCompressedAnimation
+
 from .hknpBodyCinfo import hknpBodyCinfo
 from .hknpBodyQuality import hknpBodyQuality
 from .hknpBodyQualityLibrary import hknpBodyQualityLibrary
@@ -66,6 +71,8 @@ from .hknpSurfaceVelocity import hknpSurfaceVelocity
 from .hknpWorldCinfo import hknpWorldCinfo
 from .hknpWorldCinfoLeavingBroadPhaseBehavior import hknpWorldCinfoLeavingBroadPhaseBehavior
 from .hknpWorldCinfoSimulationType import hknpWorldCinfoSimulationType
+
+from .hkp3dAngConstraintAtom import hkp3dAngConstraintAtom
 from .hkp2dAngConstraintAtom import hkp2dAngConstraintAtom
 from .hkpAngFrictionConstraintAtom import hkpAngFrictionConstraintAtom
 from .hkpAngLimitConstraintAtom import hkpAngLimitConstraintAtom
@@ -79,6 +86,8 @@ from .hkpConstraintAtomAtomType import hkpConstraintAtomAtomType
 from .hkpConstraintData import hkpConstraintData
 from .hkpConstraintMotor import hkpConstraintMotor
 from .hkpConstraintMotorMotorType import hkpConstraintMotorMotorType
+from .hkpFixedConstraintData import hkpFixedConstraintData
+from .hkpFixedConstraintDataAtoms import hkpFixedConstraintDataAtoms
 from .hkpKeyframedRigidMotion import hkpKeyframedRigidMotion
 from .hkpLimitedForceConstraintMotor import hkpLimitedForceConstraintMotor
 from .hkpLimitedHingeConstraintData import hkpLimitedHingeConstraintData
@@ -93,7 +102,7 @@ from .hkpRagdollMotorConstraintAtom import hkpRagdollMotorConstraintAtom
 from .hkpSetLocalTransformsConstraintAtom import hkpSetLocalTransformsConstraintAtom
 from .hkpSetupStabilizationAtom import hkpSetupStabilizationAtom
 from .hkpTwistLimitConstraintAtom import hkpTwistLimitConstraintAtom
-from .hkUFloat8 import hkUFloat8
+
 from .hkxAttribute import hkxAttribute
 from .hkxAttributeGroup import hkxAttributeGroup
 from .hkxAttributeHolder import hkxAttributeHolder
