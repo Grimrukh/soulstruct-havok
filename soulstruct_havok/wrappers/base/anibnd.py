@@ -55,7 +55,13 @@ class BaseANIBND(Binder, abc.ABC):
     # Can be passed to the constructor to only load certain animations from the Binder.
     animation_ids_to_load: list[int] = field(default_factory=list)
 
-    def __post_init__(self):
+    def load_from_entries(self, *animation_ids_to_load: int):
+        """Load managed HKX skeleton and animations from Binder entries.
+
+        Must be called manually so user has a chance to set `animation_ids_to_load` first.
+        """
+        if animation_ids_to_load is not None:
+            self.animation_ids_to_load = list(animation_ids_to_load)
         if not self.entries:
             # No Binder entries to process. Just check default animation ID assignment.
             if self.default_anim_id is None and len(self.animations_hkx) == 1:
@@ -397,17 +403,19 @@ class BaseANIBND(Binder, abc.ABC):
 
     def auto_retarget_interleaved_animation(
         self,
-        source_manager: BaseANIBND,
+        source_anibnd: BaseANIBND,
         source_anim_id: int,
         dest_anim_id: int,
         bone_name_mapping: dict[str, str | None | list[str]],
     ):
-        """Read `source_anim_id` from `source_manager` and use `bone_name_mapping` to convert the animation tracks to
+        """Read `source_anim_id` from `source_anibnd` and use `bone_name_mapping` to convert the animation tracks to
         `new_anim_id` in this manager.
 
-        `bone_name_mapping` should map the names of bones in THIS skeleton to those in `source_manager`'s skeleton.
+        `bone_name_mapping` should map the names of bones in THIS skeleton to those in the `source_anibnd` skeleton, or
+        `None` if that bone should be ignored (has no corresponding source), or a list of bone names if it should
+        inherit the accumulated transforms of multiple (parent-child) bones.
         """
-        source_animation = source_manager.get_animation_container(source_anim_id)
+        source_animation = source_anibnd.get_animation_container(source_anim_id)
         dest_animation = self.get_animation_container(dest_anim_id)
         source_animation.load_interleaved_data()
         dest_animation.load_interleaved_data()
@@ -439,8 +447,8 @@ class BaseANIBND(Binder, abc.ABC):
                         invert = True
                     else:
                         invert = False
-                    component_transforms = source_manager.get_bone_interleaved_transforms(
-                        component_bone_name, source_anim_id
+                    component_transforms = source_anibnd.get_bone_interleaved_transforms(
+                        source_anibnd.bones_by_name[component_bone_name], source_anim_id
                     )
                     for frame, component_t in zip(new_frames, component_transforms):
                         if invert:
@@ -451,8 +459,8 @@ class BaseANIBND(Binder, abc.ABC):
                 # _LOGGER.info(f"Bone '{bone.name}' mapped to composed source bones: {source_bone}")
             elif isinstance(source_bone, str):
                 # _LOGGER.info(f"Bone '{bone.name}' mapped to source bone '{source_bone}'.")
-                bone_transforms = source_manager.get_bone_interleaved_transforms(
-                    self.bones_by_name[source_bone], source_anim_id
+                bone_transforms = source_anibnd.get_bone_interleaved_transforms(
+                    source_anibnd.bones_by_name[source_bone], source_anim_id
                 )
                 for frame, bone_t in zip(new_frames, bone_transforms):
                     frame.append(copy.deepcopy(bone_t))  # new object
@@ -480,17 +488,17 @@ class BaseANIBND(Binder, abc.ABC):
 
     def auto_retarget_spline_animation(
         self,
-        source_manager: BaseANIBND,
+        source_anibnd: BaseANIBND,
         source_anim_id: int,
         dest_anim_id: int,
         bone_name_mapping: dict[str, str | None | list[str]],
     ):
-        """Read `source_anim_id` from `source_manager` and use `bone_name_mapping` to convert the animation tracks to
+        """Read `source_anim_id` from `source_anibnd` and use `bone_name_mapping` to convert the animation tracks to
         `new_anim_id` in this manager.
 
-        `bone_name_mapping` should map the names of bones in THIS skeleton to those in `source_manager`'s skeleton.
+        `bone_name_mapping` should map the names of bones in THIS skeleton to those in `source_anibnd`'s skeleton.
         """
-        source_animation = source_manager.get_animation_container(source_anim_id)
+        source_animation = source_anibnd.get_animation_container(source_anim_id)
         dest_animation = self.get_animation_container(dest_anim_id)
         source_animation.load_spline_data()
         dest_animation.load_spline_data()
@@ -512,7 +520,7 @@ class BaseANIBND(Binder, abc.ABC):
                 )
             elif isinstance(source_bone_name, str):
                 # _LOGGER.info(f"Bone '{bone.name}' mapped to source bone '{source_bone_name}'.")
-                source_track = source_manager.get_bone_spline_animation_track(
+                source_track = source_anibnd.get_bone_spline_animation_track(
                     self.bones_by_name[source_bone_name], source_anim_id
                 )
                 new_block.append(copy.deepcopy(source_track))

@@ -24,17 +24,17 @@ __all__ = [
 
 import typing as tp
 
+from collections import deque
 from colorama import init as colorama_init, Fore
 from soulstruct.utilities.binary import BinaryReader, BinaryWriter
 from soulstruct.utilities.maths import Vector4
 
 from soulstruct_havok.enums import TagDataType
+from soulstruct_havok.tagfile.structs import TagFileItem
 from .info import get_py_name
 
 if tp.TYPE_CHECKING:
-    from collections import deque
-    from soulstruct_havok.tagfile.structs import TagFileItem
-    from .hk import hk
+    from .hk import hk, HK_TYPE
     from .base import hkArray_, Ptr_, hkRelArray_, hkViewPtr_
 
 _DEBUG_PRINT_UNPACK = False
@@ -305,7 +305,7 @@ def pack_array(
 
     item_index_pos = item.writer.position
     item.writer.pack("<I", 0)  # temporary
-    data_hk_type = array_hk_type.get_data_type()
+    data_hk_type = array_hk_type.get_data_type()  # type: HK_TYPE
 
     def delayed_item_creation(_item_creation_queue) -> TagFileItem:
         item.writer.pack_at(item_index_pos, "<I", len(items))
@@ -331,7 +331,7 @@ def pack_array(
             new_item.writer.pack(f"<{new_item.length}f", *value)
         else:  # non-primitive; recur on data type `pack` method
             for i, element in enumerate(value):
-                data_hk_type.pack(new_item, element, items, existing_items, _item_creation_queue)
+                data_hk_type.pack_tagfile(new_item, element, items, existing_items, _item_creation_queue)
                 new_item.writer.pad_to_offset((i + 1) * data_hk_type.byte_size)
         return new_item
 

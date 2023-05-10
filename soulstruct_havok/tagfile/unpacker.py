@@ -131,7 +131,7 @@ class TagFileUnpacker:
                             _LOGGER.error(error)
                             print(f"\n# {type_info.py_name} NEW MODULE:\n\n" + type_module_def)
                         raise HavokTypeError(
-                            f"{len(clashing_modules)} Havok type match errors occurred. New module strings that match"
+                            f"{len(clashing_modules)} Havok type match errors occurred. New module strings that match "
                             f"the type info in this Havok file have been printed above."
                         )
 

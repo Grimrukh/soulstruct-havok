@@ -5,79 +5,83 @@ from pathlib import Path
 from soulstruct.config import DSR_PATH
 from soulstruct_havok.utilities.maths import *
 
-from soulstruct_havok.wrappers.hkx2015.anibnd import ANIBND as AnimationManagerDS1
-from soulstruct_havok.wrappers.hkx2018.anibnd import AnimationManager as AnimationManagerER
+from soulstruct_havok.wrappers.hkx2015.anibnd import ANIBND as ANIBND_DSR
+from soulstruct_havok.wrappers.hkx2018.anibnd import ANIBND as ANIBND_ER
 
 GAME_CHR_PATH = DSR_PATH + "/chr"
 
 
-DSR_CHR = Path("C:/Steam/steamapps/common/DARK SOULS REMASTERED (NF New)/chr")
-DSR_VAN_CHR = Path("C:/Steam/steamapps/common/DARK SOULS REMASTERED (Vanilla Backup)/chr")
-ER_CHR = Path("C:/Steam/steamapps/common/ELDEN RING (Vanilla)/Game/chr")
+DSR_CHR = Path("C:/Steam/steamapps/common/DARK SOULS REMASTERED (Nightfall)/chr")
+DSR_VAN_CHR = Path("C:/Steam/steamapps/common/DARK SOULS REMASTERED (Vanilla Backup 1.03.0)/chr")
+ER_CHR = Path("C:/Steam/steamapps/common/ELDEN RING (Vanilla 1.09.1)/Game/chr")
 
 
-def do_erdtree_retarget_and_adjustment():
-
-    source_id = 3009
-    dest_id = 3000
+def do_erdtree_retarget_and_adjustment(erdtree_source_id, asylum_dest_id):
 
     print("Reading 2015 animation...")
-    asylum_manager = AnimationManagerDS1.from_anibnd(DSR_VAN_CHR / "c2230.anibnd.dcx", dest_id, from_bak=True)
+    asylum_anibnd = ANIBND_DSR.from_bak(DSR_VAN_CHR / "c2230.anibnd.dcx")
+    asylum_anibnd.load_from_entries(asylum_dest_id)
     print("Reading 2018 animation...")
-    erdtree_manager = AnimationManagerER.from_anibnd(ER_CHR / "c4810.anibnd.dcx", source_id, from_bak=True)
+    erdtree_anibnd = ANIBND_ER.from_bak(ER_CHR / "c4810.anibnd.dcx", erdtree_source_id)
+    erdtree_anibnd.load_from_entries(erdtree_source_id)
 
-    asylum_manager.animations[dest_id].load_spline_data()
-    asylum_manager.animations[dest_id].save_spline_data()
+    asylum_anibnd[asylum_dest_id].load_spline_data()
+    asylum_anibnd[asylum_dest_id].save_spline_data()
 
     print("Converting 2015 spline to interleaved...")
-    asylum_manager.animations[dest_id].spline_to_interleaved()
+    asylum_anibnd[asylum_dest_id].spline_to_interleaved()
     print("Converting 2018 spline to interleaved...")
-    erdtree_manager.animations[source_id].spline_to_interleaved()
+    erdtree_anibnd[erdtree_source_id].spline_to_interleaved()
 
     print("Retargeting Erdtree animation...")
-    asylum_manager.auto_retarget_interleaved_animation(erdtree_manager, source_id, dest_id, RETARGET)
+    asylum_anibnd.auto_retarget_interleaved_animation(
+        erdtree_anibnd, erdtree_source_id, asylum_dest_id, ASYLYM_FROM_ERDTREE_RETARGET
+    )
 
     # TODO: Testing bone length conformation. (Will automatically apply best scale.)
-    # asylum_manager.animations[dest_id].scale(1.17)
-    asylum_manager.conform_all_bone_lengths_in_animation()
-    asylum_manager.realign_foot_to_ground("L Toe1", "R Toe1")
+    # asylum_anibnd.animations[dest_id].scale(1.17)
+    asylum_anibnd.conform_all_bone_lengths_in_animation()
+    asylum_anibnd.realign_foot_to_ground(
+        asylum_anibnd.bones_by_name["L Toe1"],
+        asylum_anibnd.bones_by_name["R Toe1"],
+    )
 
     # erdtree_manager.plot_hierarchy_interleaved_translation("L_Toe0", "y", ylim=(-1, 5))
-    # asylum_manager.plot_hierarchy_interleaved_translation("L Toe0", "y", ylim=(-1, 5))
+    # asylum_anibnd.plot_hierarchy_interleaved_translation("L Toe0", "y", ylim=(-1, 5))
     # plt.show()
     # exit()
 
-    asylum_manager.write_anim_ids_into_anibnd(
-        DSR_VAN_CHR / "c2230.anibnd.dcx", 3000, from_bak=True,
+    # Write interleaved, unadjusted file so adjustment can be done later without needing to retarget.
+    asylum_anibnd.write_anim_ids_into_anibnd(
+        DSR_VAN_CHR / "c2230.anibnd.dcx", asylum_dest_id, from_bak=True,
         write_path=DSR_CHR / "c2230_erdtree_interleaved.anibnd.dcx",
     )
 
-    do_erdtree_adjustment(asylum_manager, source_id)
+    do_erdtree_adjustment(asylum_anibnd, asylum_dest_id)
 
 
 # TODO: Random note: I can speed up Havok array reading with better `struct.unpack` calls. For example, don't call
 #  unpack 2000 times for an array of 2000 floats! Call it once with "2000f" format.
 
 
-def do_erdtree_adjustment(asylum_manager: AnimationManagerDS1 = None, source_id=3000):
+def do_erdtree_adjustment(asylum_anibnd: ANIBND_DSR = None, animation_id=3000):
 
-    if asylum_manager is None:
+    if asylum_anibnd is None:
         print("Reading 2015 animation...")
-        asylum_manager = AnimationManagerDS1.from_anibnd(
-            DSR_CHR / "c2230_erdtree_interleaved.anibnd.dcx", source_id, from_bak=False
-        )
+        asylum_anibnd = ANIBND_DSR.from_bak(DSR_CHR / "c2230_erdtree_interleaved.anibnd.dcx")
+        asylum_anibnd.load_from_entries(animation_id)
 
     print("Making edits to bones...")
 
     # Weapon rotation.
-    asylum_manager.rotate_bone_track(
-        "R_weapon",
+    asylum_anibnd.rotate_bone_track(
+        asylum_anibnd.bones_by_name["R_weapon"],
         rotation=Quaternion.axis((0, 0, 1), 90.0),
         compensate_children=False,  # no children
     )
 
     # # 'Spine1' extension, with compensation.
-    # asylum_manager.transform_bone_track(
+    # asylum_anibnd.transform_bone_track(
     #     "Spine1",
     #     transform=TRSTransform(scale=1.6),
     #     rotate_parent=False,
@@ -85,7 +89,7 @@ def do_erdtree_adjustment(asylum_manager: AnimationManagerDS1 = None, source_id=
     #     rotation_orbits_child="Neck",
     # )
     # # 'Spine1' rotation, WITHOUT compensation.
-    # asylum_manager.transform_bone_track(
+    # asylum_anibnd.transform_bone_track(
     #     "Spine1",
     #     transform=TRSTransform(rotation=Quaternion.axis(0, 1, 0, 10)),
     #     rotate_parent=False,
@@ -94,7 +98,7 @@ def do_erdtree_adjustment(asylum_manager: AnimationManagerDS1 = None, source_id=
     #
     # # Lift up wings.
     # for side in "LR":
-    #     asylum_manager.transform_bone_track(
+    #     asylum_anibnd.transform_bone_track(
     #         f"{side}_wing_00",
     #         transform=TRSTransform(
     #             rotation=Quaternion.axis(0, 1, 0, -75),
@@ -103,7 +107,7 @@ def do_erdtree_adjustment(asylum_manager: AnimationManagerDS1 = None, source_id=
     #         rotate_parent=False,
     #         compensate_children=False,
     #     )
-    #     asylum_manager.rotate_bone_track(
+    #     asylum_anibnd.rotate_bone_track(
     #         f"{side}_wing_00",
     #         rotation=Quaternion.axis(0, 1, 0, 80),
     #         compensate_children=False,
@@ -117,14 +121,14 @@ def do_erdtree_adjustment(asylum_manager: AnimationManagerDS1 = None, source_id=
     #
     # # Shrink gut.
     # # for bone in ("a", "b", "c"):
-    # #     asylum_manager.transform_bone_track(
+    # #     asylum_anibnd.transform_bone_track(
     # #         bone,
     # #         TRSTransform(scale=0.5),
     # #     )
     #
     # # CLAVICLES
     # for side, sign in zip("LR", (1, -1)):
-    #     asylum_manager.transform_bone_track(
+    #     asylum_anibnd.transform_bone_track(
     #         f"{side} Clavicle",
     #         TRSTransform(
     #             rotation=Quaternion.axis(0, 0, 1, sign * 110),
@@ -139,7 +143,7 @@ def do_erdtree_adjustment(asylum_manager: AnimationManagerDS1 = None, source_id=
     #
     # # UPPER ARMS
     # for side, sign in zip("LR", (1, -1)):
-    #     asylum_manager.transform_bone_track(
+    #     asylum_anibnd.transform_bone_track(
     #         f"{side} UpperArm",
     #         TRSTransform(
     #             rotation=Quaternion.axis(0, 0, 1, sign * -10),
@@ -152,7 +156,7 @@ def do_erdtree_adjustment(asylum_manager: AnimationManagerDS1 = None, source_id=
     #
     # # UP ARM TWIST
     # for side in "LR":
-    #     asylum_manager.transform_bone_track(
+    #     asylum_anibnd.transform_bone_track(
     #         f"{side}UpArmTwist",
     #         TRSTransform(
     #             scale=0.8,
@@ -165,7 +169,7 @@ def do_erdtree_adjustment(asylum_manager: AnimationManagerDS1 = None, source_id=
     #
     # # FORE ARMS
     # # for side, sign in zip("LR", (1, -1)):
-    # #     asylum_manager.transform_bone_track(
+    # #     asylum_anibnd.transform_bone_track(
     # #         f"{side} Forearm",
     # #         TRSTransform(
     # #             rotation=Quaternion.axis(0, 0, 1, sign * -30),
@@ -176,8 +180,8 @@ def do_erdtree_adjustment(asylum_manager: AnimationManagerDS1 = None, source_id=
     # #     )
     #
     # def match_bone(bone_, target_, do_translation=False, do_rotation=True):
-    #     bone_tfs_ = asylum_manager.get_bone_interleaved_transforms(bone_)
-    #     target_tfs_ = asylum_manager.get_bone_interleaved_transforms(target_)
+    #     bone_tfs_ = asylum_anibnd.get_bone_interleaved_transforms(bone_)
+    #     target_tfs_ = asylum_anibnd.get_bone_interleaved_transforms(target_)
     #     for b_, t_ in zip(bone_tfs_, target_tfs_):
     #         if do_translation:
     #             b_.translation = t_.translation
@@ -194,17 +198,17 @@ def do_erdtree_adjustment(asylum_manager: AnimationManagerDS1 = None, source_id=
     # match_bone("LThighTwist", "L Thigh")
     # match_bone("RThighTwist", "R Thigh")
 
-    window = asylum_manager.plot_interleaved_skeleton_on_frame(15, focus_bone="Neck")
+    window = asylum_anibnd.plot_interleaved_skeleton_on_frame(15, focus_bone="Neck")
     window.show()
     window.run()
 
-    # TODO: Don't need to convert back to splines for DSAS.
-    # print(f"Converting interleaved anim to spline...")
-    # asylum_manager.convert_interleaved_to_spline_anim(3000)
+    # TODO: Don't need to convert back to splines for mere DSAS viewing.
+    print(f"Converting interleaved anim to spline...")
+    asylum_anibnd.convert_interleaved_to_spline_anim(animation_id)
 
     print("Writing into ANIBND for DSR...")
-    asylum_manager.write_anim_ids_into_anibnd(
-        DSR_VAN_CHR / "c2230.anibnd.dcx", 3000, from_bak=True,
+    asylum_anibnd.write_anim_ids_into_anibnd(
+        DSR_VAN_CHR / "c2230.anibnd.dcx", animation_id, from_bak=True,
         write_path=DSR_CHR / "c2230.anibnd.dcx",
     )
 
@@ -212,7 +216,7 @@ def do_erdtree_adjustment(asylum_manager: AnimationManagerDS1 = None, source_id=
 
 
 # Maps Asylum Demon bones to Erdtree Avatar bones.
-RETARGET = {
+ASYLYM_FROM_ERDTREE_RETARGET = {
 
     # Erdtree Master contains some rotation only, which we absorb into Root (now Master).
     "Master": ("Master", "Root"),
@@ -384,11 +388,33 @@ RETARGET = {
 }
 
 
+ERDTREE_ANIMATIONS = {
+    3000: "Two-handed downward swing on right.",
+    3001: "Two-handed downward swing on left.",
+    3002: "Two-handed swipe from right to left.",
+    3003: "Two-handed backhand swipe from left to right.",
+    3005: "Two-handed scoop from right to left.",
+    3006: "Two-handed downward smash.",
+    3007: "Right-handed leaping downward swing.",
+    3008: "Butt slam.",
+    3009: "Upward casting.",
+    3010: "Running two-handed golf swing on right.",
+    3011: "Two-handed swipe from left to right.",  # combo after 3010
+    3012: "Two-handed downward swing on right.",  # combo after 3011
+    3015: "Foot stomp.",
+    3016: "Butt slam.",
+    3020: "Strafing left (for split).",
+    3021: "Fade in strafing right (for split).",
+}
+
+
 def print_bone_trees():
     print("Reading 2015 animation...")
-    asylum_manager = AnimationManagerDS1.from_anibnd(DSR_VAN_CHR / "c2230.anibnd.dcx", 3000, from_bak=True)
+    asylum_manager = ANIBND_DSR.from_bak(DSR_VAN_CHR / "c2230.anibnd.dcx")
+    asylum_manager.load_from_entries(3000)
     print("Reading 2018 animation...")
-    erdtree_manager = AnimationManagerER.from_anibnd(ER_CHR / "c4810.anibnd.dcx", 3000, from_bak=True)
+    erdtree_manager = ANIBND_ER.from_bak(ER_CHR / "c4810.anibnd.dcx")
+    erdtree_manager.load_from_entries(3000)
 
     print("Asylum Demon bone tree:")
     asylum_manager.skeleton.print_bone_tree()
@@ -399,6 +425,6 @@ def print_bone_trees():
 
 if __name__ == '__main__':
     # print_bone_trees()
-    do_erdtree_retarget_and_adjustment()
+    # TODO: Code runs fine, but dest animation is unchanged in game. I suspect I'm not saving data somewhere in there.
+    do_erdtree_retarget_and_adjustment(3015, 3002)
     # do_erdtree_adjustment()
-    # quat_test()

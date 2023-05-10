@@ -7,7 +7,8 @@ import typing as tp
 from types import ModuleType
 
 from soulstruct_havok.enums import MemberFlags
-from soulstruct_havok.types.core import *
+from soulstruct_havok.types.hk import hk
+from soulstruct_havok.types.base import hkBasePointer
 
 
 class HKConversionError(Exception):
@@ -53,8 +54,8 @@ def convert_hk(
 
     TODO: `NonSerializable` members should be defaultable (0, None, or empty, I imagine).
     """
-    dest_object = dest_object_type()
-    dest_object_member_names = dest_object.get_member_names()
+    dest_kwargs = {}
+    dest_object_member_names = dest_object_type.get_member_names()
     handled_dest_member_names = []
 
     for member_name in source_object.get_member_names():
@@ -62,7 +63,7 @@ def convert_hk(
 
         if member_name not in dest_object_member_names:
             if source_error_handler:
-                handled_names = source_error_handler(source_object, member_name, source_member_value, dest_object)
+                handled_names = source_error_handler(source_object, member_name, source_member_value, dest_kwargs)
                 if handled_names is not None:  # could be empty (e.g., deleted members)
                     handled_dest_member_names += handled_names
                     continue
@@ -132,29 +133,30 @@ def convert_hk(
         else:  # primitive (could still be a class such as `Vector4`, so we copy)
             dest_member_value = copy.deepcopy(source_member_value)
 
-        setattr(dest_object, member_name, dest_member_value)
+        dest_kwargs[member_name] = dest_member_value
         handled_dest_member_names.append(member_name)
 
     # Check that all dest members were handled.
-    for dest_member_name in dest_object.get_member_names():
+    for dest_member_name in dest_object_type.get_member_names():
         if dest_member_name not in handled_dest_member_names:
-            if dest_error_handler and dest_error_handler(dest_object, dest_member_name):
+            if dest_error_handler and dest_error_handler(dest_object_type, dest_kwargs, dest_member_name):
                 continue
-            dest_member = dest_object.get_member(dest_member_name)
+            dest_member = dest_object_type.get_member(dest_member_name)
             if dest_member.extra_flags & MemberFlags.NotSerializable:
                 try:
                     default = dest_member.type.get_default_value()
                 except ValueError:
                     raise HKConversionError(
-                        f"Non-serialized member '{dest_member_name}' of destination `{dest_object.get_type_name()}` "
-                        f"was never set and no default value is available."
+                        f"Non-serialized member '{dest_member_name}' of destination "
+                        f"`{dest_object_type.get_type_name()}` was never set and no default value is available."
                     )
                 else:
-                    setattr(dest_object, dest_member_name, default)
+                    dest_kwargs[dest_member_name] = default
                     continue
             raise HKConversionError(
-                f"Serialized member '{dest_member_name}' of destination `{dest_object.get_type_name()}` was never set "
-                f"and no default value is available."
+                f"Serialized member '{dest_member_name}' of destination `{dest_object_type.get_type_name()}` was never "
+                f"set and no default value is available."
             )
 
-    return dest_object
+    # noinspection PyArgumentList
+    return dest_object_type(**dest_kwargs)

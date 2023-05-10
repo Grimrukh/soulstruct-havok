@@ -1,6 +1,7 @@
 import typing as tp
 
 __all__ = [
+    "QS_TRANSFORM",
     "ANIMATION_CONTAINER_T",
     "ANIMATION_T",
     "ANIMATION_BINDING_T",
@@ -16,6 +17,16 @@ __all__ = [
 ]
 
 from soulstruct_havok.types import hk2010, hk2014, hk2015, hk2018
+
+
+# region Basic
+QS_TRANSFORM = tp.TypeVar(
+    "QS_TRANSFORM",
+    hk2010.hkQsTransform,
+    hk2014.hkQsTransform,
+    hk2015.hkQsTransform,
+    hk2018.hkQsTransform,
+)
 
 
 # region Animations
@@ -44,6 +55,7 @@ INTERLEAVED_ANIMATION_T = tp.TypeVar(
     "INTERLEAVED_ANIMATION_T",
     hk2010.hkaInterleavedUncompressedAnimation,
     hk2015.hkaInterleavedUncompressedAnimation,
+    hk2018.hkaInterleavedUncompressedAnimation,
 )
 SPLINE_ANIMATION_T = tp.TypeVar(
     "SPLINE_ANIMATION_T",

@@ -249,7 +249,7 @@ class AnimationContainer(tp.Generic[
             self.load_spline_data()
 
         try:
-            interleaved_cls = self.types_module.hkaInterleavedUncompressedAnimation
+            interleaved_cls = self.types_module.hkaInterleavedUncompressedAnimation  # type: INTERLEAVED_ANIMATION_T
         except AttributeError:
             raise TypeError("No `hkaInterleavedUncompressedAnimation` class exists for this Havok version.")
 
@@ -264,22 +264,11 @@ class AnimationContainer(tp.Generic[
         for frame in self.interleaved_data:
             transforms += [qs_transform_cls.from_trs_transform(t) for t in frame]
 
-        # TODO: Some arguments will differ for older versions. Move to abstract method.
-        animation = interleaved_cls(
-            memSizeAndFlags=0,
-            refCount=0,
-            type=1,  # correct for all Havok versions
-            duration=self.animation.duration,
-            numberOfTransformTracks=self.animation.numberOfTransformTracks,
-            numberOfFloatTracks=self.animation.numberOfFloatTracks,
-            extractedMotion=self.animation.extractedMotion,
-            annotationTracks=self.animation.annotationTracks,
-            transforms=transforms,
-            floats=[],  # TODO: Not sure if this is ever used.
-        )
+        # All `hkaInterleavedUncompressedAnimation` instances have this conversion class method.
+        interleaved_animation = interleaved_cls.from_spline_animation(self.animation, transforms)
 
         # Set Havok instance.
-        self.animation_container.animations = [animation]
+        self.animation_container.animations = [interleaved_animation]
 
         self.spline_data = None
 

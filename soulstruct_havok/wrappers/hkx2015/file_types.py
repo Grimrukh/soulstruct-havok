@@ -8,19 +8,22 @@ __all__ = [
     "RagdollHKX",
     "RemoAnimationHKX",
     "MapCollisionHKX",
+    "AnimationContainerType",
+    "SkeletonType",
+    "SkeletonMapperType",
+    "PhysicsDataType",
 ]
 
 import logging
 import subprocess as sp
 import typing as tp
-from dataclasses import dataclass
 from pathlib import Path
 
 from soulstruct.containers import DCXType
 
 from soulstruct_havok.core import HavokFileFormat
 from soulstruct_havok.packfile.structs import PackFileVersion, PackfileHeaderInfo
-from soulstruct_havok.types import hk, hk2010, hk2015
+from soulstruct_havok.types import hk2010, hk2015
 from soulstruct_havok.types.hk2015 import *
 from soulstruct_havok.wrappers.base import *
 from soulstruct_havok.wrappers.base.file_types import (
@@ -96,9 +99,9 @@ class AnimationHKX(BaseAnimationHKX):
         elif self.animation_container.is_interleaved:
             self.animation_container.save_interleaved_data()
 
-        def source_handler(_, name: str, value, dest: hk):
+        def source_handler(_, name: str, value, dest_kwargs: dict[str, tp.Any]):
             if name == "refCount":
-                setattr(dest, "referenceCount", value)
+                dest_kwargs["referenceCount"] = value
                 return ["referenceCount"]
             if name in ("partitionIndices", "frameType"):  # absent from 2010
                 return []
@@ -108,6 +111,7 @@ class AnimationHKX(BaseAnimationHKX):
         root2010 = convert_hk(self.root, hk2010.hkRootLevelContainer, hk2010, source_handler)
         print(f"2015 to 2010 time: {time.perf_counter() - t}")
         return AnimationHKX2010(
+            dcx_type=DCXType.Null,
             root=root2010,
             hk_format=HavokFileFormat.Packfile,
             hk_version="2010",
@@ -125,14 +129,14 @@ class AnimationHKX(BaseAnimationHKX):
     @classmethod
     def from_2010_hkx(cls, hkx2010: AnimationHKX2010) -> AnimationHKX:
 
-        def source_handler(_, name: str, value, dest: hk):
+        def source_handler(_, name: str, value, dest_kwargs: dict[str, tp.Any]):
             if name == "referenceCount":
-                setattr(dest, "refCount", value)
+                dest_kwargs["refCount"] = value
                 return ["refCount"]
 
-        def dest_handler(dest: hk, name: str):
-            if isinstance(dest, hk2015.hkaAnimationBinding) and name == "partitionIndices":
-                dest.partitionIndices = []
+        def dest_handler(dest_type: tp.Type[hk], dest_kwargs: dict[str, tp.Any], name: str):
+            if dest_type is hk2015.hkaAnimationBinding and name == "partitionIndices":
+                dest_kwargs["partitionIndices"] = []
                 return True
             return False
 
@@ -140,7 +144,12 @@ class AnimationHKX(BaseAnimationHKX):
         t = time.perf_counter()
         root2015 = convert_hk(hkx2010.root, hk2015.hkRootLevelContainer, hk2015, source_handler, dest_handler)
         print(f"2015 to 2010 time: {time.perf_counter() - t}")
-        return cls(root=root2015, hk_format=HavokFileFormat.Tagfile, hk_version="2015")
+        return cls(
+            dcx_type=DCXType.DCX_DFLT_10000_24_9,
+            root=root2015,
+            hk_format=HavokFileFormat.Tagfile,
+            hk_version="2015",
+        )
 
 
 @dataclass(slots=True)

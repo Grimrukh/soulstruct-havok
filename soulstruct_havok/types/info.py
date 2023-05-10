@@ -11,6 +11,7 @@ __all__ = [
 ]
 
 import typing as tp
+from dataclasses import dataclass, field
 
 from soulstruct_havok.enums import TagDataType, TagFormatFlags, MemberFlags
 
@@ -33,19 +34,14 @@ def get_py_name(real_name: str) -> str:
     return py_name
 
 
+@dataclass(slots=True, repr=False)
 class TemplateInfo:
     """Simple container for an unpacked template name and value."""
     name: str
-    value: None | int  # will be a type index if name starts with 't'
-    type_info: None | TypeInfo
-    type_py_name: None | str
+    value: None | int = -1  # will be a type index if name starts with 't'
 
-    def __init__(self, name: str, value: int = -1, type_info: TypeInfo = None, type_py_name: str = None):
-        self.name = name
-        self.value = value
-
-        self.type_info = type_info
-        self.type_py_name = type_py_name
+    type_info: None | TypeInfo = None
+    type_py_name: None | str = None
 
     def indexify(self, type_py_names: list[str]):
         if self.name.startswith("t"):
@@ -66,41 +62,21 @@ class TemplateInfo:
         return f"TemplateInfo(\"{self.name}\", {self.value})"
 
 
+@dataclass(slots=True, repr=False)
 class MemberInfo:
     """Simple container for information about a specific member of a single type."""
     name: str
     flags: int
     offset: int
-    type_index: tp.Optional[int]
-    type_info: tp.Optional[TypeInfo]
-    type_py_name: tp.Optional[str]
+
+    type_index: int | None = None
+    type_info: TypeInfo | None = None
+    type_py_name: str | None = None
 
     # Attributes used temporaneously by Python auto-generator.
-    member_py_name: None | str
-    type_hint: None | str
-    required_types: list[str]
-
-    def __init__(
-        self,
-        name: str,
-        flags: int,
-        offset: int,
-        type_index: int = None,
-        type_info: TypeInfo = None,
-        type_py_name: str = None,
-    ):
-        self.name = name
-        self.flags = flags
-        self.offset = offset
-        self.type_index = type_index
-
-        # Deindexified attributes.
-        self.type_info = type_info
-        self.type_py_name = type_py_name
-
-        self.member_py_name = None
-        self.type_hint = None
-        self.required_types = []
+    member_py_name: str | None = None
+    type_hint: str | None = None
+    required_types: list[str] = field(default_factory=list)
 
     def indexify(self, type_py_names: list[str]):
         try:
@@ -140,19 +116,14 @@ class MemberInfo:
         )
 
 
+@dataclass(slots=True, repr=False)
 class InterfaceInfo:
     """Simple container for information about an interface of a single type."""
     flags: int
-    type_index: tp.Optional[int]
-    type_info: tp.Optional[TypeInfo]
-    type_py_name: tp.Optional[str]
 
-    def __init__(self, flags: int, type_index: int = None, type_info: TypeInfo = None, type_py_name: str = None):
-        self.flags = flags
-        self.type_index = type_index
-
-        self.type_info = type_info
-        self.type_py_name = type_py_name
+    type_index: int | None = None
+    type_info: TypeInfo | None = None
+    type_py_name: str | None = None
 
     def indexify(self, type_py_names: list[str]):
         self.type_index = type_py_names.index(self.type_py_name)
@@ -161,6 +132,7 @@ class InterfaceInfo:
         return f"InterfaceInfo({self.flags}, <{self.type_py_name}>)"
 
 
+@dataclass(slots=True, repr=False)
 class TypeInfo:
     """Holds information about a type, temporarily. Designed to correspond 1-for-1 with types unpacked from tagfiles,
     including all generic types like hkArray, T*, T[N], etc.
@@ -169,59 +141,39 @@ class TypeInfo:
     against known types, and to help add to those known types if new.
     """
 
-    GENERIC_TYPE_NAMES = [
+    GENERIC_TYPE_NAMES: tp.ClassVar[list[str]] = [
         "hkArray", "hkEnum", "hkRefPtr", "hkRefVariant", "hkViewPtr", "T*", "T[N]", "hkRelArray", "hkFlags",
         "hkFreeListArray", "hkFreeListArrayElement",
     ]
 
-    templates: list[TemplateInfo]
-    parent_type_index: None | int
-    tag_format_flags: None | int
-    tag_type_flags: None | int
-    pointer_type_index: None | int
-    version: None | int
-    byte_size: None | int
-    alignment: None | int
-    abstract_value: None | int
-    members: list[MemberInfo]
-    interfaces: list[InterfaceInfo]
-    hsh: None | int
-
-    parent_type_info: None | TypeInfo
-    parent_type_py_name: None | str
-    pointer_type_info: None | TypeInfo
-    pointer_type_py_name: None | str
-
-    py_class: tp.Optional[tp.Type[hk]]
-
-    _PY_DEF_HEADER = (
+    _PY_DEF_HEADER: tp.ClassVar[str] = (
         "from __future__ import annotations\n\n"
         "from soulstruct_havok.types.core import *\n"
         "from soulstruct_havok.enums import *\n"
         "from .core import *\n\n\n"
     )
 
-    def __init__(self, name: str):
-        self.name = name
-        self.templates = []
-        self.parent_type_index = None
-        self.tag_format_flags = None
-        self.tag_type_flags = None
-        self.pointer_type_index = None
-        self.version = None
-        self.byte_size = None
-        self.alignment = None
-        self.abstract_value = None
-        self.members = []
-        self.interfaces = []
-        self.hsh = None
+    name: str
 
-        self.parent_type_info = None
-        self.parent_type_py_name = None
-        self.pointer_type_info = None
-        self.pointer_type_py_name = None
+    templates: list[TemplateInfo] = field(default_factory=list)
+    parent_type_index: int | None = None
+    tag_format_flags: int | None = None
+    tag_type_flags: int | None = None
+    pointer_type_index: int | None = None
+    version: int | None = None
+    byte_size: int | None = None
+    alignment: int | None = None
+    abstract_value: int | None = None
+    members: list[MemberInfo] = field(default_factory=list)
+    interfaces: list[InterfaceInfo] = field(default_factory=list)
+    hsh: int | None = None
 
-        self.py_class = None
+    parent_type_info: TypeInfo | None = None
+    parent_type_py_name: str | None = None
+    pointer_type_info: TypeInfo | None = None
+    pointer_type_py_name: str | None = None
+
+    py_class: tp.Type[hk] | None = None
 
     def indexify(self, type_py_names: list[str]):
         """Use `type_py_names` indices and `self.py_class`, if present, to fill in indices.
@@ -256,14 +208,14 @@ class TypeInfo:
                 return member
         raise ValueError(f"Could not find member with name '{name}' in `TypeInfo` '{self.name}'.")
 
-    def get_parent_value(self, field: str):
-        """Iterate up parent types until a non-zero value for `field` is found."""
-        child_value = getattr(self, field)
+    def get_parent_value(self, field_name: str):
+        """Iterate up parent types until a non-zero value for `field_name` is found."""
+        child_value = getattr(self, field_name)
         if child_value is not None:
             return child_value
         if self.parent_type_info is None:
-            raise ValueError(f"No parent to check for `TypeInfo` {self.name} to retrieve \"{field}\".")
-        return self.parent_type_info.get_parent_value(field)
+            raise ValueError(f"No parent to check for `TypeInfo` {self.name} to retrieve \"{field_name}\".")
+        return self.parent_type_info.get_parent_value(field_name)
 
     @property
     def tag_data_type(self) -> tp.Optional[TagDataType]:
@@ -320,11 +272,11 @@ class TypeInfo:
             py_parent_name = py_class.__bases__[-1].__name__
             if self.parent_type_py_name != py_parent_name:
                 raise TypeMatchError(py_class, "parent", py_parent_name, self.parent_type_py_name)
-        for field in ("tag_type_flags", "byte_size", "alignment"):
-            py_value = getattr(py_class, field)
-            new_value = self.get_parent_value(field)
+        for field_name in ("tag_type_flags", "byte_size", "alignment"):
+            py_value = getattr(py_class, field_name)
+            new_value = self.get_parent_value(field_name)
             if py_value != new_value:
-                raise TypeMatchError(py_class, field, py_value, new_value, binary=field == "tag_type_flags")
+                raise TypeMatchError(py_class, field_name, py_value, new_value, binary=field_name == "tag_type_flags")
         for non_inherited_field in ("tag_format_flags", "hsh", "abstract_value", "version"):
             py_value = getattr(py_class, f"get_{non_inherited_field}")()
             new_value = getattr(self, non_inherited_field)
@@ -334,6 +286,12 @@ class TypeInfo:
                     changes["hsh"] = new_value
                     # print(f"WARNING: {TypeMatchError(py_class, non_inherited_field, py_value, new_value)}")
                 else:
+                    print(dir(py_class))
+                    print("ERR:", py_class.__name__, non_inherited_field, py_value, new_value)
+                    print(getattr(py_class, "_hkMatrix4__tag_format_flags"))
+                    print(py_class.get_type_name(True))
+                    print(py_class.get_tag_format_flags())
+                    exit()
                     raise TypeMatchError(py_class, non_inherited_field, py_value, new_value)
         # Check member info.
         if (py_member_count := len(py_class.local_members)) != (new_member_count := len(self.members)):
@@ -450,4 +408,3 @@ class TypeInfo:
             f"    interfaces={self.interfaces},\n"
             f")"
         )
-

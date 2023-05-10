@@ -1,18 +1,25 @@
+"""Generate `TypeInfo` instances to pack to tagfiles by iterating over `TagFileItem` instances.
+
+Designed (painfully) to mimic the type ordering of real Havok files, and seems to do well on that front.
+
+Uses 64-bit pointers, as 32-bit tagfiles are not known to exist and probably never will.
+
+TODO: My library cannot current pack type information to packfiles. Something like this would probably be needed to
+    do that, though (in addition to serializing the `TypeInfo` class into packfiles, which involves some weirdness).
+"""
+from __future__ import annotations
+
+__all__ = ["TypeInfoGenerator"]
 
 import typing as tp
 from collections import deque
 
 from colorama import init as colorama_init, Fore
 
-from soulstruct_havok.packfile.structs import PackFileItem
 from soulstruct_havok.tagfile.structs import TagFileItem
 
-from .base import *
-from .hk import *
+from .hk64 import *
 from .info import *
-
-if tp.TYPE_CHECKING:
-    from soulstruct_havok.packfile.structs import PackFileItem
 
 
 colorama_init()
@@ -23,7 +30,7 @@ class TypeInfoGenerator:
 
     _DEBUG_PRINT = False
 
-    def __init__(self, items: list[TagFileItem | PackFileItem], hk_types_module):
+    def __init__(self, items: list[TagFileItem], hk_types_module):
         self.type_infos = {}  # type: dict[str, TypeInfo]
         self._module = hk_types_module
         self._scanned_type_names = set()

@@ -145,11 +145,11 @@ class Ptr_(hkBasePointer):
 
         type_info.templates = [TemplateInfo("tT", type_py_name=pointer_type_py_name)]
         type_info.pointer_type_py_name = pointer_type_py_name
-        type_info.tag_format_flags = cls.get_tag_format_flags()
+        type_info.tag_format_flags = cls.__tag_format_flags
         type_info.tag_type_flags = cls.tag_type_flags
         type_info.byte_size = cls.byte_size
         type_info.alignment = cls.alignment
-        type_info.hsh = cls.get_hsh()
+        type_info.hsh = cls.get_hsh()  # pointer type specific (or `None`)
         return type_info
 
     @classmethod
@@ -188,7 +188,7 @@ class hkReflectQualifiedType_(Ptr_):
         type_info.templates = [
             TemplateInfo("tTYPE", type_py_name="hkReflectType"),
         ]
-        type_info.tag_format_flags = cls.get_tag_format_flags()
+        type_info.tag_format_flags = cls.__tag_format_flags
         type_info.tag_type_flags = cls.tag_type_flags
         type_info.byte_size = cls.byte_size
         type_info.alignment = cls.alignment
@@ -232,7 +232,7 @@ class hkRefPtr_(Ptr_):
         type_info.templates = [
             TemplateInfo("tTYPE", type_py_name=cls.get_data_type().__name__),
         ]
-        type_info.tag_format_flags = cls.get_tag_format_flags()
+        type_info.tag_format_flags = cls.__tag_format_flags
         type_info.tag_type_flags = cls.tag_type_flags
         type_info.byte_size = cls.byte_size
         type_info.alignment = cls.alignment
@@ -259,7 +259,7 @@ class hkRefVariant_(Ptr_):
         type_info = TypeInfo("hkRefVariant")
         type_info.py_class = cls
 
-        type_info.tag_format_flags = cls.get_tag_format_flags()
+        type_info.tag_format_flags = cls.__tag_format_flags
         type_info.tag_type_flags = cls.tag_type_flags
         type_info.byte_size = cls.byte_size
         type_info.alignment = cls.alignment
@@ -328,11 +328,11 @@ class hkViewPtr_(hkBasePointer):
         type_info.templates = [
             TemplateInfo("tTYPE", type_py_name=data_type_name),
         ]
-        type_info.tag_format_flags = cls.get_tag_format_flags()
+        type_info.tag_format_flags = cls.__tag_format_flags
         type_info.tag_type_flags = cls.tag_type_flags
         type_info.byte_size = cls.byte_size
         type_info.alignment = cls.alignment
-        type_info.abstract_value = cls.get_abstract_value()
+        type_info.abstract_value = cls.__abstract_value
         type_info.pointer_type_py_name = data_type_name
         # `hkViewPtr` hash is actually its pointer's hash; `hkViewPtr` has no hash.
         type_info.members = [
@@ -569,10 +569,10 @@ class hkArray_(hkBasePointer):
             TemplateInfo("tT", type_py_name=data_type_py_name),
             TemplateInfo("tAllocator", type_py_name="hkContainerHeapAllocator"),
         ]
-        type_info.tag_format_flags = 43
-        type_info.tag_type_flags = 8
-        type_info.byte_size = 16
-        type_info.alignment = 8
+        type_info.tag_format_flags = cls.__tag_format_flags
+        type_info.tag_type_flags = cls.tag_type_flags
+        type_info.byte_size = cls.byte_size
+        type_info.alignment = cls.alignment
         type_info.hsh = cls.get_hsh()
         type_info.pointer_type_py_name = data_type_py_name
         type_info.members = [

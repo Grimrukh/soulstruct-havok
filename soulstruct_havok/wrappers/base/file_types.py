@@ -143,7 +143,9 @@ class ClothHKX(BaseWrappedHKX, abc.ABC):
     cloth_physics_data: ClothPhysicsData = None
 
     def __post_init__(self):
-        self.cloth_physics_data = ClothPhysicsData(self.TYPES_MODULE, self.get_variant(0, *PHYSICS_DATA_T.__constraints__))
+        self.cloth_physics_data = ClothPhysicsData(
+            self.TYPES_MODULE, self.get_variant(0, *PHYSICS_DATA_T.__constraints__)
+        )
 
 
 @dataclass(slots=True)
