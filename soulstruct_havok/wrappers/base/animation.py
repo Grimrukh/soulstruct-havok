@@ -31,6 +31,7 @@ class AnimationContainer(tp.Generic[
     """
 
     types_module: ModuleType | None
+    # TODO: confusing to have the same name as this class. Change to `hkx_animation_container`?
     animation_container: ANIMATION_CONTAINER_T
 
     # Loaded upon first use or explicit `load_spline_data()` call. Will be resaved on `pack()` if present, or with

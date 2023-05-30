@@ -15,7 +15,7 @@ from .type_vars import SKELETON_T, SKELETON_MAPPER_T, BONE_T
 _LOGGER = logging.getLogger(__name__)
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True, frozen=True, repr=False)
 class Bone(tp.Generic[SKELETON_T]):
     """Wraps the various `hkaBone` Havok classes to add explicit parent references, index information, and so on."""
     _skeleton: SKELETON_T
@@ -63,6 +63,10 @@ class Bone(tp.Generic[SKELETON_T]):
 
         return children
 
+    def __repr__(self) -> str:
+        parent = self.parent.name if self.parent else None
+        return f"{self.__class__.__name__}(index={self.index}, name={self.name!r}, parent={parent!r})"
+
 
 class Skeleton(tp.Generic[SKELETON_T, BONE_T], abc.ABC):
     """Loads HKX objects that are found in a "Skeleton" HKX file (inside `anibnd` binder, usually `Skeleton.HKX`)."""
@@ -71,6 +75,7 @@ class Skeleton(tp.Generic[SKELETON_T, BONE_T], abc.ABC):
     skeleton: SKELETON_T
 
     bones: list[Bone]
+    # TODO: Can't print this dictionary because `Bone` recursively references `Skeleton`...
     bones_by_name: None | dict[str, Bone]  # only available if all names are unique
 
     def __init__(self, types_module: ModuleType, skeleton: SKELETON_T):

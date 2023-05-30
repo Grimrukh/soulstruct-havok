@@ -167,18 +167,27 @@ class RemoAnimationHKX(BaseWrappedHKX, abc.ABC):
     # TODO: What does the top-level name of this skeleton mean? Seems to just be first bone, but that's also usually a
     #  collision, so it could be used...?
 
-    def get_named_root_bones(self) -> dict[str, Bone]:
+    def get_root_bones_by_name(self) -> dict[str, Bone]:
         """Returns a dictionary mapping each root bone part name to its root bone, for easy access from FLVER."""
         return {bone.name: bone for bone in self.skeleton.get_root_bones()}
 
-    def get_part_bones(self, part_name: str, root_bone_name="master") -> dict[str, Bone]:
-        """Returns a dictionary mapping standard bone names to the name-prefixed bones in this HKX."""
-        part_root_bones = self.get_named_root_bones()
+    def get_part_bones(self, part_name: str, root_bone_name="master", bone_prefix="") -> dict[str, Bone]:
+        """Returns a dictionary mapping standard bone names to the name-prefixed bones in this HKX (if one exists).
+
+        `bone_prefix` will default to `part_name` if left empty (but that may have a 'AXXBXX_' prefix).
+        """
+        part_root_bones = self.get_root_bones_by_name()
         if part_name not in part_root_bones:
-            raise ValueError(f"Part name '{part_name}' does not have a root bone in this `RemoAnimationHKX`.")
+            raise ValueError(
+                f"Part name '{part_name}' has no root bone in this `RemoAnimationHKX`. Bones: {part_root_bones}"
+            )
         part_bones = {root_bone_name: part_root_bones[part_name]}
-        prefix = part_name + "_"
-        part_bones |= {bone.name.removeprefix(prefix): bone for bone in part_root_bones[part_name].get_all_children()}
+        if not bone_prefix:
+            bone_prefix = part_name + "_"
+        part_bones |= {
+            bone.name.removeprefix(bone_prefix): bone
+            for bone in part_root_bones[part_name].get_all_children()
+        }
         return part_bones
 
     def get_all_part_arma_space_transforms_in_frame(

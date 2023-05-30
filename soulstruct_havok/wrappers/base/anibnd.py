@@ -52,7 +52,7 @@ class BaseANIBND(Binder, abc.ABC):
     # `default_anim_id` will be set to a single animation if only one is loaded. This allows various animation-affecting
     # methods to be used without specifying that lone animation ID every time. It can also be passed in manually.
     default_anim_id: int | None = None
-    # Can be passed to the constructor to only load certain animations from the Binder.
+    # Can be passed to `load_from_entries()` to only load certain animations from the Binder.
     animation_ids_to_load: list[int] = field(default_factory=list)
 
     def load_from_entries(self, *animation_ids_to_load: int):
