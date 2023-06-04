@@ -177,9 +177,13 @@ class Quaternion:
 
     # region Arithmetic
 
-    def dot(self, other: Quaternion | np.ndarray) -> Quaternion:
-        """Simple element-wise multiplication."""
-        return Quaternion([self.data[i] * other.data[i] for i in range(4)])
+    def dot(self, other: Quaternion | np.ndarray) -> int:
+        """Simple element-wise multiplication and sum."""
+        return sum(self.data[i] * other.data[i] for i in range(4))
+    
+    def __neg__(self) -> Quaternion:
+        """Negate all elements."""
+        return Quaternion([-v for v in self.data])
 
     def __add__(self, other: Quaternion | float) -> Quaternion:
         """Simple element-wise addition."""
@@ -190,6 +194,8 @@ class Quaternion:
     def __mul__(self, other: float):
         """Scalar multiplication."""
         return Quaternion([v * other for v in self.data])
+    
+    # NOTE: There is no method that does element-wise multiplication.
 
     __rmul__ = __mul__  # commutative
 

@@ -92,7 +92,7 @@ class Ptr_(hkBasePointer):
         """Just a pointer."""
         reader.seek(offset)
         if debug.DEBUG_PRINT_UNPACK:
-            debug.debug_print(f"Unpacking `{cls.__name__}`... ({cls.get_tag_data_type().name})")
+            debug.debug_print(f"Unpacking `{cls.__name__}`... ({cls.get_tag_data_type().name}) <{hex(offset)}>")
         value = tagfile.unpack_pointer(cls.get_data_type(), reader, items)
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(f"-> {value}")
@@ -293,7 +293,7 @@ class hkViewPtr_(hkBasePointer):
         """Identical to `Ptr`."""
         reader.seek(offset)
         if debug.DEBUG_PRINT_UNPACK:
-            debug.debug_print(f"Unpacking `{cls.__name__}`... ({cls.get_tag_data_type().name})")
+            debug.debug_print(f"Unpacking `{cls.__name__}`... ({cls.get_tag_data_type().name}) <{hex(offset)}>")
         value = tagfile.unpack_pointer(cls.get_data_type(), reader, items)
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(f"-> {value}")
@@ -395,7 +395,7 @@ class hkRelArray_(hkBasePointer):
     def unpack_packfile(cls, entry: PackFileItem, offset: int = None) -> list:
         offset = entry.reader.seek(offset) if offset is not None else entry.reader.position
         if debug.DEBUG_PRINT_UNPACK:
-            debug.debug_print(f"Unpacking `{cls.__name__}`... ({cls.get_data_type().__name__}) <{hex(offset)}>")
+            debug.debug_print(f"Unpacking `{cls.__name__}`... ({cls.get_data_type().__name__}) <Entry @ {hex(offset)}>")
 
         if debug.DEBUG_PRINT_UNPACK:
             debug.increment_debug_indent()
@@ -503,7 +503,7 @@ class hkArray_(hkBasePointer):
     ) -> list:
         reader.seek(offset)
         if debug.DEBUG_PRINT_UNPACK:
-            debug.debug_print(f"Unpacking `{cls.__name__}`...")
+            debug.debug_print(f"Unpacking `{cls.__name__}`... <{hex(offset)}>")
             debug.increment_debug_indent()
         value = tagfile.unpack_array(cls.get_data_type(), reader, items)
         if debug.DEBUG_PRINT_UNPACK:
@@ -685,7 +685,7 @@ class hkStruct_(hkBasePointer):
     def unpack_packfile(cls, entry: PackFileItem, offset: int = None) -> tuple:
         offset = entry.reader.seek(offset) if offset is not None else entry.reader.position
         if debug.DEBUG_PRINT_UNPACK:
-            debug.debug_print(f"Unpacking `{cls.__name__}`... (Struct) <{hex(offset)}>")
+            debug.debug_print(f"Unpacking `{cls.__name__}`... (Struct) <Entry @ {hex(offset)}>")
             debug.increment_debug_indent()
         value = packfile.unpack_struct(cls.get_data_type(), entry, length=cls.length)
         if debug.DEBUG_PRINT_UNPACK:

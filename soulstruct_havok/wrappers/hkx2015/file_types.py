@@ -62,13 +62,14 @@ class AnimationHKX(BaseAnimationHKX):
     root: hkRootLevelContainer = None
     animation_container: AnimationContainerType = None
 
-    def to_spline_animation(self) -> AnimationHKX:
-        """Uses Horkrux's compiled converter to convert interleaved to spline.
+    def get_spline_hkx(self) -> AnimationHKX:
+        """Uses Horkrux's compiled converter to convert interleaved HKX to spline HKX.
 
-        Returns an entire new Havok 2010 instance of an `AnimationHKX` file.
+        Returns an entire new instance of this class.
         """
         if not self.animation_container.is_interleaved:
             raise TypeError("Can only convert interleaved animations to spline animations.")
+        dcx_type = self.dcx_type
         _LOGGER.debug("Downgrading to 2010...")
         hkx2010 = self.to_2010_hkx()
         _LOGGER.debug("Writing 2010 file...")
@@ -83,7 +84,14 @@ class AnimationHKX(BaseAnimationHKX):
         _LOGGER.debug("Reading 2010 spline-compressed animation...")
         hkx2010_spline = AnimationHKX2010.from_path("__temp_spline__.hkx")
         _LOGGER.debug("Upgrading to 2015...")
-        anim_2015 = AnimationHKX.from_2010_hkx(hkx2010_spline)
+        anim_2015 = self.__class__.from_2010_hkx(hkx2010_spline, dcx_type=dcx_type)
+
+        # Clean-up: restore hash overrides, change binding to refer to same animation, and change animation type.
+        anim_2015.hsh_overrides = self.hsh_overrides.copy()
+        for i, anim in enumerate(anim_2015.animation_container.animation_container.animations):
+            anim_2015.animation_container.animation_container.bindings[i].animation = anim
+            anim.type = 3  # spline-compressed in Havok 2015 (was 5 in Havok 2010)
+
         _LOGGER.info("Successfully converted interleaved animation to hk2015 spline animation.")
         return anim_2015
 
@@ -127,7 +135,12 @@ class AnimationHKX(BaseAnimationHKX):
         )
 
     @classmethod
-    def from_2010_hkx(cls, hkx2010: AnimationHKX2010) -> AnimationHKX:
+    def from_2010_hkx(cls, hkx2010: AnimationHKX2010, dcx_type: DCXType = None) -> AnimationHKX:
+        """Construct a 2015 Havok animation tagfile from a 2010 Havok animation packfile.
+
+        `dcx_type` defaults to be the same as `hkx2010`. It does NOT default to the standard DSR DCX type, because most
+        HKX files appear inside compressed binders and are NOT compressed themselves.
+        """
 
         def source_handler(_, name: str, value, dest_kwargs: dict[str, tp.Any]):
             if name == "referenceCount":
@@ -140,12 +153,15 @@ class AnimationHKX(BaseAnimationHKX):
                 return True
             return False
 
+        if dcx_type is None:
+            dcx_type = hkx2010.dcx_type
+
         import time
         t = time.perf_counter()
         root2015 = convert_hk(hkx2010.root, hk2015.hkRootLevelContainer, hk2015, source_handler, dest_handler)
-        print(f"2015 to 2010 time: {time.perf_counter() - t}")
+        print(f"2010 to 2015 time: {time.perf_counter() - t}")
         return cls(
-            dcx_type=DCXType.DCX_DFLT_10000_24_9,
+            dcx_type=dcx_type,
             root=root2015,
             hk_format=HavokFileFormat.Tagfile,
             hk_version="2015",

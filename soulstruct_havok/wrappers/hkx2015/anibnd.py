@@ -25,7 +25,7 @@ class ANIBND(BaseANIBND):
     def convert_interleaved_to_spline_anim(self, anim_id: int = None):
         """Convert to spline animation by a downgrade -> Horkrux SDK conversion -> upgrade process."""
         animation = self.animations_hkx[anim_id]
-        spline_anim = animation.to_spline_animation()
+        spline_anim = animation.get_spline_hkx()
         self.animations_hkx[anim_id] = spline_anim
 
     @staticmethod

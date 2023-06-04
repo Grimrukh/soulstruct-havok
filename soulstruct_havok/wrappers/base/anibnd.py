@@ -59,8 +59,10 @@ class BaseANIBND(Binder, abc.ABC):
         """Load managed HKX skeleton and animations from Binder entries.
 
         Must be called manually so user has a chance to set `animation_ids_to_load` first.
+        
+        TODO: refactor to `load_animation_entries()`.
         """
-        if animation_ids_to_load is not None:
+        if animation_ids_to_load:
             self.animation_ids_to_load = list(animation_ids_to_load)
         if not self.entries:
             # No Binder entries to process. Just check default animation ID assignment.
@@ -74,11 +76,13 @@ class BaseANIBND(Binder, abc.ABC):
             self.skeleton_hkx = self.SKELETON_HKX.from_bytes(skeleton_entry, compendium=compendium)
 
             if not self.animation_ids_to_load:
+                # Load ALL animations.
                 self.animations_hkx = {}
                 for anim_entry in self.find_entries_matching_name(r"a[\d_]+\.[Hh][Kk][Xx]"):
                     anim_id = int(anim_entry.minimal_stem[1:])
                     self.animations_hkx[anim_id] = self.ANIMATION_HKX.from_bytes(anim_entry, compendium=compendium)
-            else:  # selected (also asserted) animation IDs only
+            else:
+                # Load selected (also asserted) animation IDs only.
                 self.animations_hkx = {}
                 for anim_id in self.animation_ids_to_load:
                     entry_name = self.animation_id_to_entry_basename(anim_id)

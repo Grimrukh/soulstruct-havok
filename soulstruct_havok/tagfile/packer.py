@@ -22,12 +22,13 @@ if tp.TYPE_CHECKING:
 colorama.init()
 GREEN = colorama.Fore.GREEN
 MAGENTA = colorama.Fore.LIGHTMAGENTA_EX
+RED = colorama.Fore.RED
 RESET = colorama.Fore.RESET
 
 
 _DEBUG_TYPES = False  # Type order has been confirmed as valid several times!
 _DEBUG_SECTIONS = False
-_DEBUG_HASH = False
+_DEBUG_HASH = True
 
 
 class UniqueInstance:
@@ -319,18 +320,22 @@ class TagFilePacker:
                 for i, type_info in hashed_types:
                     full_py_name = type_info.get_full_py_name()
                     self.pack_var_int(writer, i)
+                    # Use override if it exists, otherwise use original hash in Python class (`type_info.hsh`).
                     hsh = hsh_overrides.get(full_py_name, type_info.hsh)
                     writer.pack("<I", hsh)
                     if _DEBUG_HASH:
                         print(
                             f"    {MAGENTA}`{full_py_name}`: {hsh}"
-                            f"{' <OVERRIDE>' if full_py_name in hsh_overrides else ''}{RESET}"
+                            f"{f' {RED}<OVERRIDE>' if full_py_name in hsh_overrides else ''}{RESET}"
                         )
-                        hashed.append((hsh, full_py_name, type_info.py_name in hsh_overrides))
+                        hashed.append((hsh, full_py_name, full_py_name in hsh_overrides))
                 if _DEBUG_HASH:
                     print(f"{MAGENTA}Packed hashes (sorted):{RESET}")
                     for type_hsh, type_name, is_override in sorted(hashed, key=lambda x: x[0]):
-                        print(f"    {MAGENTA}`{type_name}`: {type_hsh}{' <OVERRIDE>' if is_override else ''}{RESET}")
+                        print(
+                            f"    {MAGENTA}`{type_name}`: {type_hsh}"
+                            f"{f' {RED}<OVERRIDE>' if is_override else ''}{RESET}"
+                        )
 
             with self.pack_section(writer, "TPAD"):
                 pass

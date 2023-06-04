@@ -109,6 +109,11 @@ class TagFileUnpacker:
                                 clashing_modules.append((ex, type_info, type_module_def))
                             else:
                                 type_info.py_class = py_class
+                                full_py_name = type_info.get_full_py_name()
+                                if full_py_name in self.hsh_overrides:
+                                    # We do not store the hash if it matches our Python default.
+                                    if py_class.get_hsh() == self.hsh_overrides[full_py_name]:
+                                        self.hsh_overrides.pop(full_py_name)
 
                     if modules_to_create:
 
@@ -362,6 +367,7 @@ class TagFileUnpacker:
                             print(f"    {MAGENTA}`{type_name}`: {type_hsh}{RESET}")
                 for type_info in unhashed_types:
                     # Types that did not explicitly get a hash receive `None` override.
+                    # Types that DID get a hash, but it was the expected hash, will be removed from the overrides.
                     self.hsh_overrides[type_info.get_full_py_name()] = None
 
             if self.peek_section(reader, "THSH"):

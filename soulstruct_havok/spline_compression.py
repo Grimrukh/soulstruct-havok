@@ -555,12 +555,27 @@ class TrackQuaternion:
         self.value = Quaternion(*xyzw)
         self.spline_header = None
 
-    def rotate(self, rotate: Quaternion):
-        """Simply left-multiply every value by `rotate`."""
+    def rotate(self, rotate: Quaternion, correct_discontinuities=False):
+        """Simply left-multiply every value by `rotate`.
+
+        If `correct_discontinuities` is True, discontinuities are corrected by finding the shortest path between the
+        current and previous quaternion. This is done by inverting the current quaternion and multiplying it by the
+        previous quaternion. If the dot product of the result and the previous quaternion is negative, the current
+        quaternion is inverted. (Only applied to `SplineQuaternion`.)
+        """
         if isinstance(self.value, Quaternion):
             self.value = rotate @ self.value
-        else:
-            self.value = SplineQuaternion([rotate @ quat for quat in self.value])
+            return
+        
+        self.value = SplineQuaternion([rotate @ quat for quat in self.value])
+        if not correct_discontinuities:
+            return
+            
+        for i, quat in enumerate(self.value):
+            if i == 0:
+                continue
+            if self.value[i - 1].dot(quat) < 0:
+                self.value[i] = -quat
 
     def reverse(self):
         """Reverses all control points if `value` is a `SplineQuaternion`.

@@ -1,4 +1,4 @@
-from soulstruct.utilities.inspection import compare_binary_files
+from soulstruct.utilities.inspection import compare_binary_data, compare_binary_files
 
 from soulstruct_havok.core import HKX
 from soulstruct_havok.types.debug import SET_DEBUG_PRINT
@@ -9,10 +9,10 @@ def bb_packfile_test():
     SET_DEBUG_PRINT(unpack=False, pack=False)
 
     for file_name, display_name in (
-        # ("a000_003000.hkx", "Attack 3000"),
-        # ("skeleton.HKX", "Skeleton"),
+        ("a000_003000.hkx", "Attack 3000"),
+        ("skeleton.HKX", "Skeleton"),
         ("c2020.HKX", "Ragdoll"),
-        # ("c2020_c.hkx", "Cloth"),
+        ("c2020_c.hkx", "Cloth"),
     ):
         print(f"Reading c2020 {display_name}...")
         c2020 = HKX.from_path(f"resources/BB/c2020/{file_name}")
@@ -62,21 +62,40 @@ def ds3_packfile_test():
 
 def ptde_packfile_test():
     """Test HKX Packfile format with c2240 from Dark Souls: Prepare to Die Edition."""
-    print("Reading Capra Demon animation 0...")
-    capra_anim_0 = HKX.from_path("resources/PTDE/c2240/a00_0000.hkx")
+    SET_DEBUG_PRINT(unpack=False, pack=False)
 
-    print("Reading Capra Demon animation 3000...")
-    capra_anim_3000 = HKX.from_path("resources/PTDE/c2240/a00_3000.hkx")
+    for file_name, display_name in (
+        ("a00_3000.hkx", "Attack 3000"),
+        # ("skeleton.HKX", "Skeleton"),  # works
+        # ("c2240.hkx", "Ragdoll"),  # TODO: Write is failing on this one. But fixing animation read/write first.
+        # ("c2240_c.hkx", "Cloth"),  # TODO: no cloth for Capra - try another model
+    ):
+        print(f"Reading c2240 {display_name}...")
+        c2240 = HKX.from_path(f"resources/PTDE/c2240/{file_name}")
+        print(f"  Writing c2240 {display_name}...")
+        c2240.write(f"re_c2240_{file_name}")
+        compare_binary_files(f"resources/PTDE/c2240/{file_name}", f"re_c2240_{file_name}")
+        print(f"  Re-reading c2240 {display_name}...")
+        HKX.from_path(f"re_c2240_{file_name}")
+        print(f"  TEST SUCCESSFUL: {file_name}")
 
-    print("Reading Capra Demon skeleton...")
-    capra_skeleton = HKX.from_path("resources/PTDE/c2240/Skeleton.HKX")
 
-    print("Reading Capra Demon ragdoll...")
-    capra_ragdoll = HKX.from_path("resources/PTDE/c2240/c2240.hkx")
-    print(capra_ragdoll.get_root_tree_string())
+def dsr_spline_conversion_test():
+    """Test conversion of 2015 spline animations to 2010 interleaved, and vice versa, with Hork's tool."""
+    from soulstruct_havok.wrappers.hkx2015 import AnimationHKX
+
+    SET_DEBUG_PRINT(unpack=False, pack=False)
+
+    anim = AnimationHKX.from_path("resources/DSR/c2240/a00_0000.hkx")
+    anim.animation_container.spline_to_interleaved()
+    spline = anim.get_spline_hkx()
+    spline.write("c2240_resplined_a00_0000.hkx")
+    re_spline = AnimationHKX.from_path("c2240_resplined_a00_0000.hkx")
 
 
 if __name__ == '__main__':
-    # ptde_packfile_test()
+    ptde_packfile_test()
     # ds3_packfile_test()
-    bb_packfile_test()
+    # bb_packfile_test()
+    # dsr_spline_conversion_test()
+

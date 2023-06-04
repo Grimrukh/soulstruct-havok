@@ -41,8 +41,8 @@ class RemoPart:
     part_type: RemoPartType
     map_area_block: tuple[int, int]  # e.g. `(10, 2)`
     part: MSBPart | None  # `None` for dummies
-    # Maps cut names to animation data for this part in that cut, which maps standard bone names to lists of transforms.
-    cut_arma_transforms: dict[str, dict[str, list[TRSTransform]]]
+    # Maps cut names to animation data for this part in that cut: lists of `{bone: TRSTransform}` dictionaries.
+    cut_arma_frames: dict[str, list[dict[str, TRSTransform]]]
 
 
 @dataclass(slots=True)
@@ -91,7 +91,7 @@ class RemoCut:
                     existing_remo_parts, remo_part_name, "", RemoPartType.Player, None, main_map_area_block,
                 )
                 root_bone_name = self._get_root_bone_name(RemoPartType.Player, None, main_map_area_block)
-                self._add_cut_arma_transforms(self.player, root_bone_name)
+                self._add_cut_arma_frames(self.player, root_bone_name)
                 continue
 
             if remo_part_name.startswith("d"):
@@ -171,7 +171,7 @@ class RemoCut:
             if remo_part is None:
                 raise ValueError(f"Part name '{map_part_name}' ({remo_part_name}) not found in MSB ({area}, {block}).")
 
-            self._add_cut_arma_transforms(remo_part, root_bone_name)
+            self._add_cut_arma_frames(remo_part, root_bone_name)
 
     # TODO: Method that returns camera transform and a dictionary of all part armature space transforms for a given
     #  frame index. (Or just a list of all transforms, and the camera transform is the first one?)
@@ -206,7 +206,7 @@ class RemoCut:
         # Object: root bone name is object model name.
         return part.model.name
 
-    def _add_cut_arma_transforms(
+    def _add_cut_arma_frames(
         self,
         remo_part: RemoPart,
         root_bone_name: str,
@@ -219,13 +219,14 @@ class RemoCut:
             remo_part.name, root_bone_name=root_bone_name, bone_prefix=remo_part.map_part_name + "_"
         )
 
-        print(f"Getting animation frames for part {remo_part.name}...")
+        # print(f"Getting animation frames for part {remo_part.name} (root bone name {root_bone_name})...")
 
         # NOTE: Some bones may not be referenced in cutscene animation data.
-        arma_transforms = {bone_name: [] for bone_name in part_bones} | {root_bone_name: []}
+        arma_frames = []  # type: list[dict[str, TRSTransform]]
         track_bone_indices = self.animation.animation_container.animation_binding.transformTrackToBoneIndices
 
         for frame_index in range(len(self.animation.animation_container.interleaved_data)):
+
             frame_local_transforms = self.animation.animation_container.interleaved_data[frame_index]
             bone_world_transforms = {bone.name: TRSTransform.identity() for bone in part_bones.values()}
 
@@ -237,10 +238,15 @@ class RemoCut:
                     bone_local_to_world(child_bone, bone_world_transforms[bone.name])
 
             bone_local_to_world(part_bones[root_bone_name], TRSTransform.identity())
-            for part_bone_name, bone in part_bones.items():
-                arma_transforms[part_bone_name].append(bone_world_transforms[bone.name])
 
-        remo_part.cut_arma_transforms[self.name] = arma_transforms
+            # Remap prefixed cutscene bone names to real part bone names (used in actual part model).
+            frame = {
+                part_bone_name: bone_world_transforms[bone.name]
+                for part_bone_name, bone in part_bones.items()
+            }
+            arma_frames.append(frame)
+
+        remo_part.cut_arma_frames[self.name] = arma_frames
 
 
 @dataclass(slots=True)

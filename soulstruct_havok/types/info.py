@@ -248,10 +248,12 @@ class TypeInfo:
 
     @property
     def py_name(self) -> str:
+        # TODO: cache result?
         return get_py_name(self.name)
 
     def get_full_py_name(self) -> str:
         """Get actual generic type, if appropriate, eg `hkArray[Ptr[hkaAnimation]]`."""
+        # TODO: cache result?
         name = self.py_name
 
         if self.tag_format_flags & TagFormatFlags.Pointer:
@@ -286,12 +288,6 @@ class TypeInfo:
                     changes["hsh"] = new_value
                     # print(f"WARNING: {TypeMatchError(py_class, non_inherited_field, py_value, new_value)}")
                 else:
-                    print(dir(py_class))
-                    print("ERR:", py_class.__name__, non_inherited_field, py_value, new_value)
-                    print(getattr(py_class, "_hkMatrix4__tag_format_flags"))
-                    print(py_class.get_type_name(True))
-                    print(py_class.get_tag_format_flags())
-                    exit()
                     raise TypeMatchError(py_class, non_inherited_field, py_value, new_value)
         # Check member info.
         if (py_member_count := len(py_class.local_members)) != (new_member_count := len(self.members)):
