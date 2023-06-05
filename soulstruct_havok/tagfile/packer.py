@@ -28,7 +28,7 @@ RESET = colorama.Fore.RESET
 
 _DEBUG_TYPES = False  # Type order has been confirmed as valid several times!
 _DEBUG_SECTIONS = False
-_DEBUG_HASH = True
+_DEBUG_HASH = False
 
 
 class UniqueInstance:

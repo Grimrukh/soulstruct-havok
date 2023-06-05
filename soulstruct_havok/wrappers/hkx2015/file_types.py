@@ -38,6 +38,7 @@ from soulstruct_havok.wrappers.base.file_types import (
 from soulstruct_havok.wrappers.base.type_vars import PHYSICS_DATA_T
 from soulstruct_havok.wrappers.hkx2010 import AnimationHKX as AnimationHKX2010
 from soulstruct_havok.utilities.hk_conversion import convert_hk
+from soulstruct_havok.utilities.maths import TRSTransform
 from soulstruct_havok.utilities.wavefront import read_obj
 
 from .physics import MapCollisionPhysicsData
@@ -69,20 +70,29 @@ class AnimationHKX(BaseAnimationHKX):
         """
         if not self.animation_container.is_interleaved:
             raise TypeError("Can only convert interleaved animations to spline animations.")
+
+        temp_interleaved_path = Path(__file__).parent / "__temp_interleaved__.hkx"
+        temp_spline_path = Path(__file__).parent / "__temp_spline__.hkx"
+
         dcx_type = self.dcx_type
         _LOGGER.debug("Downgrading to 2010...")
         hkx2010 = self.to_2010_hkx()
-        _LOGGER.debug("Writing 2010 file...")
-        hkx2010.write("__temp_interleaved__.hkx")
-        _LOGGER.debug("Calling `CompressAnim`...")
-        ret_code = sp.call(
-            ["C:\\Dark Souls\\CompressAnim.exe", "__temp_interleaved__.hkx", "__temp_spline__.hkx", "1", "0.001"]
-        )
-        _LOGGER.debug(f"Done. Return code: {ret_code}")
-        if ret_code != 0:
-            raise RuntimeError(f"`CompressAnim.exe` had return code {ret_code}.")
-        _LOGGER.debug("Reading 2010 spline-compressed animation...")
-        hkx2010_spline = AnimationHKX2010.from_path("__temp_spline__.hkx")
+        try:
+            _LOGGER.debug("Writing 2010 file...")
+            hkx2010.write(temp_interleaved_path)
+            _LOGGER.debug("Calling `CompressAnim`...")
+            ret_code = sp.call(
+                ["C:\\Dark Souls\\CompressAnim.exe", str(temp_interleaved_path), str(temp_spline_path), "1", "0.001"]
+            )
+            _LOGGER.debug(f"Done. Return code: {ret_code}")
+            if ret_code != 0:
+                raise RuntimeError(f"`CompressAnim.exe` had return code {ret_code}.")
+            _LOGGER.debug("Reading 2010 spline-compressed animation...")
+            hkx2010_spline = AnimationHKX2010.from_path(temp_spline_path)
+        finally:
+            temp_interleaved_path.unlink(missing_ok=True)
+            temp_spline_path.unlink(missing_ok=True)
+
         _LOGGER.debug("Upgrading to 2015...")
         anim_2015 = self.__class__.from_2010_hkx(hkx2010_spline, dcx_type=dcx_type)
 
@@ -166,6 +176,48 @@ class AnimationHKX(BaseAnimationHKX):
             hk_format=HavokFileFormat.Tagfile,
             hk_version="2015",
         )
+
+    @classmethod
+    def from_dsr_interleaved_template(
+        cls,
+        skeleton_hkx: SkeletonHKX,
+        interleaved_data: list[list[TRSTransform]],
+        transform_track_to_bone_indices: list[int] = None,
+        reference_frame_samples: list[Vector4] | None = None,
+        is_armature_space=False,
+    ) -> AnimationHKX:
+        """Open bundled template HKX for Dark Souls Remastered (c2240, Capra Demon, animation 200).
+
+        Arguments reflect the minimal data required to create a new animation from the template.
+        """
+        template_path = Path(__file__).parent / "../../resources/AnimationTemplate2015.hkx"
+        hkx = cls.from_path(template_path)
+        container = hkx.animation_container
+
+        container.spline_to_interleaved()
+
+        if is_armature_space:
+            container.set_interleaved_data_from_armature_space(skeleton_hkx.skeleton, interleaved_data)
+        else:
+            container.interleaved_data = interleaved_data
+        container.save_interleaved_data()
+        container.animation.floats = []
+
+        if transform_track_to_bone_indices is None:
+            # Default: same as bone order.
+            transform_track_to_bone_indices = list(range(len(skeleton_hkx.skeleton.bones)))
+
+        container.animation.duration = (len(interleaved_data) - 1) / 30.0  # TODO: assumes 30 FPS (always valid?)
+
+        container.animation_binding.originalSkeletonName = skeleton_hkx.skeleton.skeleton.name
+        container.animation_binding.transformTrackToBoneIndices = transform_track_to_bone_indices
+
+        if reference_frame_samples is None:
+            hkx.animation_container.animation.extractedMotion = None
+        else:  # tempplate has some reference frame samples already
+            hkx.animation_container.set_reference_frame_samples(reference_frame_samples)
+
+        return hkx.get_spline_hkx()
 
 
 @dataclass(slots=True)

@@ -56,6 +56,8 @@ class HKX(GameFile):
     Use `write_packfile()` and `write_tagfile()` to specify the format you want to output. If you use `write()`, it will
     default to writing the format that was loaded. Same for `pack()` and its two variants.
     """
+    EXT: tp.ClassVar[str] = ".hkx"
+
     # Can be defined by subclasses with utility methods for specific versions of Havok.
     TYPES_MODULE: tp.ClassVar[ModuleType | None] = None
 

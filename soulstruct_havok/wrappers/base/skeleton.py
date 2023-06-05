@@ -5,7 +5,7 @@ __all__ = ["Bone", "Skeleton", "SkeletonMapper"]
 import abc
 import logging
 import typing as tp
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import ModuleType
 
 from soulstruct_havok.utilities.maths import TRSTransform, Vector3, Vector4
@@ -26,7 +26,7 @@ class Bone(tp.Generic[SKELETON_T]):
     descending_hierarchy: tuple[Bone] = ()  # descending, inclusive
     ascending_hierarchy: tuple[Bone] = ()  # ascending, inclusive
 
-    # Reference poses are likely enough to change that we don't cache them:
+    # Reference poses are likely enough to change that we don't cache them.
 
     def get_reference_pose(self) -> TRSTransform:
         return self._skeleton.referencePose[self.index].to_trs_transform()
@@ -68,22 +68,20 @@ class Bone(tp.Generic[SKELETON_T]):
         return f"{self.__class__.__name__}(index={self.index}, name={self.name!r}, parent={parent!r})"
 
 
+@dataclass(slots=True, repr=False)
 class Skeleton(tp.Generic[SKELETON_T, BONE_T], abc.ABC):
     """Loads HKX objects that are found in a "Skeleton" HKX file (inside `anibnd` binder, usually `Skeleton.HKX`)."""
 
     types_module: ModuleType
     skeleton: SKELETON_T
 
-    bones: list[Bone]
-    # TODO: Can't print this dictionary because `Bone` recursively references `Skeleton`...
-    bones_by_name: None | dict[str, Bone]  # only available if all names are unique
+    bones: list[Bone] = field(init=False)
+    bones_by_name: None | dict[str, Bone] = field(init=False)  # only available if all names are unique
 
-    def __init__(self, types_module: ModuleType, skeleton: SKELETON_T):
-        self.types_module = types_module
-        self.skeleton = skeleton
-        self.regenerate_bone_wrappers()
+    def __post_init__(self):
+        self.refresh_bones()
 
-    def regenerate_bone_wrappers(self):
+    def refresh_bones(self):
         """Rebuilds the `bones` list and `bones_by_name` dict from the `skeleton` object, using `Bone` wrappers rather
         than the raw `hkaBone` types (so inter-bone references can be better used)."""
 
@@ -159,7 +157,7 @@ class Skeleton(tp.Generic[SKELETON_T, BONE_T], abc.ABC):
         children = self.bones[bone_index].get_all_children()
         delete_indices = [bone_index] + [child.index for child in children]
         self.skeleton.bones = [hka_bone for i, hka_bone in enumerate(self.skeleton.bones) if i not in delete_indices]
-        self.regenerate_bone_wrappers()
+        self.refresh_bones()
         return len(delete_indices)
 
     def print_bone_tree(self, bone_index: int = None, indent=""):
@@ -173,15 +171,14 @@ class Skeleton(tp.Generic[SKELETON_T, BONE_T], abc.ABC):
         top_bone = self.bones[0] if bone_index is None else self.bones[bone_index]
         _print_bone_tree(top_bone, _indent=indent)
 
+    # TODO: repr
 
+
+@dataclass(slots=True, repr=False)
 class SkeletonMapper(tp.Generic[SKELETON_MAPPER_T]):
 
     types_module: ModuleType
     skeleton_mapper: SKELETON_MAPPER_T
-
-    def __init__(self, types_module: ModuleType, skeleton_mapper: SKELETON_MAPPER_T):
-        self.types_module = types_module
-        self.skeleton_mapper = skeleton_mapper
 
     def scale_all_translations(self, scale_factor: float | Vector3 | Vector4):
         if isinstance(scale_factor, Vector3):
@@ -190,3 +187,5 @@ class SkeletonMapper(tp.Generic[SKELETON_MAPPER_T]):
             simple.aFromBTransform.translation *= scale_factor
         for chain in self.skeleton_mapper.mapping.chainMappings:
             chain.startAFromBTransform.translation *= scale_factor
+
+    # TODO: repr

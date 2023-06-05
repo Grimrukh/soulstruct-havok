@@ -18,6 +18,9 @@ from .type_vars import (
     DEFAULT_ANIMATED_REFERENCE_FRAME_T,
 )
 
+if tp.TYPE_CHECKING:
+    from .skeleton import Skeleton
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -41,10 +44,12 @@ class AnimationContainer(tp.Generic[
     # Loaded upon first use or explicit `load_interleaved_data()` call. Will be resaved on `pack()` if present, or with
     # explicit `save_spline_data()` call. All this data does is split the frame transforms into separate 'track' lists,
     # since by default, all the tracks and frames are in a single merged list.
-    # Note that the outer list is frames and the inner list is bones! In other words, iterate over it like this:
-    #     for frame in self.interleaved_data:
-    #         for bone_transforms in frame:
-    #             ...
+    # Note that the outer list is frames and the inner list is tracks (bones)! In other words, iterate like this:
+    # ```
+    # for frame in self.interleaved_data:
+    #     for bone_transforms in frame:
+    #         ...
+    # ```
     interleaved_data: list[list[TRSTransform]] | None = None
 
     def __init__(self, types_module: ModuleType, animation_container: ANIMATION_CONTAINER_T):
@@ -175,10 +180,12 @@ class AnimationContainer(tp.Generic[
         Acts upon spline control points for spline-type animation data, which still has the desired result.
         """
         if self.is_spline:
-            self.load_spline_data()
+            if self.spline_data is None:
+                raise ValueError("Spline data has not been loaded yet. Nothing to transform.")
             self.spline_data.apply_transform_to_all_track_translations(transform)
         elif self.is_interleaved:
-            self.load_interleaved_data()
+            if self.interleaved_data is None:
+                raise ValueError("Interleaved data has not been loaded yet. Nothing to transform.")
             for frame in self.interleaved_data:
                 for track_index in range(len(frame)):
                     frame[track_index].translation = transform.transform_vector(frame[track_index].translation)
@@ -208,10 +215,13 @@ class AnimationContainer(tp.Generic[
         """Reverses all control points/static transforms and root motion (reference frame samples) in-place."""
         if self.is_spline:
             if not self.spline_data:
-                self.load_spline_data()
+                raise ValueError("Spline data has not been loaded yet. Nothing to reverse.")
             self.spline_data.reverse()
         elif self.is_interleaved:
             self.animation.transforms = list(reversed(self.animation.transforms))
+            if self.interleaved_data:
+                # Reload interleaved data if it's already loaded.
+                self.load_interleaved_data(reload=True)
         else:
             raise TypeError("Animation is not interleaved or spline-compressed. Cannot reverse data.")
 
@@ -272,6 +282,109 @@ class AnimationContainer(tp.Generic[
         self.animation_container.animations = [interleaved_animation]
 
         self.spline_data = None
+
+    def get_track_parent_indices(self, skeleton: Skeleton) -> list[int]:
+        """Get a list of parent indices (-1 for root tracks) based on the parent bones of corresponding bones in
+        `skeleton`."""
+        track_bone_indices = self.animation_binding.transformTrackToBoneIndices
+        track_parent_indices = []  # type: list[int]
+        for track_index in range(len(track_bone_indices)):
+            bone_index = track_bone_indices[track_index]
+            bone = skeleton.bones[bone_index]
+            track_parent_indices.append(track_bone_indices.index(bone.parent.index) if bone.parent else -1)
+        return track_parent_indices
+
+    def get_track_child_indices(self, skeleton: Skeleton) -> list[list[int]]:
+        """Get a list of lists of child indices for each track in the animation, based on children of corresponding
+        bones in `skeleton`."""
+        track_bone_indices = self.animation_binding.transformTrackToBoneIndices
+        track_child_indices = []  # type: list[list[int]]
+        for track_index in range(len(track_bone_indices)):
+            bone_index = track_bone_indices[track_index]  # will almost always be the same, but being safe
+            bone = skeleton.bones[bone_index]
+            child_indices = [track_bone_indices.index(child_bone.index) for child_bone in bone.children]
+            track_child_indices.append(child_indices)
+        return track_child_indices
+
+    def get_root_track_indices(self, skeleton: Skeleton) -> list[int]:
+        """Get a list of track indices that correspond to root bones in `skeleton`."""
+        track_bone_indices = self.animation_binding.transformTrackToBoneIndices
+        root_track_indices = []  # type: list[int]
+        for track_index in range(len(track_bone_indices)):
+            bone_index = track_bone_indices[track_index]  # will almost always be the same, but being safe
+            bone = skeleton.bones[bone_index]
+            if not bone.parent:
+                root_track_indices.append(track_index)
+        return root_track_indices
+
+    def get_interleaved_data_in_armature_space(self, skeleton: Skeleton) -> list[list[TRSTransform]]:
+        """Transform all interleaved frames (in local HKX bone space) to armature-space transforms.
+
+        Preserves ordering of tracks, which should almost always match bone ordering, but does not necessarily need to.
+        Does NOT modify this instance.
+        """
+        if not self.is_interleaved:
+            raise TypeError(f"Animation type `{type(self.animation).__name__}` is not interleaved.")
+        if not self.interleaved_data:
+            self.load_interleaved_data()
+
+        track_child_indices = self.get_track_child_indices(skeleton)
+        root_track_indices = self.get_root_track_indices(skeleton)
+        arma_space_frames = []  # type: list[list[TRSTransform]]
+
+        for frame_local_transforms in self.interleaved_data:
+
+            arma_space_track_transforms = [TRSTransform.identity() for _ in range(len(frame_local_transforms))]
+
+            def track_local_to_parent(track_index_: int, parent_transform: TRSTransform):
+                arma_space_track_transforms[track_index_] = parent_transform @ frame_local_transforms[track_index_]
+                # Recur on children, using this bone's just-computed armature-space transform.
+                for child_track_index in track_child_indices[track_index_]:
+                    track_local_to_parent(child_track_index, arma_space_track_transforms[track_index_])
+
+            for root_track_index in root_track_indices:
+                # Start recurring transformer on root tracks. (Their local space IS armature space.)
+                track_local_to_parent(root_track_index, TRSTransform.identity())
+
+            arma_space_frames.append(arma_space_track_transforms)
+
+        return arma_space_frames
+
+    def set_interleaved_data_from_armature_space(
+        self, skeleton: Skeleton, armature_space_frames: list[list[TRSTransform]]
+    ):
+        """Convert `frames` (list of lists of transforms in armature space) to local HKX bone space and set to
+        interleaved data of this animation."""
+        if not self.is_interleaved:
+            raise TypeError(f"Animation type `{type(self.animation).__name__}` is not interleaved.")
+        if not self.interleaved_data:
+            self.load_interleaved_data()
+
+        track_parent_indices = self.get_track_parent_indices(skeleton)
+        local_space_frames = []  # type: list[list[TRSTransform]]
+
+        for frame_armature_transforms in armature_space_frames:
+
+            local_space_track_transforms = []
+
+            # Converting back from complete armature space to local space is easy and requires no recursion.
+            parent_inverse_matrices = {}  # type: dict[int, TRSTransform]
+            for track_index, armature_transform in enumerate(frame_armature_transforms):
+                if track_parent_indices[track_index] == -1:
+                    # Root track, so local space is armature space.
+                    local_space_track_transforms.append(armature_transform)
+                else:
+                    # Non-root track, so local space is parent's local space.
+                    parent_index = track_parent_indices[track_index]
+                    if track_parent_indices[track_index] not in parent_inverse_matrices:
+                        parent_inverse_matrices[parent_index] = frame_armature_transforms[parent_index].inverse()
+                    inv_parent_armature_transform = parent_inverse_matrices[parent_index]
+                    local_space_transform = inv_parent_armature_transform @ armature_transform
+                    local_space_track_transforms.append(local_space_transform)
+
+            local_space_frames.append(local_space_track_transforms)
+
+        self.interleaved_data = local_space_frames
 
     def save_data(self):
         """Save managed spline or interleaved data. Should be called before writing HKX file."""
