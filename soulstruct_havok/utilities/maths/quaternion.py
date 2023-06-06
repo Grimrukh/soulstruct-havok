@@ -109,6 +109,18 @@ class Quaternion:
     def is_identity(self) -> bool:
         return np.equal(self._data, [0.0, 0.0, 0.0, 1.0]).all()
 
+    def is_same_rotation(self, other: Quaternion, ignore_direction=False, atol=1e6):
+        """If `ignore_direction=True`, x, y, and z are all allowed to be negated simultaneously."""
+        if not isinstance(other, Quaternion):
+            raise TypeError("Can only use `Quaternion.is_same_rotation()` with another `Quaternion`.")
+        if np.allclose(self.data, other.data, atol=atol):
+            return True
+        if np.allclose(self.data, -other.data, atol=atol):
+            return True  # all four components negated (same)
+        if ignore_direction and np.allclose(self.data, (-other.x, -other.y, -other.z, other.w), atol=atol):
+            return True
+        return False
+
     @classmethod
     def identity(cls) -> Quaternion:
         return Quaternion(Rotation.identity())
@@ -118,7 +130,7 @@ class Quaternion:
         return Quaternion([0.0, 0.0, 0.0, 0.0])
 
     @classmethod
-    def from_vector_change(cls, v1: Vector3, v2: Vector3):
+    def from_vector_change(cls, v1: Vector3, v2: Vector3) -> Quaternion:
         """Get `Quaternion` representing the rotation from `v1` to `v2`."""
         dot = v1.dot(v2)
         xyz = v1.cross(v2)
@@ -129,11 +141,18 @@ class Quaternion:
     def inverse(self) -> Quaternion:
         return Quaternion(self.rotation.inv())
 
+    def get_angle_diff(self, other: Quaternion, radians=False) -> float:
+        """Get angle between this rotation and `other`."""
+        dot_norm = self.dot(other) / (self.norm() * other.norm())
+        dot_norm = min(1.0, max(dot_norm, -1.0))  # clamp to [-1, 1] to avoid `acos` range error
+        rad = math.acos(dot_norm)
+        return rad if radians else math.degrees(rad)
+
     # TODO: conjugate? Not needed yet.
 
     # region Format Conversions
     @classmethod
-    def from_matrix3(cls, matrix3: np.ndarray | Matrix3):
+    def from_matrix3(cls, matrix3: np.ndarray | Matrix3) -> Quaternion:
         if isinstance(matrix3, Matrix3):
             matrix3 = matrix3.data
         return Quaternion(Rotation.from_matrix(matrix3))
@@ -166,6 +185,10 @@ class Quaternion:
         """Shorter wrapper for the above."""
         return cls.from_axis_angle(Vector3(xyz), angle, radians)
 
+    @classmethod
+    def from_euler_angles(cls, euler_xyz: Vector3, radians=False, order="xzy") -> Quaternion:
+        return cls.from_matrix3(Matrix3.from_euler_angles(euler_xyz, radians=radians, order=order))
+
     def to_euler_angles(self, radians=False, order="xzy") -> Vector3:
         """Decompose Quaternion (via Matrix3 representation) into Euler angles.
 
@@ -176,6 +199,9 @@ class Quaternion:
     # endregion
 
     # region Arithmetic
+
+    def norm(self) -> float:
+        return np.linalg.norm(self.data)
 
     def dot(self, other: Quaternion | np.ndarray) -> int:
         """Simple element-wise multiplication and sum."""

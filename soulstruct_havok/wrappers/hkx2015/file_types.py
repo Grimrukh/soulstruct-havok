@@ -37,6 +37,7 @@ from soulstruct_havok.wrappers.base.file_types import (
 )
 from soulstruct_havok.wrappers.base.type_vars import PHYSICS_DATA_T
 from soulstruct_havok.wrappers.hkx2010 import AnimationHKX as AnimationHKX2010
+from soulstruct_havok.utilities import PACKAGE_PATH
 from soulstruct_havok.utilities.hk_conversion import convert_hk
 from soulstruct_havok.utilities.maths import TRSTransform
 from soulstruct_havok.utilities.wavefront import read_obj
@@ -81,8 +82,9 @@ class AnimationHKX(BaseAnimationHKX):
             _LOGGER.debug("Writing 2010 file...")
             hkx2010.write(temp_interleaved_path)
             _LOGGER.debug("Calling `CompressAnim`...")
+            compress_anim_path = str(PACKAGE_PATH("resources/CompressAnim.exe"))
             ret_code = sp.call(
-                ["C:\\Dark Souls\\CompressAnim.exe", str(temp_interleaved_path), str(temp_spline_path), "1", "0.001"]
+                [compress_anim_path, str(temp_interleaved_path), str(temp_spline_path), "1", "0.001"]
             )
             _LOGGER.debug(f"Done. Return code: {ret_code}")
             if ret_code != 0:
