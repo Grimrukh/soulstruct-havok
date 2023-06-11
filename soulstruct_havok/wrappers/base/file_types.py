@@ -62,6 +62,7 @@ class AnimationHKX(BaseWrappedHKX, abc.ABC):
     animation_container: AnimationContainer = None
 
     def __post_init__(self):
+        super(BaseWrappedHKX, self).__post_init__()
         self.animation_container = AnimationContainer(
             self.TYPES_MODULE, self.get_variant(0, *ANIMATION_CONTAINER_T.__constraints__))
 
@@ -73,6 +74,7 @@ class CollisionHKX(BaseWrappedHKX, abc.ABC):
     physics_data: PhysicsData = None
 
     def __post_init__(self):
+        super(BaseWrappedHKX, self).__post_init__()
         self.physics_data = PhysicsData(self.TYPES_MODULE, self.get_variant(0, *PHYSICS_DATA_T.__constraints__))
 
 
@@ -83,6 +85,7 @@ class SkeletonHKX(BaseWrappedHKX, abc.ABC):
     skeleton: Skeleton = None
 
     def __post_init__(self):
+        super(BaseWrappedHKX, self).__post_init__()
         hka_animation_container = self.get_variant(0, *ANIMATION_CONTAINER_T.__constraints__)
         self.skeleton = Skeleton(self.TYPES_MODULE, hka_animation_container.skeletons[0])
 
@@ -100,6 +103,7 @@ class RagdollHKX(BaseWrappedHKX, abc.ABC):
     standard_to_ragdoll_skeleton_mapper: SkeletonMapper = None
 
     def __post_init__(self):
+        super(BaseWrappedHKX, self).__post_init__()
         hka_animation_container = self.get_variant(0, *ANIMATION_CONTAINER_T.__constraints__)
         self.standard_skeleton = Skeleton(self.TYPES_MODULE, hka_animation_container.skeletons[0])
         self.ragdoll_skeleton = Skeleton(self.TYPES_MODULE, hka_animation_container.skeletons[1])
@@ -143,6 +147,7 @@ class ClothHKX(BaseWrappedHKX, abc.ABC):
     cloth_physics_data: ClothPhysicsData = None
 
     def __post_init__(self):
+        super(BaseWrappedHKX, self).__post_init__()
         self.cloth_physics_data = ClothPhysicsData(
             self.TYPES_MODULE, self.get_variant(0, *PHYSICS_DATA_T.__constraints__)
         )
@@ -160,6 +165,7 @@ class RemoAnimationHKX(BaseWrappedHKX, abc.ABC):
     skeleton: Skeleton = None
 
     def __post_init__(self):
+        super(BaseWrappedHKX, self).__post_init__()
         hka_animation_container = self.get_variant(0, *ANIMATION_CONTAINER_T.__constraints__)
         self.animation_container = AnimationContainer(self.TYPES_MODULE, hka_animation_container)
         self.skeleton = Skeleton(self.TYPES_MODULE, hka_animation_container.skeletons[0])

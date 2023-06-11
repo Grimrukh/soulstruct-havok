@@ -254,7 +254,7 @@ class Quaternion:
 
         if phi > 0.0:
             theta = (math.pi / 4) * (phi_theta - (phi * phi)) / phi
-            phi = phi_frac * phi
+            phi *= phi_frac
 
         magnitude = float(math.sqrt(1.0 - (r ** 2)))
 
@@ -263,7 +263,7 @@ class Quaternion:
             math.sin(phi) * math.sin(theta) * magnitude,
             math.cos(phi) * magnitude,
             r,
-            ]
+        ]
 
         if (c_val & 0x10000000) > 0:
             q[0] *= -1

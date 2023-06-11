@@ -269,6 +269,7 @@ class MapCollisionHKX(BaseWrappedHKX):
     map_collision_physics_data: MapCollisionPhysicsData = None
 
     def __post_init__(self):
+        super(BaseWrappedHKX, self).__post_init__()
         self.map_collision_physics_data = MapCollisionPhysicsData(
             self.TYPES_MODULE, self.get_variant(0, *PHYSICS_DATA_T.__constraints__))
 
