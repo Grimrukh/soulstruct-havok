@@ -12,7 +12,7 @@ __all__ = [
 import logging
 from pathlib import Path
 
-from soulstruct.containers import Binder, BinderEntryNotFoundError
+from soulstruct.containers import Binder
 from soulstruct.base.models.flver import FLVER
 from soulstruct.utilities.maths import Vector3
 
@@ -78,6 +78,7 @@ def scale_anibnd(anibnd: Binder, scale_factor: float | Vector3):
         _LOGGER.info(f"  Scaling animation {entry.entry_id} by {scale_factor}...")
         animation_hkx = entry.to_binary_file(AnimationHKX)  # "aXX_XXXX.hkx"
         animation_hkx.hk_format = HavokFileFormat.Tagfile
+        animation_hkx.animation_container.load_data()
         animation_hkx.animation_container.scale_all_translations(scale_factor)
         animation_hkx.animation_container.save_data()
         entry.set_from_binary_file(animation_hkx)
@@ -86,7 +87,7 @@ def scale_anibnd(anibnd: Binder, scale_factor: float | Vector3):
 
 
 def scale_objbnd(objbnd: Binder, scale_factor: float | Vector3):
-    """Scale FLVER and HKX models in OBJBND in-place.
+    """Scale object FLVER, collision HKX, and animation HKX files (whichever are present) in OBJBND in-place.
 
     NOTE: Objects can have multiple FLVER models and/or multiple HKX collisions.
     """

@@ -386,6 +386,13 @@ class AnimationContainer(tp.Generic[
 
         self.interleaved_data = local_space_frames
 
+    def load_data(self):
+        """Load managed spline or interleaved data. Should be called after reading HKX file."""
+        if self.is_spline:
+            self.load_spline_data()
+        elif self.is_interleaved:
+            self.load_interleaved_data()
+
     def save_data(self):
         """Save managed spline or interleaved data. Should be called before writing HKX file."""
         if self.is_spline and self.spline_data:

@@ -329,7 +329,7 @@ class MapCollisionHKX(BaseWrappedHKX):
         child_shape.materialArray = []
         for i, (vertices, faces) in enumerate(meshes):
 
-            subpart = cls.map_collision_physics_data.new_subpart(len(vertices), len(faces))
+            subpart = hkx.map_collision_physics_data.new_subpart(len(vertices), len(faces))
             child_shape.trianglesSubparts.append(subpart)
 
             indices = []
@@ -367,7 +367,7 @@ class MapCollisionHKX(BaseWrappedHKX):
         # embedded subpart is a fresh instance, not a copy of the first subpart.
         first_mesh_vertex_count = len(meshes[0][0])
         first_mesh_face_count = len(meshes[0][1])
-        child_shape.embeddedTrianglesSubpart = cls.map_collision_physics_data.new_subpart(
+        child_shape.embeddedTrianglesSubpart = hkx.map_collision_physics_data.new_subpart(
             first_mesh_vertex_count, first_mesh_face_count
         )
 
