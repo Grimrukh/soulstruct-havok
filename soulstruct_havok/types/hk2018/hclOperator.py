@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
-
 
 
 from .hclClothStateBufferAccess import hclClothStateBufferAccess

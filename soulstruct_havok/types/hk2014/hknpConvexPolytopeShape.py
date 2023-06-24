@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
 from .hknpConvexShape import hknpConvexShape
@@ -22,6 +24,6 @@ class hknpConvexPolytopeShape(hknpConvexShape):
     )
     members = hknpConvexShape.members + local_members
 
-    planes: list[hkVector4]
+    planes: list[Vector4]
     faces: list[hknpConvexPolytopeShapeFace]
     indices: list[int]

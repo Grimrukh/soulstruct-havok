@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
 from .hknpShape import hknpShape
@@ -18,4 +20,4 @@ class hknpConvexShape(hknpShape):
     )
     members = hknpShape.members + local_members
 
-    vertices: list[hkVector4]
+    vertices: list[Vector4]

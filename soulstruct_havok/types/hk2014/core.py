@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 __all__ = [
-    "dataclass",
-
     # hk
     "hk",
     "HK_TYPE",
@@ -44,6 +42,7 @@ __all__ = [
 
     # hk2014
     "Vector4",
+    "Quaternion",
     "hkReflectDetailOpaque",
     "_int",
     "_const_char",
@@ -80,14 +79,14 @@ __all__ = [
     "hkUint8",
     "hkUint64",
     "hkUintReal",
+    "hkUFloat8",
+    "hkHalf16",
     "hkBaseObject",
     "hkReferencedObject",
     "hkRefVariant",
-    "hkUFloat8",
     "hkContainerHeapAllocator",
     "hkStringPtr",
     "hkBool",
-    "hkHalf16",
 ]
 
 import typing as tp
@@ -302,7 +301,7 @@ class hkVector4(hkVector4f):
 
 
 @dataclass(slots=True, eq=False, repr=False)
-class hkMatrix3Impl(hkStruct(_float, 4)):
+class hkMatrix3Impl(hkStruct(_float, 12)):
     alignment = 16
     byte_size = 48
     tag_format_flags = 11
@@ -483,6 +482,52 @@ class hkUintReal(_unsigned_int):
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False)
+class hkUFloat8(hk):
+    alignment = 2
+    byte_size = 1
+    tag_format_flags = 41
+    tag_type_flags = 7
+
+    local_members = (
+        Member(0, "value", hkUint8),
+    )
+    members = local_members
+
+    value: int
+
+    def __eq__(self, other: hkUFloat8):
+        if not isinstance(other, hkUFloat8):
+            return False
+        return self.value == other.value
+
+    def __repr__(self):
+        return f"hkUFloat8({self.value})"
+
+
+@dataclass(slots=True, eq=False, repr=False)
+class hkHalf16(hk):
+    alignment = 2
+    byte_size = 2
+    tag_format_flags = 41
+    tag_type_flags = 476677
+
+    local_members = (
+        Member(0, "value", hkInt16, MemberFlags.Private),
+    )
+    members = local_members
+
+    value: int
+
+    def __eq__(self, other: hkHalf16):
+        if not isinstance(other, hkHalf16):
+            return False
+        return self.value == other.value
+
+    def __repr__(self):
+        return f"hkHalf16({self.value})"
+
+
 # --- Havok Core Types --- #
 
 
@@ -528,21 +573,6 @@ class hkRefVariant(hk):
 
 
 @dataclass(slots=True, eq=False, repr=False)
-class hkUFloat8(hk):
-    alignment = 2
-    byte_size = 1
-    tag_format_flags = 41
-    tag_type_flags = 7
-
-    local_members = (
-        Member(0, "value", hkUint8),
-    )
-    members = local_members
-
-    value: hkUint8
-
-
-@dataclass(slots=True, eq=False, repr=False)
 class hkContainerHeapAllocator(hk):
     alignment = 1
     byte_size = 1
@@ -583,18 +613,3 @@ class hkBool(hk):
     members = local_members
 
     bool: _char
-
-
-@dataclass(slots=True, eq=False, repr=False)
-class hkHalf16(hk):
-    alignment = 2
-    byte_size = 2
-    tag_format_flags = 41
-    tag_type_flags = 476677
-
-    local_members = (
-        Member(0, "value", hkInt16, MemberFlags.Private),
-    )
-    members = local_members
-
-    value: hkInt16

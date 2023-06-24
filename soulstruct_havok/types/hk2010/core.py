@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 __all__ = [
-    "dataclass",
-
     # hk
     "hk",
     "HK_TYPE",
@@ -302,7 +300,7 @@ class hkVector4(hkVector4f):
 
 
 @dataclass(slots=True, eq=False, repr=False)
-class hkMatrix3Impl(hkStruct(_float, 4)):
+class hkMatrix3Impl(hkStruct(_float, 12)):
     alignment = 16
     byte_size = 48
     __tag_format_flags = 11

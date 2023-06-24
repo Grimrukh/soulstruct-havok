@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
 from .hkpMotionMotionType import hkpMotionMotionType
 from .hkMotionState import hkMotionState
-from .hkHalf16 import hkHalf16
 
 
 @dataclass(slots=True, eq=False, repr=False)

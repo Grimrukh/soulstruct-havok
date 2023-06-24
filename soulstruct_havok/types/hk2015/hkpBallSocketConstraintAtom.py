@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
 from .hkpConstraintAtom import hkpConstraintAtom
 from .hkpConstraintAtomSolvingMethod import hkpConstraintAtomSolvingMethod
-from .hkUFloat8 import hkUFloat8
 
 
 @dataclass(slots=True, eq=False, repr=False)

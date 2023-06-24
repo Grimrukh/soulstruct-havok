@@ -115,7 +115,6 @@ from .hkBitFieldBase import hkBitFieldBase
 from .hkBitFieldStorage import hkBitFieldStorage
 from .hkCompressedMassProperties import hkCompressedMassProperties
 from .hkDefaultPropertyBag import hkDefaultPropertyBag
-from .hkHalf16 import hkHalf16
 from .hkHandle import hkHandle
 from .hkLocalFrame import hkLocalFrame
 from .hkMeshBoneIndexMapping import hkMeshBoneIndexMapping
@@ -125,7 +124,6 @@ from .hkRefCountedProperties import hkRefCountedProperties
 from .hkRefCountedPropertiesEntry import hkRefCountedPropertiesEntry
 from .hkRootLevelContainer import hkRootLevelContainer
 from .hkRootLevelContainerNamedVariant import hkRootLevelContainerNamedVariant
-from .hkUFloat8 import hkUFloat8
 
 from .hkaAnimatedReferenceFrame import hkaAnimatedReferenceFrame
 from .hkaAnimatedReferenceFramehkaReferenceFrameTypeEnum import hkaAnimatedReferenceFramehkaReferenceFrameTypeEnum

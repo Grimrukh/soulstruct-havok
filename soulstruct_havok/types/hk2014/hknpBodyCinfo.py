@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
 from .hknpShape import hknpShape
@@ -44,6 +46,6 @@ class hknpBodyCinfo(hk):
     name: str
     userData: int
     position: Vector4
-    orientation: hkQuaternionf
+    orientation: Quaternion
     spuFlags: int
     localFrame: hkLocalFrame

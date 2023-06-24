@@ -622,5 +622,13 @@ class hk:
     def __repr__(self):
         return f"{type(self).__name__}()"
 
+    def get_full_repr(self, indent=0):
+        ind = " " * indent
+        lines = [f"{ind}{type(self).__name__}("]
+        for member in self.members:
+            lines.append(f"{ind}    {member.name} = {repr(getattr(self, member.name))},")
+        lines.append(f"{ind})")
+        return "\n".join(lines)
+
 
 HK_TYPE = tp.Type[hk]

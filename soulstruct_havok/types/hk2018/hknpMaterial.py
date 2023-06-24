@@ -1,16 +1,12 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
 
-
-
-
 from .hknpMaterialTriggerType import hknpMaterialTriggerType
-from .hkUFloat8 import hkUFloat8
-from .hkHalf16 import hkHalf16
 from .hknpMaterialCombinePolicy import hknpMaterialCombinePolicy
-
 from .hknpMaterialMassChangerCategory import hknpMaterialMassChangerCategory
 from .hknpSurfaceVelocity import hknpSurfaceVelocity
 

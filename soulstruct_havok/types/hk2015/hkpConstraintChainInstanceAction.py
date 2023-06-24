@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import typing as tp
 
 from soulstruct_havok.enums import *

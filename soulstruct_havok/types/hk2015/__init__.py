@@ -1,7 +1,6 @@
 from .core import *
 
 from .hkAabb import hkAabb
-from .hkHalf16 import hkHalf16
 from .hkLocalFrame import hkLocalFrame
 from .hkMeshBoneIndexMapping import hkMeshBoneIndexMapping
 from .hkMoppBvTreeShapeBase import hkMoppBvTreeShapeBase
@@ -11,7 +10,6 @@ from .hkRootLevelContainer import hkRootLevelContainer
 from .hkRootLevelContainerNamedVariant import hkRootLevelContainerNamedVariant
 from .hkSimpleProperty import hkSimpleProperty
 from .hkSimplePropertyValue import hkSimplePropertyValue
-from .hkUFloat8 import hkUFloat8
 from .hkWorldMemoryAvailableWatchDog import hkWorldMemoryAvailableWatchDog
 
 from .hkaAnimatedReferenceFrame import hkaAnimatedReferenceFrame
