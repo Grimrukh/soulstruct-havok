@@ -87,7 +87,7 @@ class BaseANIBND(Binder, abc.ABC):
                 for anim_id in self.animation_ids_to_load:
                     entry_name = self.animation_id_to_entry_basename(anim_id)
                     try:
-                        anim_entry = self.entries_by_name[entry_name]
+                        anim_entry = self.find_entry_name(entry_name)
                     except KeyError:
                         raise ValueError(f"Could not find animation entry '{entry_name}' for animation ID {anim_id}.")
                     self.animations_hkx[anim_id] = self.ANIMATION_HKX.from_bytes(anim_entry, compendium=compendium)

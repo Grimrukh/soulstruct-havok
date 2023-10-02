@@ -3,13 +3,14 @@ from __future__ import annotations
 __all__ = ["HKX", "HKX_ROOT_TYPING"]
 
 import logging
+import re
 import typing as tp
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
 
 from soulstruct.base.game_file import GameFile
-from soulstruct.containers import Binder, BinderEntry
+from soulstruct.containers import Binder, BinderEntry, EntryNotFoundError
 from soulstruct.containers.dcx import DCXType, decompress, is_dcx
 from soulstruct.utilities.binary import *
 from soulstruct.utilities.future import StrEnum
@@ -150,7 +151,7 @@ class HKX(GameFile):
     def from_binder(
         cls,
         binder: Binder,
-        entry_id_or_name: int | str,
+        entry_spec: int | Path | str | re.Pattern = None,
         hk_format: HavokFileFormat = None,
         compendium_name: str = "",
     ):
@@ -158,15 +159,15 @@ class HKX(GameFile):
         compendium, compendium_name = cls.get_compendium_from_binder(binder, compendium_name)
 
         try:
-            return cls.from_bytes(binder[entry_id_or_name], hk_format=hk_format, compendium=compendium)
+            return cls.from_bytes(binder[entry_spec], hk_format=hk_format, compendium=compendium)
         except MissingCompendiumError:
             if compendium_name != "":
                 raise MissingCompendiumError(
-                    f"Binder entry '{entry_id_or_name}' requires a compendium, but compendium '{compendium_name}' "
+                    f"Binder entry '{entry_spec}' requires a compendium, but compendium '{compendium_name}' "
                     f"could not be found in given binder. Use `compendium_name` argument if it has another name."
                 )
             raise MissingCompendiumError(
-                f"Binder entry '{entry_id_or_name}' requires a compendium, but `compendium_name` was not given and a "
+                f"Binder entry '{entry_spec}' requires a compendium, but `compendium_name` was not given and a "
                 f"'.compendium' entry could not be found in the given binder."
             )
 
@@ -190,10 +191,11 @@ class HKX(GameFile):
                 # Otherwise, no compendiums found; assume not needed and complain below if otherwise.
                 compendium = None
         else:
-            if compendium_name in binder.entries_by_name:
-                compendium = HKX.from_bytes(binder.entries_by_name[compendium_name])  # always HKX base class
-            else:
-                raise ValueError(f"Compendium file '{compendium_name}' not present in given binder.")
+            try:
+                compendium_entry = binder.find_entry_name(compendium_name)
+            except EntryNotFoundError:
+                raise MissingCompendiumError(f"Compendium file '{compendium_name}' not present in given binder.")
+            compendium = compendium_entry.to_binary_file(HKX)  # always base `HKX` class
         return compendium, compendium_name
 
     @classmethod
@@ -239,7 +241,13 @@ class HKX(GameFile):
         return self.root.get_tree_string(max_primitive_sequence_size=max_primitive_sequence_size)
 
     # region OUTDATED CONVERSION METHODS
-    # TODO: All ridiculously outdated, but contains info I need to move elsewhere.
+
+    # TODO: All ridiculously outdated, but probably contains info I need to move elsewhere. Mostly related to updating
+    #  Havok 2010 classes to higher versions:
+    #   - updated `AnimationType` enumeration
+    #   - change `hkSweptTransform` class to a tuple of five `hkVector4f` instances
+    #   - change certain instances of `hkUint8` class to `hkUFloat8` class
+    #  Pretty sure this is all handled already.
 
     # Call these to PERMANENTLY convert the HKX instance to the given Havok version. This works by iterating over all
     # the nodes and changing their type to the corresponding type in the requested version's type database. Only the
@@ -361,4 +369,5 @@ class HKX(GameFile):
                     value={"value": uint8_node},
                 )
                 self.all_nodes.append(node.value["velocityStabilizationFactor"])
+
     # endregion

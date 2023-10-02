@@ -8,8 +8,8 @@ from soulstruct import DSR_PATH, BB_PATH
 from soulstruct.containers import Binder
 from soulstruct_havok.utilities.maths import TRSTransform, Vector3, Quaternion
 
-from soulstruct_havok.core import HKX
-from soulstruct_havok.types import hk2014_new, hk2015
+from soulstruct_havok.core import HKX, HavokFileFormat
+from soulstruct_havok.types import hk2014, hk2015
 
 
 # TODO: Now to convert 2014 ragdoll to 2015.
@@ -32,7 +32,7 @@ class Converter_2014_2015:
         self.hkx = hkx2014
         self.hkx.root = self.convert(hkx2014.root)
 
-    def convert(self, instance_2014: hk2014_new.hk) -> hk2015.hk:
+    def convert(self, instance_2014: hk2014.hk) -> hk2015.hk:
 
         # TODO: Won't work; `hk` is currently the same. Need to check `__module__` or something instead.
         if isinstance(instance_2014, hk2015.hk):
@@ -51,7 +51,7 @@ class Converter_2014_2015:
             #  Could scan variants at the end to fix this.
             return convert_method(instance_2014)
 
-    def convert_default(self, instance_2014: hk2014_new.hk) -> hk2015.hk:
+    def convert_default(self, instance_2014: hk2014.hk) -> hk2015.hk:
         try:
             hk_type_2015 = getattr(hk2015, instance_2014.get_type_name())  # type: tp.Type[hk2015.hk]
         except AttributeError:
@@ -69,7 +69,7 @@ class Converter_2014_2015:
 
         return instance_2015
 
-    def set_members_default(self, instance_2014: hk2014_new.hk, instance_2015: hk2015.hk, parent_type: tp.Type[hk2015.hk]):
+    def set_members_default(self, instance_2014: hk2014.hk, instance_2015: hk2015.hk, parent_type: tp.Type[hk2015.hk]):
         """Copy member values for all local members in `parent_type`. (Will be called for each of the new instance's
         parent types.)"""
         for member in parent_type.local_members:
@@ -81,16 +81,16 @@ class Converter_2014_2015:
                     f"    Members: {instance_2014.get_member_names()}"
                 )
             else:
-                if isinstance(member_value_2014, hk2014_new.hk):
+                if isinstance(member_value_2014, hk2014.hk):
                     member_value_2015 = self.convert(member_value_2014)
                 elif (
                     isinstance(member_value_2014, list)
-                    and member_value_2014 and isinstance(member_value_2014[0], hk2014_new.hk)
+                    and member_value_2014 and isinstance(member_value_2014[0], hk2014.hk)
                 ):
                     member_value_2015 = [self.convert(v) for v in member_value_2014]
                 elif (
                     isinstance(member_value_2014, tuple)
-                    and member_value_2014 and isinstance(member_value_2014[0], hk2014_new.hk)
+                    and member_value_2014 and isinstance(member_value_2014[0], hk2014.hk)
                 ):
                     member_value_2015 = tuple(self.convert(v) for v in member_value_2014)
                 else:
@@ -98,7 +98,7 @@ class Converter_2014_2015:
                 setattr(instance_2015, member.name, member_value_2015)
 
     def set_members_hkReferencedObject(
-        self, instance_2014: hk2014_new.hkReferencedObject, instance_2015: hk2015.hkReferencedObject
+        self, instance_2014: hk2014.hkReferencedObject, instance_2015: hk2015.hkReferencedObject
     ):
         """`memSizeAndRefCount` is split into two members, `memSizeAndFlags` and `refCount`, in 2015."""
         assert_member_value(instance_2014, "memSizeAndRefCount", 0)
@@ -106,7 +106,7 @@ class Converter_2014_2015:
         instance_2015.refCount = 0
 
 
-def assert_member_value(instance: hk2014_new.hk, member_name: str, value: tp.Any):
+def assert_member_value(instance: hk2014.hk, member_name: str, value: tp.Any):
     if getattr(instance, member_name) != value:
         raise ValueError(
             f"Can only convert `hk2014.{instance.get_type_name()}.{member_name}` when its value is {repr(value)}."
@@ -121,7 +121,7 @@ MISSING_MEMBER_DEFAULTS = {
 }
 
 
-def convert_simple(instance: hk2014_new.hk, converted_ids: dict[int, hk2015.hk] = None):
+def convert_simple(instance: hk2014.hk, converted_ids: dict[int, hk2015.hk] = None):
     """Just iterates over members and updates types.
 
     Does not expect or handle any structural change EXCEPT for `memSizeAndFlags`/`refCount`.
@@ -151,16 +151,16 @@ def convert_simple(instance: hk2014_new.hk, converted_ids: dict[int, hk2015.hk] 
                     f"    Members: {instance.get_member_names()}"
                 )
         else:
-            if isinstance(member_value_2014, hk2014_new.hk):
+            if isinstance(member_value_2014, hk2014.hk):
                 member_value_2015 = convert_simple(member_value_2014, converted_ids)
             elif (
                 isinstance(member_value_2014, list)
-                and member_value_2014 and isinstance(member_value_2014[0], hk2014_new.hk)
+                and member_value_2014 and isinstance(member_value_2014[0], hk2014.hk)
             ):
                 member_value_2015 = [convert_simple(v, converted_ids) for v in member_value_2014]
             elif (
                 isinstance(member_value_2014, tuple)
-                and member_value_2014 and isinstance(member_value_2014[0], hk2014_new.hk)
+                and member_value_2014 and isinstance(member_value_2014[0], hk2014.hk)
             ):
                 member_value_2015 = tuple(convert_simple(v, converted_ids) for v in member_value_2014)
             else:
@@ -188,7 +188,7 @@ def convert_hknp_ragdoll_hkx_to_hkp(
     converted_ids = {}  # shared across all `convert_simple()` calls
 
     # noinspection PyTypeChecker
-    root = copy.deepcopy(hkx.root)  # type: hk2014_new.hkRootLevelContainer
+    root = copy.deepcopy(hkx.root)  # type: hk2014.hkRootLevelContainer
 
     # ANIMATION CONTAINER VARIANT
 
@@ -204,7 +204,7 @@ def convert_hknp_ragdoll_hkx_to_hkp(
     # PHYSICS DATA VARIANT
 
     # noinspection PyTypeChecker,PyUnresolvedReferences
-    hknp_ragdoll_data = root.namedVariants[1].variant.systemDatas[0]  # type: hk2014_new.hknpRagdollData
+    hknp_ragdoll_data = root.namedVariants[1].variant.systemDatas[0]  # type: hk2014.hknpRagdollData
     if root.namedVariants[2].variant is not hknp_ragdoll_data:
         raise ValueError(
             "Expected `hknpPhysicsSceneData.systemDatas[0]` to be the same `hknpRagdollData` as the ragdoll variant."
@@ -449,9 +449,9 @@ def convert_hknp_ragdoll_hkx_to_hkp(
     hkx.root = hk2015.hkRootLevelContainer(namedVariants=root.namedVariants)
 
 
-def convert_hknp_shape_to_hkp(hknp_shape: hk2014_new.hknpShape) -> hk2015.hkpShape:
+def convert_hknp_shape_to_hkp(hknp_shape: hk2014.hknpShape) -> hk2015.hkpShape:
     """TODO: Only returns `hkpCapsuleShape`s at the moment."""
-    if isinstance(hknp_shape, hk2014_new.hknpConvexPolytopeShape):
+    if isinstance(hknp_shape, hk2014.hknpConvexPolytopeShape):
         capsule_axis = 0
         w = 0.1
         vertices = sorted(hknp_shape.vertices, key=lambda x: x[capsule_axis])
@@ -471,7 +471,7 @@ def convert_hknp_shape_to_hkp(hknp_shape: hk2014_new.hknpShape) -> hk2015.hkpSha
             vertexA=vertex_a,
             vertexB=vertex_b,
         )
-    elif isinstance(hknp_shape, hk2014_new.hknpCapsuleShape):
+    elif isinstance(hknp_shape, hk2014.hknpCapsuleShape):
         return hk2015.hkpCapsuleShape(
             memSizeAndFlags=0,
             refCount=0,
@@ -493,16 +493,17 @@ def test_ragdoll_conversion():
     source_model = 2310
     dest_model = 5600
 
-    bb_chrbnd = Binder(BB_PATH + f"/chr/c{source_model}.chrbnd.dcx")
-    bb_hkx = HKX(bb_chrbnd[300])
+    bb_chrbnd = Binder.from_path(BB_PATH + f"/chr/c{source_model}.chrbnd.dcx")
+    bb_hkx = HKX.from_binder_entry(bb_chrbnd[300])
     print("Opened BB HKX.")
     convert_hknp_ragdoll_hkx_to_hkp(bb_hkx)
     print("Conversion successful.")
     h = bb_hkx.get_root_tree_string()
     Path(f"c{source_model}_bb_2015.txt").write_text(h)
+    bb_hkx.hk_format = HavokFileFormat.Tagfile
 
-    game_chrbnd = Binder(DSR_PATH + f"/chr/c{dest_model}.chrbnd.dcx")
-    game_chrbnd[300].set_uncompressed_data(bb_hkx.pack_tagfile())
+    game_chrbnd = Binder.from_path(DSR_PATH + f"/chr/c{dest_model}.chrbnd.dcx")
+    game_chrbnd[300].set_from_binary_file(bb_hkx)
     game_chrbnd.write()
     print(f"Written to game CHRBND: {dest_model}")
 
@@ -517,11 +518,11 @@ def test_ragdoll_conversion():
 
 # noinspection PyUnresolvedReferences
 def examine_dsr_ragdolls():
-    ice_king_ragdoll = HKX(r"C:\Steam\steamapps\common\DARK SOULS REMASTERED (Nightfall)\chr\c5600-chrbnd-dcx\c5600.hkx")
+    ice_king_ragdoll = HKX.from_path(r"C:\Steam\steamapps\common\DARK SOULS REMASTERED (Nightfall)\chr\c5600-chrbnd-dcx\c5600.hkx")
 
     chr_dir = Path(DSR_PATH + "/chr")
-    capra_chrbnd = Binder(chr_dir / "c2240.chrbnd.dcx")
-    capra_ragdoll = HKX(capra_chrbnd[300])
+    capra_chrbnd = Binder.from_path(chr_dir / "c2240.chrbnd.dcx")
+    capra_ragdoll = HKX.from_binder_entry(capra_chrbnd[300])
 
     # capra_chrbnd[300].data = capra_ragdoll.pack()
     # capra_chrbnd.write()
@@ -656,8 +657,8 @@ def examine_dsr_ragdolls():
 
     ice_king_chrbnd = Binder(chr_dir / "c5600.chrbnd.dcx")
 
-    if 300 in ice_king_chrbnd.entries_by_id:
-        ice_king_chrbnd.remove_entry(300)
+    if 300 in ice_king_chrbnd.get_entry_ids():
+        ice_king_chrbnd.remove_entry_id(300)
     ice_king_chrbnd.add_entry(ice_king_chrbnd.BinderEntry(
         entry_id=300,
         path="N:\\FRPG\\data\\INTERROOT_x64\\chr\\c5600\\c5600.hkx",
@@ -665,14 +666,3 @@ def examine_dsr_ragdolls():
         data=capra_ragdoll.pack(),
     ))
     ice_king_chrbnd.write()
-
-
-def map_collision():
-    van_col_path = r"C:\Steam\steamapps\common\DARK SOULS REMASTERED (Vanilla Backup)\map\m12_00_00_00\l12_00_00_00-hkxbhd\m12_00_00_00\l0035B0A12.hkx"
-    HKX(van_col_path)
-
-
-if __name__ == '__main__':
-    # test_ragdoll_conversion()
-    # examine_dsr_ragdolls()
-    map_collision()

@@ -33,7 +33,7 @@ def scale_character(model_name: str, scale_factor: float):
         print("Cloth physics scaled.")
 
     print("Scaling animations:")
-    for entry_id, entry in anibnd.entries_by_id.items():
+    for entry_id, entry in anibnd.get_entries_by_id().items():
         if entry_id < 1000000:
             print(f"  Scaling animation {entry_id}... ", end="")
             animation_hkx = AnimationHKX(entry)  # "aXX_XXXX.hkx"

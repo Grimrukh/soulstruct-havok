@@ -12,7 +12,7 @@ __all__ = [
 import logging
 from pathlib import Path
 
-from soulstruct.containers import Binder
+from soulstruct.containers import Binder, EntryNotFoundError
 from soulstruct.base.models.flver import FLVER
 from soulstruct.utilities.maths import Vector3
 
@@ -165,8 +165,8 @@ def reverse_animation_in_anibnd_file(
     anibnd_path = Path(anibnd_path)
     anibnd = Binder.from_bak(anibnd_path) if prefer_bak else Binder.from_path(anibnd_path)
     try:
-        animation_entry = anibnd.entries_by_id[source_animation_id]
-    except KeyError:
+        animation_entry = anibnd.find_entry_id(source_animation_id)
+    except EntryNotFoundError:
         raise KeyError(f"Could not find animation ID {source_animation_id} in '{anibnd_path.name}'.")
     animation = animation_entry.to_binary_file(AnimationHKX)
     _LOGGER.info(f"Reversing animation {source_animation_id}...")
@@ -175,7 +175,7 @@ def reverse_animation_in_anibnd_file(
         # In-place modification is complete.
         animation_entry.set_from_binary_file(animation)
     else:
-        if new_animation_id in anibnd.entries_by_id:
+        if new_animation_id in anibnd.get_entry_ids():
             raise KeyError(
                 f"Animation ID {new_animation_id} already exists in `anibnd`. If you want to overwrite it with "
                 f"reversed animation, do not provide `new_animation_id`."

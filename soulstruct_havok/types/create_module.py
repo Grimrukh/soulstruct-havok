@@ -72,10 +72,10 @@ def create_module_from_files(version: str, *file_paths: str | Path, is_tagfile=T
     if not is_tagfile:
         # Packfile base types must exist already and be imported.
         if version == "2010":
-            from soulstruct_havok.types import hk2010_base as base_module
+            from soulstruct_havok.types import hk2010 as base_module
             module_str += f"from soulstruct_havok.types.hk2010_base import *\n"
         elif version == "2014":
-            from soulstruct_havok.types import hk2014_base as base_module
+            from soulstruct_havok.types import hk2014 as base_module
             module_str += f"from soulstruct_havok.types.hk2014_base import *\n"
         else:
             raise VersionModuleError(

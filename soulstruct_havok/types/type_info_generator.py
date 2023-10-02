@@ -4,7 +4,7 @@ Designed (painfully) to mimic the type ordering of real Havok files, and seems t
 
 Uses 64-bit pointers, as 32-bit tagfiles are not known to exist and probably never will.
 
-TODO: My library cannot current pack type information to packfiles. Something like this would probably be needed to
+TODO: My library cannot currently pack type information to packfiles. Something like this would probably be needed to
     do that, though (in addition to serializing the `TypeInfo` class into packfiles, which involves some weirdness).
 """
 from __future__ import annotations

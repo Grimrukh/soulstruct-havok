@@ -12,7 +12,7 @@ import typing as tp
 from dataclasses import dataclass, field
 from enum import Enum
 
-from soulstruct.containers import Binder, BinderEntry, BinderEntryNotFoundError
+from soulstruct.containers import Binder, BinderEntry, EntryNotFoundError
 from soulstruct.base.animations import SIBCAM
 from soulstruct.darksouls1r.maps import MSB, MapStudioDirectory, get_map
 from soulstruct.darksouls1r.maps.parts import MSBPart
@@ -272,7 +272,7 @@ class RemoBND(Binder):
         super(Binder, self).__post_init__()
         try:
             self.tae_entry = self.find_entry_matching_name(r".*\.tae")
-        except BinderEntryNotFoundError:
+        except EntryNotFoundError:
             raise ValueError("Could not find TAE file in `RemoBND` binder.")
         # Cutscene name can be detected from the binder's TAE file stem.
         self.cutscene_name = self.tae_entry.stem
@@ -282,9 +282,9 @@ class RemoBND(Binder):
             if match := CUT_HKX_RE.match(entry.name):
                 cut_name = "cut" + match.group(1)
                 try:
-                    sibcam_entry = self.entries_by_path[f"\\{cut_name}\\camera_win32.sibcam"]
-                except KeyError:
-                    raise KeyError(f"Could not find SIBCAM file corresponding to cut HKX entry: {entry.name}")
+                    sibcam_entry = self.find_entry_path(f"\\{cut_name}\\camera_win32.sibcam")
+                except EntryNotFoundError:
+                    raise ValueError(f"Could not find SIBCAM file corresponding to cut HKX entry: {entry.name}")
                 sibcam = sibcam_entry.to_binary_file(SIBCAM)
                 animation = entry.to_binary_file(RemoAnimationHKX)
                 animation.animation_container.spline_to_interleaved()

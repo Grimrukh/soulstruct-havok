@@ -5,7 +5,7 @@ __all__ = ["HavokTypeError", "VersionModuleError", "TypeNotDefinedError", "TypeM
 import typing as tp
 
 if tp.TYPE_CHECKING:
-    from .core import hk
+    from soulstruct_havok.types.base import hk
 
 
 class HavokTypeError(Exception):

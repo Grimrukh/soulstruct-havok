@@ -172,7 +172,6 @@ class hk:
 
     @classmethod
     def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
-        # noinspection PyTypeChecker
         return list(cls.__mro__[:-2])  # exclude `hk` and `object`
 
     @classmethod
