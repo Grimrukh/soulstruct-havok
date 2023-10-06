@@ -11,7 +11,7 @@ from types import ModuleType
 
 from soulstruct.base.game_file import GameFile
 from soulstruct.containers import Binder, BinderEntry, EntryNotFoundError
-from soulstruct.containers.dcx import DCXType, decompress, is_dcx
+from soulstruct.dcx import DCXType, decompress, is_dcx
 from soulstruct.utilities.binary import *
 from soulstruct.utilities.future import StrEnum
 

@@ -19,7 +19,7 @@ import subprocess as sp
 import typing as tp
 from pathlib import Path
 
-from soulstruct.containers import DCXType
+from soulstruct.dcx import DCXType
 
 from soulstruct_havok.core import HavokFileFormat
 from soulstruct_havok.packfile.structs import PackFileVersion, PackfileHeaderInfo
