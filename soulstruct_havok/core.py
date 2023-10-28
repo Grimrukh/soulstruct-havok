@@ -15,13 +15,13 @@ from soulstruct.dcx import DCXType, decompress, is_dcx
 from soulstruct.utilities.binary import *
 from soulstruct.utilities.future import StrEnum
 
-from .packfile.packer import PackFilePacker
-from .packfile.structs import PackfileHeaderInfo
-from .packfile.unpacker import PackFileUnpacker
-from .tagfile.packer import TagFilePacker
-from .tagfile.unpacker import TagFileUnpacker, MissingCompendiumError
-from .types import hk2010, hk2014, hk2015, hk2018
-from .types.info import TypeInfo
+from soulstruct_havok.packfile.packer import PackFilePacker
+from soulstruct_havok.packfile.structs import PackfileHeaderInfo
+from soulstruct_havok.packfile.unpacker import PackFileUnpacker
+from soulstruct_havok.tagfile.packer import TagFilePacker
+from soulstruct_havok.tagfile.unpacker import TagFileUnpacker, MissingCompendiumError
+from soulstruct_havok.types import hk2010, hk2014, hk2015, hk2018
+from soulstruct_havok.types.info import TypeInfo
 
 try:
     Self = tp.Self

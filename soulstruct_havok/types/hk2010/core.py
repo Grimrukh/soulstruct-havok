@@ -302,7 +302,7 @@ class hkQuaternionf(hkStruct(_float, 4)):
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
-class hkRotationImpl(hkStruct(_float, 4)):
+class hkRotationImpl(hkStruct(_float, 12)):
     alignment = 16
     byte_size = 48
     __tag_format_flags = 11
@@ -321,7 +321,7 @@ class hkVector4(hkVector4f):
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
-class hkMatrix3Impl(hkStruct(_float, 4)):
+class hkMatrix3Impl(hkStruct(_float, 12)):
     alignment = 16
     byte_size = 48
     __tag_format_flags = 11
@@ -418,6 +418,14 @@ class hkQsTransformf(hk):
     translation: Vector4
     rotation: Quaternion
     scale: Vector4
+
+    @classmethod
+    def identity(cls):
+        return cls(
+            translation=Vector4.zero(),
+            rotation=Quaternion.identity(),
+            scale=Vector4.one(),
+        )
 
     def to_trs_transform(self) -> TRSTransform:
         return TRSTransform(Vector3.from_vector4(self.translation), self.rotation, Vector3.from_vector4(self.scale))
@@ -527,7 +535,7 @@ class hkReferencedObject(hkBaseObject):
     )
     members = hkBaseObject.members + local_members
 
-    memSizeAndFlags: int
+    memSizeAndFlags: int = 0
     referenceCount: int
 
 

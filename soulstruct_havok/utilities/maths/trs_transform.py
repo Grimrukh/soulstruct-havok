@@ -103,7 +103,7 @@ class TRSTransform:
         return cls()
 
     @classmethod
-    def lerp(cls, transform1: TRSTransform, transform2: TRSTransform, t: float):
+    def lerp(cls, transform1: TRSTransform, transform2: TRSTransform, t: float) -> TRSTransform:
         """Linearly interpolate translate and scale, and spherically interpolate rotation Quaternion.
 
         `t` will be clamped to [0, 1] interval.
@@ -114,7 +114,10 @@ class TRSTransform:
         scale = transform1.scale.data + (transform2.scale.data - transform1.scale.data) * t
         return cls(Vector3(translation), rotation, Vector3(scale))
 
-    # @profile
+    def ravel(self) -> list[float]:
+        """Return a list of the 10 float values that define this transform."""
+        return [*self.translation, *self.rotation, *self.scale]
+
     def compose(self, other: TRSTransform, scale_translation=False) -> TRSTransform:
         """Combine two `TRSTransforms`.
 

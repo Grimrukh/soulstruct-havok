@@ -435,9 +435,8 @@ class hkTransform(hkTransformf):
 class hkQsTransformf(hk):
     alignment = 16
     byte_size = 48
-    tag_type_flags = TagDataType.Class
-
     __tag_format_flags = 41
+    tag_type_flags = TagDataType.Class
 
     local_members = (
         Member(0, "translation", hkVector4f),
@@ -449,6 +448,14 @@ class hkQsTransformf(hk):
     translation: Vector4
     rotation: Quaternion
     scale: Vector4
+
+    @classmethod
+    def identity(cls):
+        return cls(
+            translation=Vector4.zero(),
+            rotation=Quaternion.identity(),
+            scale=Vector4.one(),
+        )
 
     def to_trs_transform(self) -> TRSTransform:
         return TRSTransform(Vector3.from_vector4(self.translation), self.rotation, Vector3.from_vector4(self.scale))
@@ -616,5 +623,5 @@ class hkReferencedObject(hkBaseObject):
     )
     members = hkBaseObject.members + local_members
 
-    memSizeAndFlags: int
-    refCount: int
+    memSizeAndFlags: int = 0
+    refCount: int = 0

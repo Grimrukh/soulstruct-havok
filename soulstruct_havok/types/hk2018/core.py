@@ -490,6 +490,14 @@ class hkQsTransformf(hk):
     rotation: Quaternion
     scale: Vector4
 
+    @classmethod
+    def identity(cls):
+        return cls(
+            translation=Vector4.zero(),
+            rotation=Quaternion.identity(),
+            scale=Vector4.one(),
+        )
+
     def to_trs_transform(self) -> TRSTransform:
         return TRSTransform(Vector3.from_vector4(self.translation), self.rotation, Vector3.from_vector4(self.scale))
 
@@ -762,7 +770,7 @@ class hkPropertyId(hk):
     )
     members = local_members
 
-    desc: hkPtrAndInt
+    desc: hkPtrAndInt = None
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
@@ -842,7 +850,7 @@ class hkHashBase(hk):
     members = local_members
 
     items: list[hkHashMapDetailMapTuple]
-    index: hkHashMapDetailIndex
+    index: hkHashMapDetailIndex = None
 
     __templates = (
         TemplateType("tITEM", type=hkHashMapDetailMapTuple),
@@ -882,8 +890,8 @@ class hkDefaultPropertyBag(hk):
     members = local_members
 
     propertyMap: hkHashMap
-    transientPropertyMap: hkHashMap
-    locked: bool
+    transientPropertyMap: hkHashMap = None
+    locked: bool = False
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
@@ -899,7 +907,7 @@ class hkPropertyBag(hkBasePointer):
     )
     members = local_members
 
-    bag: hkDefaultPropertyBag
+    bag: hkDefaultPropertyBag = None
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
@@ -919,5 +927,5 @@ class hkReferencedObject(hkBaseObject):
     members = hkBaseObject.members + local_members
 
     propertyBag: hkPropertyBag
-    memSizeAndFlags: int
-    refCount: int
+    memSizeAndFlags: int = 0
+    refCount: int = 0

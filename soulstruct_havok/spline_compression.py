@@ -20,8 +20,9 @@ import copy
 import logging
 import math
 import struct
-import typing as tp
+from dataclasses import dataclass
 from enum import IntEnum
+from multiprocessing import Pool
 
 import numpy as np
 from soulstruct.utilities.binary import *
@@ -64,9 +65,9 @@ class ScalarQuantizationType(IntEnum):
 
 class RotationQuantizationType(IntEnum):
     Polar32 = 0  # 4 bytes
-    ThreeComp40 = 1  # 5 bytes
-    ThreeComp48 = 2  # 6 bytes
-    ThreeComp25 = 3  # 3 bytes
+    ThreeComp40 = 1  # 5 bytes ("three components in 40 bits")
+    ThreeComp48 = 2  # 6 bytes ("three components in 48 bits")
+    ThreeComp25 = 3  # 3 bytes ("three components in 25 bits") TODO: 25 bits != 3 bytes?
     Straight16 = 4  # 2 bytes
     Uncompressed = 5  # 16 bytes
 
@@ -246,6 +247,7 @@ class SplineFloat(list[float]):
         return f"SplineFloat<{len(self)}>"
 
 
+@dataclass(slots=True)
 class TrackVector3:
     """Holds data for each axis X, Y, and Z.
 
@@ -259,30 +261,14 @@ class TrackVector3:
     constant axis values.
     """
 
-    spline_header: tp.Optional[SplineHeader]
-    x: tp.Union[SplineFloat, float]
-    y: tp.Union[SplineFloat, float]
-    z: tp.Union[SplineFloat, float]
-    scalar_quantization_type: ScalarQuantizationType
-
-    quantized_bounds: dict[str, tp.Optional[list[int, int]]]  # maps axis names ("x") to an optional [min, max] list
-
-    def __init__(
-        self,
-        x: SplineFloat | float,
-        y: SplineFloat | float,
-        z: SplineFloat | float,
-        header: SplineHeader = None,
-        scalar_quantization_type=ScalarQuantizationType.Bits16,
-    ):
-        self.x = x
-        self.y = y
-        self.z = z
-        self.spline_header = header
-        self.scalar_quantization_type = scalar_quantization_type
+    x: SplineFloat | float
+    y: SplineFloat | float
+    z: SplineFloat | float
+    spline_header: SplineHeader | None = None  # contains shared degree, knots, and control point count of spline
+    scalar_quantization_type: ScalarQuantizationType = ScalarQuantizationType.Bits16
 
     @classmethod
-    def unpack(
+    def from_reader(
         cls, reader: BinaryReader, track_flags: int, scalar_quantization_type: ScalarQuantizationType, default: float
     ) -> TrackVector3:
         if track_flags & (TrackFlags.SplineX | TrackFlags.SplineY | TrackFlags.SplineZ):
@@ -320,24 +306,30 @@ class TrackVector3:
 
         return track_vector
 
-    def get_value_at_frame(self, frame: float, axis: str) -> float:
+    def get_value_at_frame(self, frame: float, axis: str, knot_span: int = None) -> float:
         axis = axis.lower()
         if axis not in "xyz":
             raise ValueError(f"Axis must be 'x', 'y', or 'z', not: {axis}")
         axis_value = getattr(self, axis)
         if isinstance(axis_value, SplineFloat):
-            knot_span = find_knot_span(self.spline_header.degree, frame, len(axis_value), self.spline_header.knots)
+            if knot_span is None:
+                knot_span = find_knot_span(self.spline_header.degree, frame, len(axis_value), self.spline_header.knots)
             return get_single_point_float(
                 knot_span, self.spline_header.degree, frame, self.spline_header.knots, axis_value
             )
-            # return get_single_point_new(self.spline_header.degree, frame, self.spline_header.knots, axis_value)
-        else:
-            return axis_value  # float
+        return axis_value  # constant or default value
 
     def get_vector_at_frame(self, frame: float) -> Vector3:
-        return Vector3([self.get_value_at_frame(frame, axis) for axis in "xyz"])
+        for axis in "xyz":
+            if isinstance(getattr(self, axis), SplineFloat):
+                knot_span = find_knot_span(
+                    self.spline_header.degree, frame, len(getattr(self, axis)), self.spline_header.knots
+                )
+                return Vector3([self.get_value_at_frame(frame, axis, knot_span) for axis in "xyz"])
+        return Vector3((self.x, self.y, self.z))
 
     def set_to_static_vector(self, xyz):
+        """Clear any spline header and set `x`, `y`, and `z` to `xyz` sequence."""
         self.x, self.y, self.z = xyz
         self.spline_header = None
 
@@ -347,6 +339,7 @@ class TrackVector3:
             axis_value = getattr(self, axis)
             delta_value = getattr(translate, axis)
             if isinstance(axis_value, SplineFloat):
+                # Translate all spline control points.
                 new_axis_value = SplineFloat(c + delta_value for c in axis_value)
             else:
                 new_axis_value = axis_value + delta_value
@@ -488,38 +481,16 @@ class TrackVector3:
         return f"TrackVector3({self.x}, {self.y}, {self.z})"
 
 
+@dataclass(slots=True)
 class TrackQuaternion:
 
-    spline_header: SplineHeader | None
-    raw_value: bytes | list[int] | None  # one or multiple quantized quaternions
     value: SplineQuaternion | Quaternion | None  # single (static) or spline quaternion
-
-    def __init__(
-        self,
-        value: SplineQuaternion | Quaternion,
-        header: SplineHeader = None,
-        rotation_quantization_type=RotationQuantizationType.ThreeComp40,
-        raw_value=b"",
-    ):
-        """Holds data for a track's rotation.
-
-        Note that this is ALWAYS either one static `Quaternion` or a 4D `SplineQuaternion`, unlike `TrackVector3`, which
-        can use static or spline data for each dimension. However, `track_flags` may still only mark certain dimensions
-        as splines, using an algorithm that I have tried to replicate faithfully in `pack()`.
-
-        We keep `raw_value` for encoded quaternions so the animation data can still be repacked (with quaternions not
-        edited) if the quaternion type can't be encoded yet.
-        """
-        if isinstance(value, SplineQuaternion) and not header:
-            raise ValueError("Must give a `header` to `TrackQuaterion` if `value` is a `SplineQuaterion`.")
-
-        self.value = value
-        self.spline_header = header
-        self.rotation_quantization_type = rotation_quantization_type
-        self.raw_value = raw_value
+    spline_header: SplineHeader | None = None
+    rotation_quantization_type: RotationQuantizationType = RotationQuantizationType.ThreeComp40
+    raw_value: bytes | list[int] | None = b""  # one or multiple quantized quaternions
 
     @classmethod
-    def unpack(cls, reader: BinaryReader, track_flags: int, rotation_quantization_type: RotationQuantizationType):
+    def from_reader(cls, reader: BinaryReader, track_flags: int, rotation_quantization_type: RotationQuantizationType):
 
         quantized_size = rotation_quantization_type.get_rotation_byte_count()
         if track_flags & (TrackFlags.SplineX | TrackFlags.SplineY | TrackFlags.SplineZ | TrackFlags.SplineW):
@@ -527,6 +498,12 @@ class TrackQuaternion:
             reader.align(rotation_quantization_type.get_rotation_align())
             with reader.temp_offset(reader.position):
                 raw_value = [reader.read(quantized_size) for _ in range(header.control_point_count)]
+
+            # TODO: Surely this can be more efficient!
+            #  - Read `count` quantized quaternions at once (e.g. 10 * 5 bytes = 50 bytes for ThreeComp40).
+            #  - Split every, e.g., 5 bytes and pad out to eight (`np.int64`).
+            #  - Unpack into a 'compressed array'.
+            #  - Run decompression algorithm ONCE, vectorized, on the compressed array.
             value = SplineQuaternion(
                 unpack_quantized_quaternion(reader, rotation_quantization_type)
                 for _ in range(header.control_point_count)
@@ -548,8 +525,7 @@ class TrackQuaternion:
             return get_single_point_quaternion(
                 knot_span, self.spline_header.degree, frame, self.spline_header.knots, self.value
             )
-        else:
-            return self.value  # Quaternion
+        return self.value  # Quaternion
 
     def set_to_static_quaternion(self, xyzw):
         self.value = Quaternion(*xyzw)
@@ -683,38 +659,39 @@ class TrackQuaternion:
         return f"TrackQuaternion({self.value.x}, {self.value.y}, {self.value.z}, {self.value.w})"
 
 
+@dataclass(slots=True)
 class TrackHeader:
     """Four-byte header containing information about how each track is compressed and packed."""
 
-    translation_quantization: ScalarQuantizationType
-    rotation_quantization: RotationQuantizationType
-    scale_quantization: ScalarQuantizationType
-    translation_track_flags: int
-    rotation_track_flags: int
-    scale_track_flags: int
+    translation_quantization: ScalarQuantizationType = ScalarQuantizationType.Bits16
+    rotation_quantization: RotationQuantizationType = RotationQuantizationType.ThreeComp40
+    scale_quantization: ScalarQuantizationType = ScalarQuantizationType.Bits16
+    translation_track_flags: int = 0
+    rotation_track_flags: int = 0
+    scale_track_flags: int = 0
 
-    def __init__(self, reader: BinaryReader = None):
-        """Holds information about how each track is compressed and packed (e.g. splines vs. static values)."""
-
-        # Some sensible defaults.
-        self.translation_quantization = ScalarQuantizationType.Bits16
-        self.rotation_quantization = RotationQuantizationType.ThreeComp40
-        self.scale_quantization = ScalarQuantizationType.Bits16
-        self.translation_track_flags = 0
-        self.rotation_track_flags = 0
-        self.scale_track_flags = 0
-
-        if reader is not None:
-            self.unpack(reader)
-
-    def unpack(self, reader: BinaryReader):
+    @classmethod
+    def from_reader(cls, reader: BinaryReader):
         quantization_types = reader.unpack_value("B")
-        self.translation_quantization = ScalarQuantizationType(quantization_types & 0b0000_0011)  # lowest two
-        self.rotation_quantization = RotationQuantizationType(quantization_types >> 2 & 0b0000_1111)  # middle four
-        self.scale_quantization = ScalarQuantizationType(quantization_types >> 6 & 0b0000_0011)  # highest two
-        self.translation_track_flags = reader.unpack_value("B")
-        self.rotation_track_flags = reader.unpack_value("B")
-        self.scale_track_flags = reader.unpack_value("B")
+        return cls(
+            translation_quantization=ScalarQuantizationType(quantization_types & 0b0000_0011),  # lowest two
+            rotation_quantization=RotationQuantizationType(quantization_types >> 2 & 0b0000_1111),  # middle four
+            scale_quantization=ScalarQuantizationType(quantization_types >> 6 & 0b0000_0011),  # highest two
+            translation_track_flags=reader.unpack_value("B"),
+            rotation_track_flags=reader.unpack_value("B"),
+            scale_track_flags=reader.unpack_value("B"),
+        )
+
+    @classmethod
+    def from_track(cls, track: SplineTransformTrack):
+        return cls(
+            translation_quantization=track.translation.scalar_quantization_type,
+            rotation_quantization=track.rotation.rotation_quantization_type,
+            scale_quantization=track.scale.scalar_quantization_type,
+            translation_track_flags=track.translation.get_flags(default=0.0),
+            rotation_track_flags=track.rotation.get_flags(),
+            scale_track_flags=track.scale.get_flags(default=1.0),
+        )
 
     def pack(self, big_endian=False) -> bytes:
         quantization_types = self.translation_quantization & 0b11
@@ -724,17 +701,6 @@ class TrackHeader:
         return struct.pack(
             fmt, quantization_types, self.translation_track_flags, self.rotation_track_flags, self.scale_track_flags
         )
-
-    @classmethod
-    def from_track(cls, track: SplineTransformTrack):
-        header = cls()
-        header.translation_quantization = track.translation.scalar_quantization_type
-        header.rotation_quantization = track.rotation.rotation_quantization_type
-        header.scale_quantization = track.scale.scalar_quantization_type
-        header.translation_track_flags = track.translation.get_flags(default=0.0)
-        header.rotation_track_flags = track.rotation.get_flags()
-        header.scale_track_flags = track.scale.get_flags(default=1.0)
-        return header
 
     def __repr__(self) -> str:
         return (
@@ -749,6 +715,7 @@ class TrackHeader:
         )
 
 
+@dataclass(slots=True)
 class SplineTransformTrack:
     """Single track of animation data, usually corresponding to a single bone.
 
@@ -758,13 +725,6 @@ class SplineTransformTrack:
     translation: TrackVector3
     rotation: TrackQuaternion
     scale: TrackVector3
-
-    def __init__(
-        self, translation: TrackVector3, rotation: TrackQuaternion, scale: TrackVector3
-    ):
-        self.translation = translation
-        self.rotation = rotation
-        self.scale = scale
 
     @classmethod
     def from_static_transform(cls, translation: Vector3 | Vector4, rotation: Quaternion, scale: Vector3 | Vector4):
@@ -789,11 +749,17 @@ class SplineTransformTrack:
     def apply_transform_to_rotation(self, transform: TRSTransform):
         self.rotation.rotate(transform.rotation)
 
-    def get_quat_transform_at_frame(self, frame: float) -> TRSTransform:
+    def get_trs_transform_at_frame(self, frame: float) -> TRSTransform:
         translation = self.translation.get_vector_at_frame(frame)
         rotation = self.rotation.get_quaternion_at_frame(frame)
         scale = self.scale.get_vector_at_frame(frame)
         return TRSTransform(translation, rotation, scale)
+
+    def get_transform_list_at_frame(self, frame: float) -> list[float]:
+        translation = self.translation.get_vector_at_frame(frame)
+        rotation = self.rotation.get_quaternion_at_frame(frame)
+        scale = self.scale.get_vector_at_frame(frame)
+        return [*translation, *rotation.data, *scale]
 
     def copy(self) -> SplineTransformTrack:
         return copy.deepcopy(self)
@@ -829,21 +795,21 @@ class SplineCompressedAnimationData:
         for block_index in range(block_count):
 
             # Track info (flags and quantization types) are stored first.
-            track_headers = [TrackHeader(reader) for _ in range(transform_track_count)]
+            track_headers = [TrackHeader.from_reader(reader) for _ in range(transform_track_count)]
             reader.align(4)
 
             transform_tracks = []  # type: list[SplineTransformTrack]
             for i in range(transform_track_count):
                 header = track_headers[i]
-                translation = TrackVector3.unpack(
+                translation = TrackVector3.from_reader(
                     reader, header.translation_track_flags, header.translation_quantization, 0.0
                 )
                 reader.align(4)
-                rotation = TrackQuaternion.unpack(
+                rotation = TrackQuaternion.from_reader(
                     reader, header.rotation_track_flags, header.rotation_quantization
                 )
                 reader.align(4)
-                scale = TrackVector3.unpack(
+                scale = TrackVector3.from_reader(
                     reader, header.scale_track_flags, header.scale_quantization, 1.0
                 )
                 reader.align(4)
@@ -909,7 +875,8 @@ class SplineCompressedAnimationData:
         all the `TRSTransforms` (generally one per bone) for that frame, as mapped by an `hkaAnimationBinding` instance
         in the HKX file.
         """
-        # TODO: Track count should be passed in, rather than continuing to assume one block only.
+        # TODO: Track count should be passed in, rather than continuing to assume one block only (or could add all
+        #  blocks together).
         transform_track_count = len(self.blocks[0])
         for block in self.blocks:
             if len(block) != transform_track_count:
@@ -926,14 +893,36 @@ class SplineCompressedAnimationData:
                 track = block[transform_track_index]
                 if frame >= frame_count - 1:
                     # Need to interpolate (t = 0.5) between this final frame and the first frame.
-                    current_frame_transform = track.get_quat_transform_at_frame(float(math.floor(frame)))
-                    first_frame_transform = self.blocks[0][transform_track_index].get_quat_transform_at_frame(frame=0.0)
+                    current_frame_transform = track.get_trs_transform_at_frame(float(math.floor(frame)))
+                    first_frame_transform = self.blocks[0][transform_track_index].get_trs_transform_at_frame(frame=0.0)
                     frame_transforms[frame_index].append(
                         TRSTransform.lerp(current_frame_transform, first_frame_transform, t=0.5)
                     )
                 else:
                     # Normal frame.
-                    frame_transforms[frame_index].append(track.get_quat_transform_at_frame(frame))
+                    frame_transforms[frame_index].append(track.get_trs_transform_at_frame(frame))
+
+        return frame_transforms
+
+    def to_interleaved_transforms_mp(self, frame_count: int, max_frames_per_block: int) -> list[list[TRSTransform]]:
+        transform_track_count = len(self.blocks[0])
+
+        # Break the frame indices into chunks for parallel processing.
+        num_workers = 8  # Set the number of worker processes
+        chunk_size = frame_count // num_workers
+        frame_chunks = [list(range(i * chunk_size, (i + 1) * chunk_size)) for i in range(num_workers)]
+
+        # TODO: Way, way slower.
+
+        # Initialize a multiprocessing pool and distribute the work.
+        with Pool(num_workers) as p:
+            results = p.starmap(
+                compute_frame_transforms,
+                [(frame_count, chunk, self.blocks, max_frames_per_block, transform_track_count) for chunk in frame_chunks]
+            )
+
+        # Flatten the results back into a single list of lists.
+        frame_transforms = [frame for result in results for frame in result]
 
         return frame_transforms
 
@@ -981,3 +970,25 @@ class SplineCompressedAnimationData:
             s += f"    ]\n"
         s += ")"
         return s
+
+
+def compute_frame_transforms(frame_count, frame_indices, blocks, max_frames_per_block, transform_track_count):
+    frame_transforms = []
+    for frame_index in frame_indices:
+        frame = float((frame_index % frame_count) % max_frames_per_block)
+        block_index = int((frame_index % frame_count) / max_frames_per_block)
+        block = blocks[block_index]
+
+        frame_transform = []
+        for transform_track_index in range(transform_track_count):
+            track = block[transform_track_index]
+            if frame >= frame_count - 1:
+                current_frame_transform = track.get_trs_transform_at_frame(float(math.floor(frame)))
+                first_frame_transform = blocks[0][transform_track_index].get_trs_transform_at_frame(frame=0.0)
+                frame_transform.append(
+                    TRSTransform.lerp(current_frame_transform, first_frame_transform, t=0.5)
+                )
+            else:
+                frame_transform.append(track.get_trs_transform_at_frame(frame))
+        frame_transforms.append(frame_transform)
+    return frame_transforms

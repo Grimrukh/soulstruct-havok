@@ -110,7 +110,7 @@ if tp.TYPE_CHECKING:
 class hkReflectDetailOpaque(hk):
     alignment = 0
     byte_size = 0
-    tag_format_flags = 9
+    __tag_format_flags = 9
     tag_type_flags = 1
     __real_name = "hkReflect::Detail::Opaque"
     local_members = ()
@@ -123,7 +123,7 @@ class hkReflectDetailOpaque(hk):
 class _int(hk):
     alignment = 4
     byte_size = 4
-    tag_format_flags = 9
+    __tag_format_flags = 9
     tag_type_flags = 33284
 
     __hsh = 4062341138
@@ -135,7 +135,7 @@ class _int(hk):
 class _const_char(hk):
     alignment = 4
     byte_size = 4
-    tag_format_flags = 9
+    __tag_format_flags = 9
     tag_type_flags = 3
     __real_name = "const char*"
     local_members = ()
@@ -145,7 +145,7 @@ class _const_char(hk):
 class _unsigned_short(hk):
     alignment = 2
     byte_size = 2
-    tag_format_flags = 9
+    __tag_format_flags = 9
     tag_type_flags = 16388
     __real_name = "unsigned short"
     local_members = ()
@@ -155,7 +155,7 @@ class _unsigned_short(hk):
 class _char(hk):
     alignment = 1
     byte_size = 1
-    tag_format_flags = 9
+    __tag_format_flags = 9
     tag_type_flags = 8196
 
     __hsh = 4184862313
@@ -167,7 +167,7 @@ class _char(hk):
 class _float(hk):
     alignment = 4
     byte_size = 4
-    tag_format_flags = 9
+    __tag_format_flags = 9
     tag_type_flags = 1525253
     __real_name = "float"
     local_members = ()
@@ -177,7 +177,7 @@ class _float(hk):
 class _short(hk):
     alignment = 2
     byte_size = 2
-    tag_format_flags = 9
+    __tag_format_flags = 9
     tag_type_flags = 16900
     __real_name = "short"
     local_members = ()
@@ -187,7 +187,7 @@ class _short(hk):
 class _signed_char(hk):
     alignment = 1
     byte_size = 1
-    tag_format_flags = 9
+    __tag_format_flags = 9
     tag_type_flags = 8708
     __real_name = "signed char"
     local_members = ()
@@ -197,7 +197,7 @@ class _signed_char(hk):
 class _unsigned_long_long(hk):
     alignment = 8
     byte_size = 8
-    tag_format_flags = 9
+    __tag_format_flags = 9
     tag_type_flags = 65540
     __real_name = "unsigned long long"
     local_members = ()
@@ -207,7 +207,7 @@ class _unsigned_long_long(hk):
 class _unsigned_int(hk):
     alignment = 4
     byte_size = 4
-    tag_format_flags = 9
+    __tag_format_flags = 9
     tag_type_flags = 32772
     __real_name = "unsigned int"
     local_members = ()
@@ -217,7 +217,7 @@ class _unsigned_int(hk):
 class _unsigned_char(hk):
     alignment = 1
     byte_size = 1
-    tag_format_flags = 9
+    __tag_format_flags = 9
     tag_type_flags = 8196
     __real_name = "unsigned char"
     local_members = ()
@@ -227,7 +227,7 @@ class _unsigned_char(hk):
 class _void(hk):
     alignment = 0
     byte_size = 0
-    tag_format_flags = 25
+    __tag_format_flags = 25
     tag_type_flags = 0
 
     __abstract_value = 1
@@ -242,7 +242,7 @@ class _void(hk):
 class hkVector4f(hkStruct(_float, 4)):
     alignment = 16
     byte_size = 16
-    tag_format_flags = 11
+    __tag_format_flags = 11
     tag_type_flags = 1064
     local_members = ()
 
@@ -280,7 +280,7 @@ class hkVector4f(hkStruct(_float, 4)):
 class hkQuaternionf(hkStruct(_float, 4)):
     alignment = 16
     byte_size = 16
-    tag_format_flags = 43
+    __tag_format_flags = 43
     tag_type_flags = 1064
 
     local_members = (
@@ -302,10 +302,10 @@ class hkQuaternionf(hkStruct(_float, 4)):
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
-class hkRotationImpl(hkStruct(_float, 4)):
+class hkRotationImpl(hkStruct(_float, 12)):
     alignment = 16
     byte_size = 48
-    tag_format_flags = 11
+    __tag_format_flags = 11
     tag_type_flags = 3112
     local_members = ()
 
@@ -321,10 +321,10 @@ class hkVector4(hkVector4f):
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
-class hkMatrix3Impl(hkStruct(_float, 4)):
+class hkMatrix3Impl(hkStruct(_float, 12)):
     alignment = 16
     byte_size = 48
-    tag_format_flags = 11
+    __tag_format_flags = 11
     tag_type_flags = 3112
     local_members = ()
 
@@ -337,7 +337,7 @@ class hkMatrix3Impl(hkStruct(_float, 4)):
 class hkMatrix4f(hkStruct(_float, 16)):
     alignment = 16
     byte_size = 64
-    tag_format_flags = 43
+    __tag_format_flags = 43
     tag_type_flags = 4136
 
     local_members = (
@@ -376,7 +376,7 @@ class hkMatrix4(hkMatrix4f):
 class hkTransformf(hkStruct(_float, 16)):
     alignment = 16
     byte_size = 64
-    tag_format_flags = 43
+    __tag_format_flags = 43
     tag_type_flags = 4136
 
     local_members = (
@@ -405,7 +405,7 @@ class hkTransform(hkTransformf):
 class hkQsTransformf(hk):
     alignment = 16
     byte_size = 48
-    tag_format_flags = 41
+    __tag_format_flags = 41
     tag_type_flags = 7
 
     local_members = (
@@ -418,6 +418,14 @@ class hkQsTransformf(hk):
     translation: Vector4
     rotation: Quaternion
     scale: Vector4
+
+    @classmethod
+    def identity(cls):
+        return cls(
+            translation=Vector4.zero(),
+            rotation=Quaternion.identity(),
+            scale=Vector4.one(),
+        )
 
     def to_trs_transform(self) -> TRSTransform:
         return TRSTransform(Vector3.from_vector4(self.translation), self.rotation, Vector3.from_vector4(self.scale))
@@ -509,7 +517,7 @@ class hkUintReal(_unsigned_int):
 class hkBaseObject(hk):
     alignment = 8
     byte_size = 8
-    tag_format_flags = 41
+    __tag_format_flags = 41
     tag_type_flags = 7
     local_members = ()
 
@@ -518,7 +526,7 @@ class hkBaseObject(hk):
 class hkReferencedObject(hkBaseObject):
     alignment = 16
     byte_size = 16
-    tag_format_flags = 41
+    __tag_format_flags = 41
     tag_type_flags = 7
 
     local_members = (
@@ -526,14 +534,14 @@ class hkReferencedObject(hkBaseObject):
     )
     members = hkBaseObject.members + local_members
 
-    memSizeAndRefCount: hkUint32
+    memSizeAndRefCount: int = 0
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkRefVariant(hk):
     alignment = 8
     byte_size = 8
-    tag_format_flags = 43
+    __tag_format_flags = 43
     tag_type_flags = 6
 
     __hsh = 2872857893
@@ -550,7 +558,7 @@ class hkRefVariant(hk):
 class hkUFloat8(hk):
     alignment = 2
     byte_size = 1
-    tag_format_flags = 41
+    __tag_format_flags = 41
     tag_type_flags = 7
 
     local_members = (
@@ -565,7 +573,7 @@ class hkUFloat8(hk):
 class hkContainerHeapAllocator(hk):
     alignment = 1
     byte_size = 1
-    tag_format_flags = 57
+    __tag_format_flags = 57
     tag_type_flags = 7
 
     __abstract_value = 16
@@ -576,7 +584,7 @@ class hkContainerHeapAllocator(hk):
 class hkStringPtr(hk):
     alignment = 4
     byte_size = 4
-    tag_format_flags = 41
+    __tag_format_flags = 41
     tag_type_flags = 3
 
     __hsh = 2837000324
@@ -593,7 +601,7 @@ class hkStringPtr(hk):
 class hkBool(hk):
     alignment = 1
     byte_size = 1
-    tag_format_flags = 41
+    __tag_format_flags = 41
     tag_type_flags = 8194
 
     local_members = (
@@ -608,7 +616,7 @@ class hkBool(hk):
 class hkHalf16(hk):
     alignment = 2
     byte_size = 2
-    tag_format_flags = 41
+    __tag_format_flags = 41
     tag_type_flags = 476677
 
     local_members = (

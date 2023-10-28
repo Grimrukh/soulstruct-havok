@@ -22,4 +22,4 @@ class hkpShape(hkReferencedObject):
     members = hkReferencedObject.members + local_members
 
     userData: int
-    type: int
+    type: int = 0

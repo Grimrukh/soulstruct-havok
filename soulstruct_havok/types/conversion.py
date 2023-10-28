@@ -5,8 +5,8 @@ import typing as tp
 from pathlib import Path
 
 from soulstruct import DSR_PATH, BB_PATH
-from soulstruct.containers import Binder
-from soulstruct_havok.utilities.maths import TRSTransform, Vector3, Quaternion
+from soulstruct.containers import Binder, BinderEntry
+from soulstruct_havok.utilities.maths import TRSTransform, Vector3, Vector4, Quaternion
 
 from soulstruct_havok.core import HKX, HavokFileFormat
 from soulstruct_havok.types import hk2014, hk2015
@@ -450,15 +450,20 @@ def convert_hknp_ragdoll_hkx_to_hkp(
 
 
 def convert_hknp_shape_to_hkp(hknp_shape: hk2014.hknpShape) -> hk2015.hkpShape:
-    """TODO: Only returns `hkpCapsuleShape`s at the moment."""
+    """Convert a `hknp` "new" shape to an old `hkp` shape.
+
+    TODO: Can only handle `hknpConvexPolytopeShape` and `hknpCapsuleShape` input right now, and converts both to
+     `hkpCapsuleShape`.
+    """
     if isinstance(hknp_shape, hk2014.hknpConvexPolytopeShape):
+        # Convert convex polytope shape to an approximating capsule.
         capsule_axis = 0
         w = 0.1
         vertices = sorted(hknp_shape.vertices, key=lambda x: x[capsule_axis])
         a_verts = vertices[:4]
         b_verts = vertices[4:]
-        vertex_a = tuple([sum(v[i] for v in a_verts) / 4 for i in range(3)] + [w])
-        vertex_b = tuple([sum(v[i] for v in b_verts) / 4 for i in range(3)] + [w])
+        vertex_a = Vector4([sum(v[i] for v in a_verts) / 4 for i in range(3)] + [w])
+        vertex_b = Vector4([sum(v[i] for v in b_verts) / 4 for i in range(3)] + [w])
         return hk2015.hkpCapsuleShape(
             memSizeAndFlags=0,
             refCount=0,
@@ -475,7 +480,6 @@ def convert_hknp_shape_to_hkp(hknp_shape: hk2014.hknpShape) -> hk2015.hkpShape:
         return hk2015.hkpCapsuleShape(
             memSizeAndFlags=0,
             refCount=0,
-            type=0,
             dispatchType=0,  # TODO: given in `hknpShape`, but always zero here apparently anyway
             bitsPerKey=0,  # TODO: may correspond to 'numShapeKeyBits' in `hknpShape`
             shapeInfoCodecType=0,
@@ -484,8 +488,8 @@ def convert_hknp_shape_to_hkp(hknp_shape: hk2014.hknpShape) -> hk2015.hkpShape:
             vertexA=hknp_shape.a,
             vertexB=hknp_shape.b,
         )
-    else:
-        raise TypeError(f"Cannot convert hknp shape type: {hknp_shape.get_type_name()}")
+
+    raise TypeError(f"Cannot convert `hknp` shape type: {hknp_shape.get_type_name()}")
 
 
 def test_ragdoll_conversion():
@@ -518,7 +522,9 @@ def test_ragdoll_conversion():
 
 # noinspection PyUnresolvedReferences
 def examine_dsr_ragdolls():
-    ice_king_ragdoll = HKX.from_path(r"C:\Steam\steamapps\common\DARK SOULS REMASTERED (Nightfall)\chr\c5600-chrbnd-dcx\c5600.hkx")
+    ice_king_ragdoll = HKX.from_path(
+        r"C:\Steam\steamapps\common\DARK SOULS REMASTERED (Nightfall)\chr\c5600-chrbnd-dcx\c5600.hkx"
+    )
 
     chr_dir = Path(DSR_PATH + "/chr")
     capra_chrbnd = Binder.from_path(chr_dir / "c2240.chrbnd.dcx")
@@ -590,15 +596,17 @@ def examine_dsr_ragdolls():
     # noinspection PyPep8Naming
     def inject_skeleton_mapper(source_mapper: hk2015.hkaSkeletonMapper, dest_mapper: hk2015.hkaSkeletonMapper):
         # Skeletons already changed.
-        dest_mapping = dest_mapper.mapping
         mapping = source_mapper.mapping
+        dest_mapping = dest_mapper.mapping
+
         if len(dest_mapping.simpleMappings) > len(mapping.simpleMappings):
             dest_mapping.simpleMappings = dest_mapping.simpleMappings[:len(mapping.simpleMappings)]
         else:
             while len(dest_mapping.simpleMappings) < len(mapping.simpleMappings):
                 dest_mapping.simpleMappings.append(hk2015.hkaSkeletonMapperDataSimpleMapping(
-                    aFromBTransform=hk2015.hkQsTransform(),
+                    aFromBTransform=hk2015.hkQsTransform.identity(),
                 ))
+
         for i, simple_mapping in enumerate(mapping.simpleMappings):
             dest_mapping.simpleMappings[i].boneA = simple_mapping.boneA
             dest_mapping.simpleMappings[i].boneB = simple_mapping.boneB
@@ -611,20 +619,25 @@ def examine_dsr_ragdolls():
         else:
             while len(dest_mapping.chainMappings) < len(mapping.chainMappings):
                 dest_mapping.chainMappings.append(hk2015.hkaSkeletonMapperDataChainMapping(
-                    startAFromBTransform=hk2015.hkQsTransform(),
-                    endAFromBTransform=hk2015.hkQsTransform(),
+                    startAFromBTransform=hk2015.hkQsTransform.identity(),
+                    endAFromBTransform=hk2015.hkQsTransform.identity(),
                 ))
+
         for i, chain_mapping in enumerate(mapping.chainMappings):
+
+            chain_start_transform = chain_mapping.startAFromBTransform
+            chain_end_transform = chain_mapping.endAFromBTransform
+
             dest_mapping.chainMappings[i].startBoneA = chain_mapping.startBoneA
             dest_mapping.chainMappings[i].endBoneA = chain_mapping.endBoneA
             dest_mapping.chainMappings[i].startBoneB = chain_mapping.startBoneB
             dest_mapping.chainMappings[i].endBoneB = chain_mapping.endBoneB
-            dest_mapping.chainMappings[i].startAFromBTransform.translation = chain_mapping.startAFromBTransform.translation
-            dest_mapping.chainMappings[i].startAFromBTransform.rotation = chain_mapping.startAFromBTransform.rotation
-            dest_mapping.chainMappings[i].startAFromBTransform.scale = chain_mapping.startAFromBTransform.scale
-            dest_mapping.chainMappings[i].endAFromBTransform.translation = chain_mapping.endAFromBTransform.translation
-            dest_mapping.chainMappings[i].endAFromBTransform.rotation = chain_mapping.endAFromBTransform.rotation
-            dest_mapping.chainMappings[i].endAFromBTransform.scale = chain_mapping.endAFromBTransform.scale
+            dest_mapping.chainMappings[i].startAFromBTransform.translation = chain_start_transform.translation
+            dest_mapping.chainMappings[i].startAFromBTransform.rotation = chain_start_transform.rotation
+            dest_mapping.chainMappings[i].startAFromBTransform.scale = chain_start_transform.scale
+            dest_mapping.chainMappings[i].endAFromBTransform.translation = chain_end_transform.translation
+            dest_mapping.chainMappings[i].endAFromBTransform.rotation = chain_end_transform.rotation
+            dest_mapping.chainMappings[i].endAFromBTransform.scale = chain_end_transform.scale
         dest_mapping.unmappedBones = mapping.unmappedBones.copy()
 
     for skel_i in (0, 1):
@@ -655,14 +668,14 @@ def examine_dsr_ragdolls():
     print("Capra Demon:")
     print_info(capra_ragdoll)
 
-    ice_king_chrbnd = Binder(chr_dir / "c5600.chrbnd.dcx")
+    ice_king_chrbnd = Binder.from_path(chr_dir / "c5600.chrbnd.dcx")
 
     if 300 in ice_king_chrbnd.get_entry_ids():
         ice_king_chrbnd.remove_entry_id(300)
-    ice_king_chrbnd.add_entry(ice_king_chrbnd.BinderEntry(
+    ice_king_chrbnd.add_entry(BinderEntry(
+        data=capra_ragdoll.pack(),
         entry_id=300,
         path="N:\\FRPG\\data\\INTERROOT_x64\\chr\\c5600\\c5600.hkx",
         flags=0x2,
-        data=capra_ragdoll.pack(),
     ))
     ice_king_chrbnd.write()

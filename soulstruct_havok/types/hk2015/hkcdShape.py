@@ -25,7 +25,7 @@ class hkcdShape(hkReferencedObject):
     )
     members = hkReferencedObject.members + local_members
 
-    type: hkcdShapeTypeShapeTypeEnum
-    dispatchType: hkcdShapeDispatchTypeShapeDispatchTypeEnum
+    type: int = 0
+    dispatchType: int
     bitsPerKey: int
-    shapeInfoCodecType: hkcdShapeInfoCodecTypeShapeInfoCodecTypeEnum
+    shapeInfoCodecType: int
