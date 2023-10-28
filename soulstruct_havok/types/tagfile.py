@@ -22,11 +22,12 @@ __all__ = [
 ]
 
 import typing as tp
-
 from collections import deque
+
+import numpy as np
 from colorama import init as colorama_init, Fore
+
 from soulstruct.utilities.binary import BinaryReader, BinaryWriter
-from soulstruct.utilities.maths import Vector4
 
 from soulstruct_havok.enums import TagDataType
 from soulstruct_havok.tagfile.structs import TagFileItem
@@ -241,24 +242,8 @@ def unpack_array(data_hk_type: tp.Type[hk], reader: BinaryReader, items: list[Ta
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(f"Array data offset: {hex(item.absolute_offset)}")
 
-        # Check for primitive types and unpack all at once (rather than, eg, unpacking 10000 floats over 10000 calls).
-        tag_data_type = data_hk_type.get_tag_data_type()
-        if tag_data_type == TagDataType.Invalid:
-            # Cannot unpack opaque type (and there shouldn't be anything to unpack in the file).
-            item.value = [None] * item.length
-        elif tag_data_type == TagDataType.Bool:
-            fmt = TagDataType.get_int_fmt(data_hk_type.tag_type_flags, count=item.length)
-            item.value = [v > 0 for v in reader.unpack(fmt, offset=item.absolute_offset)]
-        elif tag_data_type == TagDataType.Int:
-            fmt = TagDataType.get_int_fmt(data_hk_type.tag_type_flags, count=item.length)
-            item.value = list(reader.unpack(fmt, offset=item.absolute_offset))
-        elif data_hk_type.tag_type_flags == TagDataType.FloatAndFloat32:
-            item.value = list(reader.unpack(f"<{item.length}f", offset=item.absolute_offset))
-        elif data_hk_type.__name__ in {"hkVector4", "hkVector4f"}:
-            # More efficient unpacking of this common basic data struct.
-            vector_floats = list(reader.unpack(f"<{item.length * 4}f", offset=item.absolute_offset))
-            item.value = [Vector4(vector_floats[i:i + 4]) for i in range(0, item.length * 4, 4)]
-        else:  # non-primitive; recur on data type `unpack` method
+        if not data_hk_type.try_unpack_array_tagfile(reader, item):
+            # Non-primitive; recur on data type `unpack` method.
             item.value = [
                 data_hk_type.unpack_tagfile(
                     reader,
@@ -266,6 +251,7 @@ def unpack_array(data_hk_type: tp.Type[hk], reader: BinaryReader, items: list[Ta
                     items=items,
                 ) for i in range(item.length)
             ]
+
         if debug.DEBUG_PRINT_UNPACK:
             debug.decrement_debug_indent()
     return item.value
@@ -274,7 +260,7 @@ def unpack_array(data_hk_type: tp.Type[hk], reader: BinaryReader, items: list[Ta
 def pack_array(
     array_hk_type: tp.Type[hkArray_],
     item: TagFileItem,
-    value: list[hk | str | int | float | bool],
+    value: list[hk | str | int | float | bool] | np.ndarray,
     items: list[TagFileItem],
     existing_items: dict[hk, TagFileItem],
     item_creation_queue: dict[str, deque[tp.Callable]],
@@ -301,22 +287,12 @@ def pack_array(
         items.append(new_item)
         new_item.writer = BinaryWriter()
 
-        # For primitive types, tightly pack all at once.
-        tag_data_type = data_hk_type.get_tag_data_type()
-        if tag_data_type == TagDataType.Invalid:
-            pass
-        elif tag_data_type == TagDataType.Bool:
-            fmt = TagDataType.get_int_fmt(data_hk_type.tag_type_flags, count=new_item.length)
-            new_item.writer.pack(fmt, *[int(v) for v in value])
-        elif tag_data_type == TagDataType.Int:
-            fmt = TagDataType.get_int_fmt(data_hk_type.tag_type_flags, count=new_item.length)
-            new_item.writer.pack(fmt, *value)
-        elif data_hk_type.tag_type_flags == TagDataType.FloatAndFloat32:
-            new_item.writer.pack(f"<{new_item.length}f", *value)
-        else:  # non-primitive; recur on data type `pack` method
+        if not data_hk_type.try_pack_array_tagfile(new_item, value):
+            # Non-primitive; recur on data type `pack` method.
             for i, element in enumerate(value):
-                data_hk_type.pack_tagfile(new_item, element, items, existing_items, _item_creation_queue)
-                new_item.writer.pad_to_offset((i + 1) * data_hk_type.byte_size)
+                data_hk_type.pack_tagfile(item, element, items, existing_items, _item_creation_queue)
+                item.writer.pad_to_offset((i + 1) * data_hk_type.byte_size)
+
         return new_item
 
     item_creation_queue.setdefault("array", deque()).append(delayed_item_creation)

@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
-
 
 from .hkcdStaticTreeTree import hkcdStaticTreeTree
 from .hkcdSimdTree import hkcdSimdTree
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hknpExternMeshShapeData(hkReferencedObject):
     alignment = 16
     byte_size = 64

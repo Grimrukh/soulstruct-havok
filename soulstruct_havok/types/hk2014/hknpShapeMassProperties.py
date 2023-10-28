@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
 from .hkCompressedMassProperties import hkCompressedMassProperties
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hknpShapeMassProperties(hkReferencedObject):
     alignment = 16
     byte_size = 48

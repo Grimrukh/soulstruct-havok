@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-__all__ = ["HKX", "HKX_ROOT_TYPING"]
+__all__ = ["HavokFileFormat", "HKX", "HKX_ROOT_TYPING"]
 
 import logging
 import re

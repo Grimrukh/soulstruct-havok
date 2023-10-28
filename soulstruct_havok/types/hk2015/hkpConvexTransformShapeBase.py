@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
-
 
 from .hkpConvexShape import hkpConvexShape
 from .hkpSingleShapeContainer import hkpSingleShapeContainer
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkpConvexTransformShapeBase(hkpConvexShape):
     alignment = 8
     byte_size = 64

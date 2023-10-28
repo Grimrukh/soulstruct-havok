@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
 from .hkpConstraintData import hkpConstraintData
@@ -10,7 +12,7 @@ from .hkpConstraintInstanceOnDestructionRemapInfo import hkpConstraintInstanceOn
 from .hkpConstraintInstanceSmallArraySerializeOverrideType import hkpConstraintInstanceSmallArraySerializeOverrideType
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkpConstraintInstance(hkReferencedObject):
     alignment = 16
     byte_size = 56
@@ -40,15 +42,15 @@ class hkpConstraintInstance(hkReferencedObject):
     )
     members = hkReferencedObject.members + local_members
 
-    owner: None
+    owner: None = None
     data: hkpConstraintData
     constraintModifiers: hkpModifierConstraintAtom
     entities: tuple[hkpEntity, ...]
     priority: int
     wantRuntime: bool
     destructionRemapInfo: int
-    listeners: hkpConstraintInstanceSmallArraySerializeOverrideType
+    listeners: hkpConstraintInstanceSmallArraySerializeOverrideType = None
     name: str
     userData: int
-    internal: None
-    uid: int
+    internal: None = None
+    uid: int = 0

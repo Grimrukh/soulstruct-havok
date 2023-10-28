@@ -32,6 +32,7 @@ except AttributeError:
     Self = "hk"
 
 if tp.TYPE_CHECKING:
+    import numpy as np
     from soulstruct_havok.packfile.structs import PackFileItem
 
 
@@ -76,7 +77,7 @@ class DefType:
 # endregion
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hk:
     """Absolute base of every Havok type."""
 
@@ -400,6 +401,59 @@ class hk:
         else:
             # 'Pointer' and 'Array' types are handled by `Ptr_` and `hkArray_` subclasses, respectively.
             raise ValueError(f"Cannot pack `hk` subclass `{cls.__name__}` with tag data type {tag_data_type.name}.")
+
+    @classmethod
+    def try_unpack_array_tagfile(cls, reader: BinaryReader, item: TagFileItem) -> bool:
+        """Try to unpack an array of this data type more efficiently than the default recursion.
+
+        Unpacks simple arrays of primitive types (invalid/bool/int/float) with a single unpack, e.g. rather than
+        unpacking 10000 floats with 10000 sub-calls. Easier to just check subclass tag data type here rather than adding
+        an override to every single primitive subclass.
+
+        Overridden by classes with more complicated (but primitive) array formats, e.g. NumPy arrays of vector rows.
+        """
+        match cls.get_tag_data_type():
+            case TagDataType.Invalid:
+                # Cannot unpack opaque type (and there shouldn't be anything to unpack in the file).
+                item.value = [None] * item.length
+                return True
+            case TagDataType.Bool:
+                fmt = TagDataType.get_int_fmt(cls.tag_type_flags, count=item.length)
+                item.value = [v > 0 for v in reader.unpack(fmt, offset=item.absolute_offset)]
+                return True
+            case TagDataType.Int:
+                fmt = TagDataType.get_int_fmt(cls.tag_type_flags, count=item.length)
+                item.value = list(reader.unpack(fmt, offset=item.absolute_offset))
+                return True
+
+        if cls.tag_type_flags == TagDataType.FloatAndFloat32:
+            item.value = list(reader.unpack(f"<{item.length}f", offset=item.absolute_offset))
+            return True
+
+        return False
+
+    @classmethod
+    def try_pack_array_tagfile(
+        cls, item: TagFileItem, value: list | np.ndarray
+    ) -> bool:
+        """Try to pack an array of primitive types (or overridden supported subclasses) in one call."""
+        match cls.get_tag_data_type():
+            case TagDataType.Invalid:
+                return True  # nothing to pack
+            case TagDataType.Bool:
+                fmt = TagDataType.get_int_fmt(cls.tag_type_flags, count=item.length)
+                item.writer.pack(fmt, *[int(v) for v in value])
+                return True
+            case TagDataType.Int:
+                fmt = TagDataType.get_int_fmt(cls.tag_type_flags, count=item.length)
+                item.writer.pack(fmt, *value)
+                return True
+
+        if cls.tag_type_flags == TagDataType.FloatAndFloat32:
+            item.writer.pack(f"<{item.length}f", *value)
+            return True
+
+        return False
 
     @classmethod
     def get_type_info(cls) -> TypeInfo:

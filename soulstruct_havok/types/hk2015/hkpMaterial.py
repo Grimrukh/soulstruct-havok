@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
 from .hkpMaterialResponseType import hkpMaterialResponseType
 from .hkHalf16 import hkHalf16
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkpMaterial(hk):
     alignment = 4
     byte_size = 12

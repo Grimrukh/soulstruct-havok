@@ -8,6 +8,7 @@ import typing as tp
 from soulstruct_havok.enums import TagDataType
 
 if tp.TYPE_CHECKING:
+    import numpy as np
     from soulstruct.utilities.binary import BinaryWriter
     from soulstruct_havok.types.hk import hk, HK_TYPE
     from soulstruct_havok.types.base import Ptr_, hkArray_
@@ -24,7 +25,7 @@ class TagFileItem:
     """
 
     hk_type: HK_TYPE | None
-    value: hk | bool | int | float | list | tuple | None
+    value: hk | bool | int | float | list | tuple | np.ndarray | None
 
     def __init__(
         self,

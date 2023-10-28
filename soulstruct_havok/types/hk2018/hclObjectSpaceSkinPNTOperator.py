@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
 from .hclObjectSpaceDeformerLocalBlockPNT import hclObjectSpaceDeformerLocalBlockPNT
@@ -7,7 +9,7 @@ from .hclObjectSpaceDeformerLocalBlockUnpackedPNT import hclObjectSpaceDeformerL
 from .hclObjectSpaceSkinOperator import hclObjectSpaceSkinOperator
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hclObjectSpaceSkinPNTOperator(hclObjectSpaceSkinOperator):
     alignment = 8
     byte_size = 296

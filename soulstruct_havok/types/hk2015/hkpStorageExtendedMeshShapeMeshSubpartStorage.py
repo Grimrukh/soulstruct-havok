@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
+import numpy as np
+
 from soulstruct_havok.enums import *
 from .core import *
-
 
 from .hkpStorageExtendedMeshShapeMaterial import hkpStorageExtendedMeshShapeMaterial
 from .hkpNamedMeshMaterial import hkpNamedMeshMaterial
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkpStorageExtendedMeshShapeMeshSubpartStorage(hkReferencedObject):
     alignment = 8
     byte_size = 144
@@ -31,7 +34,7 @@ class hkpStorageExtendedMeshShapeMeshSubpartStorage(hkReferencedObject):
     )
     members = hkReferencedObject.members + local_members
 
-    vertices: list[Vector4]
+    vertices: np.ndarray  # `(n, 4)` float32 array
     indices8: list[int]
     indices16: list[int]
     indices32: list[int]

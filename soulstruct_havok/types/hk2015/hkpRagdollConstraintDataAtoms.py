@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
 from .hkpSetLocalTransformsConstraintAtom import hkpSetLocalTransformsConstraintAtom
@@ -11,7 +13,7 @@ from .hkpConeLimitConstraintAtom import hkpConeLimitConstraintAtom
 from .hkpBallSocketConstraintAtom import hkpBallSocketConstraintAtom
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkpRagdollConstraintDataAtoms(hk):
     alignment = 16
     byte_size = 384

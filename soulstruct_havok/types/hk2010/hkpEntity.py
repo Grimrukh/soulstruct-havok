@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-
-
 import typing as tp
+from dataclasses import dataclass, field
 
 from soulstruct_havok.enums import *
 from .core import *
@@ -18,7 +17,7 @@ if tp.TYPE_CHECKING:
     from .hkpConstraintInstance import hkpConstraintInstance
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkpEntity(hkpWorldObject):
     alignment = 16
     byte_size = 544
@@ -58,24 +57,24 @@ class hkpEntity(hkpWorldObject):
     members = hkpWorldObject.members + local_members
 
     material: hkpMaterial
-    limitContactImpulseUtilAndFlag: None
+    limitContactImpulseUtilAndFlag: None = None
     damageMultiplier: float
-    breakableBody: None
-    solverData: int
+    breakableBody: None = None
+    solverData: int = 0
     storageIndex: int
     contactPointCallbackDelay: int
-    constraintsMaster: hkpEntitySmallArraySerializeOverrideType
-    constraintsSlave: list[hkpConstraintInstance]
-    constraintRuntime: list[int]
-    simulationIsland: None
+    constraintsMaster: hkpEntitySmallArraySerializeOverrideType = None
+    constraintsSlave: list[hkpConstraintInstance] = field(default_factory=list)
+    constraintRuntime: list[int] = field(default_factory=list)
+    simulationIsland: None = None
     autoRemoveLevel: int
     numShapeKeysInContactPointProperties: int
     responseModifierFlags: int
     uid: int
     spuCollisionCallback: hkpEntitySpuCollisionCallback
     motion: hkpMaxSizeMotion
-    contactListeners: hkpEntitySmallArraySerializeOverrideType
-    actions: hkpEntitySmallArraySerializeOverrideType
+    contactListeners: hkpEntitySmallArraySerializeOverrideType = None
+    actions: hkpEntitySmallArraySerializeOverrideType = None
     localFrame: hkLocalFrame
-    extendedListeners: hkpEntityExtendedListeners
+    extendedListeners: hkpEntityExtendedListeners = None
     npData: int

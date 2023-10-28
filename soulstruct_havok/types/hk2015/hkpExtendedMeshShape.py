@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
-
 
 from .hkpShapeCollection import hkpShapeCollection
 from .hkpExtendedMeshShapeTrianglesSubpart import hkpExtendedMeshShapeTrianglesSubpart
@@ -10,7 +11,7 @@ from .hkpExtendedMeshShapeShapesSubpart import hkpExtendedMeshShapeShapesSubpart
 from .hkpWeldingUtilityWeldingType import hkpWeldingUtilityWeldingType
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkpExtendedMeshShape(hkpShapeCollection):
     alignment = 16
     byte_size = 320

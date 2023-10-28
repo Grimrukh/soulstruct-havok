@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
 from .hclOperator import hclOperator
@@ -10,7 +12,7 @@ from .hclObjectSpaceMeshMeshDeformOperatorScaleNormalBehaviour import hclObjectS
 from .hclObjectSpaceDeformer import hclObjectSpaceDeformer
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hclObjectSpaceMeshMeshDeformOperator(hclOperator):
     alignment = 8
     byte_size = 280

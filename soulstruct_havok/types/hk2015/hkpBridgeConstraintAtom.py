@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import typing as tp
 
 from soulstruct_havok.enums import *
 from .core import *
-
 
 from .hkpConstraintAtom import hkpConstraintAtom
 
@@ -12,7 +13,7 @@ if tp.TYPE_CHECKING:
     from .hkpConstraintData import hkpConstraintData
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkpBridgeConstraintAtom(hkpConstraintAtom):
     alignment = 16
     byte_size = 32

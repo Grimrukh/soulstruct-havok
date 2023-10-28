@@ -1,13 +1,14 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
-
 
 from .hkcdFourAabb import hkcdFourAabb
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkcdSimdTreeNode(hkcdFourAabb):
     alignment = 16
     byte_size = 112

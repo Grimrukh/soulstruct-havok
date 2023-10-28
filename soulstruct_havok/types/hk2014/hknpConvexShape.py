@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
+import numpy as np
+
 from soulstruct_havok.enums import *
 from .core import *
+
 from .hknpShape import hknpShape
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hknpConvexShape(hknpShape):
     alignment = 16
     byte_size = 48
@@ -18,4 +23,4 @@ class hknpConvexShape(hknpShape):
     )
     members = hknpShape.members + local_members
 
-    vertices: list[hkVector4]
+    vertices: np.ndarray  # `(n, 4)` float32 array

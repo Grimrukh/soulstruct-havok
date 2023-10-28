@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
+import numpy as np
+
 from soulstruct_havok.enums import *
 from .core import *
-
 
 from .hkpConvexShape import hkpConvexShape
 from .hkpConvexVerticesConnectivity import hkpConvexVerticesConnectivity
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkpConvexVerticesShape(hkpConvexShape):
     alignment = 16
     byte_size = 128
@@ -34,5 +37,5 @@ class hkpConvexVerticesShape(hkpConvexShape):
     rotatedVertices: list[hkMatrix3f]
     numVertices: int
     useSpuBuffer: bool
-    planeEquations: list[Vector4]
+    planeEquations: np.ndarray  # `(n, 4)` float32 array
     connectivity: hkpConvexVerticesConnectivity

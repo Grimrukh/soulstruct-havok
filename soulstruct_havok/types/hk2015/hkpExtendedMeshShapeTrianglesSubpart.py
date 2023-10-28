@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
-
 
 from .hkpExtendedMeshShapeSubpart import hkpExtendedMeshShapeSubpart
 from .hkpExtendedMeshShapeIndexStridingType import hkpExtendedMeshShapeIndexStridingType
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkpExtendedMeshShapeTrianglesSubpart(hkpExtendedMeshShapeSubpart):
     alignment = 16
     byte_size = 144

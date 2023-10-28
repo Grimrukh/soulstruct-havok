@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
-
 
 from .hknpCompositeShape import hknpCompositeShape
 from .hknpExternMeshShapeGeometry import hknpExternMeshShapeGeometry
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hknpExternMeshShape(hknpCompositeShape):
     alignment = 16
     byte_size = 80

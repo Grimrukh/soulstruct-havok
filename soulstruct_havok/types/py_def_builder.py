@@ -5,9 +5,7 @@ __all__ = ["PyDefBuilder"]
 import re
 import typing as tp
 
-from soulstruct_havok.enums import TagDataType
-
-from .hk import MemberFlags
+from soulstruct_havok.enums import TagDataType, MemberFlags
 from .exceptions import HavokTypeError, TypeNotDefinedError
 
 if tp.TYPE_CHECKING:
@@ -271,8 +269,8 @@ class PyDefBuilder:
             else:
                 parent_name = "hk"
 
-        # `dataclass` imported by `.core` star import.
-        py_string = f"@dataclass(slots=True, eq=False, repr=False)\nclass {self.py_name}({parent_name}):\n"
+        py_string = "@dataclass(slots=True, eq=False, repr=False, kw_only=True)\n"
+        py_string += f"\nclass {self.py_name}({parent_name}):\n"
 
         if self.tag_type_flags is None and self.name != "void":
             # Bare alias wrapper. Just define hash and empty members.

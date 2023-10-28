@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
+import numpy as np
+
 from soulstruct_havok.enums import *
 from .core import *
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkxVertexBufferVertexData(hk):
     alignment = 16
     byte_size = 84
@@ -27,7 +31,7 @@ class hkxVertexBufferVertexData(hk):
     )
     members = local_members
 
-    vectorData: list[hkVector4]
+    vectorData: np.ndarray  # `(n, 4)` float32 array
     floatData: list[float]
     uint32Data: list[int]
     uint16Data: list[int]

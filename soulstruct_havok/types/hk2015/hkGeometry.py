@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
+import numpy as np
+
 from soulstruct_havok.enums import *
 from .core import *
-
 
 from .hkGeometryTriangle import hkGeometryTriangle
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkGeometry(hkReferencedObject):
     alignment = 4
     byte_size = 24
@@ -22,5 +25,5 @@ class hkGeometry(hkReferencedObject):
     )
     members = hkReferencedObject.members + local_members
 
-    vertices: list[hkVector4]
+    vertices: np.ndarray  # `(n, 4)` float32 array
     triangles: list[hkGeometryTriangle]

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
 from .hkpCdBody import hkpCdBody
@@ -7,7 +9,7 @@ from .hkpTypedBroadPhaseHandle import hkpTypedBroadPhaseHandle
 from .hkpCollidableBoundingVolumeData import hkpCollidableBoundingVolumeData
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkpCollidable(hkpCdBody):
     alignment = 8
     byte_size = 112

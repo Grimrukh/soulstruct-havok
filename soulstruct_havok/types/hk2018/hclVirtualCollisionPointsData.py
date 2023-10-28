@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
 from .hclVirtualCollisionPointsDataBlock import hclVirtualCollisionPointsDataBlock
@@ -15,7 +17,7 @@ from .hclVirtualCollisionPointsDataEdgeFanLandscape import hclVirtualCollisionPo
 from .hclVirtualCollisionPointsDataTriangleFanLandscape import hclVirtualCollisionPointsDataTriangleFanLandscape
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hclVirtualCollisionPointsData(hk):
     alignment = 8
     byte_size = 304

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
 
@@ -20,7 +22,7 @@ from .hknpLodManagerCinfo import hknpLodManagerCinfo
 from .hknpBodyIntegrator import hknpBodyIntegrator
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hknpWorldCinfo(hk):
     alignment = 16
     byte_size = 304

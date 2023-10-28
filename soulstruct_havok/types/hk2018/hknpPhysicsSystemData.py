@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
 
@@ -9,7 +11,7 @@ from .hknpPhysicsSystemDatabodyCinfoWithAttachment import hknpPhysicsSystemDatab
 from .hknpConstraintCinfo import hknpConstraintCinfo
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hknpPhysicsSystemData(hkReferencedObject):
     alignment = 8
     byte_size = 104

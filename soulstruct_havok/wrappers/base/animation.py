@@ -19,6 +19,7 @@ from .type_vars import (
 )
 
 if tp.TYPE_CHECKING:
+    import numpy as np
     from .skeleton import Skeleton
 
 _LOGGER = logging.getLogger(__name__)
@@ -137,23 +138,24 @@ class AnimationContainer(tp.Generic[
         else:
             raise TypeError(f"Animation type `{type(self.animation).__name__}` is not interleaved.")
 
-    def get_reference_frame_samples(self) -> list[Vector4]:
+    def get_reference_frame_samples(self) -> np.ndarray:
+        """Get reference frame sample array ("root motion") from animation if available."""
         if self.animation.extractedMotion:
             extracted_motion = self.animation.extractedMotion
             if hasattr(extracted_motion, "referenceFrameSamples"):
-                return [Vector4(v) for v in extracted_motion.referenceFrameSamples]
-        raise TypeError("No root motion for this animation reference frame class.")
+                return extracted_motion.referenceFrameSamples
+        raise TypeError("No reference frame samples (root motion) for this animation reference frame class.")
 
-    def set_reference_frame_samples(self, samples: list[Vector4]):
+    def set_reference_frame_samples(self, samples: np.ndarray):
         if self.animation.extractedMotion:
             extracted_motion = self.animation.extractedMotion
             if hasattr(extracted_motion, "referenceFrameSamples"):
                 extracted_motion.referenceFrameSamples = samples
                 return
-        raise TypeError("No root motion for this animation reference frame class.")
+        raise TypeError("No reference frame samples (root motion) for this animation reference frame class.")
 
     def set_animation_duration(self, duration: float):
-        """Set duration in both the animation and (if applicable) the reference frame."""
+        """Set `duration` in both the animation and (if applicable) the reference frame."""
         self.animation.duration = duration
         extracted_motion = self.animation.extractedMotion
         if hasattr(extracted_motion, "duration"):

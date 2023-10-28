@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
 from .hclBufferLayoutBufferElement import hclBufferLayoutBufferElement
@@ -8,7 +10,7 @@ from .hclBufferLayoutSlot import hclBufferLayoutSlot
 from .hclBufferLayoutTriangleFormat import hclBufferLayoutTriangleFormat
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hclBufferLayout(hk):
     alignment = 1
     byte_size = 26

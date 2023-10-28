@@ -18,6 +18,8 @@ __all__ = [
 
 import typing as tp
 
+import numpy as np
+
 from soulstruct_havok.enums import TagDataType
 from soulstruct_havok.tagfile.structs import TagFileItem
 from soulstruct_havok.types.info import *
@@ -355,7 +357,7 @@ class hkRelArray_(hkBasePointer):
     """Wrapper for a rare type of pointer that only appears in some `hknp` classes.
 
     It reads `length` and `jump` shorts, and uses that offset to make a jump ahead (from just before `length`) to
-    a tightly packed array of some data type, which is unpacked into a list like regular `hkArray` types.
+    a tightly packed array of some data type, which is unpacked into a list or NumPy array like regular `hkArray` types.
     """
     byte_size = 4
     alignment = 2
@@ -366,7 +368,7 @@ class hkRelArray_(hkBasePointer):
     @classmethod
     def unpack_tagfile(
         cls, reader: BinaryReader, offset: int, items: list[TagFileItem] = None
-    ) -> list:
+    ) -> list | np.ndarray:
         offset = reader.seek(offset) if offset is not None else reader.position
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(f"Unpacking `{cls.__name__}`... ({cls.get_data_type().__name__}) <{hex(offset)}>")
@@ -376,16 +378,26 @@ class hkRelArray_(hkBasePointer):
         with reader.temp_offset(source_offset + jump):
             if debug.DEBUG_PRINT_UNPACK:
                 debug.increment_debug_indent()
-            array_start_offset = reader.position
-            value = [
-                cls.get_data_type().unpack_tagfile(
-                    reader,
-                    offset=array_start_offset + i * cls.get_data_type().byte_size,
-                    items=items,
-                ) for i in range(length)
-            ]
-            if debug.DEBUG_PRINT_UNPACK:
-                debug.decrement_debug_indent()
+            data_type = cls.get_data_type()
+            if data_type.__name__ in {"hkVector3", "hkVector3f"}:
+                # Read tight array of vectors.
+                data = reader.read(length * 12)
+                value = np.frombuffer(data, dtype=np.float32).reshape((length, 3))
+            elif data_type.__name__ in {"hkVector4", "hkVector4f"}:
+                # Read tight array of vectors.
+                data = reader.read(length * 16)
+                value = np.frombuffer(data, dtype=np.float32).reshape((length, 4))
+            else:  # unpack array as list
+                array_start_offset = reader.position
+                value = [
+                    data_type.unpack_tagfile(
+                        reader,
+                        offset=array_start_offset + i * data_type.byte_size,
+                        items=items,
+                    ) for i in range(length)
+                ]
+        if debug.DEBUG_PRINT_UNPACK:
+            debug.decrement_debug_indent()
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(f"-> {value}")
         reader.seek(offset + cls.byte_size)
@@ -402,14 +414,23 @@ class hkRelArray_(hkBasePointer):
         source_offset = entry.reader.position
         length, jump = entry.reader.unpack("<HH")
         with entry.reader.temp_offset(source_offset + jump):
-            array_start_offset = entry.reader.position
             data_type = cls.get_data_type()
-            value = [
-                data_type.unpack_packfile(
-                    entry,
-                    offset=array_start_offset + i * data_type.byte_size,
-                ) for i in range(length)
-            ]
+            if data_type.__name__ in {"hkVector3", "hkVector3f"}:
+                # Read tight array of vectors.
+                data = entry.reader.read(length * 12)
+                value = np.frombuffer(data, dtype=np.float32).reshape((length, 3))
+            elif data_type.__name__ in {"hkVector4", "hkVector4f"}:
+                # Read tight array of vectors.
+                data = entry.reader.read(length * 16)
+                value = np.frombuffer(data, dtype=np.float32).reshape((length, 4))
+            else:  # unpack array as list
+                array_start_offset = entry.reader.position
+                value = [
+                    data_type.unpack_packfile(
+                        entry,
+                        offset=array_start_offset + i * data_type.byte_size,
+                    ) for i in range(length)
+                ]
         if debug.DEBUG_PRINT_UNPACK:
             debug.decrement_debug_indent()
         if debug.DEBUG_PRINT_UNPACK:
@@ -428,7 +449,7 @@ class hkRelArray_(hkBasePointer):
     ):
         # TODO: This DOES appear in tagfiles that use classes like `hknpConvexShape`.
         #  Examine those classes closely to find out where the relative array is written (and the jump size).
-        raise TypeError("Have not encountered `hkRelArray` types in tagfiles before. Cannot pack them.")
+        raise NotImplementedError("Cannot yet pack Havok types with `hkRelArray` members to tagfiles.")
 
     @classmethod
     def pack_packfile(

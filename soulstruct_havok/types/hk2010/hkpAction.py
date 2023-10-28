@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkpAction(hkReferencedObject):
     alignment = 16
     byte_size = 24
@@ -20,7 +22,7 @@ class hkpAction(hkReferencedObject):
     )
     members = hkReferencedObject.members + local_members
 
-    world: None
-    island: None
+    world: None = None
+    island: None = None
     userData: int
     name: str

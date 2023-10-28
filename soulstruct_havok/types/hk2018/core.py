@@ -1,8 +1,7 @@
+"""Havok 2018 core types."""
 from __future__ import annotations
 
 __all__ = [
-    "dataclass",
-
     # hk
     "hk",
     "HK_TYPE",
@@ -106,6 +105,8 @@ __all__ = [
 import typing as tp
 from dataclasses import dataclass
 
+import numpy as np
+
 from soulstruct_havok.utilities.maths import Quaternion, TRSTransform, Vector3, Vector4
 from soulstruct_havok.enums import TagDataType, MemberFlags
 from soulstruct_havok.types.hk64 import *
@@ -119,7 +120,7 @@ if tp.TYPE_CHECKING:
 # --- Invalid Types --- #
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkReflectDetailOpaque(hk):
     alignment = 0
     byte_size = 0
@@ -133,7 +134,7 @@ class hkReflectDetailOpaque(hk):
 # --- Primitive Types --- #
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class _bool(hk):
     alignment = 1
     byte_size = 1
@@ -144,7 +145,7 @@ class _bool(hk):
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class _int(hk):
     alignment = 4
     byte_size = 4
@@ -156,7 +157,7 @@ class _int(hk):
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class _unsigned_short(hk):
     alignment = 2
     byte_size = 2
@@ -167,7 +168,7 @@ class _unsigned_short(hk):
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class _char(hk):
     alignment = 1
     byte_size = 1
@@ -179,7 +180,7 @@ class _char(hk):
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class _charSTAR(hk):
     alignment = 8
     byte_size = 8
@@ -190,7 +191,7 @@ class _charSTAR(hk):
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class _const_charSTAR(hk):
     alignment = 8
     byte_size = 8
@@ -201,7 +202,7 @@ class _const_charSTAR(hk):
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class _float(hk):
     alignment = 4
     byte_size = 4
@@ -212,7 +213,7 @@ class _float(hk):
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class _short(hk):
     alignment = 2
     byte_size = 2
@@ -223,7 +224,7 @@ class _short(hk):
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class _signed_char(hk):
     alignment = 1
     byte_size = 1
@@ -234,7 +235,7 @@ class _signed_char(hk):
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class _unsigned_long_long(hk):
     alignment = 8
     byte_size = 8
@@ -245,7 +246,7 @@ class _unsigned_long_long(hk):
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class _unsigned_int(hk):
     alignment = 4
     byte_size = 4
@@ -256,7 +257,7 @@ class _unsigned_int(hk):
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class _unsigned_char(hk):
     alignment = 1
     byte_size = 1
@@ -267,7 +268,7 @@ class _unsigned_char(hk):
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class _void(hk):
     alignment = 0
     byte_size = 0
@@ -282,7 +283,7 @@ class _void(hk):
 # --- Havok Struct Types --- #
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkVector4f(hkStruct(_float, 4)):
     alignment = 16
     byte_size = 16
@@ -302,8 +303,27 @@ class hkVector4f(hkStruct(_float, 4)):
         value = Vector4(super(hkVector4f, cls).unpack_packfile(entry, offset))
         return value
 
+    @classmethod
+    def try_unpack_array_tagfile(cls, reader: BinaryReader, item: TagFileItem) -> bool:
+        """Unpack vector array with `numpy`."""
+        data = reader.read(item.length * 4 * cls.length, offset=item.absolute_offset)
+        item.value = np.frombuffer(data, dtype=np.float32).reshape((item.length, cls.length))
+        return True
 
-@dataclass(slots=True, eq=False, repr=False)
+    @classmethod
+    def try_pack_array_tagfile(
+        cls, item: TagFileItem, value: list | np.ndarray
+    ) -> bool:
+        """Pack `float32` array in standard row-first order."""
+        if not isinstance(value, np.ndarray) or value.dtype != np.float32:
+            raise ValueError(f"Cannot pack non-`np.float32` array as an array of `{cls.__name__}`.")
+        if value.shape[1] != cls.length:
+            raise ValueError(f"Cannot pack `{cls.__name__}` array with shape {value.shape}.")
+        item.writer.append(value.tobytes())
+        return True
+
+
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkQuaternionf(hkStruct(_float, 4)):
     alignment = 16
     byte_size = 16
@@ -329,7 +349,7 @@ class hkQuaternionf(hkStruct(_float, 4)):
         return value
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkRotationImpl(hkStruct(_float, 12)):
     alignment = 16
     byte_size = 48
@@ -343,7 +363,7 @@ class hkRotationImpl(hkStruct(_float, 12)):
     )
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkVector4(hkVector4f):
     """Havok alias."""
     __tag_format_flags = 0
@@ -351,7 +371,7 @@ class hkVector4(hkVector4f):
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkMatrix3Impl(hkStruct(_float, 12)):
     alignment = 16
     byte_size = 48
@@ -365,7 +385,7 @@ class hkMatrix3Impl(hkStruct(_float, 12)):
     )
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkMatrix4Impl(hkStruct(_float, 16)):
     alignment = 16
     byte_size = 64
@@ -391,35 +411,35 @@ class hkMatrix4Impl(hkStruct(_float, 16)):
     )
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkMatrix4f(hkMatrix4Impl):
     """Havok alias."""
     __tag_format_flags = 0
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkRotationf(hkRotationImpl):
     """Havok alias."""
     __tag_format_flags = 0
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkMatrix3f(hkMatrix3Impl):
     """Havok alias."""
     __tag_format_flags = 0
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkMatrix4(hkMatrix4f):
     """Havok alias."""
     __tag_format_flags = 0
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkTransformf(hkStruct(_float, 16)):
     alignment = 16
     byte_size = 64
@@ -437,21 +457,21 @@ class hkTransformf(hkStruct(_float, 16)):
     translation: Vector4
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkMatrix3(hkMatrix3f):
     """Havok alias."""
     __tag_format_flags = 0
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkTransform(hkTransformf):
     """Havok alias."""
     __tag_format_flags = 0
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkQsTransformf(hk):
     alignment = 16
     byte_size = 48
@@ -485,7 +505,7 @@ class hkQsTransformf(hk):
 # --- Havok Wrappers --- #
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkQsTransform(hkQsTransformf):
     """Havok alias."""
     __tag_format_flags = 0
@@ -493,35 +513,35 @@ class hkQsTransform(hkQsTransformf):
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkUint32(_unsigned_int):
     """Havok alias."""
     __tag_format_flags = 0
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkQuaternion(hkQuaternionf):
     """Havok alias."""
     __tag_format_flags = 0
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkUint16(_unsigned_short):
     """Havok alias."""
     __tag_format_flags = 0
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkReal(_float):
     """Havok alias."""
     __tag_format_flags = 0
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkInt16(_short):
     """Havok alias."""
     __tag_format_flags = 0
@@ -529,28 +549,28 @@ class hkInt16(_short):
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkInt32(_int):
     """Havok alias."""
     __tag_format_flags = 0
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkInt8(_signed_char):
     """Havok alias."""
     __tag_format_flags = 0
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkUlong(_unsigned_long_long):
     """Havok alias."""
     __tag_format_flags = 0
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkUint8(_unsigned_char):
     """Havok alias."""
     __tag_format_flags = 0
@@ -558,14 +578,14 @@ class hkUint8(_unsigned_char):
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkUint64(_unsigned_long_long):
     """Havok alias."""
     __tag_format_flags = 0
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkUintReal(_unsigned_int):
     """Havok alias."""
     __tag_format_flags = 0
@@ -575,7 +595,7 @@ class hkUintReal(_unsigned_int):
 # --- Havok Core Types --- #
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkBaseObject(hk):
     alignment = 8
     byte_size = 8
@@ -586,7 +606,7 @@ class hkBaseObject(hk):
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkContainerHeapAllocator(hk):
     alignment = 1
     byte_size = 1
@@ -597,7 +617,7 @@ class hkContainerHeapAllocator(hk):
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkBool(hk):
     alignment = 1
     byte_size = 1
@@ -613,7 +633,7 @@ class hkBool(hk):
     bool: int
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkStringPtr(hk):
     alignment = 8
     byte_size = 8
@@ -633,7 +653,7 @@ class hkStringPtr(hk):
 # --- 'hkReferenceObject' and Dependencies --- #
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkReflectType(hk):
     alignment = 0
     byte_size = 0
@@ -644,7 +664,7 @@ class hkReflectType(hk):
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkReflectQualifiedType(hkBasePointer):
     alignment = 8
     byte_size = 8
@@ -665,7 +685,7 @@ class hkReflectQualifiedType(hkBasePointer):
     )
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkPropertyDesc(hk):
     alignment = 8
     byte_size = 24
@@ -685,7 +705,7 @@ class hkPropertyDesc(hk):
     flags: hkUint32
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkPtrAndInt(hk):
     alignment = 8
     byte_size = 8
@@ -708,7 +728,7 @@ class hkPtrAndInt(hk):
     )
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkReflectAny(hk):
     alignment = 16
     byte_size = 32
@@ -729,7 +749,7 @@ class hkReflectAny(hk):
     buf: tuple[hkUintReal]
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkPropertyId(hk):
     alignment = 8
     byte_size = 8
@@ -745,7 +765,7 @@ class hkPropertyId(hk):
     desc: hkPtrAndInt
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkTuple(hk):
     alignment = 16
     byte_size = 48
@@ -771,7 +791,7 @@ class hkTuple(hk):
     )
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkHashMapDetailIndex(hk):
     alignment = 8
     byte_size = 16
@@ -790,7 +810,7 @@ class hkHashMapDetailIndex(hk):
     hashMod: int
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkHashMapDetailMapTuple(hkTuple):
     alignment = 16
     byte_size = 48
@@ -807,7 +827,7 @@ class hkHashMapDetailMapTuple(hkTuple):
     )
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkHashBase(hk):
     alignment = 8
     byte_size = 32
@@ -829,7 +849,7 @@ class hkHashBase(hk):
     )
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkHashMap(hkHashBase):
     alignment = 8
     byte_size = 32
@@ -845,7 +865,7 @@ class hkHashMap(hkHashBase):
     )
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkDefaultPropertyBag(hk):
     alignment = 8
     byte_size = 72
@@ -866,7 +886,7 @@ class hkDefaultPropertyBag(hk):
     locked: bool
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkPropertyBag(hkBasePointer):
     alignment = 8
     byte_size = 8
@@ -882,7 +902,7 @@ class hkPropertyBag(hkBasePointer):
     bag: hkDefaultPropertyBag
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkReferencedObject(hkBaseObject):
     alignment = 8
     byte_size = 24

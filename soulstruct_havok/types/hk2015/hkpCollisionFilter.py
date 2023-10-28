@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
 from .hkpCollisionFilterhkpFilterType import hkpCollisionFilterhkpFilterType
@@ -9,7 +11,7 @@ from .hkpRayShapeCollectionFilter import hkpRayShapeCollectionFilter
 from .hkpRayCollidableFilter import hkpRayCollidableFilter
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkpCollisionFilter(hkReferencedObject):
     alignment = 8
     byte_size = 72

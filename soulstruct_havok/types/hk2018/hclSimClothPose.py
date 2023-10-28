@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
+import numpy as np
+
 from soulstruct_havok.enums import *
 from .core import *
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hclSimClothPose(hkReferencedObject):
     alignment = 8
     byte_size = 48
@@ -20,4 +24,4 @@ class hclSimClothPose(hkReferencedObject):
     members = hkReferencedObject.members + local_members
 
     name: hkStringPtr
-    positions: list[hkVector4]
+    positions: np.ndarray  # `(n, 4)` float32 array

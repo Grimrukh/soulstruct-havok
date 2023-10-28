@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
 from .hknpBodyCinfo import hknpBodyCinfo
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hknpPhysicsSystemDatabodyCinfoWithAttachment(hknpBodyCinfo):
     alignment = 16
     byte_size = 176

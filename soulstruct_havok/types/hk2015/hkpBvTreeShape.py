@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
-
 
 from .hkpShape import hkpShape
 from .hkpBvTreeShapeBvTreeType import hkpBvTreeShapeBvTreeType
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkpBvTreeShape(hkpShape):
     alignment = 8
     byte_size = 40

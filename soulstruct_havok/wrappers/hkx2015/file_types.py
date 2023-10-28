@@ -17,7 +17,10 @@ __all__ = [
 import logging
 import subprocess as sp
 import typing as tp
+from dataclasses import dataclass
 from pathlib import Path
+
+import numpy as np
 
 from soulstruct.dcx import DCXType
 
@@ -37,7 +40,7 @@ from soulstruct_havok.wrappers.base.file_types import (
 )
 from soulstruct_havok.wrappers.base.type_vars import PHYSICS_DATA_T
 from soulstruct_havok.wrappers.hkx2010 import AnimationHKX as AnimationHKX2010
-from soulstruct_havok.utilities import PACKAGE_PATH
+from soulstruct_havok.utilities.files import HAVOK_PACKAGE_PATH
 from soulstruct_havok.utilities.hk_conversion import convert_hk
 from soulstruct_havok.utilities.maths import TRSTransform
 from soulstruct_havok.utilities.wavefront import read_obj
@@ -54,9 +57,6 @@ SkeletonType = Skeleton[hkaSkeleton, hkaBone]
 SkeletonMapperType = SkeletonMapper[hkaSkeletonMapperData]
 PhysicsDataType = PhysicsData[hkpPhysicsData, hkpPhysicsSystem]
 
-# Mesh data typing: a tuple of `(vertices_list, face_indices_list)`.
-MESH_TYPING = tp.Tuple[list[Vector4 | tp.Sequence[float]], list[tp.Sequence[int]]]
-
 
 @dataclass(slots=True)
 class AnimationHKX(BaseAnimationHKX):
@@ -72,8 +72,8 @@ class AnimationHKX(BaseAnimationHKX):
         if not self.animation_container.is_interleaved:
             raise TypeError("Can only convert interleaved animations to spline animations.")
 
-        temp_interleaved_path = Path(__file__).parent / "__temp_interleaved__.hkx"
-        temp_spline_path = Path(__file__).parent / "__temp_spline__.hkx"
+        temp_interleaved_path = HAVOK_PACKAGE_PATH("__temp_interleaved__.hkx")
+        temp_spline_path = HAVOK_PACKAGE_PATH("__temp_spline__.hkx")
 
         dcx_type = self.dcx_type
         _LOGGER.debug("Downgrading to 2010...")
@@ -82,7 +82,7 @@ class AnimationHKX(BaseAnimationHKX):
             _LOGGER.debug("Writing 2010 file...")
             hkx2010.write(temp_interleaved_path)
             _LOGGER.debug("Calling `CompressAnim`...")
-            compress_anim_path = str(PACKAGE_PATH("resources/CompressAnim.exe"))
+            compress_anim_path = str(HAVOK_PACKAGE_PATH("resources/CompressAnim.exe"))
             ret_code = sp.call(
                 [compress_anim_path, str(temp_interleaved_path), str(temp_spline_path), "1", "0.001"]
             )
@@ -192,7 +192,7 @@ class AnimationHKX(BaseAnimationHKX):
 
         Arguments reflect the minimal data required to create a new animation from the template.
         """
-        template_path = Path(__file__).parent / "../../resources/AnimationTemplate2015.hkx"
+        template_path = HAVOK_PACKAGE_PATH("resources/AnimationTemplate2015.hkx")
         hkx = cls.from_path(template_path)
         container = hkx.animation_container
 
@@ -276,7 +276,7 @@ class MapCollisionHKX(BaseWrappedHKX):
     @classmethod
     def from_meshes(
         cls,
-        meshes: list[MESH_TYPING],
+        meshes: list[tuple[np.ndarray, np.ndarray]],
         hkx_name: str,
         material_indices: tp.Sequence[int] = (),
         template_hkx: MapCollisionHKX = None,
@@ -297,7 +297,7 @@ class MapCollisionHKX(BaseWrappedHKX):
 
         if template_hkx is None:
             # Use bundled template.
-            template_path = Path(__file__).parent / "../../resources/MapCollisionTemplate2015.hkx"
+            template_path = HAVOK_PACKAGE_PATH("resources/MapCollisionTemplate2015.hkx")
             hkx = cls.from_path(template_path)
         else:
             hkx = template_hkx
@@ -323,26 +323,31 @@ class MapCollisionHKX(BaseWrappedHKX):
 
         # TODO: rigid_body.motion.motionState.objectRadius?
 
-        child_shape.cachedNumChildShapes = sum(len(faces) for _, faces in meshes)
+        total_face_count = sum(faces.shape[0] for _, faces in meshes)
+        child_shape.cachedNumChildShapes = total_face_count
         child_shape.trianglesSubparts = []
         child_shape.meshstorage = []
         child_shape.materialArray = []
-        for i, (vertices, faces) in enumerate(meshes):
+
+        for col_material_index, (vertices, faces) in zip(material_indices, meshes):
 
             subpart = hkx.map_collision_physics_data.new_subpart(len(vertices), len(faces))
             child_shape.trianglesSubparts.append(subpart)
 
-            indices = []
-            for face in faces:
-                indices.extend(face)
-                if len(face) == 3:
-                    indices.append(0)
+            if vertices.shape[1] == 3:
+                # Add fourth column of zeroes.
+                vertices = np.hstack((vertices, np.zeros((vertices.shape[0], 1), dtype=vertices.dtype)))
+
+            if faces.shape[1] == 3:
+                # Add fourth column of zeroes.
+                faces = np.hstack((faces, np.zeros((faces.shape[0], 1), dtype=faces.dtype)))
+
             storage = hkpStorageExtendedMeshShapeMeshSubpartStorage(
                 memSizeAndFlags=0,
                 refCount=0,
-                vertices=[Vector4((*v[:3], 0.0)) for v in vertices],
+                vertices=vertices,
                 indices8=[],
-                indices16=indices,
+                indices16=faces.ravel().tolist(),
                 indices32=[],
                 materialIndices=[],
                 materials=[],
@@ -355,31 +360,31 @@ class MapCollisionHKX(BaseWrappedHKX):
                 memSizeAndFlags=0,
                 refCount=0,
                 version=37120,
-                vertexDataBuffer=[255] * len(vertices),
+                vertexDataBuffer=[255] * vertices.shape[0],
                 vertexDataStride=1,
                 primitiveDataBuffer=[],
-                materialNameData=material_indices[i],
+                materialNameData=col_material_index,
             )
             child_shape.materialArray.append(material)
 
         # Havok docs say that embedded triangle subpart is only efficient for single-subpart shapes, but FromSoft seems
         # to disagree (or just didn't care), because it is included for multi-mesh files. However, note, that the
         # embedded subpart is a fresh instance, not a copy of the first subpart.
-        first_mesh_vertex_count = len(meshes[0][0])
-        first_mesh_face_count = len(meshes[0][1])
+        first_mesh_vertex_count = meshes[0][0].shape[0]
+        first_mesh_face_count = meshes[0][1].shape[0]
         child_shape.embeddedTrianglesSubpart = hkx.map_collision_physics_data.new_subpart(
             first_mesh_vertex_count, first_mesh_face_count
         )
 
-        all_vertices = [v for mesh, _ in meshes for v in mesh]
-        x_min = min([v[0] for v in all_vertices])
-        x_max = max([v[0] for v in all_vertices])
-        y_min = min([v[1] for v in all_vertices])
-        y_max = max([v[1] for v in all_vertices])
-        z_min = min([v[2] for v in all_vertices])
-        z_max = max([v[2] for v in all_vertices])
-        child_shape.aabbHalfExtents = Vector4([(x_max - x_min) / 2, (y_max - y_min) / 2, (z_max - z_min) / 2, 0.0])
-        child_shape.aabbCenter = Vector4([(x_max + x_min) / 2, (y_max + y_min) / 2, (z_max + z_min) / 2, 0.0])
+        vertex_mins = [vertices.min(axis=0) for vertices, _ in meshes]
+        vertex_maxs = [vertices.max(axis=0) for vertices, _ in meshes]
+        global_min = np.min(vertex_mins, axis=0)
+        global_max = np.max(vertex_maxs, axis=0)
+        half_extents = (global_max - global_min) / 2
+        center = (global_max + global_min) / 2
+
+        child_shape.aabbHalfExtents = Vector4([*half_extents, 0.0])
+        child_shape.aabbCenter = Vector4([*center, 0.0])
 
         # Use Mopper executable to regenerate binary MOPP code.
         hkx.map_collision_physics_data.regenerate_mopp_data()
@@ -414,20 +419,21 @@ class MapCollisionHKX(BaseWrappedHKX):
             dcx_type=dcx_type,
         )
 
-    def to_meshes(self) -> list[tuple[list[tuple[float, float, float]], list[tuple[int, int, int]]]]:
-        """Get a list of subpart meshes. Each is a list of vertices (three floats) and a list of face index triples."""
+    def to_meshes(self) -> list[tuple[np.ndarray, np.ndarray]]:
+        """Get a list of subpart meshes, as pairs of vertex and face arrays."""
         meshes = []
         for mesh in self.map_collision_physics_data.get_extended_mesh_meshstorage():
             if len(mesh.indices16) % 4:
                 raise ValueError("`indices16` length must be a multiple of 4.")
-            vertices = [(vert.x, vert.y, vert.z) for vert in mesh.vertices]
-            faces = []
-            for f in range(len(mesh.indices16) // 4):
+            vertices = mesh.vertices[:, :3]  # drop fourth column
+            face_count = len(mesh.indices16) // 4
+            faces = np.empty((face_count, 3), dtype=np.uint16)
+            for f in range(face_count):
                 index_0 = mesh.indices16[4 * f]
                 index_1 = mesh.indices16[4 * f + 1]
                 index_2 = mesh.indices16[4 * f + 2]
                 # NOTE: Index 3 in `mesh.indices16` quadruples is always 0, so we ignore it.
-                faces.append((index_0, index_1, index_2))
+                faces[f] = [index_0, index_1, index_2]
             meshes.append((vertices, faces))
         return meshes
 

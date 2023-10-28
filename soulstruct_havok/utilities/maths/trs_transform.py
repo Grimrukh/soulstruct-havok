@@ -47,6 +47,18 @@ class TRSTransform:
             return Vector4(np.r_[transformed, vector.w])
         raise TypeError(f"Cannot transform vector of type {type(vector)}.")
 
+    def transform_vector_array(self, vector_array: np.ndarray):
+        """Transform each row vector in `vector_array`.
+
+        Array must have three or four columns (fourth column will be untouched if present).
+        """
+        if vector_array.shape[1] == 3:
+            return self.translation.data + self.rotation.rotate_vector(self.scale.data * vector_array)
+        elif vector_array.shape[1] == 4:
+            array3 = self.translation.data + self.rotation.rotate_vector(self.scale.data * vector_array[:, :3])
+            return np.column_stack([array3, vector_array[:, 3]])
+        raise ValueError(f"`vector_array` must have three or four columns (not {vector_array.shape[1]}).")
+
     def left_multiply_rotation(self, rotation: Quaternion):
         """Update `self.rotation` by left-multiplying it with `rotation`."""
         self.rotation = rotation @ self.rotation

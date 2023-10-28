@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
 from .hkAabb import hkAabb
 from .hkcdStaticTreeDynamicStorage import hkcdStaticTreeDynamicStorage
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkcdStaticTreeTree(hkcdStaticTreeDynamicStorage):
     alignment = 16
     byte_size = 48

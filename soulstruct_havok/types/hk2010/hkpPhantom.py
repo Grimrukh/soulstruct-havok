@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 from soulstruct_havok.enums import *
 from .core import *
 from .hkpWorldObject import hkpWorldObject
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkpPhantom(hkpWorldObject):
     alignment = 16
     byte_size = 164
@@ -19,5 +21,5 @@ class hkpPhantom(hkpWorldObject):
     )
     members = hkpWorldObject.members + local_members
 
-    overlapListeners: list
-    phantomListeners: list
+    overlapListeners: list = field(default_factory=list)
+    phantomListeners: list = field(default_factory=list)

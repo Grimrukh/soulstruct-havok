@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from soulstruct_havok.enums import *
 from .core import *
 from .hkRootLevelContainerNamedVariant import hkRootLevelContainerNamedVariant
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkRootLevelContainer(hk):
     alignment = 16
     byte_size = 16

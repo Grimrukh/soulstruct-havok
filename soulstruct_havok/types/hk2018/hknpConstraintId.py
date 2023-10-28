@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from .core import *
 from .hkHandle import hkHandle
 
 
-@dataclass(slots=True, eq=False, repr=False)
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hknpConstraintId(hkHandle):
     """Havok alias."""
     __tag_format_flags = 4
