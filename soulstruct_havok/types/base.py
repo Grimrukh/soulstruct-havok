@@ -101,11 +101,11 @@ class Ptr_(hkBasePointer):
         return value
 
     @classmethod
-    def unpack_packfile(cls, entry: PackFileItem, offset: int = None):
-        offset = entry.reader.seek(offset) if offset is not None else entry.reader.position
+    def unpack_packfile(cls, item: PackFileItem, offset: int = None):
+        offset = item.reader.seek(offset) if offset is not None else item.reader.position
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(f"Unpacking `{cls.__name__}`... (-> {cls.get_tag_data_type().name}) <{hex(offset)}>")
-        value = packfile.unpack_pointer(cls.get_data_type(), entry)
+        value = packfile.unpack_pointer(cls.get_data_type(), item)
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(f"-> {value}")
         # entry.reader.seek(offset + cls.byte_size)  # TODO: unnecessary and byte size is wrong for 32-bit
@@ -404,30 +404,30 @@ class hkRelArray_(hkBasePointer):
         return value
 
     @classmethod
-    def unpack_packfile(cls, entry: PackFileItem, offset: int = None) -> list:
-        offset = entry.reader.seek(offset) if offset is not None else entry.reader.position
+    def unpack_packfile(cls, item: PackFileItem, offset: int = None) -> list:
+        offset = item.reader.seek(offset) if offset is not None else item.reader.position
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(f"Unpacking `{cls.__name__}`... ({cls.get_data_type().__name__}) <Entry @ {hex(offset)}>")
 
         if debug.DEBUG_PRINT_UNPACK:
             debug.increment_debug_indent()
-        source_offset = entry.reader.position
-        length, jump = entry.reader.unpack("<HH")
-        with entry.reader.temp_offset(source_offset + jump):
+        source_offset = item.reader.position
+        length, jump = item.reader.unpack("<HH")
+        with item.reader.temp_offset(source_offset + jump):
             data_type = cls.get_data_type()
             if data_type.__name__ in {"hkVector3", "hkVector3f"}:
                 # Read tight array of vectors.
-                data = entry.reader.read(length * 12)
+                data = item.reader.read(length * 12)
                 value = np.frombuffer(data, dtype=np.float32).reshape((length, 3))
             elif data_type.__name__ in {"hkVector4", "hkVector4f"}:
                 # Read tight array of vectors.
-                data = entry.reader.read(length * 16)
+                data = item.reader.read(length * 16)
                 value = np.frombuffer(data, dtype=np.float32).reshape((length, 4))
             else:  # unpack array as list
-                array_start_offset = entry.reader.position
+                array_start_offset = item.reader.position
                 value = [
                     data_type.unpack_packfile(
-                        entry,
+                        item,
                         offset=array_start_offset + i * data_type.byte_size,
                     ) for i in range(length)
                 ]
@@ -435,7 +435,7 @@ class hkRelArray_(hkBasePointer):
             debug.decrement_debug_indent()
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(f"-> {value}")
-        entry.reader.seek(offset + cls.byte_size)
+        item.reader.seek(offset + cls.byte_size)
         return value
 
     @classmethod
@@ -535,18 +535,18 @@ class hkArray_(hkBasePointer):
         return value
 
     @classmethod
-    def unpack_packfile(cls, entry: PackFileItem, offset: int = None):
-        offset = entry.reader.seek(offset) if offset is not None else entry.reader.position
+    def unpack_packfile(cls, item: PackFileItem, offset: int = None):
+        offset = item.reader.seek(offset) if offset is not None else item.reader.position
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(f"Unpacking `{cls.__name__}`... <{hex(offset)}>")
             debug.increment_debug_indent()
-        value = packfile.unpack_array(cls.get_data_type(), entry)
+        value = packfile.unpack_array(cls.get_data_type(), item)
         if debug.DEBUG_PRINT_UNPACK:
             debug.decrement_debug_indent()
             debug.debug_print(f"-> {repr(value)}")
         if debug.REQUIRE_INPUT:
             input("Continue?")
-        entry.reader.seek(offset + cls.byte_size)
+        item.reader.seek(offset + cls.byte_size)
         return value
 
     @classmethod
@@ -631,9 +631,9 @@ class hkEnum_(hk):
         return cls.storage_type.unpack_tagfile(reader, offset, items)
 
     @classmethod
-    def unpack_packfile(cls, entry: PackFileItem, offset: int = None):
+    def unpack_packfile(cls, item: PackFileItem, offset: int = None):
         # TODO: Parse using storage type or data type? Storage, I think...
-        return cls.storage_type.unpack_packfile(entry, offset)
+        return cls.storage_type.unpack_packfile(item, offset)
 
     @classmethod
     def pack_tagfile(
@@ -703,16 +703,16 @@ class hkStruct_(hkBasePointer):
         return value
 
     @classmethod
-    def unpack_packfile(cls, entry: PackFileItem, offset: int = None) -> tuple:
-        offset = entry.reader.seek(offset) if offset is not None else entry.reader.position
+    def unpack_packfile(cls, item: PackFileItem, offset: int = None) -> tuple:
+        offset = item.reader.seek(offset) if offset is not None else item.reader.position
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(f"Unpacking `{cls.__name__}`... (Struct) <Entry @ {hex(offset)}>")
             debug.increment_debug_indent()
-        value = packfile.unpack_struct(cls.get_data_type(), entry, length=cls.length)
+        value = packfile.unpack_struct(cls.get_data_type(), item, length=cls.length)
         if debug.DEBUG_PRINT_UNPACK:
             debug.decrement_debug_indent()
             debug.debug_print(f"-> {repr(value)}")
-        entry.reader.seek(offset + cls.byte_size)
+        item.reader.seek(offset + cls.byte_size)
         return value
 
     @classmethod

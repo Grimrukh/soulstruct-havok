@@ -147,15 +147,15 @@ class PackFilePacker:
                 writer.pack("II", item.local_data_offset + source_offset, item.local_data_offset + dest_offset)
         writer.pad_align(16, b"\xFF")
 
-        entry_pointers_offset = writer.position - data_start_offset
+        item_pointers_offset = writer.position - data_start_offset
         for item in self.packed_items:
-            for source_offset, (dest_entry, dest_entry_offset) in item.entry_pointers.items():
+            for source_offset, (dest_entry, dest_entry_offset) in item.item_pointers.items():
                 writer.pack(
                     "III", item.local_data_offset + source_offset, 2, dest_entry.local_data_offset + dest_entry_offset
                 )
         writer.pad_align(16, b"\xFF")
 
-        entry_specs_offset = writer.position - data_start_offset
+        item_specs_offset = writer.position - data_start_offset
         for item in self.packed_items:
             writer.pack("III", item.local_data_offset, 0, class_name_offsets[item.get_class_name()])
         writer.pad_align(16, b"\xFF")
@@ -165,8 +165,8 @@ class PackFilePacker:
             writer,
             absolute_data_start=data_start_offset,
             child_pointers_offset=data_child_pointers_offset,
-            entry_pointers_offset=entry_pointers_offset,
-            entry_specs_offset=entry_specs_offset,
+            item_pointers_offset=item_pointers_offset,
+            item_specs_offset=item_specs_offset,
             exports_offset=end_offset,
             imports_offset=end_offset,
             end_offset=end_offset,

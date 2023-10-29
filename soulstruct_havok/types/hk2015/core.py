@@ -96,7 +96,7 @@ from soulstruct_havok.enums import TagDataType, MemberFlags
 from soulstruct_havok.types.hk64 import *
 
 if tp.TYPE_CHECKING:
-    from soulstruct.utilities.binary import BinaryReader
+    from soulstruct.utilities.binary import BinaryReader, BinaryWriter
     from soulstruct_havok.tagfile.structs import TagFileItem
     from soulstruct_havok.packfile.structs import PackFileItem
 
@@ -178,7 +178,7 @@ class _char(hk):
 class _float(hk):
     alignment = 4
     byte_size = 4
-    tag_type_flags = TagDataType.Float | TagDataType.Float32
+    tag_type_flags = TagDataType.FloatAndFloat32
 
     __tag_format_flags = 9
     __real_name = "float"
@@ -270,27 +270,24 @@ class hkVector4f(hkStruct(_float, 4)):
         return value
 
     @classmethod
-    def unpack_packfile(cls, entry: PackFileItem, offset: int = None) -> Vector4:
-        value = Vector4(super(hkVector4f, cls).unpack_packfile(entry, offset))
+    def unpack_packfile(cls, item: PackFileItem, offset: int = None) -> Vector4:
+        value = Vector4(super(hkVector4f, cls).unpack_packfile(item, offset))
         return value
 
     @classmethod
-    def try_unpack_array_tagfile(cls, reader: BinaryReader, item: TagFileItem) -> bool:
+    def unpack_primitive_array(cls, reader: BinaryReader, length: int, offset: int = None) -> np.ndarray:
         """Unpack vector array with `numpy`."""
-        data = reader.read(item.length * 4 * cls.length, offset=item.absolute_offset)
-        item.value = np.frombuffer(data, dtype=np.float32).reshape((item.length, cls.length))
-        return True
+        data = reader.read(length * 4 * cls.length, offset=offset)
+        return np.frombuffer(data, dtype=np.float32).reshape((length, cls.length))
 
     @classmethod
-    def try_pack_array_tagfile(
-        cls, item: TagFileItem, value: list | np.ndarray
-    ) -> bool:
+    def try_pack_primitive_array(cls, writer: BinaryWriter, value: np.ndarray) -> bool:
         """Pack `float32` array in standard row-first order."""
         if not isinstance(value, np.ndarray) or value.dtype != np.float32:
-            raise ValueError(f"Cannot pack non-`np.float32` array as an array of `{cls.__name__}`.")
+            raise ValueError(f"Cannot pack non-`np.float32` array as an array of `{cls.__name__}`: {value}")
         if value.shape[1] != cls.length:
             raise ValueError(f"Cannot pack `{cls.__name__}` array with shape {value.shape}.")
-        item.writer.append(value.tobytes())
+        writer.append(value.tobytes())
         return True
 
 
@@ -315,8 +312,8 @@ class hkQuaternionf(hkStruct(_float, 4)):
         return value
 
     @classmethod
-    def unpack_packfile(cls, entry: PackFileItem, offset: int = None) -> Quaternion:
-        value = Quaternion(super(hkQuaternionf, cls).unpack_packfile(entry, offset))
+    def unpack_packfile(cls, item: PackFileItem, offset: int = None) -> Quaternion:
+        value = Quaternion(super(hkQuaternionf, cls).unpack_packfile(item, offset))
         return value
 
 

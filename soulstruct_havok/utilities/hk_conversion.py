@@ -80,6 +80,7 @@ def convert_hk(
                     )
                 # Handled names could be empty (e.g., deleted members).
                 handled_dest_member_names += handled_names
+                continue
 
             raise HKConversionError(
                 f"Cannot find member name '{member_name}' in destination object {dest_object_type.__name__}"
@@ -148,7 +149,9 @@ def convert_hk(
     for dest_member_name in dest_object_type.get_member_names():
         if dest_member_name not in handled_dest_member_names:
             if dest_error_handler and dest_error_handler(dest_object_type, dest_kwargs, dest_member_name):
-                continue
+                continue  # error was handled
+
+            # Try to get default value (`NotSerializable` members only).
             dest_member = dest_object_type.get_member(dest_member_name)
             if dest_member.extra_flags & MemberFlags.NotSerializable:
                 try:
@@ -161,6 +164,7 @@ def convert_hk(
                 else:
                     dest_kwargs[dest_member_name] = default
                     continue
+
             raise HKConversionError(
                 f"Serialized member '{dest_member_name}' of destination `{dest_object_type.get_type_name()}` was never "
                 f"set and no default value is available."

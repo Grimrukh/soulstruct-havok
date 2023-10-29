@@ -6,6 +6,8 @@ import logging
 import typing as tp
 from types import ModuleType
 
+import numpy as np
+
 from soulstruct_havok.spline_compression import SplineCompressedAnimationData
 from soulstruct_havok.utilities.maths import TRSTransform, Vector3, Vector4
 
@@ -19,7 +21,6 @@ from .type_vars import (
 )
 
 if tp.TYPE_CHECKING:
-    import numpy as np
     from .skeleton import Skeleton
 
 _LOGGER = logging.getLogger(__name__)
@@ -131,9 +132,18 @@ class AnimationContainer(tp.Generic[
                 raise ValueError("Interleaved data has not been loaded yet. Nothing to save.")
             qs_transform_cls = self.types_module.hkQsTransform
             transforms = []
+            track_count = None
             for frame in self.interleaved_data:
+                if track_count is None:
+                    track_count = len(frame)
+                elif len(frame) != track_count:
+                    raise ValueError(
+                        f"Interleaved animation data has inconsistent track counts between frames: "
+                        f"{track_count} vs {len(frame)}."
+                    )
                 transforms += [qs_transform_cls.from_trs_transform(t) for t in frame]
             self.animation.transforms = transforms
+            self.animation.numberOfTransformTracks = track_count  # guaranteed to be set above
             _LOGGER.info("Saved interleaved data to animation.")
         else:
             raise TypeError(f"Animation type `{type(self.animation).__name__}` is not interleaved.")
@@ -150,6 +160,11 @@ class AnimationContainer(tp.Generic[
         if self.animation.extractedMotion:
             extracted_motion = self.animation.extractedMotion
             if hasattr(extracted_motion, "referenceFrameSamples"):
+                if samples.shape[1] != 4:
+                    # Add an extra column of zeroes (`hkVector4` array).
+                    samples = np.c_[samples, np.zeros((samples.shape[0], 1))]
+                if samples.dtype != np.float32:
+                    samples = samples.astype(np.float32)
                 extracted_motion.referenceFrameSamples = samples
                 return
         raise TypeError("No reference frame samples (root motion) for this animation reference frame class.")
@@ -235,8 +250,8 @@ class AnimationContainer(tp.Generic[
             reference_frame_samples = self.get_reference_frame_samples()
         except TypeError:
             return False
-        for i in range(len(reference_frame_samples)):
-            reference_frame_samples[i] = transform.transform_vector(reference_frame_samples[i])
+        reference_frame_samples = transform.transform_vector_array(reference_frame_samples)
+        self.set_reference_frame_samples(reference_frame_samples)
         return True
 
     def try_reverse_root_motion(self) -> bool:
@@ -245,7 +260,8 @@ class AnimationContainer(tp.Generic[
             reference_frame_samples = self.get_reference_frame_samples()
         except TypeError:
             return False
-        self.set_reference_frame_samples(list(reversed(reference_frame_samples)))
+        reference_frame_samples = np.flip(reference_frame_samples, axis=0)
+        self.set_reference_frame_samples(reference_frame_samples)
         return True
 
     def spline_to_interleaved(self):

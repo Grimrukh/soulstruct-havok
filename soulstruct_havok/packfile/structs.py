@@ -23,6 +23,7 @@ from soulstruct.utilities.binary import *
 
 if tp.TYPE_CHECKING:
     from collections import deque
+    import numpy as np
     from soulstruct_havok.types.hk import hk
     from soulstruct_havok.types.base import hkArray_, Ptr_
 
@@ -32,14 +33,14 @@ class PackFileBaseEntry(abc.ABC):
     """Base class for 'Type' and 'Item' entries in a PackFile section."""
 
     local_data_offset: int = -1
-    entry_byte_size: int = -1
+    item_byte_size: int = -1
     raw_data: bytes = b""
     long_varints: bool = False
 
-    # Maps source offsets to dest offsets inside same entry.
+    # Maps source offsets to dest offsets inside same item.
     child_pointers: dict[int, int] = field(default_factory=dict)
     # Maps source offsets to dest entries from same section.
-    entry_pointers: dict[int, tuple[PackFileBaseEntry, int]] = field(default_factory=dict)
+    item_pointers: dict[int, tuple[PackFileBaseEntry, int]] = field(default_factory=dict)
 
     reader: BinaryReader | None = None
     writer: BinaryWriter | None = None
@@ -47,16 +48,16 @@ class PackFileBaseEntry(abc.ABC):
     def unpack(self, section_reader: BinaryReader, data_size: int, long_varints: bool):
         """`section_reader` should be local for this section, NOT the whole HKX file."""
         self.local_data_offset = section_reader.position  # offset inside data section
-        self.entry_byte_size = data_size
+        self.item_byte_size = data_size
         self.raw_data = section_reader.read(data_size)  # parsed later
         self.long_varints = long_varints
 
-    def get_offset_in_entry(self, offset: int) -> int:
-        """Returns given offset relative to the start of this entry, if it is inside this entry.
+    def get_offset_in_item(self, offset: int) -> int:
+        """Returns given offset relative to the start of this item, if it is inside this item.
 
         Otherwise, returns -1.
         """
-        if self.local_data_offset <= offset < self.local_data_offset + self.entry_byte_size:
+        if self.local_data_offset <= offset < self.local_data_offset + self.item_byte_size:
             return offset - self.local_data_offset
         return -1
 
@@ -78,10 +79,10 @@ class PackFileType(PackFileBaseEntry):
     @dataclass(slots=True)
     class TYPE_STRUCT_32(BinaryStruct):
         type_name_pointer: uint = field(init=False, **Binary(asserted=0))  # child pointer
-        parent_type_pointer: uint = field(init=False, **Binary(asserted=0))  # entry pointer
+        parent_type_pointer: uint = field(init=False, **Binary(asserted=0))  # item pointer
         byte_size: uint
         interface_count: uint
-        enums_pointer: uint = field(init=False, **Binary(asserted=0))  # child pointer (NOT an entry pointer to enum!)
+        enums_pointer: uint = field(init=False, **Binary(asserted=0))  # child pointer (NOT an item pointer to enum!)
         enums_count: uint
         member_pointer: uint = field(init=False, **Binary(asserted=0))  # child pointer
         member_count: uint
@@ -93,10 +94,10 @@ class PackFileType(PackFileBaseEntry):
     class TYPE_STRUCT_64(BinaryStruct):
         """NOTE: Differences are not entirely just `varint` size."""
         type_name_pointer: ulong = field(init=False, **Binary(asserted=0))  # child pointer
-        parent_type_pointer: ulong = field(init=False, **Binary(asserted=0))  # entry pointer
+        parent_type_pointer: ulong = field(init=False, **Binary(asserted=0))  # item pointer
         byte_size: uint
         interface_count: uint
-        enums_pointer: ulong = field(init=False, **Binary(asserted=0))  # child pointer (NOT an entry pointer to enum!)
+        enums_pointer: ulong = field(init=False, **Binary(asserted=0))  # child pointer (NOT an item pointer to enum!)
         enums_count: uint
         _pad1: bytes = field(init=False, **BinaryPad(4))  # TODO: padding could be earlier (but after byte size)
         member_pointer: ulong = field(init=False, **Binary(asserted=0))  # child pointer
@@ -118,8 +119,8 @@ class PackFileType(PackFileBaseEntry):
     @dataclass(slots=True)
     class MEMBER_TYPE_STRUCT(BinaryStruct):
         name_pointer: varuint = field(init=False, **Binary(asserted=0))  # child pointer
-        type_pointer: varuint = field(init=False, **Binary(asserted=0))  # entry pointer
-        enum_pointer: varuint = field(init=False, **Binary(asserted=0))  # entry pointer
+        type_pointer: varuint = field(init=False, **Binary(asserted=0))  # item pointer
+        enum_pointer: varuint = field(init=False, **Binary(asserted=0))  # item pointer
         member_type: byte
         member_subtype: byte
         c_array_size: ushort  # size of tuple T[N]; usually zero
@@ -131,7 +132,7 @@ class PackFileType(PackFileBaseEntry):
 
     class_name: str = ""
     # Type override.
-    entry_pointers: dict[int, tuple[PackFileType, int]] = field(default_factory=dict)
+    item_pointers: dict[int, tuple[PackFileType, int]] = field(default_factory=dict)
 
     def get_type_name(self) -> str | None:
         """Quickly look up type name from raw data. Returns `None` if `child_pointers` is undefined/empty."""
@@ -143,9 +144,9 @@ class PackFileType(PackFileBaseEntry):
         return BinaryReader(self.raw_data).unpack_value("I", offset=8)
 
     def get_referenced_type_item(self, offset: int) -> PackFileType | None:
-        """Look for `self.entry_pointers[offset]` and recover the pointed `PackFileType`."""
-        if offset in self.entry_pointers:
-            type_item, zero = self.entry_pointers[offset]
+        """Look for `self.item_pointers[offset]` and recover the pointed `PackFileType`."""
+        if offset in self.item_pointers:
+            type_item, zero = self.item_pointers[offset]
             if zero != 0:
                 raise AssertionError(f"Found type item pointer placeholder other than zero: {zero}")
             return type_item
@@ -159,9 +160,9 @@ class PackFileType(PackFileBaseEntry):
 @dataclass(slots=True, kw_only=True)
 class PackFileItem(PackFileBaseEntry):
 
-    entry_pointers: dict[int, tuple[PackFileItem, int]] = field(default_factory=dict)
+    item_pointers: dict[int, tuple[PackFileItem, int]] = field(default_factory=dict)
     hk_type: tp.Type[hk | hkArray_ | Ptr_] | None = None
-    value: None | hk | bool | int | float | list | tuple = None
+    value: None | hk | bool | int | float | list | tuple | np.ndarray = None
     # Packer-managed lists of functions that fill in array jumps later.
     pending_rel_arrays: list[deque[tp.Callable]] = field(default_factory=list)
 
@@ -232,8 +233,8 @@ class PackFileSectionHeader(BinaryStruct):
     minus_one: byte = field(init=False, **Binary(asserted=0xFF))
     absolute_data_start: uint
     child_pointers_offset: uint
-    entry_pointers_offset: uint
-    entry_specs_offset: uint
+    item_pointers_offset: uint
+    item_specs_offset: uint
     exports_offset: uint
     imports_offset: uint
     end_offset: uint
@@ -245,8 +246,8 @@ class PackFileSectionHeader(BinaryStruct):
             section_tag=section_tag,
             absolute_data_start=RESERVED,
             child_pointers_offset=RESERVED,
-            entry_pointers_offset=RESERVED,
-            entry_specs_offset=RESERVED,
+            item_pointers_offset=RESERVED,
+            item_specs_offset=RESERVED,
             exports_offset=RESERVED,
             imports_offset=RESERVED,
             end_offset=RESERVED,
@@ -256,8 +257,8 @@ class PackFileSectionHeader(BinaryStruct):
         writer.fill("absolute_data_start", absolute_data_start, obj=self)
         for field_name in (
             "child_pointers_offset",
-            "entry_pointers_offset",
-            "entry_specs_offset",
+            "item_pointers_offset",
+            "item_specs_offset",
             "exports_offset",
             "imports_offset",
             "end_offset",

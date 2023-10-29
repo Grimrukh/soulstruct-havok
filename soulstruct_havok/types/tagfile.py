@@ -69,7 +69,7 @@ def unpack_float32(reader: BinaryReader) -> float | hk:
 
 
 def pack_float(hk_type: tp.Type[hk], item: TagFileItem, value: float | hk):
-    if hk_type.tag_type_flags == TagDataType.Float | TagDataType.Float32:
+    if hk_type.tag_type_flags == TagDataType.FloatAndFloat32:
         item.writer.pack("<f", value)
     else:
         # Will definitely not use or create items.
@@ -242,7 +242,10 @@ def unpack_array(data_hk_type: tp.Type[hk], reader: BinaryReader, items: list[Ta
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(f"Array data offset: {hex(item.absolute_offset)}")
 
-        if not data_hk_type.try_unpack_array_tagfile(reader, item):
+        primitive_array = data_hk_type.unpack_primitive_array(reader, item.length, item.absolute_offset)
+        if primitive_array is not None:
+            item.value = primitive_array
+        else:
             # Non-primitive; recur on data type `unpack` method.
             item.value = [
                 data_hk_type.unpack_tagfile(
@@ -266,7 +269,7 @@ def pack_array(
     item_creation_queue: dict[str, deque[tp.Callable]],
 ):
     """Array items are always created per instance, never re-used. (Not sure if that's correct, but it is here.)"""
-    if not value:
+    if len(value) == 0:
         item.writer.pack("<I", 0)
         return
 
@@ -287,11 +290,11 @@ def pack_array(
         items.append(new_item)
         new_item.writer = BinaryWriter()
 
-        if not data_hk_type.try_pack_array_tagfile(new_item, value):
+        if not data_hk_type.try_pack_primitive_array(new_item.writer, value):
             # Non-primitive; recur on data type `pack` method.
             for i, element in enumerate(value):
-                data_hk_type.pack_tagfile(item, element, items, existing_items, _item_creation_queue)
-                item.writer.pad_to_offset((i + 1) * data_hk_type.byte_size)
+                data_hk_type.pack_tagfile(new_item, element, items, existing_items, _item_creation_queue)
+                new_item.writer.pad_to_offset((i + 1) * data_hk_type.byte_size)
 
         return new_item
 

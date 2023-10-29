@@ -40,7 +40,7 @@ def _DEBUG(*args, **kwargs):
 class SectionInfo(tp.NamedTuple):
     raw_data: bytes
     child_pointers: list[ChildPointerStruct]
-    entry_pointers: list[EntryPointerStruct]
+    item_pointers: list[EntryPointerStruct]
     entry_specs: list[EntrySpecStruct]
     end_offset: int
 
@@ -87,13 +87,13 @@ class PackFileUnpacker:
         class_name_info = self.unpack_section(reader)
         if class_name_info.child_pointers:
             raise AssertionError("Type name section has local references. Not expected!")
-        if class_name_info.entry_pointers:
+        if class_name_info.item_pointers:
             raise AssertionError("Type name section has global references. Not expected!")
         if class_name_info.entry_specs:
             raise AssertionError("Type name section has data entries. Not expected!")
 
         type_section_info = self.unpack_section(reader)
-        for type_section_entry_pointer in type_section_info.entry_pointers:
+        for type_section_entry_pointer in type_section_info.item_pointers:
             if type_section_entry_pointer.dest_section_index != 1:
                 raise AssertionError("type global error")
 
@@ -109,7 +109,7 @@ class PackFileUnpacker:
         self.localize_pointers(
             self.type_entries,
             type_section_info.child_pointers,
-            type_section_info.entry_pointers,
+            type_section_info.item_pointers,
         )
 
         if self.type_entries:
@@ -149,7 +149,7 @@ class PackFileUnpacker:
         self.localize_pointers(
             self.item_entries,
             data_section_info.child_pointers,
-            data_section_info.entry_pointers,
+            data_section_info.item_pointers,
         )
 
         root_entry = self.item_entries[0]
@@ -163,31 +163,31 @@ class PackFileUnpacker:
     def localize_pointers(
         entries: list[PackFileType] | list[PackFileItem],
         child_pointers: list[ChildPointerStruct],
-        entry_pointers: list[EntryPointerStruct],
+        item_pointers: list[EntryPointerStruct],
     ):
         """Resolve pointers and attach them to their source entry objects."""
         for child_pointer in child_pointers:
             # Find source entry and offset local to its data.
             for entry in entries:
-                if (entry_source_offset := entry.get_offset_in_entry(child_pointer.source_offset)) != -1:
+                if (entry_source_offset := entry.get_offset_in_item(child_pointer.source_offset)) != -1:
                     # Check that source object is also dest object.
-                    if (entry_dest_offset := entry.get_offset_in_entry(child_pointer.dest_offset)) == -1:
+                    if (entry_dest_offset := entry.get_offset_in_item(child_pointer.dest_offset)) == -1:
                         raise AssertionError("Child pointer source object was NOT dest object. Not expected!")
                     entry.child_pointers[entry_source_offset] = entry_dest_offset
                     break
             else:
                 raise ValueError(f"Could not find source/dest entry of child pointer: {child_pointer}.")
 
-        for entry_pointer in entry_pointers:
+        for entry_pointer in item_pointers:
             for entry in entries:
-                if (entry_source_offset := entry.get_offset_in_entry(entry_pointer.source_offset)) != -1:
+                if (entry_source_offset := entry.get_offset_in_item(entry_pointer.source_offset)) != -1:
                     source_entry = entry
                     break
             else:
                 raise ValueError(f"Could not find source entry of entry pointer: {entry_pointer}.")
             for entry in entries:
-                if (entry_dest_offset := entry.get_offset_in_entry(entry_pointer.dest_offset)) != -1:
-                    source_entry.entry_pointers[entry_source_offset] = (entry, entry_dest_offset)
+                if (entry_dest_offset := entry.get_offset_in_item(entry_pointer.dest_offset)) != -1:
+                    source_entry.item_pointers[entry_source_offset] = (entry, entry_dest_offset)
                     break
             else:
                 raise ValueError(f"Could not find dest entry of entry pointer: {entry_pointer}.")
@@ -207,12 +207,12 @@ class PackFileUnpacker:
         absolute_data_start = section.absolute_data_start
         section_data_end = section.child_pointers_offset
         section_data = reader.unpack_bytes(length=section_data_end, offset=absolute_data_start, strip=False)
-        child_pointer_count = (section.entry_pointers_offset - section.child_pointers_offset) // 8
-        entry_pointer_count = (section.entry_specs_offset - section.entry_pointers_offset) // 12
-        entry_spec_count = (section.exports_offset - section.entry_specs_offset) // 12
+        child_pointer_count = (section.item_pointers_offset - section.child_pointers_offset) // 8
+        entry_pointer_count = (section.item_specs_offset - section.item_pointers_offset) // 12
+        entry_spec_count = (section.exports_offset - section.item_specs_offset) // 12
 
         child_pointers = []
-        entry_pointers = []
+        item_pointers = []
         entry_specs = []
 
         with reader.temp_offset(offset=absolute_data_start + section.child_pointers_offset):
@@ -220,18 +220,18 @@ class PackFileUnpacker:
                 if reader.unpack_value("I", offset=reader.position) == 0xFFFFFFFF:
                     break  # padding reached
                 child_pointers.append(ChildPointerStruct.from_bytes(reader))
-        with reader.temp_offset(offset=absolute_data_start + section.entry_pointers_offset):
+        with reader.temp_offset(offset=absolute_data_start + section.item_pointers_offset):
             for _ in range(entry_pointer_count):
                 if reader.unpack_value("I", offset=reader.position) == 0xFFFFFFFF:
                     break  # padding reached
-                entry_pointers.append(EntryPointerStruct.from_bytes(reader))
-        with reader.temp_offset(offset=absolute_data_start + section.entry_specs_offset):
+                item_pointers.append(EntryPointerStruct.from_bytes(reader))
+        with reader.temp_offset(offset=absolute_data_start + section.item_specs_offset):
             for _ in range(entry_spec_count):
                 if reader.unpack_value("I", offset=reader.position) == 0xFFFFFFFF:
                     break  # padding reached
                 entry_specs.append(EntrySpecStruct.from_bytes(reader))
 
-        return SectionInfo(section_data, child_pointers, entry_pointers, entry_specs, section_data_end)
+        return SectionInfo(section_data, child_pointers, item_pointers, entry_specs, section_data_end)
 
     def unpack_class_names(self, class_name_data: bytes):
         """Constructs dictionaries mapping offsets (within class name section) to HKX class names and signatures."""
@@ -363,14 +363,14 @@ class PackFileUnpacker:
             lines.append(f"    Type: {item.hk_type.__name__}")
             lines.append(
                 f"        Location: ["
-                f"{hex(item.local_data_offset)} - {hex(item.local_data_offset + item.entry_byte_size)}"
+                f"{hex(item.local_data_offset)} - {hex(item.local_data_offset + item.item_byte_size)}"
                 f"]"
             )
             lines.append(f"        Child pointers ({len(item.child_pointers)}):")
             for ref_source, ref_dest in item.child_pointers.items():
                 lines.append(f"            Local Offset: {ref_source} -> {ref_dest}")
-            lines.append(f"        Entry pointers ({len(item.entry_pointers)}):")
-            for ref_source, (dest_item, ref_dest) in item.entry_pointers.items():
+            lines.append(f"        Entry pointers ({len(item.item_pointers)}):")
+            for ref_source, (dest_item, ref_dest) in item.item_pointers.items():
                 lines.append(f"            Global Offset: {ref_source} -> {ref_dest} ({dest_item.hk_type.__name__})")
             lines.append(f"        Raw data length: {len(item.raw_data)}")
         return "\n".join(lines)

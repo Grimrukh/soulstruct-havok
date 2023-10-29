@@ -17,7 +17,7 @@ from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass
 
-from soulstruct.utilities.binary import BinaryReader
+from soulstruct.utilities.binary import BinaryReader, BinaryWriter
 
 from soulstruct_havok.enums import TagDataType, MemberFlags
 from soulstruct_havok.tagfile.structs import TagFileItem
@@ -246,7 +246,7 @@ class hk:
             value = tagfile.unpack_string(reader, items)  # `cls` not needed
         elif tag_data_type == TagDataType.Int:
             value = tagfile.unpack_int(cls, reader)
-        elif cls.tag_type_flags == TagDataType.Float | TagDataType.Float32:
+        elif cls.tag_type_flags == TagDataType.FloatAndFloat32:
             value = tagfile.unpack_float32(reader)  # `cls` not needed
         elif tag_data_type in {TagDataType.Class, TagDataType.Float}:  # non-32-bit floats have members
             value = tagfile.unpack_class(cls, reader, items)
@@ -262,14 +262,14 @@ class hk:
         return value
 
     @classmethod
-    def unpack_packfile(cls, entry: PackFileItem, offset: int = None):
+    def unpack_packfile(cls, item: PackFileItem, offset: int = None):
         """Unpack Python data from a Havok packfile.
 
-        If `offset` is None, the `entry.reader` continues from its current position.
+        If `offset` is None, the `item.reader` continues from its current position.
 
-        `entry` already contains resolved pointers to other entries, so no entry list needs to be passed around.
+        `item` already contains resolved pointers to other items, so no item list needs to be passed around.
         """
-        offset = entry.reader.seek(offset) if offset is not None else entry.reader.position
+        offset = item.reader.seek(offset) if offset is not None else item.reader.position
         if (
             debug.DEBUG_PRINT_UNPACK
             and not debug.DO_NOT_DEBUG_PRINT_PRIMITIVES
@@ -283,22 +283,22 @@ class hk:
                 raise AttributeError(
                     "Cannot unpack `hkRootLevelContainerNamedVariant` without using types context manager."
                 )
-            return packfile.unpack_named_variant(cls, entry, hk._TYPES_DICT)
+            return packfile.unpack_named_variant(cls, item, hk._TYPES_DICT)
 
         tag_data_type = cls.get_tag_data_type()
         if tag_data_type == TagDataType.Invalid:
             # Cannot unpack opaque type (and there shouldn't be anything to unpack in the file).
             value = None
         elif tag_data_type == TagDataType.Bool:
-            value = packfile.unpack_bool(cls, entry.reader)
+            value = packfile.unpack_bool(cls, item.reader)
         elif tag_data_type in {TagDataType.CharArray, TagDataType.ConstCharArray}:
-            value = packfile.unpack_string(entry)  # `cls` not needed
+            value = packfile.unpack_string(item)  # `cls` not needed
         elif tag_data_type == TagDataType.Int:
-            value = packfile.unpack_int(cls, entry.reader)
-        elif cls.tag_type_flags == TagDataType.Float | TagDataType.Float32:
-            value = packfile.unpack_float32(entry.reader)  # `cls` not needed
+            value = packfile.unpack_int(cls, item.reader)
+        elif cls.tag_type_flags == TagDataType.FloatAndFloat32:
+            value = packfile.unpack_float32(item.reader)  # `cls` not needed
         elif tag_data_type in {TagDataType.Class, TagDataType.Float}:  # non-32-bit floats have members
-            value = packfile.unpack_class(cls, entry)
+            value = packfile.unpack_class(cls, item)
         else:
             # Note that 'Pointer', 'Array', and 'Struct' types have their own explicit subclasses.
             raise ValueError(f"Cannot unpack `hk` subclass `{cls.__name__}` with tag data type {tag_data_type}.")
@@ -308,7 +308,7 @@ class hk:
             and cls.__name__ not in {"_float", "hkUint8"}
         ):
             debug.debug_print(f"-> {repr(value)}")
-        entry.reader.seek(offset + cls.byte_size)
+        item.reader.seek(offset + cls.byte_size)
         return value
 
     @classmethod
@@ -403,7 +403,7 @@ class hk:
             raise ValueError(f"Cannot pack `hk` subclass `{cls.__name__}` with tag data type {tag_data_type.name}.")
 
     @classmethod
-    def try_unpack_array_tagfile(cls, reader: BinaryReader, item: TagFileItem) -> bool:
+    def unpack_primitive_array(cls, reader: BinaryReader, length: int, offset: int = None) -> list | np.ndarray | None:
         """Try to unpack an array of this data type more efficiently than the default recursion.
 
         Unpacks simple arrays of primitive types (invalid/bool/int/float) with a single unpack, e.g. rather than
@@ -415,42 +415,36 @@ class hk:
         match cls.get_tag_data_type():
             case TagDataType.Invalid:
                 # Cannot unpack opaque type (and there shouldn't be anything to unpack in the file).
-                item.value = [None] * item.length
-                return True
+                return [None] * length
             case TagDataType.Bool:
-                fmt = TagDataType.get_int_fmt(cls.tag_type_flags, count=item.length)
-                item.value = [v > 0 for v in reader.unpack(fmt, offset=item.absolute_offset)]
-                return True
+                fmt = TagDataType.get_int_fmt(cls.tag_type_flags, count=length)
+                return [v > 0 for v in reader.unpack(fmt, offset=offset)]
             case TagDataType.Int:
-                fmt = TagDataType.get_int_fmt(cls.tag_type_flags, count=item.length)
-                item.value = list(reader.unpack(fmt, offset=item.absolute_offset))
-                return True
+                fmt = TagDataType.get_int_fmt(cls.tag_type_flags, count=length)
+                return list(reader.unpack(fmt, offset=offset))
 
         if cls.tag_type_flags == TagDataType.FloatAndFloat32:
-            item.value = list(reader.unpack(f"<{item.length}f", offset=item.absolute_offset))
-            return True
+            return list(reader.unpack(f"<{length}f", offset=offset))
 
-        return False
+        return None  # not a primitive array
 
     @classmethod
-    def try_pack_array_tagfile(
-        cls, item: TagFileItem, value: list | np.ndarray
-    ) -> bool:
+    def try_pack_primitive_array(cls, writer: BinaryWriter, value: list | np.ndarray) -> bool:
         """Try to pack an array of primitive types (or overridden supported subclasses) in one call."""
         match cls.get_tag_data_type():
             case TagDataType.Invalid:
                 return True  # nothing to pack
             case TagDataType.Bool:
-                fmt = TagDataType.get_int_fmt(cls.tag_type_flags, count=item.length)
-                item.writer.pack(fmt, *[int(v) for v in value])
+                fmt = TagDataType.get_int_fmt(cls.tag_type_flags, count=len(value))
+                writer.pack(fmt, *[int(v) for v in value])
                 return True
             case TagDataType.Int:
-                fmt = TagDataType.get_int_fmt(cls.tag_type_flags, count=item.length)
-                item.writer.pack(fmt, *value)
+                fmt = TagDataType.get_int_fmt(cls.tag_type_flags, count=len(value))
+                writer.pack(fmt, *value)
                 return True
 
         if cls.tag_type_flags == TagDataType.FloatAndFloat32:
-            item.writer.pack(f"<{item.length}f", *value)
+            writer.pack(f"<{len(value)}f", *value)
             return True
 
         return False

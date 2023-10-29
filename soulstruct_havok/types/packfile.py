@@ -24,6 +24,8 @@ __all__ = [
 import typing as tp
 from collections import deque
 
+import numpy as np
+
 from soulstruct.utilities.inspection import get_hex_repr
 
 from soulstruct_havok.enums import TagDataType
@@ -64,14 +66,14 @@ def unpack_float32(reader: BinaryReader) -> float | hk:
 
 
 def pack_float(hk_type: tp.Type[hk], item: PackFileItem, value: float | hk):
-    if hk_type.tag_type_flags == TagDataType.Float | TagDataType.Float32:
+    if hk_type.tag_type_flags == TagDataType.FloatAndFloat32:
         item.writer.pack("<f", value)
     else:
         # Will definitely not use or create items.
         pack_class(hk_type, item, value, existing_items={}, data_pack_queue={})
 
 
-def unpack_class(hk_type: tp.Type[hk], entry: PackFileItem, instance=None) -> hk:
+def unpack_class(hk_type: tp.Type[hk], item: PackFileItem, instance=None) -> hk:
     """Existing `instance` created by caller can be passed, which is useful for managing recursion.
 
     NOTE: This is not used for `hkRootLevelContainerNamedVariant`, which uses a special dynamic unpacker to detect the
@@ -79,17 +81,17 @@ def unpack_class(hk_type: tp.Type[hk], entry: PackFileItem, instance=None) -> hk
     """
     kwargs = {}
 
-    member_start_offset = entry.reader.position
+    member_start_offset = item.reader.position
     for member in hk_type.members:
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(
                 f"Unpacking member '{member.name}' of type `{member.type.__name__}` at offset {hex(member.offset)} "
-                f"(entry offset {hex(member_start_offset + member.offset)}):"
+                f"(item offset {hex(member_start_offset + member.offset)}):"
             )
         if debug.DEBUG_PRINT_UNPACK:
             debug.increment_debug_indent()
         member_value = member.type.unpack_packfile(
-            entry,
+            item,
             offset=member_start_offset + member.offset,
         )
         if debug.DEBUG_PRINT_UNPACK:
@@ -143,31 +145,31 @@ def pack_class(
 
 
 def unpack_pointer(data_hk_type: tp.Type[hk], item: PackFileItem) -> hk | None:
-    """`data_hk_type` is used to make sure that the referenced entry's `hk_type` is a subclass of it."""
+    """`data_hk_type` is used to make sure that the referenced item's `hk_type` is a subclass of it."""
     source_offset = item.reader.position
     zero = item.reader.unpack_value("<V")  # "dummy" pointer
     try:
-        pointed_item, item_data_offset = item.entry_pointers[source_offset]
+        pointed_item, item_data_offset = item.item_pointers[source_offset]
     except KeyError:
         if zero != 0:
-            print(zero, item.entry_pointers)
+            print(zero, item.item_pointers)
             raise ValueError(
-                f"Could not find entry pointer: type {item.hk_type.__name__}, buffer at {hex(source_offset)}."
+                f"Could not find item pointer: type {item.hk_type.__name__}, buffer at {hex(source_offset)}."
             )
         else:
             return None
     if zero != 0:
-        raise AssertionError(f"Found non-zero data at entry pointer offset: {zero}.")
+        raise AssertionError(f"Found non-zero data at item pointer offset: {zero}.")
     if item_data_offset != 0:
-        print(pointed_item.entry_pointers)
-        raise AssertionError(f"Data entry pointer (global ref dest) was not zero: {item_data_offset}.")
+        print(pointed_item.item_pointers)
+        raise AssertionError(f"Data item pointer (global ref dest) was not zero: {item_data_offset}.")
     if not issubclass(pointed_item.hk_type, data_hk_type):
         raise ValueError(
-            f"Pointer-referenced entry type {pointed_item.hk_type.__name__} is not a child of expected type "
+            f"Pointer-referenced item type {pointed_item.hk_type.__name__} is not a child of expected type "
             f"{data_hk_type.__name__}."
         )
     if pointed_item.value is None:
-        # Unpack entry (first time).
+        # Unpack item (first time).
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(f"Unpacking NEW ITEM: {pointed_item.hk_type.__name__}")
         pointed_item.start_reader()
@@ -197,7 +199,7 @@ def pack_pointer(
         return
 
     if value in existing_items:
-        item.entry_pointers[item.writer.position] = (existing_items[value], 0)
+        item.item_pointers[item.writer.position] = (existing_items[value], 0)
         item.writer.pack("<V", 0)  # global item fixup
         if debug.DEBUG_PRINT_PACK:
             debug.debug_print(f"Existing item: {type(existing_items[value]).__name__}")
@@ -206,7 +208,7 @@ def pack_pointer(
         # NOTE: This uses the data type, NOT the `Ptr` type. Copies `long_varints` from source item.
         new_item = existing_items[value] = PackFileItem(hk_type=data_hk_type, long_varints=item.writer.long_varints)
         new_item.value = value
-        item.entry_pointers[item.writer.position] = (new_item, 0)
+        item.item_pointers[item.writer.position] = (new_item, 0)
         item.writer.pack("<V", 0)  # global item fixup
         if debug.DEBUG_PRINT_PACK:
             debug.debug_print(f"Creating new item and queuing data pack: {type(new_item.value).__name__}")
@@ -221,41 +223,30 @@ def pack_pointer(
     data_pack_queue.setdefault("pointer", deque()).append(delayed_data_pack)
 
 
-def unpack_array(data_hk_type: tp.Type[hk], entry: PackFileItem) -> list:
-    array_pointer_offset = entry.reader.position
-    zero, array_size, array_capacity_and_flags = entry.reader.unpack("<VII")
+def unpack_array(data_hk_type: tp.Type[hk], item: PackFileItem) -> list:
+    array_pointer_offset = item.reader.position
+    zero, array_size, array_capacity_and_flags = item.reader.unpack("<VII")
     if debug.DEBUG_PRINT_UNPACK:
         debug.debug_print(f"Array size: {array_size} | Capacity/Flags: {array_capacity_and_flags}")
     if zero != 0:
         print(f"Zero, array_size, array_caps_flags: {zero, array_size, array_capacity_and_flags}")
-        print(f"Entry child pointers: {entry.child_pointers}")
-        print(f"Entry entry pointers: {entry.entry_pointers}")
-        print(f"Entry raw data:\n{get_hex_repr(entry.raw_data)}")
+        print(f"Item child pointers: {item.child_pointers}")
+        print(f"Item item pointers: {item.item_pointers}")
+        print(f"Item raw data:\n{get_hex_repr(item.raw_data)}")
         raise AssertionError(f"Found non-null data at child pointer offset {hex(array_pointer_offset)}: {zero}")
 
     if array_size == 0:
         return []
 
-    array_data_offset = entry.child_pointers[array_pointer_offset]
+    array_data_offset = item.child_pointers[array_pointer_offset]
 
     if debug.DEBUG_PRINT_UNPACK:
         debug.increment_debug_indent()
-    with entry.reader.temp_offset(array_data_offset):
-        # TODO: Speed up for primitive types.
-        value = []
-        for i in range(array_size):
-            # if debug.DEBUG_PRINT_UNPACK:
-            #     debug.debug_print(f"Unpacking array element {i} at {entry.reader.position_hex}:")
-            value.append(
-                data_hk_type.unpack_packfile(
-                    entry,
-                    # no offset needed, as array elements are tightly packed
-                )
-            )
-            # if debug.DEBUG_PRINT_UNPACK:
-            #     debug.debug_print(
-            #         f"Finished unpacking array element {i} at entry reader position {entry.reader.position_hex}..."
-            #     )
+    with item.reader.temp_offset(array_data_offset):
+        value = data_hk_type.unpack_primitive_array(item.reader, array_size)
+        if value is None:
+            # Array elements are tightly packed.
+            value = [data_hk_type.unpack_packfile(item) for _ in range(array_size)]
 
     if debug.DEBUG_PRINT_UNPACK:
         debug.decrement_debug_indent()
@@ -266,7 +257,7 @@ def unpack_array(data_hk_type: tp.Type[hk], entry: PackFileItem) -> list:
 def pack_array(
     array_hk_type: tp.Type[hkArray_],
     item: PackFileItem,
-    value: list[hk | str | int | float | bool],
+    value: list[hk | str | int | float | bool] | np.ndarray,
     existing_items: dict[hk, PackFileItem],
     data_pack_queue: dict[str, deque[tp.Callable]],
     with_flag=True,  # TODO: only found one array that doesn't use the flag (hkaBone["partitions"]).
@@ -284,7 +275,7 @@ def pack_array(
     item.writer.pack("<I", len(value) | (1 << 31 if with_flag else 0))  # highest bit on
     data_hk_type = array_hk_type.get_data_type()
 
-    if not value:
+    if len(value) == 0:
         return  # empty
 
     def delayed_data_write(_data_pack_queue):
@@ -294,10 +285,12 @@ def pack_array(
         item.writer.pad_align(16)  # pre-align for array
         item.child_pointers[array_ptr_pos] = item.writer.position  # fixup
         array_start_offset = item.writer.position
-        # TODO: Speed up for primitive types (bool/int/float).
-        for i, element in enumerate(value):
-            data_hk_type.pack_packfile(item, element, existing_items, _sub_data_pack_queue)
-            item.writer.pad_to_offset(array_start_offset + (i + 1) * data_hk_type.byte_size)
+
+        if not data_hk_type.try_pack_primitive_array(item.writer, value):
+            # Non-primitive; recur on data type `pack` method.
+            for i, element in enumerate(value):
+                data_hk_type.pack_packfile(item, element, existing_items, _sub_data_pack_queue)
+                item.writer.pad_to_offset(array_start_offset + (i + 1) * data_hk_type.byte_size)
 
         # Immediately recur on any new array/string data queued up (i.e., depth-first for packing arrays and strings).
         while _sub_data_pack_queue["array_or_string"]:
@@ -310,14 +303,14 @@ def pack_array(
 
 
 def unpack_struct(
-    data_hk_type: tp.Type[hk], entry: PackFileItem, length: int
+    data_hk_type: tp.Type[hk], item: PackFileItem, length: int
 ) -> tuple:
     """Identical to tagfile (just different recursive method)."""
-    struct_start_offset = entry.reader.position
+    struct_start_offset = item.reader.position
     # TODO: Speed up for primitive types.
     return tuple(
         data_hk_type.unpack_packfile(
-            entry,
+            item,
             offset=struct_start_offset + i * data_hk_type.byte_size,
         ) for i in range(length)
     )
@@ -341,17 +334,17 @@ def pack_struct(
         data_hk_type.pack_packfile(item, element, existing_items, data_pack_queue)
 
 
-def unpack_string(entry: PackFileItem) -> str:
-    """Read a null-terminated string from entry child pointer."""
-    pointer_offset = entry.reader.position
-    entry.reader.unpack_value("<V", asserted=0)
+def unpack_string(item: PackFileItem) -> str:
+    """Read a null-terminated string from item child pointer."""
+    pointer_offset = item.reader.position
+    item.reader.unpack_value("<V", asserted=0)
     try:
-        string_offset = entry.child_pointers[pointer_offset]
+        string_offset = item.child_pointers[pointer_offset]
     except KeyError:
         return ""
     if debug.DEBUG_PRINT_UNPACK:
         debug.debug_print(f"Unpacking string at offset {hex(string_offset)}")
-    string = entry.reader.unpack_string(offset=string_offset, encoding="shift_jis_2004")
+    string = item.reader.unpack_string(offset=string_offset, encoding="shift_jis_2004")
     if debug.DEBUG_PRINT_UNPACK:
         debug.debug_print(f"-> '{string}'")
     return string

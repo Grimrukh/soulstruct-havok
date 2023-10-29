@@ -119,7 +119,7 @@ class AnimationHKX(BaseAnimationHKX):
         elif self.animation_container.is_interleaved:
             self.animation_container.save_interleaved_data()
 
-        def source_handler(_, name: str, value, dest_kwargs: dict[str, tp.Any]):
+        def source_error_handler(_, name: str, value, dest_kwargs: dict[str, tp.Any]):
             if name == "refCount":
                 dest_kwargs["referenceCount"] = value
                 return ["referenceCount"]
@@ -128,7 +128,7 @@ class AnimationHKX(BaseAnimationHKX):
 
         import time
         t = time.perf_counter()
-        root2010 = convert_hk(self.root, hk2010.hkRootLevelContainer, hk2010, source_handler)
+        root2010 = convert_hk(self.root, hk2010.hkRootLevelContainer, hk2010, source_error_handler)
         print(f"2015 to 2010 time: {time.perf_counter() - t}")
         return AnimationHKX2010(
             dcx_type=DCXType.Null,
@@ -185,7 +185,7 @@ class AnimationHKX(BaseAnimationHKX):
         skeleton_hkx: SkeletonHKX,
         interleaved_data: list[list[TRSTransform]],
         transform_track_to_bone_indices: list[int] = None,
-        reference_frame_samples: list[Vector4] | None = None,
+        root_motion: np.ndarray | None = None,
         is_armature_space=False,
     ) -> AnimationHKX:
         """Open bundled template HKX for Dark Souls Remastered (c2240, Capra Demon, animation 200).
@@ -198,26 +198,34 @@ class AnimationHKX(BaseAnimationHKX):
 
         container.spline_to_interleaved()
 
+        container.animation.duration = (len(interleaved_data) - 1) / 30.0  # TODO: assumes 30 FPS (always valid?)
+
+        container.animation_binding.originalSkeletonName = skeleton_hkx.skeleton.skeleton.name
+        if transform_track_to_bone_indices is None:
+            # Default: same as bone order.
+            transform_track_to_bone_indices = list(range(len(skeleton_hkx.skeleton.bones)))
+        container.animation_binding.transformTrackToBoneIndices = transform_track_to_bone_indices
+        container.animation.numberOfTransformTracks = len(transform_track_to_bone_indices)
+        container.animation.annotationTracks = [
+            hkaAnnotationTrack(
+                trackName=skeleton_hkx.skeleton.bones[bone_index].name,
+                annotations=[],
+            )
+            for bone_index in transform_track_to_bone_indices
+        ]
+
         if is_armature_space:
+            # NOTE: Must be called AFTER setting new transform track -> bone mapping above.
             container.set_interleaved_data_from_armature_space(skeleton_hkx.skeleton, interleaved_data)
         else:
             container.interleaved_data = interleaved_data
         container.save_interleaved_data()
         container.animation.floats = []
 
-        if transform_track_to_bone_indices is None:
-            # Default: same as bone order.
-            transform_track_to_bone_indices = list(range(len(skeleton_hkx.skeleton.bones)))
-
-        container.animation.duration = (len(interleaved_data) - 1) / 30.0  # TODO: assumes 30 FPS (always valid?)
-
-        container.animation_binding.originalSkeletonName = skeleton_hkx.skeleton.skeleton.name
-        container.animation_binding.transformTrackToBoneIndices = transform_track_to_bone_indices
-
-        if reference_frame_samples is None:
+        if root_motion is None:
             hkx.animation_container.animation.extractedMotion = None
-        else:  # tempplate has some reference frame samples already
-            hkx.animation_container.set_reference_frame_samples(reference_frame_samples)
+        else:  # template has some reference frame samples already
+            hkx.animation_container.set_reference_frame_samples(root_motion)
 
         return hkx.get_spline_hkx()
 
