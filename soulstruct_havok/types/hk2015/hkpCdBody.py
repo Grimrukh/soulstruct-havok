@@ -26,5 +26,5 @@ class hkpCdBody(hk):
 
     shape: hkpShape
     shapeKey: int
-    motion: hkReflectDetailOpaque
+    motion: None = None
     parent: hkpCdBody

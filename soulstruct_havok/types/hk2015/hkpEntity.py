@@ -90,14 +90,14 @@ class hkpEntity(hkpWorldObject):
     material: hkpMaterial
     limitContactImpulseUtilAndFlag: _void
     damageMultiplier: float
-    breakableBody: hkReflectDetailOpaque
+    breakableBody: None = None
     solverData: int
     storageIndex: int
     contactPointCallbackDelay: int
     constraintsMaster: hkpEntitySmallArraySerializeOverrideType
     constraintsSlave: list[hkpConstraintInstance]
     constraintRuntime: list[int]
-    simulationIsland: hkReflectDetailOpaque
+    simulationIsland: None = None
     autoRemoveLevel: int
     numShapeKeysInContactPointProperties: int
     responseModifierFlags: int

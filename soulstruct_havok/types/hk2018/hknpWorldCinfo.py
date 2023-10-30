@@ -81,15 +81,15 @@ class hknpWorldCinfo(hk):
     )
     members = local_members
 
-    blockStreamAllocator: hkReflectDetailOpaque
+    blockStreamAllocator: None = None
     bodyBufferCapacity: int
-    userBodyBuffer: hkReflectDetailOpaque
+    userBodyBuffer: None = None
     motionBufferCapacity: int
-    userMotionBuffer: hkReflectDetailOpaque
+    userMotionBuffer: None = None
     constraintBufferCapacity: int
-    userConstraintBuffer: hkReflectDetailOpaque
+    userConstraintBuffer: None = None
     constraintGroupBufferCapacity: int
-    userConstraintGroupBuffer: hkReflectDetailOpaque
+    userConstraintGroupBuffer: None = None
     useBodyBacklinkBuffer: bool
     materialLibrary: hknpMaterialLibrary
     motionPropertiesLibrary: hknpMotionPropertiesLibrary

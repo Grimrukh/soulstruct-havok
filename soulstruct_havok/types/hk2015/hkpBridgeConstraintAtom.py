@@ -27,5 +27,5 @@ class hkpBridgeConstraintAtom(hkpConstraintAtom):
     )
     members = hkpConstraintAtom.members + local_members
 
-    buildJacobianFunc: hkReflectDetailOpaque
+    buildJacobianFunc: None = None
     constraintData: hkpConstraintData

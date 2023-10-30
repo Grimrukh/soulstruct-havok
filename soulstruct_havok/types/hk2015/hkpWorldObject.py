@@ -28,7 +28,7 @@ class hkpWorldObject(hkReferencedObject):
     )
     members = hkReferencedObject.members + local_members
 
-    world: hkReflectDetailOpaque
+    world: None = None
     userData: int
     collidable: hkpLinkedCollidable
     multiThreadCheck: hkMultiThreadCheck

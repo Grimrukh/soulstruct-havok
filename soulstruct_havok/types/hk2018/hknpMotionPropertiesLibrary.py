@@ -24,7 +24,7 @@ class hknpMotionPropertiesLibrary(hkReferencedObject):
     )
     members = hkReferencedObject.members + local_members
 
-    entryAddedSignal: hkReflectDetailOpaque
-    entryModifiedSignal: hkReflectDetailOpaque
-    entryRemovedSignal: hkReflectDetailOpaque
+    entryAddedSignal: None = None
+    entryModifiedSignal: None = None
+    entryRemovedSignal: None = None
     entries: list[hknpMotionProperties]

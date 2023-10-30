@@ -42,7 +42,7 @@ class hkpConstraintInstance(hkReferencedObject):
     )
     members = hkReferencedObject.members + local_members
 
-    owner: hkReflectDetailOpaque
+    owner: None = None
     data: hkpConstraintData
     constraintModifiers: hkpModifierConstraintAtom
     entities: tuple[hkpEntity]
@@ -52,5 +52,5 @@ class hkpConstraintInstance(hkReferencedObject):
     listeners: hkpConstraintInstanceSmallArraySerializeOverrideType
     name: str
     userData: int
-    internal: hkReflectDetailOpaque
+    internal: None = None
     uid: int

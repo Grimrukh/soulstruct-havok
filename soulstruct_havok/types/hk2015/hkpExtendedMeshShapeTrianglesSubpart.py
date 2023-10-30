@@ -36,13 +36,13 @@ class hkpExtendedMeshShapeTrianglesSubpart(hkpExtendedMeshShapeSubpart):
     members = hkpExtendedMeshShapeSubpart.members + local_members
 
     numTriangleShapes: int
-    vertexBase: hkReflectDetailOpaque
+    vertexBase: None = None
     numVertices: int
-    indexBase: hkReflectDetailOpaque
+    indexBase: None = None
     vertexStriding: int
     triangleOffset: int
     indexStriding: int
-    stridingType: hkpExtendedMeshShapeIndexStridingType
+    stridingType: hkpExtendedMeshShapeIndexStridingType | int
     flipAlternateTriangles: int
     extrusion: Vector4
     transform: hkQsTransform

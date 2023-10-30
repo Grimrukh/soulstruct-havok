@@ -23,7 +23,7 @@ class hkpAction(hkReferencedObject):
     )
     members = hkReferencedObject.members + local_members
 
-    world: hkReflectDetailOpaque
-    island: hkReflectDetailOpaque
+    world: None = None
+    island: None = None
     userData: int
     name: str

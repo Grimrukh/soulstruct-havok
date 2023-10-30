@@ -23,5 +23,5 @@ class hknpBodyQualityLibrary(hkReferencedObject):
     )
     members = hkReferencedObject.members + local_members
 
-    qualityModifiedSignal: hkReflectDetailOpaque
+    qualityModifiedSignal: None = None
     qualities: tuple[hknpBodyQuality]

@@ -31,6 +31,6 @@ class hkpExtendedMeshShapeSubpart(hk):
     shapeInfo: int
     materialStriding: int
     materialIndexStriding: int
-    materialIndexBase: hkReflectDetailOpaque
-    materialBase: hkReflectDetailOpaque
+    materialIndexBase: None = None
+    materialBase: None = None
     userData: int

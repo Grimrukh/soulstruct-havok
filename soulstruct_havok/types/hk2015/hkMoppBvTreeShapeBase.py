@@ -27,6 +27,6 @@ class hkMoppBvTreeShapeBase(hkpBvTreeShape):
     members = hkpBvTreeShape.members + local_members
 
     code: hkpMoppCode
-    moppData: hkReflectDetailOpaque
+    moppData: None = None
     moppDataSize: int
     codeInfoCopy: Vector4

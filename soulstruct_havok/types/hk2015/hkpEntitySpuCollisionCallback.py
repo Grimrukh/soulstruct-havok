@@ -23,7 +23,7 @@ class hkpEntitySpuCollisionCallback(hk):
     )
     members = local_members
 
-    util: hkReflectDetailOpaque
+    util: None = None
     capacity: int
     eventFilter: int
     userFilter: int

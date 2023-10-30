@@ -24,7 +24,7 @@ class hknpMaterialLibrary(hkReferencedObject):
     )
     members = hkReferencedObject.members + local_members
 
-    materialAddedSignal: hkReflectDetailOpaque
-    materialModifiedSignal: hkReflectDetailOpaque
-    materialRemovedSignal: hkReflectDetailOpaque
+    materialAddedSignal: None = None
+    materialModifiedSignal: None = None
+    materialRemovedSignal: None = None
     entries: list[hknpMaterial]

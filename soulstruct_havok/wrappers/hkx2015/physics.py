@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import io
 import logging
 import typing as tp
+
+import numpy as np
 
 from soulstruct_havok.types.hk2015 import *
 from soulstruct_havok.utilities.mopper import mopper
@@ -69,9 +72,13 @@ class MapCollisionPhysicsData(PhysicsData[hkpPhysicsData, hkpPhysicsSystem]):
         for mesh in meshstorage:
             mopper_input.append("")
             mopper_input.append(f"{len(mesh.vertices)}")
-            for v in mesh.vertices:
-                mopper_input.append(f"{v.x} {v.y} {v.z}")
-            mopper_input.append("")
+
+            # Format array of vertices as "x y z" lines (lines already joined).
+            v = io.StringIO()
+            np.savetxt(v, mesh.vertices[:, :3], fmt="%r")
+            mopper_input.append(v.getvalue())
+            mopper_input.append("")  # blank line
+
             mopper_input.append(f"{len(mesh.indices16) // 4}")
             faces = mesh.indices16.copy()
             while faces:
@@ -108,7 +115,7 @@ class MapCollisionPhysicsData(PhysicsData[hkpPhysicsData, hkpPhysicsSystem]):
             numTriangleShapes=faces_count,
             numVertices=vertices_count,
             vertexStriding=16,
-            triangleOffset=2010252431,  # TODO: should be given in `mopp.json`
+            triangleOffset=2010252431,  # TODO: should be given in `mopp.json` (but doesn't seem critical)
             indexStriding=8,
             stridingType=2,  # 16-bit
             flipAlternateTriangles=0,

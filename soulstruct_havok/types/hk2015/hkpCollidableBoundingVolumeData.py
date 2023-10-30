@@ -38,5 +38,5 @@ class hkpCollidableBoundingVolumeData(hk):
     padding: int
     numChildShapeAabbs: int
     capacityChildShapeAabbs: int
-    childShapeAabbs: hkReflectDetailOpaque
-    childShapeKeys: hkReflectDetailOpaque
+    childShapeAabbs: None = None
+    childShapeKeys: None = None
