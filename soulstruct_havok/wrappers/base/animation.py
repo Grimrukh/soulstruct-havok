@@ -149,25 +149,44 @@ class AnimationContainer(tp.Generic[
             raise TypeError(f"Animation type `{type(self.animation).__name__}` is not interleaved.")
 
     def get_reference_frame_samples(self) -> np.ndarray:
-        """Get reference frame sample array ("root motion") from animation if available."""
-        if self.animation.extractedMotion:
-            extracted_motion = self.animation.extractedMotion
-            if hasattr(extracted_motion, "referenceFrameSamples"):
-                return extracted_motion.referenceFrameSamples
-        raise TypeError("No reference frame samples (root motion) for this animation reference frame class.")
+        """Get reference frame sample array ("root motion") from animation if available.
+
+        The fourth column of the array is Y-axis rotation in radians.
+        """
+        if not self.animation.extractedMotion:
+            raise ValueError("No `extractedMotion` reference frame exists for this animation.")
+
+        extracted_motion = self.animation.extractedMotion
+        if not hasattr(extracted_motion, "referenceFrameSamples"):
+            cls_name = extracted_motion.__class__.__name__
+            raise TypeError(f"No reference frame samples (root motion) for animation extracted motion class `{cls_name}`.")
+
+        return extracted_motion.referenceFrameSamples
 
     def set_reference_frame_samples(self, samples: np.ndarray):
-        if self.animation.extractedMotion:
-            extracted_motion = self.animation.extractedMotion
-            if hasattr(extracted_motion, "referenceFrameSamples"):
-                if samples.shape[1] != 4:
-                    # Add an extra column of zeroes (`hkVector4` array).
-                    samples = np.c_[samples, np.zeros((samples.shape[0], 1))]
-                if samples.dtype != np.float32:
-                    samples = samples.astype(np.float32)
-                extracted_motion.referenceFrameSamples = samples
-                return
-        raise TypeError("No reference frame samples (root motion) for this animation reference frame class.")
+        """Set reference frame sample array ("root motion") in animation if available."""
+        if not self.animation.extractedMotion:
+            # TODO: create extracted motion?
+            raise ValueError("No `extractedMotion` reference frame exists for this animation.")
+
+        extracted_motion = self.animation.extractedMotion
+        if not hasattr(extracted_motion, "referenceFrameSamples"):
+            # TODO: create extracted motion of required class?
+            cls_name = extracted_motion.__class__.__name__
+            raise TypeError(
+                f"No reference frame samples (root motion) for animation extracted motion class `{cls_name}`."
+            )
+
+        if samples.shape[1] == 3:
+            # Assume no rotation: add an extra column of zeroes (`hkVector4` array).
+            samples = np.c_[samples, np.zeros((samples.shape[0], 1))]
+        if samples.shape[1] != 4:
+            raise ValueError(
+                f"Reference frame samples must have 3 or 4 columns (XYZ + Y rotation), not {samples.shape[1]}."
+            )
+        if samples.dtype != np.float32:
+            samples = samples.astype(np.float32)
+        extracted_motion.referenceFrameSamples = samples
 
     def set_animation_duration(self, duration: float):
         """Set `duration` in both the animation and (if applicable) the reference frame."""
