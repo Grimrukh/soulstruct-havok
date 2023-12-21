@@ -6,8 +6,6 @@ from soulstruct_havok.enums import *
 from .core import *
 
 
-
-
 from .hknpMotionRangeBreachPolicyEnum import hknpMotionRangeBreachPolicyEnum
 
 

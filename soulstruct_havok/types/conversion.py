@@ -12,7 +12,7 @@ from soulstruct_havok.core import HKX, HavokFileFormat
 from soulstruct_havok.types import hk2014, hk2015
 
 
-# TODO: Now to convert 2014 ragdoll to 2015.
+# TODO: Now to convert 2014 ragdoll to 2015 (e.g. BB to DSR).
 #  - Swap types. Iterate over HKX:
 #    - When a 2014 `hk` instance is encountered, find the type with the same name in 2015.
 #    - Load it by simply iterating over the 2015 members and retrieving the 2014 members with that name.

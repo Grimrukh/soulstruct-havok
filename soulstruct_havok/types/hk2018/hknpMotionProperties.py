@@ -6,7 +6,6 @@ from soulstruct_havok.enums import *
 from .core import *
 
 
-
 from .hknpMotionPropertiesDeactivationSettings import hknpMotionPropertiesDeactivationSettings
 from .hknpMotionPropertiesFullCastSettings import hknpMotionPropertiesFullCastSettings
 

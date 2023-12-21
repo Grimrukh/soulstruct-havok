@@ -7,7 +7,6 @@ import numpy as np
 from soulstruct_havok.enums import *
 from .core import *
 from .hknpShape import hknpShape
-from .hkHalf16 import hkHalf16
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)

@@ -6,7 +6,6 @@ from soulstruct_havok.enums import *
 from .core import *
 
 
-
 from .hknpMaterialLibrary import hknpMaterialLibrary
 from .hknpMotionPropertiesLibrary import hknpMotionPropertiesLibrary
 from .hknpBodyQualityLibrary import hknpBodyQualityLibrary

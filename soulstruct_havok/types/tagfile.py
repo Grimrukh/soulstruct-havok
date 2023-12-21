@@ -100,7 +100,8 @@ def unpack_class(hk_type: tp.Type[hk], reader: BinaryReader, items: list[TagFile
         #         f"{hex(member_start_offset + member.offset)} ({member_value})"
         #     )
         kwargs[member.name] = member_value  # type hint will be given in class definition
-    debug.decrement_debug_indent()
+    if debug.DEBUG_PRINT_UNPACK:
+        debug.decrement_debug_indent()
     if instance is None:
         # noinspection PyArgumentList
         instance = hk_type(**kwargs)
@@ -120,7 +121,7 @@ def pack_class(
 ):
     member_start_offset = item.writer.position
 
-    if debug.DEBUG_PRINT_UNPACK:
+    if debug.DEBUG_PRINT_PACK:
         debug.increment_debug_indent()
     for member in hk_type.members:
         if debug.DEBUG_PRINT_PACK:
@@ -128,7 +129,7 @@ def pack_class(
         # Member offsets may not be perfectly packed together, so we always pad up to the proper offset.
         item.writer.pad_to_offset(member_start_offset + member.offset)
         member.type.pack_tagfile(item, value[member.name], items, existing_items, item_creation_queue)
-    if debug.DEBUG_PRINT_UNPACK:
+    if debug.DEBUG_PRINT_PACK:
         debug.decrement_debug_indent()
 
     item.writer.pad_to_offset(member_start_offset + hk_type.byte_size)
@@ -465,7 +466,7 @@ def pack_named_variant(
 ):
     """Named variants create items for their 'name' members before their 'className' members."""
     member_start_offset = item.writer.position
-    if debug.DEBUG_PRINT_UNPACK:
+    if debug.DEBUG_PRINT_PACK:
         debug.increment_debug_indent()
 
     name_member = hk_type.members[0]
@@ -486,5 +487,5 @@ def pack_named_variant(
         debug.debug_print(f"Member 'variant' (type `{variant_member.type.__name__}`):")
     variant_member.type.pack_tagfile(item, value["variant"], items, existing_items, item_creation_queue)
 
-    if debug.DEBUG_PRINT_UNPACK:
+    if debug.DEBUG_PRINT_PACK:
         debug.decrement_debug_indent()

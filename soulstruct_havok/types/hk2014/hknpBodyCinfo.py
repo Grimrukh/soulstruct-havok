@@ -46,6 +46,6 @@ class hknpBodyCinfo(hk):
     name: str
     userData: int
     position: Vector4
-    orientation: hkQuaternionf
+    orientation: Quaternion
     spuFlags: int
     localFrame: hkLocalFrame

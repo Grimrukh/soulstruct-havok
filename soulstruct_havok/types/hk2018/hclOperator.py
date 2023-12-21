@@ -6,7 +6,6 @@ from soulstruct_havok.enums import *
 from .core import *
 
 
-
 from .hclClothStateBufferAccess import hclClothStateBufferAccess
 from .hclClothStateTransformSetAccess import hclClothStateTransformSetAccess
 

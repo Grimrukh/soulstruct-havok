@@ -2,6 +2,7 @@ from __future__ import annotations
 
 __all__ = [
     "scale_shape",
+    "scale_hknp_shape",
     "scale_vector4_xyz",
     "scale_transform_translation",
     "scale_motion_state",
@@ -18,10 +19,12 @@ from soulstruct_havok.types import hk2010, hk2014, hk2015, hk2018
 _LOGGER = logging.getLogger(__name__)
 
 SHAPE_TYPING = tp.Union[
-    hk2010.hkpShape, hk2015.hkpShape,
+    hk2010.hkpShape,
+    hk2015.hkpShape,
 ]
 CONVEX_SHAPE_TYPES = (
-    hk2010.hkpConvexShape, hk2015.hkpConvexShape
+    hk2010.hkpConvexShape,
+    hk2015.hkpConvexShape,
 )
 CONVEX_VERTICES_SHAPE_TYPES = (
     hk2015.hkpConvexVerticesShape,
@@ -74,6 +77,23 @@ BALL_AND_SOCKET_CONSTRAINT_DATA_TYPES = (
 )
 BALL_SOCKET_CHAIN_DATA_TYPES = (
     hk2015.hkpBallSocketChainData,
+)
+
+HKNP_SHAPE_TYPING = tp.Union[
+    hk2014.hknpShape,
+    hk2018.hknpShape,
+]
+HKNP_CONVEX_SHAPE_TYPES = (
+    hk2014.hknpConvexShape,
+    hk2018.hknpConvexShape,
+)
+HKNP_CONVEX_POLYTOPE_SHAPE_TYPES = (
+    hk2014.hknpConvexPolytopeShape,
+    hk2018.hknpConvexPolytopeShape,
+)
+HKNP_CAPSULE_SHAPE_TYPES = (
+    hk2014.hknpCapsuleShape,
+    hk2018.hknpCapsuleShape,
 )
 
 
@@ -130,8 +150,23 @@ def scale_shape(shape: SHAPE_TYPING, scale_factor: float | Vector3 | Vector4):
     raise TypeError(f"Cannot scale Havok shape type: {type(shape).__name__}.")
 
 
+def scale_hknp_shape(shape: HKNP_SHAPE_TYPING, scale_factor: float | Vector3 | Vector4):
+    """Scale a Havok Physics 2014+ `hknpShape` or child class in-place."""
+
+    # All `hknpShape` classes have `convexRadius`.
+    radius_scalar = _get_scalar_float(scale_factor, shape.__class__.__name__ + ".convexRadius")
+    shape.convexRadius *= radius_scalar
+
+    if isinstance(shape, HKNP_CONVEX_SHAPE_TYPES):
+        shape.vertices = [scale_vector4_xyz(vertex, scale_factor) for vertex in shape.vertices]
+        # TODO: `hknpConvexPolytopeShape.planes`?
+        if isinstance(shape, HKNP_CAPSULE_SHAPE_TYPES):
+            scale_vector4_xyz(shape.a, scale_factor)
+            scale_vector4_xyz(shape.b, scale_factor)
+
+
 def scale_vector4_xyz(vector4: Vector4, scale_factor: float | Vector3 | Vector4):
-    """Scale only XYZ components of a `Vector4` in-place."""
+    """Scale only XYZ components of a `Vector4` in-place. Also returns same instance for easy list comprehension."""
     if isinstance(scale_factor, (Vector3, Vector4)):
         vector4.x *= scale_factor.x
         vector4.y *= scale_factor.y
@@ -140,6 +175,7 @@ def scale_vector4_xyz(vector4: Vector4, scale_factor: float | Vector3 | Vector4)
         vector4.x *= scale_factor
         vector4.y *= scale_factor
         vector4.z *= scale_factor
+    return vector4
 
 
 def scale_transform_translation(transform: tuple[float], scale_factor: float | Vector3 | Vector4) -> tuple[float]:

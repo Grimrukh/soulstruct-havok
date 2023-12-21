@@ -6,7 +6,6 @@ from soulstruct_havok.enums import *
 from .core import *
 
 
-
 from .hclStateTransitionStateTransitionData import hclStateTransitionStateTransitionData
 from .hkHandle import hkHandle
 

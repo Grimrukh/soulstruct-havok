@@ -79,6 +79,8 @@ __all__ = [
     "hkUlong",
     "hkUint8",
     "hkUint64",
+    "hkUFloat8",
+    "hkHalf16",
     "hkBaseObject",
     "hkContainerHeapAllocator",
     "hkBool",
@@ -546,6 +548,38 @@ class hkUint64(_unsigned_long_long):
     """Havok alias."""
     __tag_format_flags = 0
     local_members = ()
+
+
+@dataclass(slots=True, eq=False, repr=False)
+class hkUFloat8(hk):
+    alignment = 1
+    byte_size = 1
+    tag_type_flags = TagDataType.Class
+
+    __tag_format_flags = 41
+
+    local_members = (
+        Member(0, "value", hkUint8),
+    )
+    members = local_members
+
+    value: int
+
+
+@dataclass(slots=True, eq=False, repr=False)
+class hkHalf16(hk):
+    alignment = 2
+    byte_size = 2
+    tag_type_flags = TagDataType.Float | TagDataType.Float16
+
+    __tag_format_flags = 41
+
+    local_members = (
+        Member(0, "value", hkInt16, MemberFlags.Private),
+    )
+    members = local_members
+
+    value: int
 
 
 # --- Havok Core Types --- #
