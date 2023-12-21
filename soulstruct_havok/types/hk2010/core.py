@@ -78,14 +78,14 @@ __all__ = [
     "hkUint8",
     "hkUint64",
     "hkUintReal",
+    "hkUFloat8",
+    "hkHalf16",
     "hkBaseObject",
     "hkReferencedObject",
     "hkRefVariant",
-    "hkUFloat8",
     "hkContainerHeapAllocator",
     "hkStringPtr",
     "hkBool",
-    "hkHalf16",
 ]
 
 import typing as tp
@@ -507,6 +507,36 @@ class hkUintReal(_unsigned_int):
     local_members = ()
 
 
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
+class hkUFloat8(hk):
+    alignment = 2
+    byte_size = 1
+    __tag_format_flags = 41
+    tag_type_flags = 7
+
+    local_members = (
+        Member(0, "value", hkUint8),
+    )
+    members = local_members
+
+    value: int
+
+
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
+class hkHalf16(hk):
+    alignment = 2
+    byte_size = 2
+    __tag_format_flags = 41
+    tag_type_flags = 476677
+
+    local_members = (
+        Member(0, "value", hkInt16, MemberFlags.Private),
+    )
+    members = local_members
+
+    value: int
+
+
 # --- Havok Core Types --- #
 
 
@@ -554,21 +584,6 @@ class hkRefVariant(hk):
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
-class hkUFloat8(hk):
-    alignment = 2
-    byte_size = 1
-    __tag_format_flags = 41
-    tag_type_flags = 7
-
-    local_members = (
-        Member(0, "value", hkUint8),
-    )
-    members = local_members
-
-    value: hkUint8
-
-
-@dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkContainerHeapAllocator(hk):
     alignment = 1
     byte_size = 1
@@ -609,18 +624,3 @@ class hkBool(hk):
     members = local_members
 
     bool: _char
-
-
-@dataclass(slots=True, eq=False, repr=False, kw_only=True)
-class hkHalf16(hk):
-    alignment = 2
-    byte_size = 2
-    __tag_format_flags = 41
-    tag_type_flags = 476677
-
-    local_members = (
-        Member(0, "value", hkInt16, MemberFlags.Private),
-    )
-    members = local_members
-
-    value: hkInt16
