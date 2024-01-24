@@ -16,7 +16,7 @@ from soulstruct_havok.utilities.maths import Matrix4, Vector3, Vector4
 
 from soulstruct_havok.types import hk2010, hk2014, hk2015, hk2018
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger("soulstruct_havok")
 
 SHAPE_TYPING = tp.Union[
     hk2010.hkpShape,

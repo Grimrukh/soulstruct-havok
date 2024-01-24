@@ -17,7 +17,7 @@ from soulstruct_havok.types.info import TypeInfo, get_py_name
 from .structs import *
 from .type_unpacker import PackFileTypeUnpacker
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger("soulstruct_havok")
 
 ROOT_TYPING = tp.Union[
     None,

@@ -29,7 +29,7 @@ from soulstruct.utilities.binary import *
 
 from soulstruct_havok.utilities.maths import Vector3, Vector4, Quaternion, TRSTransform
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger("soulstruct_havok")
 
 
 class TrackFlags(IntEnum):

@@ -14,7 +14,7 @@ if tp.TYPE_CHECKING:
     from soulstruct_havok.types.base import Ptr_, hkArray_
 
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger("soulstruct_havok")
 
 
 class TagFileItem:

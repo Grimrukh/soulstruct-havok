@@ -33,7 +33,7 @@ try:
 except ImportError:
     VispyWindow = None
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger("soulstruct_havok")
 
 
 @dataclass(slots=True)

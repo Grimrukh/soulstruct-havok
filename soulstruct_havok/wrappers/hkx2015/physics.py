@@ -11,7 +11,7 @@ from soulstruct_havok.utilities.mopper import mopper
 from soulstruct_havok.utilities.maths import Vector4, Quaternion
 from soulstruct_havok.wrappers.base.physics import PhysicsData
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger("soulstruct_havok")
 
 
 class MapCollisionPhysicsData(PhysicsData[hkpPhysicsData, hkpPhysicsSystem]):

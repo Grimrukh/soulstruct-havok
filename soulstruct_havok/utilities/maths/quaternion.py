@@ -13,7 +13,7 @@ from scipy.spatial.transform import Rotation, Slerp
 from soulstruct.utilities.maths import Vector3, Vector4, Matrix3, Matrix4
 from soulstruct.utilities.conversion import floatify
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger("soulstruct_havok")
 
 
 @dataclass(slots=True, frozen=True)

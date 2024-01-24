@@ -29,7 +29,7 @@ from .skeleton import Skeleton, SkeletonMapper, Bone
 from .physics import PhysicsData, ClothPhysicsData
 from .type_vars import *
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger("soulstruct_havok")
 
 
 HK_T = tp.TypeVar("HK_T", bound=hk)

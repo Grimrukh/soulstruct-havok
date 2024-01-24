@@ -7,7 +7,7 @@ from soulstruct.utilities.files import read_json
 
 from soulstruct_havok.utilities.files import HAVOK_PACKAGE_PATH
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger("soulstruct_havok")
 _MOPPER_PATH = HAVOK_PACKAGE_PATH("resources/mopper.exe")
 
 

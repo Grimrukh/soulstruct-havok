@@ -21,5 +21,5 @@ setup(
     install_requires=["colorama", "numpy", "scipy"],
     author="Scott Mooney (Grimrukh)",
     author_email="grimrukh@gmail.com",
-    url="https://github.com/grimrukh/soulstruct-havok",
+    url="https://github.com/Grimrukh/soulstruct-havok",
 )

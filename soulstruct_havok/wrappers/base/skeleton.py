@@ -12,7 +12,7 @@ from soulstruct_havok.utilities.maths import TRSTransform, Vector3, Vector4
 
 from .type_vars import SKELETON_T, SKELETON_MAPPER_T, BONE_T
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger("soulstruct_havok")
 
 
 @dataclass(slots=True, frozen=True, repr=False)

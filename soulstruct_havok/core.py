@@ -29,7 +29,7 @@ except AttributeError:  # < Python 3.11
     Self = "HKX"
 
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger("soulstruct_havok")
 
 HKX_ROOT_TYPING = tp.Union[
     None,

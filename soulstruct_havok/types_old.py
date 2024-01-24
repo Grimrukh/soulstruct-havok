@@ -10,7 +10,7 @@ from xml.etree import ElementTree
 
 from .enums import TagFormatFlags, TagDataType
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger("soulstruct_havok")
 
 
 def _cache_type(cache_key: str):

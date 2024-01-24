@@ -22,7 +22,7 @@ if tp.TYPE_CHECKING:
     from soulstruct_havok.core import HKX
     from soulstruct_havok.types import hk2015, hk2018
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger("soulstruct_havok")
 
 colorama.init()
 YELLOW = colorama.Fore.YELLOW

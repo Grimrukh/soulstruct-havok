@@ -13,7 +13,7 @@ from soulstruct.utilities.maths import Vector3, Vector4, Matrix4
 
 from .quaternion import Quaternion
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger("soulstruct_havok")
 
 
 @dataclass(slots=True)

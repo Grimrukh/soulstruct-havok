@@ -20,7 +20,7 @@ from soulstruct_havok.core import HavokFileFormat
 
 from .file_types import AnimationHKX, SkeletonHKX, RagdollHKX, ClothHKX, CollisionHKX
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger("soulstruct_havok")
 
 
 def scale_chrbnd(chrbnd: Binder, scale_factor: float | Vector3):

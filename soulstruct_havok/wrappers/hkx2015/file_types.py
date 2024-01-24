@@ -47,7 +47,7 @@ from soulstruct_havok.utilities.wavefront import read_obj
 
 from .physics import MapCollisionPhysicsData
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger("soulstruct_havok")
 
 AnimationContainerType = AnimationContainer[
     hkaAnimationContainer, hkaAnimation, hkaAnimationBinding,

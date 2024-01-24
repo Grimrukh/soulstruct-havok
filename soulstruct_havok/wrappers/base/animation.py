@@ -23,7 +23,7 @@ from .type_vars import (
 if tp.TYPE_CHECKING:
     from .skeleton import Skeleton
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger("soulstruct_havok")
 
 
 class AnimationContainer(tp.Generic[
