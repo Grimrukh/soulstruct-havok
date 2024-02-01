@@ -18,6 +18,7 @@ import logging
 import subprocess as sp
 import typing as tp
 from dataclasses import dataclass
+from enum import IntEnum
 from pathlib import Path
 
 import numpy as np
@@ -275,6 +276,18 @@ class MapCollisionHKX(BaseWrappedHKX):
     TYPES_MODULE: tp.ClassVar = hk2015
     root: hkRootLevelContainer = None
     map_collision_physics_data: MapCollisionPhysicsData = None
+
+    class MapCollisionMaterial(IntEnum):
+        Rock = 1  # actual rocks, bricks
+        Stone = 2  # e.g. walls
+        Grass = 3  # e.g. Darkroot ground
+        Wood = 4  # e.g. logs
+
+        # rough
+        ShallowWater = 20
+        DeepWater = 21
+
+        # NOTE: Offsets of 100, 200, and 300 appear to be used for stairs/sloped submeshes?
 
     def __post_init__(self):
         super(BaseWrappedHKX, self).__post_init__()
