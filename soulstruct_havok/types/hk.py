@@ -17,6 +17,8 @@ from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass
 
+import numpy as np
+
 from soulstruct.utilities.binary import BinaryReader, BinaryWriter
 
 from soulstruct_havok.enums import TagDataType, MemberFlags
@@ -32,7 +34,6 @@ except AttributeError:
     Self = "hk"
 
 if tp.TYPE_CHECKING:
-    import numpy as np
     from soulstruct_havok.packfile.structs import PackFileItem
 
 
@@ -649,6 +650,13 @@ class hk:
                         for element in member_value:
                             lines.append(f"        {repr(element)},")
                         lines.append(f"    ),")
+                else:
+                    lines.append(f"    {member.name} = {repr(member_value)},")
+            elif isinstance(member_value, np.ndarray):
+                if 0 < max_primitive_sequence_size < member_value.size:
+                    lines.append(
+                        f"    {member.name} = <{member_value.shape}-array>,"
+                    )
                 else:
                     lines.append(f"    {member.name} = {repr(member_value)},")
             elif isinstance(member_value, (Quaternion, Vector4)):
