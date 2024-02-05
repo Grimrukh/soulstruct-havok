@@ -55,8 +55,8 @@ class Quaternion:
         return cls([wxyz[1], wxyz[2], wxyz[3], wxyz[0]])
 
     @property
-    def data(self):
-        """Returns the quaternion as a tuple of 4 floats. Cached on first access."""
+    def data(self) -> np.ndarray:
+        """Returns the quaternion as a 4-float array. Cached on first access."""
         if self._data is None:
             object.__setattr__(self, "_data", self.rotation.as_quat())
         return self._data
@@ -358,12 +358,19 @@ class Quaternion:
         return f"Quaternion(x={quat[0]:.4f}, y={quat[1]:.4f}, z={quat[2]:.4f}, w={quat[3]:.4f})"
 
     @staticmethod
-    def slerp(q1: Quaternion, q2: Quaternion, t: float) -> Quaternion:
+    def slerp(q1: Quaternion, q2: Quaternion, t: float, shortest_path=False) -> Quaternion:
         """Spherically interpolate between two Quaternions by parameter `t` in interval [0, 1].
+
+        If `shortest_path = True`, the dot product of the two quaternions is checked for positivity. If it is
+        negative, `q1` is negated before slerping to avoid taking the longer path around the sphere.
 
         NOTE: As `Rotation` cannot hold zero-norm quaternions -- but we sometimes need to slerp with these -- the
         `data` representation is used.
         """
         # print(q1.data, q2.data)
-        scipy_slerp = Slerp([0, 1], Rotation.concatenate([Rotation.from_quat(q1.data), Rotation.from_quat(q2.data)]))
+        if shortest_path and np.dot(q1.data, q2.data) < 0:
+            rotation = Rotation.concatenate([Rotation.from_quat(-q1.data), Rotation.from_quat(q2.data)])
+        else:
+            rotation = Rotation.concatenate([Rotation.from_quat(q1.data), Rotation.from_quat(q2.data)])
+        scipy_slerp = Slerp([0, 1], rotation)
         return Quaternion(scipy_slerp(t))

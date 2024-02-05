@@ -104,13 +104,14 @@ class TRSTransform:
 
     @classmethod
     def lerp(cls, transform1: TRSTransform, transform2: TRSTransform, t: float) -> TRSTransform:
-        """Linearly interpolate translate and scale, and spherically interpolate rotation Quaternion.
+        """Linearly interpolate translate and scale, and spherically interpolate rotation Quaternion using shortest
+        path (i.e. negating quaternions as necessary to ensure a positive dot product).
 
         `t` will be clamped to [0, 1] interval.
         """
         t = min(1.0, max(0.0, t))
         translation = transform1.translation.data + (transform2.translation.data - transform1.translation.data) * t
-        rotation = Quaternion.slerp(transform1.rotation, transform2.rotation, t)
+        rotation = Quaternion.slerp(transform1.rotation, transform2.rotation, t, shortest_path=True)
         scale = transform1.scale.data + (transform2.scale.data - transform1.scale.data) * t
         return cls(Vector3(translation), rotation, Vector3(scale))
 

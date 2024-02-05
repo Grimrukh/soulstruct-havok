@@ -130,7 +130,7 @@ class AnimationHKX(BaseAnimationHKX):
         import time
         t = time.perf_counter()
         root2010 = convert_hk(self.root, hk2010.hkRootLevelContainer, hk2010, source_error_handler)
-        print(f"2015 to 2010 time: {time.perf_counter() - t}")
+        _LOGGER.info(f"Converted 2015 Animation HKX to 2010 in {time.perf_counter() - t} s.")
         return AnimationHKX2010(
             dcx_type=DCXType.Null,
             root=root2010,

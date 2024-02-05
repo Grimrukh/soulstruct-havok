@@ -880,27 +880,30 @@ class SplineCompressedAnimationData:
         transform_track_count = len(self.blocks[0])
         for block in self.blocks:
             if len(block) != transform_track_count:
-                _LOGGER.warning("Animation data blocks do not have equal numbers of transform tracks.")
+                _LOGGER.warning("Animation data blocks do not have equal transform track counts.")
 
         frame_transforms = [[] for _ in range(frame_count)]  # type: list[list[TRSTransform]]
 
         for frame_index in range(frame_count):
-            frame = float((frame_index % frame_count) % max_frames_per_block)
-            block_index = int((frame_index % frame_count) / max_frames_per_block)
+            block_index, frame = divmod(frame_index, max_frames_per_block)
+            frame = float(frame)
+
             block = self.blocks[block_index]
 
             for transform_track_index in range(transform_track_count):
                 track = block[transform_track_index]
-                if frame >= frame_count - 1:
-                    # Need to interpolate (t = 0.5) between this final frame and the first frame.
-                    current_frame_transform = track.get_trs_transform_at_frame(float(math.floor(frame)))
-                    first_frame_transform = self.blocks[0][transform_track_index].get_trs_transform_at_frame(frame=0.0)
-                    frame_transforms[frame_index].append(
-                        TRSTransform.lerp(current_frame_transform, first_frame_transform, t=0.5)
-                    )
-                else:
-                    # Normal frame.
-                    frame_transforms[frame_index].append(track.get_trs_transform_at_frame(frame))
+                frame_transforms[frame_index].append(track.get_trs_transform_at_frame(frame))
+
+                # NOTE: Previously, this code always set the final interleaved frame to an interpolated value between
+                # that frame and the first frame, presumably to ensure seamless looping - but this was extremely
+                # misguided, as few animations are intended to actually be seamless, and any tiny decompression errors
+                # should be smoothed over by the game's natural interpolation anyway.
+                # Code:
+                #   current_frame_transform = track.get_trs_transform_at_frame(float(math.floor(frame)))
+                #   first_frame_transform = self.blocks[0][transform_track_index].get_trs_transform_at_frame(frame=0.0)
+                #   frame_transforms[frame_index].append(
+                #       TRSTransform.lerp(current_frame_transform, first_frame_transform, t=0.5)
+                #   )
 
         return frame_transforms
 
@@ -918,7 +921,10 @@ class SplineCompressedAnimationData:
         with Pool(num_workers) as p:
             results = p.starmap(
                 compute_frame_transforms,
-                [(frame_count, chunk, self.blocks, max_frames_per_block, transform_track_count) for chunk in frame_chunks]
+                [
+                    (frame_count, chunk, self.blocks, max_frames_per_block, transform_track_count)
+                    for chunk in frame_chunks
+                ]
             )
 
         # Flatten the results back into a single list of lists.
