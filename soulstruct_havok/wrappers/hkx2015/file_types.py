@@ -278,14 +278,19 @@ class MapCollisionHKX(BaseWrappedHKX):
     map_collision_physics_data: MapCollisionPhysicsData = None
 
     class MapCollisionMaterial(IntEnum):
+        Default = 0  # unknown usage
         Rock = 1  # actual rocks, bricks
         Stone = 2  # e.g. walls
-        Grass = 3  # e.g. Darkroot ground
+        Grass = 3  # e.g. forest ground
         Wood = 4  # e.g. logs
+        LoResGround = 5  # unknown purpose; seems to randomly replace other ground types in lo-res
+        Metal = 9  # e.g. grilles
 
         # rough
         ShallowWater = 20
         DeepWater = 21
+        Killplane = 29  # or deathcam trigger, or lethal fall, etc.
+        Trigger = 40  # other triggers?
 
         # NOTE: Offsets of 100, 200, and 300 appear to be used for stairs/sloped submeshes?
 
