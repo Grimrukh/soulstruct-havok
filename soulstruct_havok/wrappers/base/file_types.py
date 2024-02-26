@@ -224,11 +224,18 @@ class RemoAnimationHKX(BaseWrappedHKX, abc.ABC):
 
         frame_local_transforms = self.animation_container.interleaved_data[frame_index]
         bone_world_transforms = {bone.name: TRSTransform.identity() for bone in part_bones.values()}
-        track_bone_indices = self.animation_container.animation_binding.transformTrackToBoneIndices
+        bone_track_indices = {
+            v: i for i, v in enumerate(self.animation_container.animation_binding.transformTrackToBoneIndices)
+        }
 
         def bone_local_to_world(bone: Bone, world_transform: TRSTransform):
-            track_index = track_bone_indices.index(bone.index)
-            bone_world_transforms[bone.name] = world_transform @ frame_local_transforms[track_index]
+            try:
+                track_index = bone_track_indices[bone.index]
+            except ValueError:
+                # Bone has no track (not animated). We don't recur on child bones below.
+                return
+            else:
+                bone_world_transforms[bone.name] = world_transform @ frame_local_transforms[track_index]
             # Recur on children, using this bone's just-computed world transform.
             for child_bone in bone.children:
                 bone_local_to_world(child_bone, bone_world_transforms[bone.name])

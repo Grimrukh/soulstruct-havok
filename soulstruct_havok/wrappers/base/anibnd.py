@@ -480,7 +480,7 @@ class BaseANIBND(Binder, abc.ABC):
             source_reference_frame_samples = source_animation.get_reference_frame_samples()
         except TypeError:
             try:
-                dest_animation.set_reference_frame_samples([])  # TODO: may be the wrong thing to do
+                dest_animation.set_reference_frame_samples(np.array([]))  # TODO: may be the wrong thing to do
                 _LOGGER.info("Cleared animation reference frame samples during retarget.")
             except TypeError:
                 pass
@@ -538,7 +538,7 @@ class BaseANIBND(Binder, abc.ABC):
             source_reference_frame_samples = source_animation.get_reference_frame_samples()
         except TypeError:
             try:
-                dest_animation.set_reference_frame_samples([])  # TODO: may be the wrong thing to do
+                dest_animation.set_reference_frame_samples(np.array([]))  # TODO: may be the wrong thing to do
                 _LOGGER.info("Cleared animation reference frame samples during retarget.")
             except TypeError:
                 pass
@@ -656,10 +656,12 @@ class BaseANIBND(Binder, abc.ABC):
         return transforms
 
     def get_all_armature_space_transforms_in_frame(self, frame_index: int, anim_id: int = None) -> list[TRSTransform]:
-        """Resolve all transforms to get all bones' armature space transforms at the given `frame_index`.
+        """Resolve all transforms to get all tracks' armature space transforms at the given `frame_index`.
 
         Avoids recomputing transforms multiple times; each bone is only processed once, using parents' accumulating
         world transforms.
+
+        NOTE: Returned list of transforms should be indexed by TRACK index, which may not always match bone index.
         """
         animation = self.get_animation_container(anim_id)
         if not animation.is_interleaved:
@@ -669,13 +671,18 @@ class BaseANIBND(Binder, abc.ABC):
             raise ValueError(f"Frame must be between 0 and {len(animation.interleaved_data)}, not {frame_index}.")
 
         frame_local_transforms = animation.interleaved_data[frame_index]
-        # NOTE: `world_transforms` is ordered by bone, not track. Bones without tracks will have identity transforms.
-        track_world_transforms = [TRSTransform.identity() for _ in self.bones]
-        track_bone_indices = animation.animation_binding.transformTrackToBoneIndices
+        # NOTE: `world_transforms` is ordered by TRACK.
+        bone_track_indices = {v: i for i, v in enumerate(animation.animation_binding.transformTrackToBoneIndices)}
+        track_world_transforms = [TRSTransform.identity() for _ in range(len(bone_track_indices))]
 
         def bone_local_to_world(bone: Bone, world_transform: TRSTransform):
-            track_index = track_bone_indices.index(bone.index)
-            track_world_transforms[track_index] = world_transform @ frame_local_transforms[track_index]
+            try:
+                track_index = bone_track_indices[bone.index]
+            except KeyError:
+                # Bone has no track (not animated). We don't recur on child bones below.
+                return
+            else:
+                track_world_transforms[track_index] = world_transform @ frame_local_transforms[track_index]
             # Recur on children, using this bone's just-computed world transform.
             for child_bone in bone.children:
                 bone_local_to_world(child_bone, track_world_transforms[track_index])

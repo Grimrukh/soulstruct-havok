@@ -11,6 +11,7 @@ __all__ = [
 ]
 
 import typing as tp
+from dataclasses import dataclass
 
 from soulstruct_havok.types import hk2018
 from soulstruct_havok.types.hk2018 import *

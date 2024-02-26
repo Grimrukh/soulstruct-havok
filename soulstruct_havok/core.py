@@ -154,12 +154,13 @@ class HKX(GameFile):
         entry_spec: int | Path | str | re.Pattern = None,
         hk_format: HavokFileFormat = None,
         compendium_name: str = "",
-    ):
+    ) -> Self:
         """Use or auto-detect `{binder_source.name}.compendium` file in binder, if present."""
         compendium, compendium_name = cls.get_compendium_from_binder(binder, compendium_name)
 
+        entry = binder[entry_spec]
         try:
-            return cls.from_bytes(binder[entry_spec], hk_format=hk_format, compendium=compendium)
+            hkx = cls.from_bytes(entry, hk_format=hk_format, compendium=compendium)
         except MissingCompendiumError:
             if compendium_name != "":
                 raise MissingCompendiumError(
@@ -170,6 +171,8 @@ class HKX(GameFile):
                 f"Binder entry '{entry_spec}' requires a compendium, but `compendium_name` was not given and a "
                 f"'.compendium' entry could not be found in the given binder."
             )
+        hkx.path = entry.path
+        return hkx
 
     @staticmethod
     def get_compendium_from_binder(binder: Binder, compendium_name="") -> tuple[HKX, str]:
@@ -184,9 +187,15 @@ class HKX(GameFile):
                 compendium = HKX.from_bytes(compendium_entries[0])
                 compendium_name = compendium_entries[0].name
             elif len(compendium_entries) > 1:
-                raise ValueError(
-                    f"Multiple '.compendium' files found in binder: {[e.name for e in compendium_entries]}."
-                )
+                # This can happen in `DivBinder`s, where the same compendium is duplicated into every written Binder.
+                # We allow this if their data are identical.
+                if len(set(e.data for e in compendium_entries)) > 1:
+                    raise ValueError(
+                        f"Multiple '.compendium' files found in binder: {[e.name for e in compendium_entries]}."
+                    )
+                else:
+                    compendium = HKX.from_bytes(compendium_entries[0])
+                    compendium_name = compendium_entries[0].name
             else:
                 # Otherwise, no compendiums found; assume not needed and complain below if otherwise.
                 compendium = None
@@ -239,6 +248,28 @@ class HKX(GameFile):
 
     def get_root_tree_string(self, max_primitive_sequence_size=-1) -> str:
         return self.root.get_tree_string(max_primitive_sequence_size=max_primitive_sequence_size)
+
+    def __repr__(self) -> str:
+        """Returns names of root variant classes."""
+        if self.root is None:
+            root = "None"
+        elif self.root.__class__.__name__ == "hkRootLevelContainer":
+            variant_cls_names = ",\n    ".join(f"{c.className}(\"{c.name}\")" for c in self.root.namedVariants)
+            root = f"{self.root.__class__.__name__}(\n    {variant_cls_names},\n  )"
+        else:
+            root = self.root.__class__.__name__
+
+        return (
+            f"{self.cls_name}(\n"
+            f"  dcx={self.dcx_type.name},\n"
+            f"  path={self.path},\n"
+            f"  hk_format={self.hk_format},\n"
+            f"  hk_version={self.hk_version},\n"
+            f"  root={root},\n"
+            f")"
+        )
+
+    base_hkx_repr = __repr__
 
     # region OUTDATED CONVERSION METHODS
 

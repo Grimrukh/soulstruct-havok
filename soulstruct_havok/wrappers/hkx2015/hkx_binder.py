@@ -58,25 +58,27 @@ class HKXBHD(Binder):
         """Load all HKX entries from this HKXBHD."""
         for entry in self.entries:
             if entry.name.endswith(".hkx.dcx"):
-                hkx_stem = entry.name.removesuffix(".hkx.dcx")
+                hkx_stem = entry.name[:-8]  # remove '.hkx.dcx'
                 if overwrite or hkx_stem not in self.hkxs:
                     self.hkxs[hkx_stem] = entry.to_binary_file(MapCollisionHKX)
 
     def entry_autogen(self):
         """Overwrite Binder entries from loaded `HKX` instances."""
         for hkx_stem, hkx in self.hkxs.items():
+            hkx_stem = hkx_stem.removesuffix(".dcx").removesuffix(".hkx")
             self.set_default_entry(
-                self.get_hkx_entry_path(f"{hkx_stem}.hkx.dcx"), new_id=len(self.entries), new_flags=0x2
+                self.get_hkx_entry_path(hkx_stem), new_id=len(self.entries), new_flags=0x2
             ).set_from_binary_file(hkx)
 
         # Sort all final entries.
         self.auto_enumerate_entries(sort_key=lambda e: e.name)
 
     def get_hkx_entry_path(self, hkx_stem: str) -> str:
+        """Get full Binder entry path of HKX from just the model stem."""
 
         if not self.map_stem:
             if self.path:
-                map_stem = self.path.name.split(".")[0]
+                map_stem = "m" + self.path.name.split(".")[0][1:]
             else:
                 raise ValueError(
                     "HKXBHD must have a `map_stem` (or `path` whose stem can be used) for HKX entry paths."
@@ -99,8 +101,16 @@ class BothResHKXBHD:
     def from_map_path(cls, map_path: Path | str) -> Self:
         """Will raise a `FileNotFoundError` if (half of) either Binder file is missing."""
         map_path = Path(map_path)
-        hi_res_path = Path(map_path , f"h{map_path.name[1:]}.hkxbhd")
-        lo_res_path = Path(map_path , f"l{map_path.name[1:]}.hkxbhd")
+        hi_res_path = Path(map_path, f"h{map_path.name[1:]}.hkxbhd")
+        lo_res_path = Path(map_path, f"l{map_path.name[1:]}.hkxbhd")
+        return cls(HKXBHD.from_path(hi_res_path), HKXBHD.from_path(lo_res_path), path=map_path)
+
+    @classmethod
+    def from_both_paths(cls, hi_res_path: Path | str, lo_res_path: Path | str, map_path: Path | str = None) -> Self:
+        """Will raise a `FileNotFoundError` if (half of) either Binder file is missing."""
+        hi_res_path = Path(hi_res_path)
+        lo_res_path = Path(lo_res_path)
+        map_path = Path(map_path) if map_path else hi_res_path.parent
         return cls(HKXBHD.from_path(hi_res_path), HKXBHD.from_path(lo_res_path), path=map_path)
 
     def get_hi_hkx(self, hkx_stem: str) -> MapCollisionHKX:

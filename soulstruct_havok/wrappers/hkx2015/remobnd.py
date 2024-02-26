@@ -211,10 +211,6 @@ class RemoCut:
         remo_part: RemoPart,
         root_bone_name: str,
     ):
-
-        # TODO: Check that bones that aren't even animated still have tracks. (They just wouldn't be in `mapping`
-        #  otherwise, presumably.) (UPDATE: Yes, all bones seem to always have tracks, even if just a repeated value.)
-
         part_bones = self.animation.get_part_bones(
             remo_part.name, root_bone_name=root_bone_name, bone_prefix=remo_part.map_part_name + "_"
         )
@@ -223,16 +219,24 @@ class RemoCut:
 
         # NOTE: Some bones may not be referenced in cutscene animation data.
         arma_frames = []  # type: list[dict[str, TRSTransform]]
-        track_bone_indices = self.animation.animation_container.animation_binding.transformTrackToBoneIndices
+        bone_track_indices = {
+            v: i for i, v in enumerate(self.animation.animation_container.animation_binding.transformTrackToBoneIndices)
+        }
 
         for frame_index in range(len(self.animation.animation_container.interleaved_data)):
 
             frame_local_transforms = self.animation.animation_container.interleaved_data[frame_index]
+            # Only bones with tracks have keys.
             bone_world_transforms = {bone.name: TRSTransform.identity() for bone in part_bones.values()}
 
             def bone_local_to_world(bone: Bone, arma_transform: TRSTransform):
-                track_index = track_bone_indices.index(bone.index)
-                bone_world_transforms[bone.name] = arma_transform @ frame_local_transforms[track_index]
+                try:
+                    track_index = bone_track_indices[bone.index]
+                except KeyError:
+                    # Bone has no track (not animated). We don't recur on child bones below.
+                    return
+                else:
+                    bone_world_transforms[bone.name] = arma_transform @ frame_local_transforms[track_index]
                 # Recur on children, using this bone's just-computed world transform.
                 for child_bone in bone.children:
                     bone_local_to_world(child_bone, bone_world_transforms[bone.name])
