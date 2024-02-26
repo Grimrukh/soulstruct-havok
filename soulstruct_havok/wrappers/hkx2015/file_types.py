@@ -160,7 +160,7 @@ class AnimationHKX(BaseAnimationHKX):
                 dest_kwargs["refCount"] = value
                 return ["refCount"]
 
-        def dest_handler(dest_type: tp.Type[hk], dest_kwargs: dict[str, tp.Any], name: str):
+        def dest_handler(dest_type: type[hk], dest_kwargs: dict[str, tp.Any], name: str):
             if dest_type is hk2015.hkaAnimationBinding and name == "partitionIndices":
                 dest_kwargs["partitionIndices"] = []
                 return True

@@ -43,22 +43,22 @@ if tp.TYPE_CHECKING:
 colorama_init()
 
 
-def unpack_bool(hk_type: tp.Type[hk], reader: BinaryReader) -> bool:
+def unpack_bool(hk_type: type[hk], reader: BinaryReader) -> bool:
     fmt = TagDataType.get_int_fmt(hk_type.tag_type_flags)
     return reader.unpack_value(fmt) > 0
 
 
-def pack_bool(hk_type: tp.Type[hk], item: TagFileItem, value: bool):
+def pack_bool(hk_type: type[hk], item: TagFileItem, value: bool):
     fmt = TagDataType.get_int_fmt(hk_type.tag_type_flags)
     item.writer.pack(fmt, int(value))
 
 
-def unpack_int(hk_type: tp.Type[hk], reader: BinaryReader) -> int:
+def unpack_int(hk_type: type[hk], reader: BinaryReader) -> int:
     fmt = TagDataType.get_int_fmt(hk_type.tag_type_flags)
     return reader.unpack_value(fmt)
 
 
-def pack_int(hk_type: tp.Type[hk], item: TagFileItem, value: int):
+def pack_int(hk_type: type[hk], item: TagFileItem, value: int):
     fmt = TagDataType.get_int_fmt(hk_type.tag_type_flags, signed=value < 0)
     item.writer.pack(fmt, value)
 
@@ -68,7 +68,7 @@ def unpack_float32(reader: BinaryReader) -> float | hk:
     return reader.unpack_value("<f")
 
 
-def pack_float(hk_type: tp.Type[hk], item: TagFileItem, value: float | hk):
+def pack_float(hk_type: type[hk], item: TagFileItem, value: float | hk):
     if hk_type.tag_type_flags == TagDataType.FloatAndFloat32:
         item.writer.pack("<f", value)
     else:
@@ -76,7 +76,7 @@ def pack_float(hk_type: tp.Type[hk], item: TagFileItem, value: float | hk):
         pack_class(hk_type, item, value, items=[], existing_items={}, item_creation_queue={})
 
 
-def unpack_class(hk_type: tp.Type[hk], reader: BinaryReader, items: list[TagFileItem], instance=None) -> hk:
+def unpack_class(hk_type: type[hk], reader: BinaryReader, items: list[TagFileItem], instance=None) -> hk:
     """Existing `instance` created by caller can be passed, which is useful for managing recursion.
 
     NOTE: This is not used for `hkRootLevelContainerNamedVariant`, which uses a special dynamic unpacker to detect the
@@ -112,7 +112,7 @@ def unpack_class(hk_type: tp.Type[hk], reader: BinaryReader, items: list[TagFile
 
 
 def pack_class(
-    hk_type: tp.Type[hk],
+    hk_type: type[hk],
     item: TagFileItem,
     value: hk,
     items: list[TagFileItem],
@@ -135,7 +135,7 @@ def pack_class(
     item.writer.pad_to_offset(member_start_offset + hk_type.byte_size)
 
 
-def unpack_pointer(data_hk_type: tp.Type[hk], reader: BinaryReader, items: list[TagFileItem]) -> hk | None:
+def unpack_pointer(data_hk_type: type[hk], reader: BinaryReader, items: list[TagFileItem]) -> hk | None:
     item_index = reader.unpack_value("<I")
     if debug.DEBUG_PRINT_UNPACK:
         debug.debug_print(f"`{data_hk_type.__name__}` pointer item index: {item_index}")
@@ -209,7 +209,7 @@ def pack_pointer(
             return None
 
         item.writer.pack_at(item_index_pos, "<I", len(items))
-        value_data_hk_type = type(value)  # type: tp.Type[hk]  # may be a subclass of `data_hk_type`
+        value_data_hk_type = type(value)  # type: type[hk]  # may be a subclass of `data_hk_type`
         new_item = TagFileItem(ptr_hk_type, is_ptr=value_data_hk_type.get_tag_data_type() == TagDataType.Class)
         new_item.value = value
         existing_items[value] = new_item
@@ -223,7 +223,7 @@ def pack_pointer(
     item_creation_queue.setdefault("pointer", deque()).append(delayed_item_creation)
 
 
-def unpack_array(data_hk_type: tp.Type[hk], reader: BinaryReader, items: list[TagFileItem]) -> list:
+def unpack_array(data_hk_type: type[hk], reader: BinaryReader, items: list[TagFileItem]) -> list:
     item_index = reader.unpack_value("<I")
     if item_index == 0:
         if debug.DEBUG_PRINT_UNPACK:
@@ -305,7 +305,7 @@ def pack_array(
 
 
 def unpack_struct(
-    data_hk_type: tp.Type[hk], reader: BinaryReader, items: list[TagFileItem], length: int
+    data_hk_type: type[hk], reader: BinaryReader, items: list[TagFileItem], length: int
 ) -> tuple:
     struct_start_offset = reader.position
 
@@ -334,7 +334,7 @@ def unpack_struct(
 
 
 def pack_struct(
-    data_hk_type: tp.Type[hk],
+    data_hk_type: type[hk],
     item: TagFileItem,
     value: tuple,
     items: list[TagFileItem],
@@ -382,7 +382,7 @@ def unpack_string(reader: BinaryReader, items: list[TagFileItem]) -> str:
 
 
 def pack_string(
-    string_hk_type: tp.Type[hk],
+    string_hk_type: type[hk],
     item: TagFileItem,
     value: str,
     items: list[TagFileItem],
@@ -426,7 +426,7 @@ def pack_string(
 
 
 def unpack_named_variant(
-    hk_type: tp.Type[hk], reader: BinaryReader, items: list[TagFileItem], types_module: dict
+    hk_type: type[hk], reader: BinaryReader, items: list[TagFileItem], types_module: dict
 ) -> hk:
     """Detects `variant` type dynamically from `className` member."""
     kwargs = {}
@@ -457,7 +457,7 @@ def unpack_named_variant(
 
 
 def pack_named_variant(
-    hk_type: tp.Type[hk],
+    hk_type: type[hk],
     item: TagFileItem,
     value: hk,
     items: list[TagFileItem],

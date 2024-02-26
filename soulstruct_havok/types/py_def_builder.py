@@ -269,8 +269,10 @@ class PyDefBuilder:
             else:
                 parent_name = "hk"
 
-        py_string = "@dataclass(slots=True, eq=False, repr=False, kw_only=True)\n"
-        py_string += f"\nclass {self.py_name}({parent_name}):\n"
+        py_string = (
+            f"@dataclass(slots=True, eq=False, repr=False, kw_only=True)\n"
+            f"class {self.py_name}({parent_name}):\n"
+        )
 
         if self.tag_type_flags is None and self.name != "void":
             # Bare alias wrapper. Just define hash and empty members.

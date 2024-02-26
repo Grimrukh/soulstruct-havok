@@ -35,7 +35,7 @@ if tp.TYPE_CHECKING:
 
 class hkBasePointer(hk):
     """Intermediate base type shared by types with a `_data_type` attribute and `get_data_type()` method."""
-    _data_type = None  # type: tp.Type[hk] | DefType
+    _data_type = None  # type: type[hk] | DefType
 
     @classmethod
     def get_data_type(cls):
@@ -46,7 +46,7 @@ class hkBasePointer(hk):
         return cls._data_type
 
     @classmethod
-    def set_data_type(cls, data_type: tp.Type[hk] | DefType):
+    def set_data_type(cls, data_type: type[hk] | DefType):
         cls._data_type = data_type
 
     @classmethod
@@ -57,7 +57,7 @@ class hkBasePointer(hk):
         return type_info
 
     @classmethod
-    def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
+    def get_type_hierarchy(cls) -> list[type[hk]]:
         # noinspection PyTypeChecker
         return list(cls.__mro__[:-3])  # exclude this, `hk`, and `object`
 
@@ -155,7 +155,7 @@ class Ptr_(hkBasePointer):
         return type_info
 
     @classmethod
-    def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
+    def get_type_hierarchy(cls) -> list[type[hk]]:
         # noinspection PyTypeChecker
         return list(cls.__mro__[:-4])  # exclude this, `hkBasePointer`, `hk`, and `object`
 
@@ -178,7 +178,7 @@ class hkReflectQualifiedType_(Ptr_):
     __tag_format_flags = 43
 
     @classmethod
-    def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
+    def get_type_hierarchy(cls) -> list[type[hk]]:
         # noinspection PyTypeChecker
         return list(cls.__mro__[:-5])  # exclude this, `_Ptr`, `hkBasePointer`, `hk`, and `object`
 
@@ -222,7 +222,7 @@ class hkRefPtr_(Ptr_):
     __tag_format_flags = 43
 
     @classmethod
-    def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
+    def get_type_hierarchy(cls) -> list[type[hk]]:
         # noinspection PyTypeChecker
         return list(cls.__mro__[:-5])  # exclude this, `_Ptr`, `hkBasePointer`, `hk`, and `object`
 
@@ -252,7 +252,7 @@ class hkRefVariant_(Ptr_):
     __tag_format_flags = 43
 
     @classmethod
-    def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
+    def get_type_hierarchy(cls) -> list[type[hk]]:
         # noinspection PyTypeChecker
         return list(cls.__mro__[:-5])  # exclude this, `Ptr_`, `hkBasePointer`, `hk`, and `object`
 
@@ -344,7 +344,7 @@ class hkViewPtr_(hkBasePointer):
         return type_info
 
     @classmethod
-    def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
+    def get_type_hierarchy(cls) -> list[type[hk]]:
         # noinspection PyTypeChecker
         return list(cls.__mro__[:-4])  # exclude this, `hkBasePointer`, `hk`, and `object`
 
@@ -493,7 +493,7 @@ class hkRelArray_(hkBasePointer):
         raise TypeError("Cannot convert `hkRelArray_` to `TypeInfo` yet for packing packfiles.")
 
     @classmethod
-    def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
+    def get_type_hierarchy(cls) -> list[type[hk]]:
         # noinspection PyTypeChecker
         return list(cls.__mro__[:-4])  # exclude this, `hk`, `hkBasePointer`, and `object`
 
@@ -516,7 +516,7 @@ class hkArray_(hkBasePointer):
 
     __tag_format_flags = 43
 
-    _data_type: tp.Type[hk] | hkRefPtr_ | hkViewPtr_ | DefType
+    _data_type: type[hk] | hkRefPtr_ | hkViewPtr_ | DefType
 
     @classmethod
     def unpack_tagfile(
@@ -606,7 +606,7 @@ class hkArray_(hkBasePointer):
         return type_info
 
     @classmethod
-    def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
+    def get_type_hierarchy(cls) -> list[type[hk]]:
         # noinspection PyTypeChecker
         return list(cls.__mro__[:-4])  # exclude this, `hkBasePointer`, `hk`, and `object`
 
@@ -622,8 +622,8 @@ class hkEnum_(hk):
 
     Note that it is actually possible to extract enum value names from packfiles.
     """
-    enum_type = None  # type: tp.Type[hk]
-    storage_type = None  # type: tp.Type[hk]
+    enum_type = None  # type: type[hk]
+    storage_type = None  # type: type[hk]
 
     @classmethod
     def unpack_tagfile(cls, reader: BinaryReader, offset: int, items: list[TagFileItem] = ()):
@@ -670,7 +670,7 @@ class hkEnum_(hk):
         return type_info
 
     @classmethod
-    def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
+    def get_type_hierarchy(cls) -> list[type[hk]]:
         # noinspection PyTypeChecker
         return list(cls.__mro__[:-3])  # exclude this, `hk`, and `object`
 
@@ -769,7 +769,7 @@ class hkStruct_(hkBasePointer):
         return type_info
 
     @classmethod
-    def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
+    def get_type_hierarchy(cls) -> list[type[hk]]:
         if cls.is_generic:
             # noinspection PyTypeChecker
             return list(cls.__mro__[:-4])  # exclude this, `hkBasePointer`, `hk`, and `object`

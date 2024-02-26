@@ -24,5 +24,5 @@ class hkcdStaticTreeDynamicStorage(hk):
     nodes: list[hkcdStaticTreeCodec3Axis6]
 
     __templates = (
-        TemplateType("tCODEC", type=hkcdStaticTreeCodec3Axis6),
+        TemplateType("tCODEC", _type=hkcdStaticTreeCodec3Axis6),
     )

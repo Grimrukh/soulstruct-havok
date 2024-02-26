@@ -96,7 +96,7 @@ class TagFileUnpacker:
                         if type_info.name in type_info.GENERIC_TYPE_NAMES:
                             continue
                         try:
-                            py_class = getattr(self.hk_types_module, type_info.py_name)  # type: tp.Type[hk]
+                            py_class = getattr(self.hk_types_module, type_info.py_name)  # type: type[hk]
                         except AttributeError:
                             # Missing Python definition. Create a (possibly rough) Python definition to print.
                             type_module_def, init_import = type_info.get_new_type_module_and_import(module_names)

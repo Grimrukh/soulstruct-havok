@@ -23,5 +23,5 @@ class hkBitFieldBase(hk):
     storage: hkBitFieldStorage
 
     __templates = (
-        TemplateType("tStorage", type=hkBitFieldStorage),
+        TemplateType("tStorage", _type=hkBitFieldStorage),
     )

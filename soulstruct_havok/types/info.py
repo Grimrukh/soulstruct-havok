@@ -148,7 +148,7 @@ class TypeInfo:
 
     _PY_DEF_HEADER: tp.ClassVar[str] = (
         "from __future__ import annotations\n\n"
-        "from soulstruct_havok.types.core import *\n"
+        "from dataclasses import dataclass\n\n"
         "from soulstruct_havok.enums import *\n"
         "from .core import *\n\n\n"
     )
@@ -173,7 +173,7 @@ class TypeInfo:
     pointer_type_info: TypeInfo | None = None
     pointer_type_py_name: str | None = None
 
-    py_class: tp.Type[hk] | None = None
+    py_class: type[hk] | None = None
 
     def indexify(self, type_py_names: list[str]):
         """Use `type_py_names` indices and `self.py_class`, if present, to fill in indices.
@@ -263,7 +263,7 @@ class TypeInfo:
                 return f"{name}[{self.pointer_type_py_name}]"
         return name
 
-    def check_py_class_match(self, py_class: tp.Type[hk]) -> dict[str, int]:
+    def check_py_class_match(self, py_class: type[hk]) -> dict[str, int]:
         """Check `TypeInfo` attributes (typically from a file) against attributes of pre-defined Python class.
 
         Raises a `TypeMatchError` if a clash occurs, and does nothing otherwise.

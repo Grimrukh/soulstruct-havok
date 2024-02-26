@@ -95,7 +95,7 @@ class PackFilePacker:
             except KeyError:
                 # Get hash from Python type.
                 try:
-                    py_type = getattr(self.hk_types_module, get_py_name(class_name))  # type: tp.Type[hk]
+                    py_type = getattr(self.hk_types_module, get_py_name(class_name))  # type: type[hk]
                 except AttributeError:
                     raise KeyError(f"Unknown Havok {self.hkx.hk_version} class: {class_name}")
                 hsh = py_type.get_hsh()

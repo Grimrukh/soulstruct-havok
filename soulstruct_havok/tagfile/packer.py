@@ -41,7 +41,7 @@ class UniqueInstance:
 class TagFilePacker:
     """Builds "tagfile" style Havok (e.g., for Dark Souls Remastered)."""
 
-    class ItemInstanceQueue(deque[tuple[tp.Type[hk], tp.Union[hk, str, list]]]):
+    class ItemInstanceQueue(deque[tuple[type[hk], tp.Union[hk, str, list]]]):
         """Holds a deque of pairs of `hk` types and their associated instance values (`hk` instances, strings or lists)
         that are to be packed into items.
 
@@ -62,7 +62,7 @@ class TagFilePacker:
         self.type_info_dict = {}
         self._patches = {}  # type: dict[str, list[int]]  # maps base type names to absolute item offsets using them
 
-    def get_py_type(self, type_name: str) -> tp.Type[hk]:
+    def get_py_type(self, type_name: str) -> type[hk]:
         return getattr(self.hk_types_module, type_name)
 
     def build_type_info_dict(self):

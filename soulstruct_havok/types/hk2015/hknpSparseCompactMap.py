@@ -28,5 +28,5 @@ class hknpSparseCompactMap(hk):
     valueAndSecondaryKeys: list[int]
 
     __templates = (
-        TemplateType("tStoreT", type=hkUint16),
+        TemplateType("tStoreT", _type=hkUint16),
     )

@@ -46,7 +46,7 @@ class TypeInfoGenerator:
             if item_type.__name__ == "hkRootLevelContainer":
                 self._add_type(getattr(self._module, "_char"))
 
-    def _add_type(self, hk_type: tp.Type[hk], indent=0):
+    def _add_type(self, hk_type: type[hk], indent=0):
         if hk_type.__name__ in self.type_infos:
             raise KeyError(f"Type named '{hk_type.__name__}' was collected more than once.")
 
@@ -55,8 +55,8 @@ class TypeInfoGenerator:
         if self._DEBUG_PRINT:
             print(f"{' ' * indent}  {Fore.GREEN}Created TypeInfo {type_info_index}: {hk_type.__name__}{Fore.RESET}")
 
-    def _scan_hk_type_queue(self, hk_type_queue: deque[tp.Type[hk]], indent=0):
-        hk_type_subqueue = deque()  # type: deque[tp.Type[hk]]
+    def _scan_hk_type_queue(self, hk_type_queue: deque[type[hk]], indent=0):
+        hk_type_subqueue = deque()  # type: deque[type[hk]]
 
         # Exhaust input queue while constructing the next 'subqueue' to recur on below.
         while hk_type_queue:
@@ -66,7 +66,7 @@ class TypeInfoGenerator:
         if hk_type_subqueue:
             self._scan_hk_type_queue(hk_type_subqueue, indent + 4)
 
-    def _scan_hk_type(self, hk_type: tp.Type[hk], hk_type_queue: deque[tp.Type[hk]], indent=0):
+    def _scan_hk_type(self, hk_type: type[hk], hk_type_queue: deque[type[hk]], indent=0):
         if hk_type.__name__ in self._scanned_type_names:
             return  # type already scanned
         if self._DEBUG_PRINT:
@@ -100,7 +100,7 @@ class TypeInfoGenerator:
                     hk_type_queue.append(template_info.type)
 
         if issubclass(hk_type, hkBasePointer):
-            data_type = hk_type.get_data_type()  # type: tp.Type[hk]
+            data_type = hk_type.get_data_type()  # type: type[hk]
 
             if issubclass(data_type, hk) and data_type.__name__ not in self.type_infos:
                 # Add and queue data type.

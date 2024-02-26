@@ -25,5 +25,5 @@ class hkcdStaticTreeTree(hkcdStaticTreeDynamicStorage):
     domain: hkAabb
 
     __templates = (
-        TemplateType("tSTORAGE", type=hkcdStaticTreeDynamicStorage),
+        TemplateType("tSTORAGE", _type=hkcdStaticTreeDynamicStorage),
     )

@@ -30,12 +30,12 @@ SOURCE_ERROR_HANDLER_TYPING = tp.Callable[[hk, str, tp.Any, dict], tp.Optional[l
 
 # Dest error handler: takes `dest_object_type`, `dest_kwargs`, and `dest_member_name` and returns `True` if the error
 # was handled, or `False` if it was not. If the error was not handled, it will be raised to the caller.
-DEST_ERROR_HANDLER_TYPING = tp.Callable[[tp.Type[hk], dict, str], bool]
+DEST_ERROR_HANDLER_TYPING = tp.Callable[[type[hk], dict, str], bool]
 
 
 def convert_hk(
     source_object: hk,
-    dest_object_type: tp.Type[hk],
+    dest_object_type: type[hk],
     dest_types_module: ModuleType,
     source_error_handler: SOURCE_ERROR_HANDLER_TYPING = None,
     dest_error_handler: DEST_ERROR_HANDLER_TYPING = None,
@@ -88,7 +88,7 @@ def convert_hk(
 
         if isinstance(source_member_value, hk):
             # Find matching class (may be a subclass of documented type for `hk` instances) and recur converter.
-            source_member_type = type(source_member_value)  # type: tp.Type[hk]  # could be a subclass
+            source_member_type = type(source_member_value)  # type: type[hk]  # could be a subclass
             dest_member_type = find_type(dest_types_module, source_member_type.__name__)
             dest_member_value = convert_hk(
                 source_member_value,

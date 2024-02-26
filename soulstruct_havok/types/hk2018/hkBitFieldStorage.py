@@ -24,5 +24,5 @@ class hkBitFieldStorage(hk):
     numBits: int
 
     __templates = (
-        TemplateType("tStorage", type=hkArray(hkUint32, hsh=1109639201)),
+        TemplateType("tStorage", _type=hkArray(hkUint32, hsh=1109639201)),
     )

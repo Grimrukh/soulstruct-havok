@@ -22,7 +22,7 @@ class TypeNotDefinedError(HavokTypeError):
 
 class TypeMatchError(HavokTypeError):
     """Raised when a Python class's information clashes with a new `TypeInfo`."""
-    def __init__(self, py_class: tp.Type[hk], field_name: str, py_value, new_value, binary=False):
+    def __init__(self, py_class: type[hk], field_name: str, py_value, new_value, binary=False):
         if binary:
             super().__init__(
                 f"Python type `{py_class.__name__}` has {field_name} = {format(py_value, f'0{35}_b')}, "

@@ -22,6 +22,6 @@ class hkHandle(hk):
     value: int
 
     __templates = (
-        TemplateType("tTYPE", type=hkUint32),
+        TemplateType("tTYPE", _type=hkUint32),
         TemplateValue("vINVALID_VALUE", value=2147483647),
     )

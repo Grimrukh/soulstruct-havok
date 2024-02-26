@@ -39,10 +39,17 @@ if tp.TYPE_CHECKING:
 
 # region Supporting Types
 
-class TemplateType(tp.NamedTuple):
+@dataclass(slots=True)
+class TemplateType:
     """Container for 't' templates."""
     name: str
-    type: tp.Type[hk]
+    _type: type[hk] | DefType
+
+    def get_type(self) -> type[hk]:
+        """Resolve deferred type, if necessary."""
+        if isinstance(self._type, DefType):
+            self._type = self._type.action()
+        return self._type
 
 
 class TemplateValue(tp.NamedTuple):
@@ -67,7 +74,7 @@ class Interface(tp.NamedTuple):
 
 class DefType:
 
-    def __init__(self, type_name: str, action: tp.Callable[[], tp.Type[hk]]):
+    def __init__(self, type_name: str, action: tp.Callable[[], type[hk]]):
         """Deferred reference to own class (before Python has finished defining it).
 
         `action` will be used to set the attribute the first time it is accessed.
@@ -84,7 +91,7 @@ class hk:
 
     # Set before unpacking root and removed afterward, as `hkRootLevelContainerNamedVariant` objects need to dynamically
     # retrieve all type names.
-    _TYPES_DICT: tp.ClassVar[dict[str, tp.Type[hk]] | None] = None
+    _TYPES_DICT: tp.ClassVar[dict[str, type[hk]] | None] = None
 
     alignment: tp.ClassVar[int] = 0
     byte_size: tp.ClassVar[int] = 0
@@ -158,7 +165,7 @@ class hk:
         return [m.name for m in cls.members]
 
     @classmethod
-    def get_type_with_member(cls, member_name: str) -> tp.Type[hk]:
+    def get_type_with_member(cls, member_name: str) -> type[hk]:
         """Find the Havok type in this class's hierarchy that actually defines the given `member_name`."""
         for parent_type in cls.get_type_hierarchy():
             if member_name in [m.name for m in parent_type.local_members]:
@@ -173,11 +180,11 @@ class hk:
         return cls._tag_data_type
 
     @classmethod
-    def get_type_hierarchy(cls) -> list[tp.Type[hk]]:
+    def get_type_hierarchy(cls) -> list[type[hk]]:
         return list(cls.__mro__[:-2])  # exclude `hk` and `object`
 
     @classmethod
-    def get_immediate_parent(cls) -> tp.Optional[tp.Type[hk]]:
+    def get_immediate_parent(cls) -> tp.Optional[type[hk]]:
         """Get immediate `hk` parent if one exists."""
         hierarchy = cls.get_type_hierarchy()
         if len(hierarchy) > 1:
@@ -203,7 +210,7 @@ class hk:
             hk._TYPES_DICT = None
 
     @classmethod
-    def get_module_type(cls, type_name: str) -> tp.Type[hk]:
+    def get_module_type(cls, type_name: str) -> type[hk]:
         if cls._TYPES_DICT is None:
             raise AttributeError(f"`hk.set_types_dict()` has not been called. Cannot retrieve type `{type_name}`.")
         return cls._TYPES_DICT[type_name]
@@ -470,7 +477,7 @@ class hk:
             if isinstance(template, TemplateValue):
                 type_info.templates.append(TemplateInfo(template.name, value=template.value))
             else:
-                type_info.templates.append(TemplateInfo(template.name, type_py_name=template.type.__name__))
+                type_info.templates.append(TemplateInfo(template.name, type_py_name=template.get_type().__name__))
 
         type_info.members = [
             MemberInfo(
@@ -686,4 +693,4 @@ class hk:
         return "\n".join(lines)
 
 
-HK_TYPE = tp.Type[hk]
+HK_TYPE = type[hk]

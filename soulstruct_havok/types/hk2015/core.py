@@ -329,7 +329,7 @@ class hkRotationImpl(hkStruct(_float, 12)):
     local_members = ()
 
     __templates = (
-        TemplateType("tFT", type=_float),
+        TemplateType("tFT", _type=_float),
     )
 
 
@@ -351,7 +351,7 @@ class hkMatrix3Impl(hkStruct(_float, 12)):
     local_members = ()
 
     __templates = (
-        TemplateType("tFT", type=_float),
+        TemplateType("tFT", _type=_float),
     )
 
 

@@ -26,7 +26,7 @@ __all__ = [
     "hkFreeListArray_",
     "hkFlags_",
 
-    # 32-bit factory functions
+    # 64-bit factory functions
     "Ptr",
     "hkRefPtr",
     "hkRefVariant",
@@ -358,7 +358,7 @@ class hkRotationImpl(hkStruct(_float, 12)):
     local_members = ()
 
     __templates = (
-        TemplateType("tFT", type=_float),
+        TemplateType("tFT", _type=_float),
     )
 
 
@@ -380,7 +380,7 @@ class hkMatrix3Impl(hkStruct(_float, 12)):
     local_members = ()
 
     __templates = (
-        TemplateType("tFT", type=_float),
+        TemplateType("tFT", _type=_float),
     )
 
 
@@ -406,7 +406,7 @@ class hkMatrix4Impl(hkStruct(_float, 16)):
     col3: Vector4
 
     __templates = (
-        TemplateType("tFT", type=_float),
+        TemplateType("tFT", _type=_float),
     )
 
 
@@ -720,7 +720,7 @@ class hkReflectQualifiedType(hkBasePointer):
     type: hkReflectType
 
     __templates = (
-        TemplateType("tTYPE", type=hkReflectType),
+        TemplateType("tTYPE", _type=hkReflectType),
     )
 
 
@@ -761,8 +761,8 @@ class hkPtrAndInt(hk):
     ptrAndInt: hkPropertyDesc
 
     __templates = (
-        TemplateType("tPTYPE", type=hkPropertyDesc),
-        TemplateType("tITYPE", type=_unsigned_int),
+        TemplateType("tPTYPE", _type=hkPropertyDesc),
+        TemplateType("tITYPE", _type=_unsigned_int),
         TemplateValue("vMASK", value=1),
     )
 
@@ -819,14 +819,14 @@ class hkTuple(hk):
     members = local_members
 
     __templates = (
-        TemplateType("tT0", type=hkPropertyId),
-        TemplateType("tT1", type=hkReflectAny),
-        TemplateType("tT2", type=_void),
-        TemplateType("tT3", type=_void),
-        TemplateType("tT4", type=_void),
-        TemplateType("tT5", type=_void),
-        TemplateType("tT6", type=_void),
-        TemplateType("tT7", type=_void),
+        TemplateType("tT0", _type=hkPropertyId),
+        TemplateType("tT1", _type=hkReflectAny),
+        TemplateType("tT2", _type=_void),
+        TemplateType("tT3", _type=_void),
+        TemplateType("tT4", _type=_void),
+        TemplateType("tT5", _type=_void),
+        TemplateType("tT6", _type=_void),
+        TemplateType("tT7", _type=_void),
     )
 
 
@@ -861,8 +861,8 @@ class hkHashMapDetailMapTuple(hkTuple):
     local_members = ()
 
     __templates = (
-        TemplateType("tKEY", type=hkPropertyId),
-        TemplateType("tVALUE", type=hkReflectAny),
+        TemplateType("tKEY", _type=hkPropertyId),
+        TemplateType("tVALUE", _type=hkReflectAny),
     )
 
 
@@ -884,7 +884,7 @@ class hkHashBase(hk):
     index: hkHashMapDetailIndex = None
 
     __templates = (
-        TemplateType("tITEM", type=hkHashMapDetailMapTuple),
+        TemplateType("tITEM", _type=hkHashMapDetailMapTuple),
     )
 
 
@@ -899,8 +899,8 @@ class hkHashMap(hkHashBase):
     local_members = ()
 
     __templates = (
-        TemplateType("tKEY", type=hkPropertyId),
-        TemplateType("tVALUE", type=hkReflectAny),
+        TemplateType("tKEY", _type=hkPropertyId),
+        TemplateType("tVALUE", _type=hkReflectAny),
     )
 
 
