@@ -94,10 +94,11 @@ class TypeInfoGenerator:
 
         for template_info in hk_type.get_templates():
             if isinstance(template_info, TemplateType):
-                if issubclass(template_info.type, hk) and template_info.type.__name__ not in self.type_infos:
+                template_type = template_info.get_type()
+                if issubclass(template_type, hk) and template_type.__name__ not in self.type_infos:
                     # Add and queue template type.
-                    self._add_type(template_info.type, indent)
-                    hk_type_queue.append(template_info.type)
+                    self._add_type(template_type, indent)
+                    hk_type_queue.append(template_type)
 
         if issubclass(hk_type, hkBasePointer):
             data_type = hk_type.get_data_type()  # type: type[hk]
