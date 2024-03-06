@@ -20,7 +20,7 @@ from .structs import *
 
 if tp.TYPE_CHECKING:
     from soulstruct_havok.core import HKX
-    from soulstruct_havok.types import hk2015, hk2018
+    from soulstruct_havok.types import hk2015, hk2016, hk2018
 
 _LOGGER = logging.getLogger("soulstruct_havok")
 
@@ -69,6 +69,10 @@ class TagFileUnpacker:
                         self.hk_types_version = "hk2015"
                         from soulstruct_havok.types import hk2015
                         self.hk_types_module = hk2015
+                    elif self.hk_version.startswith("2016") and not types_only:
+                        self.hk_types_version = "hk2016"
+                        from soulstruct_havok.types import hk2016
+                        self.hk_types_module = hk2016
                     elif self.hk_version.startswith("2018") and not types_only:
                         self.hk_types_version = "hk2018"
                         from soulstruct_havok.types import hk2018
