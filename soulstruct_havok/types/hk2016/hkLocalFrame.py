@@ -13,5 +13,5 @@ class hkLocalFrame(hkReferencedObject):
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 57
-    __abstract_value = 3
+    __abstract_value = 0
     local_members = ()

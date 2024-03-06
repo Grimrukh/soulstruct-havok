@@ -592,7 +592,7 @@ class hkBaseObject(hk):
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 57
-    __abstract_value = 144
+    __abstract_value = 0
     local_members = ()
 
 
@@ -603,7 +603,7 @@ class hkContainerHeapAllocator(hk):
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 57
-    __abstract_value = 16
+    __abstract_value = 0
     local_members = ()
 
 

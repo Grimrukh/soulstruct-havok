@@ -43,11 +43,12 @@ class BaseWrappedHKX(HKX, abc.ABC):
     def get_variant(self, variant_index: int, *valid_types: tp.Type[HK_T]) -> HK_T:
         """Get variant at `variant_index` and check that it is one of the given `valid_types`."""
         variant = self.root.namedVariants[variant_index].variant
-        valid_type_names = [t.__name__ for t in valid_types]
+        valid_type_names_modules = [f"{t.__name__} ({t.__module__})" for t in valid_types]
         if not any(type(variant) is t for t in valid_types):
             raise TypeError(
-                f"HKX variant index {variant_index} has expected type `{variant.__class__.__name__}`, "
-                f"which is not in `valid_type_names`: {valid_type_names}"
+                f"HKX variant index {variant_index} has type `{variant.__class__.__name__}` from module "
+                f"`{variant.__class__.__module__}`, which is not a valid type. Valid names and modules: "
+                f"{valid_type_names_modules}"
             )
         return variant
 

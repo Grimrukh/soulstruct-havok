@@ -16,7 +16,7 @@ class hkaAnimation(hkReferencedObject):
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 61
-    __abstract_value = 3
+    __abstract_value = 0
     __version = 3
 
     local_members = (
