@@ -337,3 +337,5 @@ from .hkxVertexDescription import hkxVertexDescription
 from .hkxVertexDescriptionDataType import hkxVertexDescriptionDataType
 from .hkxVertexDescriptionDataUsage import hkxVertexDescriptionDataUsage
 from .hkxVertexDescriptionElementDecl import hkxVertexDescriptionElementDecl
+
+VERSION = "20180100"

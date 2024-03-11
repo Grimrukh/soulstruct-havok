@@ -18,7 +18,7 @@ from soulstruct.darksouls1r.maps import MSB, MapStudioDirectory, get_map
 from soulstruct.darksouls1r.maps.parts import MSBPart
 
 from soulstruct_havok.utilities.maths import TRSTransform
-from .file_types import RemoAnimationHKX, Bone
+from .core import RemoAnimationHKX, Bone
 
 CUT_HKX_RE = re.compile(r"^a(\d+)\.hkx")
 OTHER_MAP_RE = re.compile(r"^A(\d\d)B(\d\d)_(.*)$")

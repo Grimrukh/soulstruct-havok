@@ -14,69 +14,88 @@ import typing as tp
 
 from soulstruct_havok.utilities.maths import Matrix4, Vector3, Vector4
 
-from soulstruct_havok.types import hk2010, hk2014, hk2015, hk2018
+from soulstruct_havok.types import hk2010, hk2014, hk2015, hk2016, hk2018
 
 _LOGGER = logging.getLogger("soulstruct_havok")
 
 SHAPE_TYPING = tp.Union[
     hk2010.hkpShape,
     hk2015.hkpShape,
+    hk2016.hkpShape,
 ]
 CONVEX_SHAPE_TYPES = (
     hk2010.hkpConvexShape,
     hk2015.hkpConvexShape,
+    hk2016.hkpConvexShape,
 )
 CONVEX_VERTICES_SHAPE_TYPES = (
     hk2015.hkpConvexVerticesShape,
+    hk2016.hkpConvexVerticesShape,
 )
 BOX_SHAPE_TYPES = (
-    hk2015.hkpBoxShape
+    hk2015.hkpBoxShape,
+    hk2016.hkpBoxShape,
 )
 CONVEX_TRANSFORM_SHAPE_BASE_TYPES = (
-    hk2015.hkpConvexTransformShapeBase
+    hk2015.hkpConvexTransformShapeBase,
+    hk2016.hkpConvexTransformShapeBase,
 )
 CONVEX_TRANSFORM_SHAPE_TYPES = (
-    hk2015.hkpConvexTransformShape
+    hk2015.hkpConvexTransformShape,
+    hk2016.hkpConvexTransformShape,
 )
 CONVEX_TRANSLATE_SHAPE_TYPES = (
-    hk2015.hkpConvexTranslateShape
+    hk2015.hkpConvexTranslateShape,
+    hk2016.hkpConvexTranslateShape,
 )
 CAPSULE_SHAPE_TYPES = (
-    hk2010.hkpCapsuleShape, hk2015.hkpCapsuleShape
+    hk2010.hkpCapsuleShape,
+    hk2015.hkpCapsuleShape,
+    hk2016.hkpCapsuleShape,
 )
 CYLINDER_SHAPE_TYPES = (
-    hk2015.hkpCylinderShape
+    hk2015.hkpCylinderShape,
+    hk2016.hkpCylinderShape,
 )
 MOPP_BV_TREE_SHAPE_TYPES = (
     hk2015.hkpMoppBvTreeShape,
+    hk2016.hkpMoppBvTreeShape,
 )
 EXTENDED_MESH_SHAPE_TYPES = (
     hk2015.hkpExtendedMeshShape,
+    hk2016.hkpExtendedMeshShape,
 )
 STORAGE_EXTENDED_MESH_SHAPE_TYPES = (
     hk2015.hkpStorageExtendedMeshShape,
+    hk2016.hkpStorageExtendedMeshShape,
 )
 
 MOTION_STATE_TYPING = tp.Union[
-    hk2010.hkMotionState, hk2015.hkMotionState,
+    hk2010.hkMotionState,
+    hk2015.hkMotionState,
+    hk2016.hkMotionState,
 ]
 CONSTRAINT_DATA_TYPING = tp.Union[
     hk2010.hkpConstraintData,
     hk2014.hkpConstraintData,
     hk2015.hkpConstraintData,
+    hk2016.hkpConstraintData,
     hk2018.hkpConstraintData,
 ]
 RAGDOLL_CONSTRAINT_DATA_TYPES = (
     hk2010.hkpRagdollConstraintData,
     hk2014.hkpRagdollConstraintData,
     hk2015.hkpRagdollConstraintData,
+    hk2016.hkpRagdollConstraintData,
     hk2018.hkpRagdollConstraintData,
 )
 BALL_AND_SOCKET_CONSTRAINT_DATA_TYPES = (
     hk2015.hkpBallAndSocketConstraintData,
+    hk2016.hkpBallAndSocketConstraintData,
 )
 BALL_SOCKET_CHAIN_DATA_TYPES = (
     hk2015.hkpBallSocketChainData,
+    hk2016.hkpBallSocketChainData,
 )
 
 HKNP_SHAPE_TYPING = tp.Union[

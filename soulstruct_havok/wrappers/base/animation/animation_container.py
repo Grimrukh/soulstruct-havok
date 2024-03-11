@@ -11,7 +11,7 @@ import numpy as np
 from soulstruct_havok.spline_compression import SplineCompressedAnimationData
 from soulstruct_havok.utilities.maths import TRSTransform, Vector3, Vector4
 
-from .type_vars import (
+from soulstruct_havok.wrappers.base.type_vars import (
     ANIMATION_CONTAINER_T,
     ANIMATION_T,
     ANIMATION_BINDING_T,

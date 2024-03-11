@@ -96,7 +96,7 @@ def unpack_class(hk_type: type[hk], item: PackFileItem, instance=None) -> hk:
         )
         if debug.DEBUG_PRINT_UNPACK:
             debug.decrement_debug_indent()
-        kwargs[member.name] = member_value
+        kwargs[member.py_name] = member_value
 
     if instance is None:
         # noinspection PyArgumentList

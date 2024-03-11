@@ -18,7 +18,7 @@ from soulstruct.utilities.maths import Vector3
 
 from soulstruct_havok.core import HavokFileFormat
 
-from .file_types import AnimationHKX, SkeletonHKX, RagdollHKX, ClothHKX, CollisionHKX
+from .core import AnimationHKX, SkeletonHKX, RagdollHKX, ClothHKX, CollisionHKX
 
 _LOGGER = logging.getLogger("soulstruct_havok")
 

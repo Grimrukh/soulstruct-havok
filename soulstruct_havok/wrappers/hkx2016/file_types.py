@@ -30,15 +30,6 @@ from soulstruct_havok.packfile.structs import PackFileVersion, PackfileHeaderInf
 from soulstruct_havok.types import hk2010, hk2016
 from soulstruct_havok.types.hk2016 import *
 from soulstruct_havok.wrappers.base import *
-from soulstruct_havok.wrappers.base.file_types import (
-    BaseWrappedHKX,
-    AnimationHKX as BaseAnimationHKX,
-    SkeletonHKX as BaseSkeletonHKX,
-    ClothHKX as BaseClothHKX,
-    RagdollHKX as BaseRagdollHKX,
-    RemoAnimationHKX as BaseRemoAnimationHKX,
-    CollisionHKX as BaseCollisionHKX,
-)
 from soulstruct_havok.wrappers.base.type_vars import PHYSICS_DATA_T
 from soulstruct_havok.wrappers.hkx2010 import AnimationHKX as AnimationHKX2010
 from soulstruct_havok.utilities.files import HAVOK_PACKAGE_PATH
@@ -55,7 +46,7 @@ AnimationContainerType = AnimationContainer[
     hkaInterleavedUncompressedAnimation, hkaSplineCompressedAnimation, hkaDefaultAnimatedReferenceFrame,
 ]
 SkeletonType = Skeleton[hkaSkeleton, hkaBone]
-SkeletonMapperType = SkeletonMapper[hkaSkeletonMapperData]
+SkeletonMapperType = SkeletonMapper[hkaSkeletonMapper]
 PhysicsDataType = PhysicsData[hkpPhysicsData, hkpPhysicsSystem]
 
 
@@ -259,8 +250,8 @@ class RagdollHKX(BaseRagdollHKX):
     standard_skeleton: SkeletonType = None
     ragdoll_skeleton: SkeletonType = None
     physics_data: PhysicsDataType = None
-    ragdoll_to_standard_skeleton_mapper: SkeletonMapperType = None
-    standard_to_ragdoll_skeleton_mapper: SkeletonMapperType = None
+    animation_to_ragdoll_skeleton_mapper: SkeletonMapperType = None
+    ragdoll_to_animation_skeleton_mapper: SkeletonMapperType = None
 
 
 @dataclass(slots=True)

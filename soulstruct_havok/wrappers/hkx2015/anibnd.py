@@ -6,8 +6,7 @@ import typing as tp
 from dataclasses import dataclass, field
 
 from soulstruct_havok.wrappers.base.anibnd import BaseANIBND
-from soulstruct_havok.types.hk2015 import *
-from .file_types import AnimationHKX, SkeletonHKX, AnimationContainerType
+from .core import AnimationHKX, SkeletonHKX, AnimationContainerType
 
 
 @dataclass(slots=True)

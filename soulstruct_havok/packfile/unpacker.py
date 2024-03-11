@@ -9,7 +9,7 @@ from types import ModuleType
 
 from soulstruct.utilities.binary import BinaryReader, ByteOrder
 
-from soulstruct_havok.types import hk2010, hk2014, hk2015, hk2018
+from soulstruct_havok.types import hk2010, hk2014, hk2015, hk2016, hk2018
 from soulstruct_havok.types.hk import hk
 from soulstruct_havok.types.exceptions import VersionModuleError, TypeNotDefinedError
 from soulstruct_havok.types.info import TypeInfo, get_py_name
@@ -24,6 +24,7 @@ ROOT_TYPING = tp.Union[
     hk2010.hkRootLevelContainer,
     hk2014.hkRootLevelContainer,
     hk2015.hkRootLevelContainer,
+    hk2016.hkRootLevelContainer,
     hk2018.hkRootLevelContainer,
 ]
 

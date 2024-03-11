@@ -20,7 +20,7 @@ from soulstruct_havok.packfile.structs import PackfileHeaderInfo
 from soulstruct_havok.packfile.unpacker import PackFileUnpacker
 from soulstruct_havok.tagfile.packer import TagFilePacker
 from soulstruct_havok.tagfile.unpacker import TagFileUnpacker, MissingCompendiumError
-from soulstruct_havok.types import hk2010, hk2014, hk2015, hk2018
+from soulstruct_havok.types import hk2010, hk2014, hk2015, hk2016, hk2018
 from soulstruct_havok.types.info import TypeInfo
 
 try:
@@ -36,6 +36,7 @@ HKX_ROOT_TYPING = tp.Union[
     hk2010.hkRootLevelContainer,
     hk2014.hkRootLevelContainer,
     hk2015.hkRootLevelContainer,
+    hk2016.hkRootLevelContainer,
     hk2018.hkRootLevelContainer,
 ]
 
@@ -299,38 +300,6 @@ class HKX(GameFile):
     #   Dark Souls 3:                           hk_2014-1.0-r1
     #   Dark Souls Remastered:                  20150100
     #   Sekiro:                                 20160100 (I think, could be 20160200)
-
-    def _update_animation_type_enum(self, new_enum=True):
-        """In Havok 2010, and possibly Havok 2012 (TBC), the enumeration for `AnimationType` was different to all
-        subsequent versions, and requires a simple update to the integer value of those nodes.
-
-        Note that most Soulsborne animations are "hkaSplineCompressedAnimation", and occasionally
-        "hkaInterleavedAnimation" (maybe in Demons' Souls). The other types should basically never appear, and in fact
-        some of them are only defined before or after the enum update. You will run into type errors anyway if these are
-        present in the HKX.
-        """
-
-        if new_enum:
-            for animation in self.find_nodes("hkaMirroredAnimation"):
-                animation.value["type"].value = 2
-            for animation in self.find_nodes("hkaSplineCompressedAnimation"):
-                animation.value["type"].value = 3
-            for animation in self.find_nodes("hkaQuantizedAnimation"):
-                animation.value["type"].value = 4
-            for animation in self.find_nodes("hkaPredictiveAnimation"):
-                animation.value["type"].value = 5
-            for animation in self.find_nodes("hkaReferencePoseAnimation"):
-                animation.value["type"].value = 6
-        else:
-            # Old enum.
-            for animation in self.find_nodes("hkaDeltaCompressedAnimation"):
-                animation.value["type"].value = 2
-            for animation in self.find_nodes("hkaWaveletCompressedAnimation"):
-                animation.value["type"].value = 3
-            for animation in self.find_nodes("hkaMirroredAnimation"):
-                animation.value["type"].value = 4
-            for animation in self.find_nodes("hkaSplineCompressedAnimation"):
-                animation.value["type"].value = 5
 
     def _convert_swept_transform_to_tuple(self):
         """Convert `hkSweptTransform` nodes (member "sweptTransform" of `hkMotionState` to a Tuple of five `hkVector4f`

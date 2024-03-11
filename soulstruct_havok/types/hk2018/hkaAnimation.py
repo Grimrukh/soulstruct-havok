@@ -35,7 +35,7 @@ class hkaAnimation(hkReferencedObject):
     )
     members = hkReferencedObject.members + local_members
 
-    type: hkaAnimationAnimationType
+    type: int
     duration: float
     numberOfTransformTracks: int
     numberOfFloatTracks: int

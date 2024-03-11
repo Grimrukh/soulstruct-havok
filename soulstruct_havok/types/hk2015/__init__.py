@@ -205,3 +205,5 @@ from .hkcdStaticTreeCodec3Axis6 import hkcdStaticTreeCodec3Axis6
 from .hkcdSimdTreeNode import hkcdSimdTreeNode
 from .hkcdStaticTreeCodec3Axis import hkcdStaticTreeCodec3Axis
 from .hkcdFourAabb import hkcdFourAabb
+
+VERSION = "20150100"

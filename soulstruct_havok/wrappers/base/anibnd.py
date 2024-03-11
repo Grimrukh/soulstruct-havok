@@ -1,4 +1,6 @@
-"""Manager class that combines various HKX files to make animation modification easier.
+"""`Binder` subclass for ANIBNDs that manages the skeleton and animation HKX files.
+
+Contains many useful methods for manipulating and converting animations (some still very experimental).
 
 Currently mainly set up for Havok 2015 (for Nightfall/DSR).
 """
@@ -12,6 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
+
 try:
     import matplotlib.pyplot as plt
     from matplotlib import cm
@@ -24,12 +27,11 @@ from soulstruct_havok.spline_compression import *
 from soulstruct_havok.tagfile.unpacker import MissingCompendiumError
 from soulstruct_havok.utilities.maths import Quaternion, TRSTransform, Vector3
 
-from .file_types import AnimationHKX, SkeletonHKX
-from .animation import AnimationContainer
-from .skeleton import Skeleton, Bone
+from .animation import BaseAnimationHKX, AnimationContainer
+from .skeleton import BaseSkeletonHKX, Skeleton, Bone
 
 try:
-    from soulstruct_havok.utilities.vispy_window import VispyWindow  # could be `None` if `vispy` not installed
+    from soulstruct_havok.utilities.vispy_window import VispyWindow
 except ImportError:
     VispyWindow = None
 
@@ -39,15 +41,15 @@ _LOGGER = logging.getLogger("soulstruct_havok")
 @dataclass(slots=True)
 class BaseANIBND(Binder, abc.ABC):
 
-    ANIMATION_HKX: tp.ClassVar[tp.Type[AnimationHKX]]
-    SKELETON_HKX: tp.ClassVar[tp.Type[SkeletonHKX]]
+    ANIMATION_HKX: tp.ClassVar[tp.Type[BaseAnimationHKX]]
+    SKELETON_HKX: tp.ClassVar[tp.Type[BaseSkeletonHKX]]
     # TODO: TAE support?
 
     # Actual HKX files loaded from Binder entries, which will be written again.
     # These should not be directly modified. The `skeleton` property and `__getitem__[anim_id]` method (which returns an
     # `AnimationContainer` wrapper) should be used instead.
-    skeleton_hkx: SkeletonHKX | None = None
-    animations_hkx: dict[int, AnimationHKX] = field(default_factory=dict)
+    skeleton_hkx: BaseSkeletonHKX | None = None
+    animations_hkx: dict[int, BaseAnimationHKX] = field(default_factory=dict)
 
     # `default_anim_id` will be set to a single animation if only one is loaded. This allows various animation-affecting
     # methods to be used without specifying that lone animation ID every time. It can also be passed in manually.
@@ -59,7 +61,7 @@ class BaseANIBND(Binder, abc.ABC):
         """Load managed HKX skeleton and animations from Binder entries.
 
         Must be called manually so user has a chance to set `animation_ids_to_load` first.
-        
+
         TODO: refactor to `load_animation_entries()`.
         """
         if animation_ids_to_load:
@@ -380,9 +382,11 @@ class BaseANIBND(Binder, abc.ABC):
 
         if compensate_children:
             for initial_root_child_tfs, child_tfs in zip(all_initial_root_child_tfs, all_child_tfs):
-                for i, (initial_root_child_tf, child_tf, parent_tf, bone_tf) in enumerate(zip(
-                    initial_root_child_tfs, child_tfs, parent_tfs, bone_tfs
-                )):
+                for i, (initial_root_child_tf, child_tf, parent_tf, bone_tf) in enumerate(
+                    zip(
+                        initial_root_child_tfs, child_tfs, parent_tfs, bone_tfs
+                    )
+                ):
                     initial_root_trans = initial_root_child_tf.translation
                     child_tf.translation = (parent_tf @ bone_tf).inverse_transform_vector(initial_root_trans)
                     initial_root_rot = initial_root_child_tf.rotation
@@ -741,6 +745,7 @@ class BaseANIBND(Binder, abc.ABC):
             anibnd[self.animation_id_to_entry_basename(anim_id)].set_from_binary_file(animation_hkx)
         anibnd.write(file_path=write_path)  # will default to same path
         _LOGGER.info(f"Skeleton and all animations written into {anibnd_path}.")
+
     # endregion
 
     # region Plotting Methods

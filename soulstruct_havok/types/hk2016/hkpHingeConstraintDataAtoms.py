@@ -30,4 +30,5 @@ class hkpHingeConstraintDataAtoms(hk):
 
     transforms: hkpSetLocalTransformsConstraintAtom
     setupStabilization: hkpSetupStabilizationAtom
+    _2dAng: hkp2dAngConstraintAtom
     ballSocket: hkpBallSocketConstraintAtom

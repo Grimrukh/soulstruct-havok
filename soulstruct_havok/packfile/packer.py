@@ -196,7 +196,7 @@ class PackFilePacker:
     def collect_class_names(self, instance: hk, class_names: list[str]) -> list[str]:
         """Collect names of all `Ptr` data types from `instance`, recursively."""
         for member in instance.members:
-            member_value = getattr(instance, member.name)
+            member_value = getattr(instance, member.py_name)
             if issubclass(member.type, Ptr_):
                 # Class names are NOT collected for "null pointers". Such class names (and their hashes) are not
                 # included in the packfile.

@@ -81,6 +81,9 @@ def unpack_class(hk_type: type[hk], reader: BinaryReader, items: list[TagFileIte
 
     NOTE: This is not used for `hkRootLevelContainerNamedVariant`, which uses a special dynamic unpacker to detect the
     appropriate `hkReferencedObject` subclass it points to with its `hkRefVariant` pointer.
+
+    NOTE: Some Havok member names start with numbers, which is invalid in Python. These are renamed in the `hk` class
+    definitions to start with an underscore.
     """
     kwargs = {}
     member_start_offset = reader.position
@@ -93,13 +96,7 @@ def unpack_class(hk_type: type[hk], reader: BinaryReader, items: list[TagFileIte
         member_value = member.type.unpack_tagfile(reader, member_start_offset + member.offset, items)
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(f"    -> Real type: {type(member_value).__name__}")
-        # TODO: For finding the floor material hex offset in map collisions.
-        # if hk_type.__name__ == "_CustomMeshParameter":
-        #     print(
-        #         f"Custom mesh parameter member {member.name} offset: "
-        #         f"{hex(member_start_offset + member.offset)} ({member_value})"
-        #     )
-        kwargs[member.name] = member_value  # type hint will be given in class definition
+        kwargs[member.py_name] = member_value  # type hint will be given in class definition
     if debug.DEBUG_PRINT_UNPACK:
         debug.decrement_debug_indent()
     if instance is None:

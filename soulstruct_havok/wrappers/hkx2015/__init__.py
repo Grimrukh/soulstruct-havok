@@ -1,4 +1,4 @@
-from .file_types import (
+from .core import (
     AnimationHKX, SkeletonHKX, CollisionHKX, MapCollisionHKX, ClothHKX, RagdollHKX, RemoAnimationHKX
 )
 from .anibnd import ANIBND

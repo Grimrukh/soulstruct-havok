@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-__all__ = ["Bone", "Skeleton", "SkeletonMapper"]
+__all__ = ["Skeleton"]
 
 import abc
 import logging
@@ -8,64 +8,12 @@ import typing as tp
 from dataclasses import dataclass, field
 from types import ModuleType
 
-from soulstruct_havok.utilities.maths import TRSTransform, Vector3, Vector4
+from soulstruct_havok.utilities.maths import Vector3, Vector4
 
-from .type_vars import SKELETON_T, SKELETON_MAPPER_T, BONE_T
+from ..type_vars import SKELETON_T, BONE_T
+from .bone import Bone
 
 _LOGGER = logging.getLogger("soulstruct_havok")
-
-
-@dataclass(slots=True, frozen=True, repr=False)
-class Bone(tp.Generic[SKELETON_T]):
-    """Wraps the various `hkaBone` Havok classes to add explicit parent references, index information, and so on."""
-    _skeleton: SKELETON_T
-    index: int
-    name: str
-    parent: None | Bone
-    children: tuple[Bone] = ()
-    descending_hierarchy: tuple[Bone] = ()  # descending, inclusive
-    ascending_hierarchy: tuple[Bone] = ()  # ascending, inclusive
-
-    # Reference poses are likely enough to change that we don't cache them.
-
-    def get_reference_pose(self) -> TRSTransform:
-        return self._skeleton.referencePose[self.index].to_trs_transform()
-
-    def get_reference_pose_in_arma_space(self) -> TRSTransform:
-        """NOTE: If you need ALL bones in armature space, it is better to use:
-            `SkeletonHKX.get_all_reference_poses_in_arma_space()`
-        to avoid excessive, redundant `TRSTransform` creation and multiplication.
-        """
-        transform = TRSTransform.identity()
-        for bone in self.ascending_hierarchy:
-            transform = bone.get_reference_pose() @ transform
-        return transform
-
-    def get_root_parent(self) -> Bone:
-        bone = self
-        while bone.parent is not None:
-            bone = bone.parent
-        return bone
-
-    def get_all_children(self) -> list[Bone]:
-        """Recursively get all children of this bone, in depth-first order."""
-
-        children = []
-
-        def get_children(bone: Bone):
-            for child in bone.children:
-                if child in children:
-                    raise RecursionError(f"Bone {child.name} appears to have multiple parents.")
-                children.append(child)
-                get_children(child)
-
-        get_children(self)
-
-        return children
-
-    def __repr__(self) -> str:
-        parent = self.parent.name if self.parent else None
-        return f"{self.__class__.__name__}(index={self.index}, name={self.name!r}, parent={parent!r})"
 
 
 @dataclass(slots=True, repr=False)
@@ -85,7 +33,7 @@ class Skeleton(tp.Generic[SKELETON_T, BONE_T], abc.ABC):
         """Rebuilds the `bones` list and `bones_by_name` dict from the `skeleton` object, using `Bone` wrappers rather
         than the raw `hkaBone` types (so inter-bone references can be better used)."""
 
-        bones_by_index = {}  # type: dict[int, Bone]
+        bones_by_index = {}  # type: dict[int, Bone]  # created depth-first and sorted at end
         all_child_indices = {}
         all_descending_hierarchy_indices = {}
 
@@ -118,7 +66,7 @@ class Skeleton(tp.Generic[SKELETON_T, BONE_T], abc.ABC):
         for root_hka_bone in root_hka_bones:
             _create_bone_wrapper(root_hka_bone, None, [])
 
-        self.bones = list(bones_by_index.values())
+        self.bones = [bones_by_index[i] for i in sorted(bones_by_index)]
 
         # Assign bone references (bypassing `frozen=True`).
         for bone in self.bones:
@@ -170,22 +118,5 @@ class Skeleton(tp.Generic[SKELETON_T, BONE_T], abc.ABC):
 
         top_bone = self.bones[0] if bone_index is None else self.bones[bone_index]
         _print_bone_tree(top_bone, _indent=indent)
-
-    # TODO: repr
-
-
-@dataclass(slots=True, repr=False)
-class SkeletonMapper(tp.Generic[SKELETON_MAPPER_T]):
-
-    types_module: ModuleType
-    skeleton_mapper: SKELETON_MAPPER_T
-
-    def scale_all_translations(self, scale_factor: float | Vector3 | Vector4):
-        if isinstance(scale_factor, Vector3):
-            scale_factor = Vector4.from_vector3(scale_factor)
-        for simple in self.skeleton_mapper.mapping.simpleMappings:
-            simple.aFromBTransform.translation *= scale_factor
-        for chain in self.skeleton_mapper.mapping.chainMappings:
-            chain.startAFromBTransform.translation *= scale_factor
 
     # TODO: repr

@@ -48,4 +48,4 @@ class hkaSkeletonMapperData(hk):
     unmappedBones: list[int]
     extractedMotionMapping: hkQsTransform
     keepUnmappedLocal: bool
-    mappingType: hkaSkeletonMapperDataMappingType
+    mappingType: int | hkaSkeletonMapperDataMappingType

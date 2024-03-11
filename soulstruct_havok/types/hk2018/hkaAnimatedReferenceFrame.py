@@ -27,4 +27,4 @@ class hkaAnimatedReferenceFrame(hkReferencedObject):
     )
     members = hkReferencedObject.members + local_members
 
-    frameType: hkaAnimatedReferenceFramehkaReferenceFrameTypeEnum
+    frameType: int

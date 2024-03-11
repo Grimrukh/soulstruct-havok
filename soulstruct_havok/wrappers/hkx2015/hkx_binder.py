@@ -16,7 +16,7 @@ from pathlib import Path
 
 from soulstruct.containers import Binder, BinderVersion, BinderVersion4Info, EntryNotFoundError
 from soulstruct.dcx import DCXType
-from .file_types import MapCollisionHKX
+from .core import MapCollisionHKX
 
 try:
     Self = tp.Self

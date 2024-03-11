@@ -112,3 +112,5 @@ from .hkxVertexDescription import hkxVertexDescription
 from .hkxVertexDescriptionElementDecl import hkxVertexDescriptionElementDecl
 from .hkxVertexDescriptionElementDeclDataType import hkxVertexDescriptionElementDeclDataType
 from .hkxVertexDescriptionElementDeclDataUsage import hkxVertexDescriptionElementDeclDataUsage
+
+VERSION = "20100100"

@@ -39,4 +39,5 @@ class hkpLimitedHingeConstraintDataAtoms(hk):
     angMotor: hkpAngMotorConstraintAtom
     angFriction: hkpAngFrictionConstraintAtom
     angLimit: hkpAngLimitConstraintAtom
+    _2dAng: hkp2dAngConstraintAtom
     ballSocket: hkpBallSocketConstraintAtom

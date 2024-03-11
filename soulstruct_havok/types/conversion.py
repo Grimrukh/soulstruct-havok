@@ -74,10 +74,10 @@ class Converter_2014_2015:
         parent types.)"""
         for member in parent_type.local_members:
             try:
-                member_value_2014 = getattr(instance_2014, member.name)
+                member_value_2014 = getattr(instance_2014, member.py_name)
             except AttributeError:
                 raise AttributeError(
-                    f"`hk2014.{instance_2014.get_type_name()}` has no member '{member.name}'.\n"
+                    f"`hk2014.{instance_2014.get_type_name()}` has no member '{member.py_name}'.\n"
                     f"    Members: {instance_2014.get_member_names()}"
                 )
             else:
@@ -95,7 +95,7 @@ class Converter_2014_2015:
                     member_value_2015 = tuple(self.convert(v) for v in member_value_2014)
                 else:
                     member_value_2015 = member_value_2014  # Python primitive
-                setattr(instance_2015, member.name, member_value_2015)
+                setattr(instance_2015, member.py_name, member_value_2015)
 
     def set_members_hkReferencedObject(
         self, instance_2014: hk2014.hkReferencedObject, instance_2015: hk2015.hkReferencedObject
@@ -140,7 +140,7 @@ def convert_simple(instance: hk2014.hk, converted_ids: dict[int, hk2015.hk] = No
     for member in hk_type_2015.members:
 
         try:
-            member_value_2014 = getattr(instance, member.name)
+            member_value_2014 = getattr(instance, member.py_name)
         except AttributeError:
             type_defining_member_name = hk_type_2015.get_type_with_member(member.name).get_type_name()
             try:
@@ -166,7 +166,7 @@ def convert_simple(instance: hk2014.hk, converted_ids: dict[int, hk2015.hk] = No
             else:
                 member_value_2015 = member_value_2014  # Python primitive
 
-        setattr(instance_2015, member.name, member_value_2015)
+        setattr(instance_2015, member.py_name, member_value_2015)
 
     return instance_2015
 

@@ -33,4 +33,4 @@ class hkaAnimationBinding(hkReferencedObject):
     transformTrackToBoneIndices: list[int]
     floatTrackToFloatSlotIndices: list[int]
     partitionIndices: list[int]
-    blendHint: hkaAnimationBindingBlendHint
+    blendHint: int

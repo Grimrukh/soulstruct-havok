@@ -65,6 +65,11 @@ class Member(tp.NamedTuple):
     type: tp.Union[tp.Type[hk], DefType]
     extra_flags: int = 0  # in addition to `MemberFlags.Default`
 
+    @property
+    def py_name(self) -> str:
+        """Adds an underscore prefix if `name` is not a valid Python identifier."""
+        return f"_{self.name}" if self.name[0].isdigit() else self.name
+
 
 class Interface(tp.NamedTuple):
     """Container for interface information."""
@@ -501,6 +506,8 @@ class hk:
             raise TypeError(f"Havok type {self.__class__.__name__} has no members.")
         if member_name not in self.get_member_names():
             raise AttributeError(f"Havok type {self.__class__.__name__} has no member called '{member_name}'.")
+        if member_name[0].isdigit():
+            member_name = f"_{member_name}"
         return getattr(self, member_name)
 
     @classmethod
@@ -566,17 +573,45 @@ class hk:
                 return member
         raise KeyError(f"No member named '{member_name}' in class `{cls.__name__}`.")
 
-    def get_tree_string(self, indent=0, instances_shown: list = None, max_primitive_sequence_size=-1) -> str:
+    def get_tree_string(
+        self,
+        indent=0,
+        instances_shown: list[hk] = None,
+        instances_repeated: set[int] = None,
+        max_primitive_sequence_size=-1,
+        ignore_basic_defaults=True,
+        _is_base_call=True,
+    ) -> str:
         """Recursively build indented string of this instance and everything within its members."""
         from .base import hkViewPtr_
 
+        # Set instance tracking lists if this is a base call.
         if instances_shown is None:
             instances_shown = []
+        if instances_repeated is None:
+            instances_repeated = set()
+
         lines = [f"{self.__class__.__name__}("]
         for member in self.members:
-            member_value = getattr(self, member.name)
+            member_value = getattr(self, member.py_name)
+            if (
+                ignore_basic_defaults
+                and member.name in ("memSizeAndFlags", "refCount", "memSizeAndRefCount")
+                and member_value == 0
+            ):
+                continue  # skip basic member lines that are default
+
             if member_value is None or isinstance(member_value, (bool, int, float, str)):
                 lines.append(f"    {member.name} = {repr(member_value)},")
+            elif isinstance(member_value, np.ndarray):
+                if 0 < max_primitive_sequence_size < max(member_value.shape):
+                    lines.append(f"    {member.name} = <{member_value.shape}-array>,")
+                else:
+                    array_str = repr(member_value)
+                    array_lines = array_str.split("\n")
+                    array_lines[0] = array_lines[0].removeprefix("array(")
+                    array_str = f"\n{' ' * (indent + 2)}".join(array_lines)  # lines already indented 6 by Numpy
+                    lines.append(f"    {member.name} = array(\n{' ' * (indent + 8)}{array_str},")
             elif issubclass(member.type, hkViewPtr_):
                 # Reference is likely to be circular: a value that has not even finished being written yet (and we
                 # don't know what the instance number will be yet).
@@ -589,10 +624,14 @@ class hk:
                     lines.append(
                         f"    {member.name} = {member_value.__class__.__name__}(),"
                         f"  # <{instances_shown.index(member_value)}>")
+                    instances_repeated.add(id(member_value))
                 else:
+                    member_str = member_value.get_tree_string(
+                        indent + 4, instances_shown, instances_repeated, max_primitive_sequence_size,
+                        _is_base_call=False,
+                    )
                     lines.append(
-                        f"    {member.name} = "
-                        f"{member_value.get_tree_string(indent + 4, instances_shown, max_primitive_sequence_size)},"
+                        f"    {member.name} = {member_str},"
                         f"  # <{len(instances_shown)}>"
                     )
                     instances_shown.append(member_value)
@@ -602,11 +641,14 @@ class hk:
                 elif isinstance(member_value[0], hk):
                     lines.append(f"    {member.name} = [")
                     for element in member_value:
+                        element: hk
                         if element in instances_shown:
                             lines.append(f"        {element.__class__.__name__},  # <{instances_shown.index(element)}>")
+                            instances_repeated.add(id(element))
                         else:
                             element_string = element.get_tree_string(
-                                indent + 8, instances_shown, max_primitive_sequence_size
+                                indent + 8, instances_shown, instances_repeated, max_primitive_sequence_size,
+                                _is_base_call=False
                             )
                             lines.append(
                                 f"        {element_string},  # <{len(instances_shown)}>"
@@ -637,13 +679,17 @@ class hk:
                 elif isinstance(member_value[0], hk):
                     lines.append(f"    {member.name} = (")
                     for element in member_value:
+                        element: hk
                         if element in instances_shown:
                             lines.append(f"        {element.__class__.__name__},  # <{instances_shown.index(element)}>")
+                            instances_repeated.add(id(element))
                         else:
+                            element_string = element.get_tree_string(
+                                indent + 8, instances_shown, instances_repeated, max_primitive_sequence_size,
+                                _is_base_call=False,
+                            )
                             lines.append(
-                                f"        "
-                                f"{element.get_tree_string(indent + 8, instances_shown, max_primitive_sequence_size)},"
-                                f"  # <{len(instances_shown)}>"
+                                f"        {element_string},  # <{len(instances_shown)}>"
                             )
                             instances_shown.append(element)
                     lines.append(f"    ),")
@@ -671,7 +717,16 @@ class hk:
             else:
                 raise TypeError(f"Cannot parse value of member '{member.name}' for tree string: {type(member_value)}")
         lines.append(")")
-        return f"\n{' ' * indent}".join(lines)
+        tree_str = f"\n{' ' * indent}".join(lines)
+        if _is_base_call:
+            repeated_count = 0
+            for i, instance in enumerate(instances_shown):
+                if id(instance) in instances_repeated:
+                    tree_str = tree_str.replace(f",  # <{i}>\n", f",  # <{repeated_count}>\n")
+                    repeated_count += 1
+                else:  # instance never repeated; strip out index comments
+                    tree_str = tree_str.replace(f",  # <{i}>\n", ",\n")
+        return tree_str
 
     def __eq__(self, other: hk):
         """Compares by object ID."""
@@ -688,7 +743,7 @@ class hk:
         ind = " " * indent
         lines = [f"{ind}{type(self).__name__}("]
         for member in self.members:
-            lines.append(f"{ind}    {member.name} = {repr(getattr(self, member.name))},")
+            lines.append(f"{ind}    {member.name} = {repr(getattr(self, member.py_name))},")
         lines.append(f"{ind})")
         return "\n".join(lines)
 
