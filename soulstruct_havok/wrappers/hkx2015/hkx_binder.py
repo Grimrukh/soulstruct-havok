@@ -145,13 +145,13 @@ class BothResHKXBHD:
     def get_both_res_dict(self) -> dict[str, tuple[MapCollisionHKX | None, MapCollisionHKX | None]]:
         """Return a list of all pairs of matching LOADED hi-res and lo-res collisions, including single-res."""
         pair_dict = {}
-        for hi_name, hi_hkx in self.hi_res.hkxs:
+        for hi_name, hi_hkx in self.hi_res.hkxs.items():
             lo_name = f"l{hi_name[1:]}"
             if lo_name in self.lo_res.hkxs:
                 pair_dict[hi_name[1:]] = (hi_hkx, self.lo_res.hkxs[lo_name])
             else:
                 pair_dict[hi_name[1:]] = (hi_hkx, None)
-        for lo_name, lo_hkx in self.lo_res.hkxs:
+        for lo_name, lo_hkx in self.lo_res.hkxs.items():
             if lo_name[1:] in pair_dict:
                 continue  # already found from matching hi-res
             pair_dict[lo_name[1:]] = (None, lo_hkx)
