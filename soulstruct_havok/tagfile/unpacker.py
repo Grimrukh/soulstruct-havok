@@ -131,7 +131,7 @@ class TagFileUnpacker:
                             init_imports.append(type_info.py_name)
 
                         print(f"\nImport lines to add to `types.{self.hk_types_version}.__init__.py`:")
-                        for line in init_imports:
+                        for line in sorted(init_imports):
                             print(f"from .{line} import {line}")
                         # Don't raise exception until type match errors have been reported below.
 

@@ -369,7 +369,7 @@ class PyDefBuilder:
             for template_info in self.info.templates:
                 if template_info.is_type:
                     template_type_py_name, _ = self.build_type_name(template_info.type_info)
-                    py_string += f"        TemplateType(\"{template_info.name}\", type={template_type_py_name}),\n"
+                    py_string += f"        TemplateType(\"{template_info.name}\", _type={template_type_py_name}),\n"
                 elif template_info.is_value:
                     py_string += f"        TemplateValue(\"{template_info.name}\", value={template_info.value}),\n"
                 else:
