@@ -50,7 +50,7 @@ SkeletonMapperType = SkeletonMapper[hkaSkeletonMapper]
 PhysicsDataType = PhysicsData[hkpPhysicsData, hkpPhysicsSystem]
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, repr=False)
 class AnimationHKX(BaseAnimationHKX):
     TYPES_MODULE: tp.ClassVar = hk2015
     root: hkRootLevelContainer = None

@@ -238,3 +238,10 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
             hk_format=HavokFileFormat.Tagfile,
             hk_version=cls.get_version_string(),
         )
+
+    def __repr__(self):
+        if self.animation_container.is_spline:
+            return f"{self.__class__.__name__}(<SplineCompressed>)"
+        if self.animation_container.is_interleaved:
+            return f"{self.__class__.__name__}(<Interleaved>)"
+        return f"{self.__class__.__name__}(<Unknown Type>)"

@@ -7,6 +7,7 @@ __all__ = ["AnimationHKX", "SkeletonHKX"]
 from soulstruct_havok.types import hk2014
 from soulstruct_havok.types.hk2014 import *
 from soulstruct_havok.wrappers.base import *
+from dataclasses import dataclass
 
 AnimationContainerType = AnimationContainer[
     hkaAnimationContainer, hkaAnimation, hkaAnimationBinding,
@@ -18,12 +19,14 @@ SkeletonType = Skeleton[hkaSkeleton, hkaBone]
 SkeletonMapperType = SkeletonMapper[hkaSkeletonMapper]
 
 
+@dataclass(slots=True, repr=False)
 class AnimationHKX(BaseAnimationHKX):
     TYPES_MODULE = hk2014
     root: hkRootLevelContainer
     animation_container: AnimationContainerType
 
 
+@dataclass(slots=True, repr=False)
 class SkeletonHKX(BaseSkeletonHKX):
     TYPES_MODULE = hk2014
     root: hkRootLevelContainer
