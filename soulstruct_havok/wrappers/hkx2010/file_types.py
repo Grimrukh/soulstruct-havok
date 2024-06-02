@@ -19,37 +19,37 @@ PhysicsDataType = PhysicsData[hkpPhysicsData, hkpPhysicsSystem]
 @dataclass(slots=True, repr=False)
 class AnimationHKX(BaseAnimationHKX):
     TYPES_MODULE = hk2010
-    root: hkRootLevelContainer
-    animation_container: AnimationContainerType
+    root: hkRootLevelContainer = None
+    animation_container: AnimationContainerType = None
 
 
 @dataclass(slots=True, repr=False)
 class SkeletonHKX(BaseSkeletonHKX):
     TYPES_MODULE = hk2010
-    root: hkRootLevelContainer
-    skeleton: SkeletonType
+    root: hkRootLevelContainer = None
+    skeleton: SkeletonType = None
 
 
 @dataclass(slots=True, repr=False)
 class CollisionHKX(BaseCollisionHKX):
     TYPES_MODULE = hk2010
-    root: hkRootLevelContainer
-    physics_data: PhysicsDataType
+    root: hkRootLevelContainer = None
+    physics_data: PhysicsDataType = None
 
 
 @dataclass(slots=True, repr=False)
 class ClothHKX(BaseClothHKX):
     TYPES_MODULE = hk2010
-    root: hkRootLevelContainer
-    cloth_physics_data: ClothPhysicsData[hkpPhysicsData, hkpPhysicsSystem]
+    root: hkRootLevelContainer = None
+    cloth_physics_data: ClothPhysicsData[hkpPhysicsData, hkpPhysicsSystem] = None
 
 
 @dataclass(slots=True, repr=False)
 class RagdollHKX(BaseRagdollHKX):
     TYPES_MODULE = hk2010
-    root: hkRootLevelContainer
-    animation_skeleton: SkeletonType
-    ragdoll_skeleton: SkeletonType
-    physics_data: PhysicsDataType
-    animation_to_ragdoll_skeleton_mapper: SkeletonMapperType
-    ragdoll_to_animation_skeleton_mapper: SkeletonMapperType
+    root: hkRootLevelContainer = None
+    animation_skeleton: SkeletonType = None
+    ragdoll_skeleton: SkeletonType = None
+    physics_data: PhysicsDataType = None
+    animation_to_ragdoll_skeleton_mapper: SkeletonMapperType = None
+    ragdoll_to_animation_skeleton_mapper: SkeletonMapperType = None
