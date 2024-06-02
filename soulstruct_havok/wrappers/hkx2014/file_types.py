@@ -22,12 +22,12 @@ SkeletonMapperType = SkeletonMapper[hkaSkeletonMapper]
 @dataclass(slots=True, repr=False)
 class AnimationHKX(BaseAnimationHKX):
     TYPES_MODULE = hk2014
-    root: hkRootLevelContainer
-    animation_container: AnimationContainerType
+    root: hkRootLevelContainer = None
+    animation_container: AnimationContainerType = None
 
 
 @dataclass(slots=True, repr=False)
 class SkeletonHKX(BaseSkeletonHKX):
     TYPES_MODULE = hk2014
-    root: hkRootLevelContainer
-    skeleton: SkeletonType
+    root: hkRootLevelContainer = None
+    skeleton: SkeletonType = None
