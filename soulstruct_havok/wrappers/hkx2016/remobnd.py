@@ -273,7 +273,6 @@ class RemoBND(Binder):
     GET_MAP = staticmethod(get_map)
 
     def __post_init__(self):
-        super(Binder, self).__post_init__()
         try:
             self.tae_entry = self.find_entry_matching_name(r".*\.tae")
         except EntryNotFoundError:

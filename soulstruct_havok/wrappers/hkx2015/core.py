@@ -360,7 +360,6 @@ class MapCollisionHKX(BaseWrappedHKX):
         # NOTE: Offsets of 100, 200, and 300 appear to be used for stairs/sloped submeshes?
 
     def __post_init__(self):
-        super(BaseWrappedHKX, self).__post_init__()
         self.map_collision_physics_data = MapCollisionPhysicsData(
             self.TYPES_MODULE, self.get_variant(0, *PHYSICS_DATA_T.__constraints__))
 

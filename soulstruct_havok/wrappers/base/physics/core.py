@@ -22,7 +22,6 @@ class BaseCollisionHKX(BaseWrappedHKX, abc.ABC):
     physics_data: PhysicsData = None
 
     def __post_init__(self):
-        super(BaseWrappedHKX, self).__post_init__()
         self.physics_data = PhysicsData(self.TYPES_MODULE, self.get_variant(0, *PHYSICS_DATA_T.__constraints__))
 
 
@@ -36,7 +35,7 @@ class BaseClothHKX(BaseWrappedHKX, abc.ABC):
     cloth_physics_data: ClothPhysicsData = None
 
     def __post_init__(self):
-        super(BaseWrappedHKX, self).__post_init__()
+
         self.cloth_physics_data = ClothPhysicsData(
             self.TYPES_MODULE, self.get_variant(0, *PHYSICS_DATA_T.__constraints__)
         )

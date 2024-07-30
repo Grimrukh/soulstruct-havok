@@ -17,6 +17,5 @@ class BaseSkeletonHKX(BaseWrappedHKX, abc.ABC):
     skeleton: Skeleton = None
 
     def __post_init__(self):
-        super(BaseWrappedHKX, self).__post_init__()
         hka_animation_container = self.get_variant(0, *ANIMATION_CONTAINER_T.__constraints__)
         self.skeleton = Skeleton(self.TYPES_MODULE, hka_animation_container.skeletons[0])

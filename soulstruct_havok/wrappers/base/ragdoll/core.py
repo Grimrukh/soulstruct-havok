@@ -31,7 +31,6 @@ class BaseRagdollHKX(BaseWrappedHKX, abc.ABC):
     ragdoll_to_animation_skeleton_mapper: SkeletonMapper = None
 
     def __post_init__(self):
-        super(BaseWrappedHKX, self).__post_init__()
         hka_animation_container = self.get_variant(0, *ANIMATION_CONTAINER_T.__constraints__)
         self.animation_skeleton = Skeleton(self.TYPES_MODULE, hka_animation_container.skeletons[0])
         self.ragdoll_skeleton = Skeleton(self.TYPES_MODULE, hka_animation_container.skeletons[1])
