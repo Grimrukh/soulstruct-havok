@@ -529,7 +529,10 @@ class hkArray_(hkBasePointer):
         value = tagfile.unpack_array(cls.get_data_type(), reader, items)
         if debug.DEBUG_PRINT_UNPACK:
             debug.decrement_debug_indent()
-            debug.debug_print(f"-> {repr(value)}")
+            if len(value) > 10 and isinstance(value[0], (int, float)):
+                debug.debug_print(f"--> {repr(value[:10])}... ({len(value)} elements)")
+            else:
+                debug.debug_print(f"--> {repr(value)}")
         if debug.REQUIRE_INPUT:
             input("Continue?")
         return value
@@ -543,7 +546,10 @@ class hkArray_(hkBasePointer):
         value = packfile.unpack_array(cls.get_data_type(), item)
         if debug.DEBUG_PRINT_UNPACK:
             debug.decrement_debug_indent()
-            debug.debug_print(f"-> {repr(value)}")
+            if len(value) > 10 and isinstance(value[0], (int, float)):
+                debug.debug_print(f"--> {repr(value[:10])}... ({len(value)} elements)")
+            else:
+                debug.debug_print(f"--> {repr(value)}")
         if debug.REQUIRE_INPUT:
             input("Continue?")
         item.reader.seek(offset + cls.byte_size)

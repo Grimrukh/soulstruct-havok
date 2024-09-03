@@ -6,6 +6,7 @@ import logging
 import re
 import typing as tp
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 from types import ModuleType
 
@@ -13,7 +14,6 @@ from soulstruct.base.game_file import GameFile
 from soulstruct.containers import Binder, BinderEntry, EntryNotFoundError
 from soulstruct.dcx import DCXType, decompress, is_dcx
 from soulstruct.utilities.binary import *
-from soulstruct.utilities.future import StrEnum
 
 from soulstruct_havok.packfile.packer import PackFilePacker
 from soulstruct_havok.packfile.structs import PackfileHeaderInfo

@@ -148,18 +148,16 @@ def unpack_pointer(data_hk_type: type[hk], item: PackFileItem) -> hk | None:
     """`data_hk_type` is used to make sure that the referenced item's `hk_type` is a subclass of it."""
     source_offset = item.reader.position
     zero = item.reader.unpack_value("<V")  # "dummy" pointer
+    if zero != 0:
+        print(f"{item.hk_type.__name__} item pointers:")
+        for offset, pointed_item in item.item_pointers.items():
+            print(f"    Offset {offset} -> {pointed_item}")
+        raise ValueError(f"Found non-zero value at item pointer offset {source_offset}: {zero}")
     try:
         pointed_item, item_data_offset = item.item_pointers[source_offset]
     except KeyError:
-        if zero != 0:
-            print(zero, item.item_pointers)
-            raise ValueError(
-                f"Could not find item pointer: type {item.hk_type.__name__}, buffer at {hex(source_offset)}."
-            )
-        else:
-            return None
-    if zero != 0:
-        raise AssertionError(f"Found non-zero data at item pointer offset: {zero}.")
+        return None  # null pointer
+
     if item_data_offset != 0:
         print(pointed_item.item_pointers)
         raise AssertionError(f"Data item pointer (global ref dest) was not zero: {item_data_offset}.")
@@ -179,6 +177,9 @@ def unpack_pointer(data_hk_type: type[hk], item: PackFileItem) -> hk | None:
         pointed_item.value = pointed_item.hk_type.unpack_packfile(pointed_item)
         if debug.DEBUG_PRINT_UNPACK:
             debug.decrement_debug_indent()
+        print(f"{pointed_item.hk_type.__name__} POINTERS:")
+        print(pointed_item.item_pointers)
+
     else:
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(f"Existing pointed item: {type(pointed_item.value).__name__}")
@@ -245,7 +246,7 @@ def unpack_array(data_hk_type: type[hk], item: PackFileItem) -> list:
     with item.reader.temp_offset(array_data_offset):
         value = data_hk_type.unpack_primitive_array(item.reader, array_size)
         if value is None:
-            # Array elements are tightly packed.
+            # Not a primitive array. Use data type. Array elements are tightly packed.
             value = [data_hk_type.unpack_packfile(item) for _ in range(array_size)]
 
     if debug.DEBUG_PRINT_UNPACK:

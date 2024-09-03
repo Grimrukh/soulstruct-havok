@@ -76,6 +76,7 @@ __all__ = [
     "hkUlong",
     "hkUint32",
     "hkUint8",
+    "hkQuaternion",
     "hkUint64",
     "hkUintReal",
     "hkUFloat8",
@@ -492,6 +493,13 @@ class hkUint32(_unsigned_int):
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkUint8(_unsigned_char):
     """Havok alias."""
+    local_members = ()
+
+
+@dataclass(slots=True, eq=False, repr=False, kw_only=True)
+class hkQuaternion(hkQuaternionf):
+    """Havok alias."""
+    __tag_format_flags = 0
     local_members = ()
 
 

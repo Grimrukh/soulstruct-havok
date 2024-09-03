@@ -22,7 +22,6 @@ from enum import IntEnum
 from pathlib import Path
 
 import numpy as np
-
 from soulstruct.dcx import DCXType
 
 from soulstruct_havok.core import HavokFileFormat

@@ -6,7 +6,7 @@ import typing as tp
 
 import numpy as np
 
-from soulstruct_havok.types.hk2015 import *
+from soulstruct_havok.types.hk2010 import *
 from soulstruct_havok.utilities.mopper import mopper
 from soulstruct_havok.utilities.maths import Vector4, Quaternion
 from soulstruct_havok.wrappers.base.physics import PhysicsData
@@ -35,7 +35,10 @@ class MapCollisionPhysicsData(PhysicsData[hkpPhysicsData, hkpPhysicsSystem]):
             raise TypeError("Expected collision shape to be `hkpMoppBvTreeShape`.")
         child_shape = shape.child.childShape
         if not isinstance(child_shape, CustomParamStorageExtendedMeshShape):
-            raise TypeError("Expected collision child shape to be `CustomParamStorageExtendedMeshShape`.")
+            raise TypeError(
+                f"Expected collision child shape to be `CustomParamStorageExtendedMeshShape`. "
+                f"Found: {child_shape.__class__.__name__}"
+            )
         return child_shape
 
     def get_extended_mesh_meshstorage(self) -> list[hkpStorageExtendedMeshShapeMeshSubpartStorage]:

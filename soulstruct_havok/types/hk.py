@@ -271,7 +271,10 @@ class hk:
             # Note that 'Pointer', 'Array', and 'Struct' types have their own explicit subclasses.
             raise ValueError(f"Cannot unpack `hk` subclass `{cls.__name__}` with tag data type {tag_data_type.name}.")
         if debug.DEBUG_PRINT_UNPACK:
-            debug.debug_print(f"-> {repr(value)}")
+            if isinstance(value, list) and len(value) > 10 and isinstance(value[0], (int, float)):
+                debug.debug_print(f"--> {repr(value[:10])}... ({len(value)} elements)")
+            else:
+                debug.debug_print(f"--> {repr(value)}")
         return value
 
     @classmethod
@@ -320,7 +323,10 @@ class hk:
             and not debug.DO_NOT_DEBUG_PRINT_PRIMITIVES
             and cls.__name__ not in {"_float", "hkUint8"}
         ):
-            debug.debug_print(f"-> {repr(value)}")
+            if isinstance(value, list) and len(value) > 10 and isinstance(value[0], (int, float)):
+                debug.debug_print(f"--> {repr(value[:10])}... ({len(value)} total)")
+            else:
+                debug.debug_print(f"--> {repr(value)}")
         item.reader.seek(offset + cls.byte_size)
         return value
 

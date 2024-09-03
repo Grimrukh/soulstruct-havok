@@ -339,7 +339,7 @@ class PackFileUnpacker:
                     print(f"Type `{type_py_name}` (real name `{type_name}`) is unknown, but its type data was found:")
                     print(type_info)
                 else:
-                    print(f"Type `{type_py_name}` (real name `{type_name}`) is unknown and no type datas was found.")
+                    print(f"Type `{type_py_name}` (real name `{type_name}`) is unknown and no type data was found.")
             py_names = ", ".join(f"`{type_py_name}`" for type_py_name in missing_type_infos)
             raise TypeNotDefinedError(f"Types {py_names} are unknown. See above for info to generate Python classes.")
 
