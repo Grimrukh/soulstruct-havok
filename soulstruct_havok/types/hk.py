@@ -28,10 +28,6 @@ from soulstruct_havok.utilities.maths import Quaternion, Vector4
 
 from . import packfile, tagfile, debug
 
-try:
-    Self = tp.Self
-except AttributeError:
-    Self = "hk"
 
 if tp.TYPE_CHECKING:
     from soulstruct_havok.packfile.structs import PackFileItem
@@ -221,7 +217,7 @@ class hk:
         return cls._TYPES_DICT[type_name]
 
     @classmethod
-    def get_empty_instance(cls) -> Self:
+    def get_empty_instance(cls) -> tp.Self:
         """`hk` dataclasses normally do not have any default values, but this method will return an instance with all
         dataclass fields set to `None`. This is required for unpacking some items that recursively reference themselves,
         as we need to create the item instance before reading its members.

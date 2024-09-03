@@ -23,12 +23,6 @@ from soulstruct_havok.tagfile.unpacker import TagFileUnpacker, MissingCompendium
 from soulstruct_havok.types import hk2010, hk2014, hk2015, hk2016, hk2018
 from soulstruct_havok.types.info import TypeInfo
 
-try:
-    Self = tp.Self
-except AttributeError:  # < Python 3.11
-    Self = "HKX"
-
-
 _LOGGER = logging.getLogger("soulstruct_havok")
 
 HKX_ROOT_TYPING = tp.Union[
@@ -76,7 +70,7 @@ class HKX(GameFile):
     packfile_header_info: None | PackfileHeaderInfo = None
 
     @classmethod
-    def from_reader(cls, reader: BinaryReader, hk_format: HavokFileFormat = None, compendium: HKX = None) -> Self:
+    def from_reader(cls, reader: BinaryReader, hk_format: HavokFileFormat = None, compendium: HKX = None) -> tp.Self:
         if hk_format is None:
             # Auto-detect format.
             hk_format = cls._detect_hk_format(reader)
@@ -98,7 +92,7 @@ class HKX(GameFile):
         data: bytes | bytearray | tp.BinaryIO | BinaryReader | BinderEntry,
         hk_format: HavokFileFormat = None,
         compendium: HKX = None,
-    ) -> Self:
+    ) -> tp.Self:
         """Load instance from binary data or binary stream (or `BinderEntry.data`)."""
         reader = BinaryReader(data) if not isinstance(data, BinaryReader) else data  # type: BinaryReader
 
@@ -122,7 +116,7 @@ class HKX(GameFile):
         return binary_file
 
     @classmethod
-    def from_path(cls, path: str | Path, hk_format: HavokFileFormat = None, compendium: HKX = None) -> Self:
+    def from_path(cls, path: str | Path, hk_format: HavokFileFormat = None, compendium: HKX = None) -> tp.Self:
         path = Path(path)
         try:
             game_file = cls.from_bytes(BinaryReader(path), hk_format, compendium)
@@ -155,7 +149,7 @@ class HKX(GameFile):
         entry_spec: int | Path | str | re.Pattern = None,
         hk_format: HavokFileFormat = None,
         compendium_name: str = "",
-    ) -> Self:
+    ) -> tp.Self:
         """Use or auto-detect `{binder_source.name}.compendium` file in binder, if present."""
         compendium, compendium_name = cls.get_compendium_from_binder(binder, compendium_name)
 
@@ -209,7 +203,7 @@ class HKX(GameFile):
         return compendium, compendium_name
 
     @classmethod
-    def from_packfile_reader(cls, reader: BinaryReader) -> Self:
+    def from_packfile_reader(cls, reader: BinaryReader) -> tp.Self:
         """`reader` HKX file format is known to be `packfile`."""
         unpacker = PackFileUnpacker()
         unpacker.unpack(reader)
@@ -223,7 +217,7 @@ class HKX(GameFile):
         )
 
     @classmethod
-    def from_tagfile_reader(cls, reader: BinaryReader, compendium: tp.Optional[HKX] = None) -> Self:
+    def from_tagfile_reader(cls, reader: BinaryReader, compendium: tp.Optional[HKX] = None) -> tp.Self:
         """Buffer is known to be `tagfile`."""
         unpacker = TagFileUnpacker()
         unpacker.unpack(reader, compendium=compendium)

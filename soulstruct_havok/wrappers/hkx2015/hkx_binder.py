@@ -18,11 +18,6 @@ from soulstruct.containers import Binder, BinderVersion, BinderVersion4Info, Ent
 from soulstruct.dcx import DCXType
 from .core import MapCollisionHKX
 
-try:
-    Self = tp.Self
-except AttributeError:
-    Self = "BothResHKXBHD"
-
 
 @dataclass(slots=True)
 class HKXBHD(Binder):
@@ -98,7 +93,7 @@ class BothResHKXBHD:
     path: Path | None = None
 
     @classmethod
-    def from_map_path(cls, map_path: Path | str) -> Self:
+    def from_map_path(cls, map_path: Path | str) -> tp.Self:
         """Will raise a `FileNotFoundError` if (half of) either Binder file is missing."""
         map_path = Path(map_path)
         hi_res_path = Path(map_path, f"h{map_path.name[1:]}.hkxbhd")
@@ -106,7 +101,7 @@ class BothResHKXBHD:
         return cls(HKXBHD.from_path(hi_res_path), HKXBHD.from_path(lo_res_path), path=map_path)
 
     @classmethod
-    def from_both_paths(cls, hi_res_path: Path | str, lo_res_path: Path | str, map_path: Path | str = None) -> Self:
+    def from_both_paths(cls, hi_res_path: Path | str, lo_res_path: Path | str, map_path: Path | str = None) -> tp.Self:
         """Will raise a `FileNotFoundError` if (half of) either Binder file is missing."""
         hi_res_path = Path(hi_res_path)
         lo_res_path = Path(lo_res_path)
