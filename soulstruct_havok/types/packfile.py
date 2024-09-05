@@ -177,8 +177,6 @@ def unpack_pointer(data_hk_type: type[hk], item: PackFileItem) -> hk | None:
         pointed_item.value = pointed_item.hk_type.unpack_packfile(pointed_item)
         if debug.DEBUG_PRINT_UNPACK:
             debug.decrement_debug_indent()
-        print(f"{pointed_item.hk_type.__name__} POINTERS:")
-        print(pointed_item.item_pointers)
 
     else:
         if debug.DEBUG_PRINT_UNPACK:

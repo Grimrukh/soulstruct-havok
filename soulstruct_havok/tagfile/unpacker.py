@@ -46,7 +46,6 @@ class MissingCompendiumError(Exception):
 @dataclass(slots=True)
 class TagFileUnpacker:
     
-    hk_types_version: str = ""
     hk_types_module: None | ModuleType = None
     root: None | hk2015.hkRootLevelContainer | hk2018.hkRootLevelContainer = None
     hk_type_infos: list[TypeInfo] = field(default_factory=list)
@@ -54,7 +53,8 @@ class TagFileUnpacker:
     is_compendium: bool = False
     compendium_ids: list[bytes] = field(default_factory=list)
     hsh_overrides: dict[str, int | None] = field(default_factory=dict)
-    hk_version: str = ""
+    hk_full_version: str = ""  # eight-character string like "20150100"
+    hk_version: str = ""  # just the year, for module choice
 
     def unpack(self, reader: BinaryReader, compendium: tp.Optional[HKX] = None, types_only=False):
 
@@ -64,21 +64,21 @@ class TagFileUnpacker:
                 # Object file.
                 self.is_compendium = False
                 with self.unpack_section(reader, "SDKV"):
-                    self.hk_version = reader.unpack_string(length=8, encoding="utf-8")
-                    if self.hk_version.startswith("2015") and not types_only:
-                        self.hk_types_version = "hk2015"
+                    self.hk_full_version = reader.unpack_string(length=8, encoding="utf-8")
+                    if self.hk_full_version.startswith("2015") and not types_only:
+                        self.hk_version = "hk2015"
                         from soulstruct_havok.types import hk2015
                         self.hk_types_module = hk2015
-                    elif self.hk_version.startswith("2016") and not types_only:
-                        self.hk_types_version = "hk2016"
+                    elif self.hk_full_version.startswith("2016") and not types_only:
+                        self.hk_version = "hk2016"
                         from soulstruct_havok.types import hk2016
                         self.hk_types_module = hk2016
-                    elif self.hk_version.startswith("2018") and not types_only:
-                        self.hk_types_version = "hk2018"
+                    elif self.hk_full_version.startswith("2018") and not types_only:
+                        self.hk_version = "hk2018"
                         from soulstruct_havok.types import hk2018
                         self.hk_types_module = hk2018
                     else:
-                        raise VersionModuleError(f"No Havok type module for version: {self.hk_version}")
+                        raise VersionModuleError(f"No Havok type module for version: {self.hk_full_version}")
 
                 with self.unpack_section(reader, "DATA"):
                     data_start_offset = reader.position
@@ -122,7 +122,7 @@ class TagFileUnpacker:
                     if modules_to_create:
 
                         init_imports = []
-                        types_path = Path(__file__).parent / f"../types/{self.hk_types_version}"
+                        types_path = Path(__file__).parent / f"../types/{self.hk_version}"
 
                         for type_info, type_module_def, init_import in modules_to_create:
                             new_file = types_path / f"{type_info.py_name}.py"
@@ -130,7 +130,7 @@ class TagFileUnpacker:
                             _LOGGER.info(f"# Wrote new type file: {new_file.resolve()}")
                             init_imports.append(type_info.py_name)
 
-                        print(f"\nImport lines to add to `types.{self.hk_types_version}.__init__.py`:")
+                        print(f"\nImport lines to add to `types.{self.hk_version}.__init__.py`:")
                         for line in sorted(init_imports):
                             print(f"from .{line} import {line}")
                         # Don't raise exception until type match errors have been reported below.
@@ -155,7 +155,7 @@ class TagFileUnpacker:
 
             elif root_magic == "TCM0":
                 # Compendium file.
-                # TODO: No hk_version SDKV section for compendium files?
+                # TODO: No SDKV section for compendium files?
                 self.is_compendium = True
                 with self.unpack_section(reader, "TCID") as (data_size, _):
                     self.compendium_ids = [reader.read(8) for _ in range(data_size // 8)]

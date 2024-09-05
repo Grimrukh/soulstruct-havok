@@ -10,10 +10,19 @@ __all__ = [
     "MemberFlags",
 ]
 
-from enum import IntEnum
+from enum import IntEnum, StrEnum
 from pathlib import Path
 
 from soulstruct.utilities.binary import BinaryReader
+
+
+class HavokVersion(StrEnum):
+    """Supported Havok versions."""
+    hk2010 = "2010"  # DS1:PTDE
+    hk2014 = "2014"  # Bloodborne
+    hk2015 = "2015"  # DS1:Remastered
+    hk2016 = "2016"  # DS3
+    hk2018 = "2018"  # Elden Ring
 
 
 class PackMemberType(IntEnum):

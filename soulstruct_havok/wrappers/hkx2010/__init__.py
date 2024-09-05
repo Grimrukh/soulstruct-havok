@@ -1,1 +1,1 @@
-from .core import AnimationHKX, SkeletonHKX, CollisionHKX, ClothHKX, RagdollHKX, MapCollisionHKX
+from .core import AnimationHKX, SkeletonHKX, CollisionHKX, ClothHKX, RagdollHKX

@@ -24,7 +24,7 @@ HK_T = tp.TypeVar("HK_T", bound=hk)
 @dataclass(slots=True)
 class BaseWrappedHKX(HKX, abc.ABC):
 
-    # Assigned for version-specific subclasses by a mixin.
+    # Assigned for version-specific subclasses.
     TYPES_MODULE: tp.ClassVar[ModuleType]
 
     def get_variant(self, variant_index: int, *valid_types: tp.Type[HK_T]) -> HK_T:

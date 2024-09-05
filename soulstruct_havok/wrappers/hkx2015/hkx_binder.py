@@ -1,6 +1,6 @@
 """Wrapper for both the hi-res and lo-res HKXBHD binders in DSR.
 
-Only loads `MapCollisionHKX` instances as they are requested, from either the `.hires` or `.lores` dict attributes.
+Only loads `MapCollisionModel` instances as they are requested, from either the `.hires` or `.lores` dict attributes.
 """
 from __future__ import annotations
 
@@ -16,12 +16,12 @@ from pathlib import Path
 
 from soulstruct.containers import Binder, BinderVersion, BinderVersion4Info, EntryNotFoundError
 from soulstruct.dcx import DCXType
-from .core import MapCollisionHKX
+from soulstruct_havok.wrappers.shared import MapCollisionModel
 
 
 @dataclass(slots=True)
 class HKXBHD(Binder):
-    """Wraps a single HKXBHD, either hi-res or lo-res. Only loads `MapCollisionHKX` instances as they are requested by
+    """Wraps a single HKXBHD, either hi-res or lo-res. Only loads `MapCollisionModel` instances as they are requested by
     the `get_hkx()` method.
 
     Any loaded HKX instances in the `.hkxs` attribute will be saved to the Binder's entries when it is written.
@@ -34,19 +34,19 @@ class HKXBHD(Binder):
     dcx_type: DCXType = DCXType.Null  # no DCX compression on binder (but on HKX entries)
 
     map_stem: str = ""
-    hkxs: dict[str, MapCollisionHKX] = field(default_factory=dict)  # maps model stems only (e.g. 'h1000B1A10') to `HKX`
+    hkxs: dict[str, MapCollisionModel] = field(default_factory=dict)  # model stems only (e.g. 'h1000B1A10') -> `HKX`
 
     def get_hkx(self, hkx_stem: str):
-        """Load `MapCollisionHKX` instance from this `HKXBHD` if it has been loaded before, otherwise return `None`."""
+        """Load `MapCollisionModel` instance from this `HKXBHD` if it was loaded before, otherwise return `None`."""
         # Clean up suffixes.
         hkx_stem = hkx_stem.removesuffix(".dcx").removesuffix(".hkx")
         return self.hkxs.setdefault(
             hkx_stem,
-            self.find_entry_name(f"{hkx_stem}.hkx.dcx").to_binary_file(MapCollisionHKX)
+            self.find_entry_name(f"{hkx_stem}.hkx.dcx").to_binary_file(MapCollisionModel)
         )
 
-    def set_hkx(self, hkx_stem: str, hkx: MapCollisionHKX):
-        """Explicitly set the `MapCollisionHKX` instance for the given stem, e.g. to replace whatever is loaded."""
+    def set_hkx(self, hkx_stem: str, hkx: MapCollisionModel):
+        """Explicitly set the `MapCollisionModel` instance for the given stem, e.g. to replace whatever is loaded."""
         self.hkxs[hkx_stem] = hkx
 
     def load_all(self, overwrite=False):
@@ -55,7 +55,7 @@ class HKXBHD(Binder):
             if entry.name.endswith(".hkx.dcx"):
                 hkx_stem = entry.name[:-8]  # remove '.hkx.dcx'
                 if overwrite or hkx_stem not in self.hkxs:
-                    self.hkxs[hkx_stem] = entry.to_binary_file(MapCollisionHKX)
+                    self.hkxs[hkx_stem] = entry.to_binary_file(MapCollisionModel)
 
     def entry_autogen(self):
         """Overwrite Binder entries from loaded `HKX` instances."""
@@ -108,15 +108,15 @@ class BothResHKXBHD:
         map_path = Path(map_path) if map_path else hi_res_path.parent
         return cls(HKXBHD.from_path(hi_res_path), HKXBHD.from_path(lo_res_path), path=map_path)
 
-    def get_hi_hkx(self, hkx_stem: str) -> MapCollisionHKX:
+    def get_hi_hkx(self, hkx_stem: str) -> MapCollisionModel:
         return self.hi_res.get_hkx(hkx_stem)
 
-    def get_lo_hkx(self, hkx_stem: str) -> MapCollisionHKX:
+    def get_lo_hkx(self, hkx_stem: str) -> MapCollisionModel:
         return self.lo_res.get_hkx(hkx_stem)
 
     def get_both_hkx(
         self, hkx_stem: str, allow_missing_hi=False, allow_missing_lo=False
-    ) -> tuple[MapCollisionHKX | None, MapCollisionHKX | None]:
+    ) -> tuple[MapCollisionModel | None, MapCollisionModel | None]:
         """Get both HKX, with the option to permit either or both (not recommended) to be missing."""
         if hkx_stem.startswith(("h", "l")):
             hkx_stem = hkx_stem[1:]
@@ -137,7 +137,7 @@ class BothResHKXBHD:
 
         return hi_res, lo_res
 
-    def get_both_res_dict(self) -> dict[str, tuple[MapCollisionHKX | None, MapCollisionHKX | None]]:
+    def get_both_res_dict(self) -> dict[str, tuple[MapCollisionModel | None, MapCollisionModel | None]]:
         """Return a list of all pairs of matching LOADED hi-res and lo-res collisions, including single-res."""
         pair_dict = {}
         for hi_name, hi_hkx in self.hi_res.hkxs.items():

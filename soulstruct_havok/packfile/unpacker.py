@@ -9,6 +9,7 @@ from types import ModuleType
 
 from soulstruct.utilities.binary import BinaryReader, ByteOrder
 
+from soulstruct_havok.enums import HavokVersion
 from soulstruct_havok.types import hk2010, hk2014, hk2015, hk2016, hk2018
 from soulstruct_havok.types.hk import hk
 from soulstruct_havok.types.exceptions import VersionModuleError, TypeNotDefinedError
@@ -127,16 +128,19 @@ class PackFileUnpacker:
         if types_only:
             return
 
-        if self.hk_version == "2010":
+        if self.hk_version == HavokVersion.hk2010:
             from soulstruct_havok.types import hk2010
             self.hk_types_module = hk2010
-        elif self.hk_version == "2014":
+        elif self.hk_version == HavokVersion.hk2014:
             from soulstruct_havok.types import hk2014
             self.hk_types_module = hk2014
-        elif self.hk_version == "2015":
+        elif self.hk_version == HavokVersion.hk2015:
             from soulstruct_havok.types import hk2015
             self.hk_types_module = hk2015
-        elif self.hk_version == "2018":
+        elif self.hk_version == HavokVersion.hk2016:
+            from soulstruct_havok.types import hk2016
+            self.hk_types_module = hk2016
+        elif self.hk_version == HavokVersion.hk2018:
             from soulstruct_havok.types import hk2018
             self.hk_types_module = hk2018
         else:
@@ -201,7 +205,7 @@ class PackFileUnpacker:
         """
         section = PackFileSectionHeader.from_bytes(reader)
 
-        if self.hk_version == "2014":
+        if self.hk_version == HavokVersion.hk2014:
             if reader.read(16).strip(b"\xFF"):
                 raise AssertionError("Expected sixteen 0xFF bytes after section header in HKX packfile version 2014.")
 

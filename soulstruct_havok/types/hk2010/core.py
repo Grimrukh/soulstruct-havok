@@ -90,7 +90,7 @@ __all__ = [
 ]
 
 import typing as tp
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -413,9 +413,9 @@ class hkQsTransformf(hk):
     )
     members = local_members
 
-    translation: Vector4
-    rotation: Quaternion
-    scale: Vector4
+    translation: Vector4 = field(default_factory=Vector4.zero)
+    rotation: Quaternion = field(default_factory=Quaternion.identity)
+    scale: Vector4 = field(default_factory=Vector4.one)
 
     @classmethod
     def identity(cls):
@@ -571,7 +571,7 @@ class hkReferencedObject(hkBaseObject):
     members = hkBaseObject.members + local_members
 
     memSizeAndFlags: int = 0
-    referenceCount: int
+    referenceCount: int = 0
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
