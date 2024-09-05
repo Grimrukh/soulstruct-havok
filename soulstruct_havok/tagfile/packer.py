@@ -94,7 +94,7 @@ class TagFilePacker:
         with self.pack_section(writer, "TAG0", flag=False):
 
             with self.pack_section(writer, "SDKV"):
-                writer.append(b"20150100")  # TODO: Always this version?
+                writer.append(self.hkx.hk_version.encode())
 
             with self.pack_section(writer, "DATA"):
 

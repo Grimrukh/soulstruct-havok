@@ -23,7 +23,7 @@ from soulstruct.base.game_file import GameFile
 from soulstruct.utilities.binary import BinaryReader, BinaryWriter
 
 from soulstruct_havok.core import HKX
-from soulstruct_havok.enums import HavokVersion
+from soulstruct_havok.enums import PyHavokModule
 from soulstruct_havok.types import hk2010, hk2015, hk2016
 from soulstruct_havok.utilities.files import HAVOK_PACKAGE_PATH
 from soulstruct_havok.utilities.maths import Vector4
@@ -127,7 +127,13 @@ class MapCollisionModel(GameFile):
     # Each collision submesh is a tuple of `(vertices_array, faces_array, material_index)`.
     meshes: list[MapCollisionModelMesh]
     # Havok version of the model, which determines the HKX export format. Set on HKX import and can be changed.
-    hk_version: HavokVersion
+    py_havok_module: PyHavokModule
+
+    SUPPORTED_MODULES: tp.ClassVar[set[PyHavokModule]] = {
+        PyHavokModule.hk2010,
+        PyHavokModule.hk2015,
+        PyHavokModule.hk2016,
+    }
 
     @classmethod
     def from_reader(cls, reader: BinaryReader) -> tp.Self:
@@ -138,8 +144,8 @@ class MapCollisionModel(GameFile):
     @classmethod
     def from_hkx(cls, hkx: HKX) -> tp.Self:
         """Extract mesh vertices, faces, and material indices from HKX."""
-        if hkx.hk_version not in {"2010", "2015", "2016"}:
-            raise ValueError(f"Cannot import `MapCollisionModel` from HKX with Havok version: {hkx.hk_version}")
+        if hkx.py_havok_module not in cls.SUPPORTED_MODULES:
+            raise ValueError(f"Cannot import `MapCollisionModel` from HKX with Havok version: {repr(hkx.hk_version)}")
 
         physics_data, physics_system = cls.get_hkx_physics(hkx)
         if not physics_system.rigidBodies:
@@ -177,7 +183,7 @@ class MapCollisionModel(GameFile):
                 faces[f] = [index_0, index_1, index_2]
             meshes.append(MapCollisionModelMesh(vertices, faces, material_index))
 
-        return cls(name=name, meshes=meshes, hk_version=HavokVersion(hkx.hk_version))
+        return cls(name=name, meshes=meshes, py_havok_module=hkx.py_havok_module)
 
     def to_writer(self) -> BinaryWriter:
         """Just wraps `HKX` class."""
@@ -190,18 +196,18 @@ class MapCollisionModel(GameFile):
             raise ValueError("Map collision has no `meshes`. Cannot convert to collision HKX.")
 
         # TODO: Template shouldn't strictly be necessary. I'm just too lazy to set up the full HKX structure."""
-        match self.hk_version:
-            case HavokVersion.hk2010:
+        match self.py_havok_module:
+            case PyHavokModule.hk2010:
                 template_path = HAVOK_PACKAGE_PATH("resources/MapCollisionTemplate2010.hkx")
                 hkx = HKX.from_path(template_path)
-            case HavokVersion.hk2015:
+            case PyHavokModule.hk2015:
                 template_path = HAVOK_PACKAGE_PATH("resources/MapCollisionTemplate2015.hkx")
                 hkx = HKX.from_path(template_path)
-            case HavokVersion.hk2016:
+            case PyHavokModule.hk2016:
                 # TODO: What game did I even add hk2016 for...? Sekiro?
                 raise NotImplementedError("Havok 2016 does not yet support MapCollisionModel export. (Need template.)")
             case _:
-                raise ValueError(f"Cannot export `MapCollisionModel` to HKX for Havok version: {self.hk_version}")
+                raise ValueError(f"Cannot export `MapCollisionModel` to HKX for Havok version: {self.py_havok_module}")
 
         physics_data, physics_system = self.get_hkx_physics(hkx)
 
@@ -243,19 +249,21 @@ class MapCollisionModel(GameFile):
                 version=37120,
                 vertexDataBuffer=[255] * mesh.vertex_count,
                 # TODO: `vertexDataStride` is a weird field I can't map out from the 2010 bytes.
-                vertexDataStride=0 if self.hk_version == HavokVersion.hk2010 else 1,
+                vertexDataStride=0 if self.py_havok_module == PyHavokModule.hk2010 else 1,
                 primitiveDataBuffer=[],
                 materialNameData=mesh.material_index,
             )
-            match self.hk_version:
-                case HavokVersion.hk2010:
+            match self.py_havok_module:
+                case PyHavokModule.hk2010:
                     material = hk2010.CustomMeshParameter(**kwargs)
-                case HavokVersion.hk2015:
+                case PyHavokModule.hk2015:
                     material = hk2015.CustomMeshParameter(**kwargs)
-                case HavokVersion.hk2016:
+                case PyHavokModule.hk2016:
                     material = hk2016.CustomMeshParameter(**kwargs)
                 case _:  # unreachable
-                    raise ValueError(f"Cannot export `MapCollisionModel` to HKX for Havok version: {self.hk_version}")
+                    raise ValueError(
+                        f"Cannot export `MapCollisionModel` to HKX for Havok version: {self.py_havok_module}"
+                    )
 
             child_shape.materialArray.append(material)
 
@@ -370,15 +378,15 @@ class MapCollisionModel(GameFile):
             namedMaterials=[],
             materialIndices16=[],
         )
-        match self.hk_version:
-            case HavokVersion.hk2010:
+        match self.py_havok_module:
+            case PyHavokModule.hk2010:
                 return hk2010.hkpStorageExtendedMeshShapeMeshSubpartStorage(**kwargs)
-            case HavokVersion.hk2015:
+            case PyHavokModule.hk2015:
                 return hk2015.hkpStorageExtendedMeshShapeMeshSubpartStorage(**kwargs)
-            case HavokVersion.hk2016:
+            case PyHavokModule.hk2016:
                 return hk2016.hkpStorageExtendedMeshShapeMeshSubpartStorage(**kwargs)
             case _:
-                raise ValueError(f"Cannot export `MapCollisionModel` to HKX for Havok version: {self.hk_version}")
+                raise ValueError(f"Cannot export `MapCollisionModel` to HKX for Havok version: {self.py_havok_module}")
 
     def new_triangles_subpart(self, vertices_count: int, faces_count: int) -> TRIANGLES_SUBPART_T:
         """Returns a new `hkpExtendedMeshShapeTrianglesSubpart` with the given number of vertices and faces.
@@ -404,24 +412,24 @@ class MapCollisionModel(GameFile):
             flipAlternateTriangles=0,
             extrusion=Vector4.zero(),
         )
-        match self.hk_version:
-            case HavokVersion.hk2010:
+        match self.py_havok_module:
+            case PyHavokModule.hk2010:
                 return hk2010.hkpExtendedMeshShapeTrianglesSubpart(
                     **kwargs,
                     transform=hk2010.hkQsTransform(),
                 )
-            case HavokVersion.hk2015:
+            case PyHavokModule.hk2015:
                 return hk2015.hkpExtendedMeshShapeTrianglesSubpart(
                     **kwargs,
                     transform=hk2015.hkQsTransform(),
                 )
-            case HavokVersion.hk2016:
+            case PyHavokModule.hk2016:
                 return hk2016.hkpExtendedMeshShapeTrianglesSubpart(
                     **kwargs,
                     transform=hk2016.hkQsTransform(),
                 )
             case _:
-                raise ValueError(f"Cannot export `MapCollisionModel` to HKX for Havok version: {self.hk_version}")
+                raise ValueError(f"Cannot export `MapCollisionModel` to HKX for Havok version: {self.py_havok_module}")
 
     @classmethod
     def from_obj_path(
@@ -430,7 +438,7 @@ class MapCollisionModel(GameFile):
         material_indices: tuple[int] = (),
         hkx_name: str = "",
         invert_x=True,
-        hk_version: str = "2015",
+        py_havok_module=PyHavokModule.hk2015,
     ) -> tp.Self:
         """Read meshes from an OBJ file, with manually supplied material indices of the same length as the meshes.
 
@@ -472,7 +480,7 @@ class MapCollisionModel(GameFile):
         return cls(
             name=hkx_name,
             meshes=meshes,
-            hk_version=HavokVersion(hk_version),  # default
+            py_havok_module=py_havok_module,
         )
 
     def to_obj(self, invert_x=True) -> str:

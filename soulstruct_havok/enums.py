@@ -16,8 +16,8 @@ from pathlib import Path
 from soulstruct.utilities.binary import BinaryReader
 
 
-class HavokVersion(StrEnum):
-    """Supported Havok versions."""
+class PyHavokModule(StrEnum):
+    """Supported Havok versions in `soulstruct-havok`."""
     hk2010 = "2010"  # DS1:PTDE
     hk2014 = "2014"  # Bloodborne
     hk2015 = "2015"  # DS1:Remastered

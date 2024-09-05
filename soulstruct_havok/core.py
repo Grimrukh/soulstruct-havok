@@ -15,6 +15,7 @@ from soulstruct.containers import Binder, BinderEntry, EntryNotFoundError
 from soulstruct.dcx import DCXType, decompress, is_dcx
 from soulstruct.utilities.binary import *
 
+from soulstruct_havok.enums import PyHavokModule
 from soulstruct_havok.packfile.packer import PackFilePacker
 from soulstruct_havok.packfile.structs import PackfileHeaderInfo
 from soulstruct_havok.packfile.unpacker import PackFileUnpacker
@@ -59,7 +60,7 @@ class HKX(GameFile):
 
     root: HKX_ROOT_TYPING = None
     hk_format: HavokFileFormat = None
-    hk_version: str = ""  # e.g. "2010"
+    hk_version: str = ""  # always stored in tagfile format (e.g. "20150100") rather than packfile ("hk_2015.1.0-r0")
     unpacker: None | TagFileUnpacker | PackFileUnpacker = None
     is_compendium: bool = False
     compendium_ids: list[bytes] = field(default_factory=list)
@@ -210,7 +211,7 @@ class HKX(GameFile):
 
         return cls(
             unpacker=unpacker,
-            hk_version=unpacker.hk_version,
+            hk_version=unpacker.hk_tagfile_format,  # parsed from packfile format
             hk_format=HavokFileFormat.Packfile,
             root=unpacker.root,
             packfile_header_info=unpacker.get_header_info(),
@@ -224,7 +225,7 @@ class HKX(GameFile):
 
         return cls(
             unpacker=unpacker,
-            hk_version=unpacker.hk_version,
+            hk_version=unpacker.hk_tagfile_version,  # correct format
             hk_format=HavokFileFormat.Tagfile,
             root=unpacker.root,
             is_compendium=unpacker.is_compendium,
@@ -240,6 +241,11 @@ class HKX(GameFile):
         elif self.hk_format == HavokFileFormat.Tagfile:
             return TagFilePacker(self).to_writer(hsh_overrides=self.hsh_overrides)
         raise ValueError(f"Invalid `hk_format`: {self.hk_format}. Should be 'packfile' or 'tagfile'.")
+
+    @property
+    def py_havok_module(self) -> PyHavokModule:
+        """Currently only have one Havok types module per release year."""
+        return PyHavokModule(self.hk_version[:4])
 
     def get_root_tree_string(self, max_primitive_sequence_size=-1) -> str:
         return self.root.get_tree_string(max_primitive_sequence_size=max_primitive_sequence_size)

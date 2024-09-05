@@ -9,6 +9,7 @@ from types import ModuleType
 
 from soulstruct.utilities.binary import BinaryWriter, ByteOrder
 
+from soulstruct_havok.enums import PyHavokModule
 from soulstruct_havok.types.hk import hk
 from soulstruct_havok.types.base import Ptr_
 from soulstruct_havok.types.info import get_py_name
@@ -35,16 +36,20 @@ class PackFilePacker:
     def __init__(self, hkx: HKX):
         self.hkx = hkx
 
-        if hkx.hk_version == "2010":
-            from soulstruct_havok.types import hk2010
-            self.hk_types_module = hk2010
-        elif hkx.hk_version == "2014":
-            from soulstruct_havok.types import hk2014
-            self.hk_types_module = hk2014
-        else:
-            raise ValueError(
-                f"Only versions '2010' and '2014' are currently supported for packfile packing, not '{hkx.hk_version}'."
-            )
+        py_havok_module = hkx.py_havok_module
+
+        match py_havok_module:
+            case PyHavokModule.hk2010:
+                from soulstruct_havok.types import hk2010
+                self.hk_types_module = hk2010
+            case PyHavokModule.hk2014:
+                from soulstruct_havok.types import hk2014
+                self.hk_types_module = hk2014
+            case _:
+                raise ValueError(
+                    f"Only Havok SDK versions from years '2010' and '2014' are currently supported for packfile "
+                    f"packing, not '{hkx.hk_version}'."
+                )
 
     def to_writer(self, header_info: PackfileHeaderInfo) -> BinaryWriter:
         byte_order = ByteOrder.LittleEndian if header_info.is_little_endian else ByteOrder.BigEndian
@@ -71,15 +76,16 @@ class PackFilePacker:
 
         class_name_section = PackFileSectionHeader.get_reserved_header(section_tag=b"__classnames__")
         class_name_section.to_writer(writer)
-        if self.hkx.hk_version == "2014":
+        has_extra_pads = self.hkx.hk_version.startswith("2014")
+        if has_extra_pads:
             writer.pad(16, b"\xFF")
         types_section = PackFileSectionHeader.get_reserved_header(section_tag=b"__types__")
         types_section.to_writer(writer)
-        if self.hkx.hk_version == "2014":
+        if has_extra_pads:
             writer.pad(16, b"\xFF")
         data_section = PackFileSectionHeader.get_reserved_header(section_tag=b"__data__")
         data_section.to_writer(writer)
-        if self.hkx.hk_version == "2014":
+        if has_extra_pads:
             writer.pad(16, b"\xFF")
 
         # CLASS SECTION
@@ -89,9 +95,10 @@ class PackFilePacker:
         self.collect_class_names(self.hkx.root, class_names)
         class_section_absolute_data_start = writer.position
         class_name_offsets = {}  # type: dict[str, int]
+        version_year = self.hkx.hk_version[:4]
         for class_name in class_names:
             try:
-                hsh = TYPE_NAME_HASHES[self.hkx.hk_version][class_name]
+                hsh = TYPE_NAME_HASHES[version_year][class_name]
             except KeyError:
                 # Get hash from Python type.
                 try:

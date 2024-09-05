@@ -3,13 +3,14 @@ from __future__ import annotations
 __all__ = ["PackFileUnpacker"]
 
 import logging
+import re
 import typing as tp
 from dataclasses import dataclass, field
 from types import ModuleType
 
 from soulstruct.utilities.binary import BinaryReader, ByteOrder
 
-from soulstruct_havok.enums import HavokVersion
+from soulstruct_havok.enums import PyHavokModule
 from soulstruct_havok.types import hk2010, hk2014, hk2015, hk2016, hk2018
 from soulstruct_havok.types.hk import hk
 from soulstruct_havok.types.exceptions import VersionModuleError, TypeNotDefinedError
@@ -67,6 +68,8 @@ class PackFileUnpacker:
     item_entries: list[PackFileItem] = field(default_factory=list)
     root: ROOT_TYPING = None
 
+    _PACKFILE_FORMAT_RE = re.compile(r"hk_(\d{4})\.(\d+)\.(\d+)-r(\d+)")
+
     def unpack(self, reader: BinaryReader, types_only=False):
 
         self.byte_order = reader.default_byte_order = ByteOrder.big_endian_bool(
@@ -74,7 +77,7 @@ class PackFileUnpacker:
         )
         self.header = PackFileHeader.from_bytes(reader)
 
-        self.hk_version = self.header.contents_version_string[3:7].decode()  # from "hk_YYYY" (e.g. "2010")
+        self.hk_version = self.header.contents_version_string.decode()
         _LOGGER.info(f"Unpacking packfile with hk version: {self.hk_version}")
 
         if self.header.version.has_header_extension:
@@ -128,19 +131,19 @@ class PackFileUnpacker:
         if types_only:
             return
 
-        if self.hk_version == HavokVersion.hk2010:
+        if self.hk_version.startswith("hk_2010"):
             from soulstruct_havok.types import hk2010
             self.hk_types_module = hk2010
-        elif self.hk_version == HavokVersion.hk2014:
+        elif self.hk_version.startswith("hk_2014"):
             from soulstruct_havok.types import hk2014
             self.hk_types_module = hk2014
-        elif self.hk_version == HavokVersion.hk2015:
+        elif self.hk_version.startswith("hk_2015"):
             from soulstruct_havok.types import hk2015
             self.hk_types_module = hk2015
-        elif self.hk_version == HavokVersion.hk2016:
+        elif self.hk_version.startswith("hk_2016"):
             from soulstruct_havok.types import hk2016
             self.hk_types_module = hk2016
-        elif self.hk_version == HavokVersion.hk2018:
+        elif self.hk_version.startswith("hk_2018"):
             from soulstruct_havok.types import hk2018
             self.hk_types_module = hk2018
         else:
@@ -205,7 +208,7 @@ class PackFileUnpacker:
         """
         section = PackFileSectionHeader.from_bytes(reader)
 
-        if self.hk_version == HavokVersion.hk2014:
+        if self.hk_version == PyHavokModule.hk2014:
             if reader.read(16).strip(b"\xFF"):
                 raise AssertionError("Expected sixteen 0xFF bytes after section header in HKX packfile version 2014.")
 
@@ -361,6 +364,17 @@ class PackFileUnpacker:
             flags=self.header.flags,
             header_extension=self.header_extension,
         )
+
+    @property
+    def hk_tagfile_format(self) -> str:
+        match = self._PACKFILE_FORMAT_RE.match(self.hk_version)
+        if not match:
+            raise ValueError(f"Unrecognized Havok packfile version string format: {self.hk_version}")
+        year = int(match.group(1))
+        major_version = int(match.group(2))
+        minor_version = int(match.group(3))
+        # Not sure where revision fits in tagfile format.
+        return f"{year:04d}{major_version:02d}{minor_version:02d}"
 
     def raw_repr(self):
         lines = ["Entries:"]
