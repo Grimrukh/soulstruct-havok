@@ -6,7 +6,7 @@ import logging
 import typing as tp
 from dataclasses import dataclass
 
-from soulstruct_havok.utilities.maths import TRSTransform
+from soulstruct_havok.utilities.maths import TRSTransform, Vector4
 
 from ..type_vars import SKELETON_T
 
@@ -28,6 +28,16 @@ class Bone(tp.Generic[SKELETON_T]):
 
     def get_reference_pose(self) -> TRSTransform:
         return self._skeleton.referencePose[self.index].to_trs_transform()
+
+    def set_reference_pose(self, transform: TRSTransform):
+        ref_pose = self._skeleton.referencePose[self.index]
+        ref_pose.translation = Vector4((*transform.translation, 1.0))
+        ref_pose.rotation = transform.rotation
+        ref_pose.scale = Vector4((*transform.scale, 1.0))
+
+    def transform_reference_pose(self, transform: TRSTransform):
+        ref_pose_trs = self.get_reference_pose()
+        self.set_reference_pose(transform @ ref_pose_trs)
 
     def get_reference_pose_in_arma_space(self) -> TRSTransform:
         """NOTE: If you need ALL bones in armature space, it is better to use:

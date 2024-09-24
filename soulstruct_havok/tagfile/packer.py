@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+__all__ = [
+    "TagFilePacker",
+]
+
 import colorama
 import typing as tp
 from collections import deque
@@ -19,7 +23,7 @@ if tp.TYPE_CHECKING:
     from soulstruct_havok.core import HKX
 
 
-colorama.init()
+colorama.just_fix_windows_console()
 GREEN = colorama.Fore.GREEN
 MAGENTA = colorama.Fore.LIGHTMAGENTA_EX
 RED = colorama.Fore.RED
@@ -29,13 +33,6 @@ RESET = colorama.Fore.RESET
 _DEBUG_TYPES = False  # Type order has been confirmed as valid several times!
 _DEBUG_SECTIONS = False
 _DEBUG_HASH = False
-
-
-class UniqueInstance:
-    """Simple hashable container that wraps item instances to make them unique for later `TagFileItem` lookup."""
-
-    def __init__(self, value: hk | str | list):
-        self.value = value
 
 
 class TagFilePacker:

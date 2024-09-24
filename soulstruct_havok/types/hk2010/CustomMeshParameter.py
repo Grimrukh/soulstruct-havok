@@ -19,8 +19,8 @@ class CustomMeshParameter(hkReferencedObject):
     local_members = (
         Member(8, "version", hkUint32, MemberFlags.Private),
         Member(12, "vertexDataBuffer", hkArray(hkUint8), MemberFlags.Private),
-        Member(24, "vertexDataStride", hkInt32, MemberFlags.Private),  # probably fake
-        # Gap here...
+        Member(24, "zero0", hkInt32, MemberFlags.Private),  # ?
+        Member(28, "zero1", hkInt32, MemberFlags.Private),  # ?
         Member(32, "materialNameData", hkUint32, MemberFlags.Private),  # definitely here
         Member(36, "primitiveDataBuffer", hkArray(hkUint8), MemberFlags.Private),  # only place it fits! (empty anyway)
     )
@@ -28,6 +28,7 @@ class CustomMeshParameter(hkReferencedObject):
 
     version: int
     vertexDataBuffer: list[int]
-    vertexDataStride: int
+    zero0: int
+    zero1: int
     materialNameData: int
     primitiveDataBuffer: list[int]

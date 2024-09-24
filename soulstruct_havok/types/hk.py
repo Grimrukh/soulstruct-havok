@@ -439,7 +439,7 @@ class hk:
                 return list(reader.unpack(fmt, offset=offset))
 
         if cls.tag_type_flags == TagDataType.FloatAndFloat32:
-            return list(reader.unpack(f"<{length}f", offset=offset))
+            return list(reader.unpack(f"{length}f", offset=offset))
 
         return None  # not a primitive array
 
@@ -459,7 +459,7 @@ class hk:
                 return True
 
         if cls.tag_type_flags == TagDataType.FloatAndFloat32:
-            writer.pack(f"<{len(value)}f", *value)
+            writer.pack(f"{len(value)}f", *value)
             return True
 
         return False

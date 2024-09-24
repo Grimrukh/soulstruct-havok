@@ -60,8 +60,11 @@ class HKX(GameFile):
 
     root: HKX_ROOT_TYPING = None
     hk_format: HavokFileFormat = None
-    hk_version: str = ""  # always stored in tagfile format (e.g. "20150100") rather than packfile ("hk_2015.1.0-r0")
+    # Havok version string. Packfiles support any format (e.g. 'Havok-5.5.0-r1' or 'hk_2010.2.0-r1'), but tagfiles
+    # require the format 'YYYYVVvv' (e.g. '20150100' for DSR) and will raise an error if not in this format.
+    hk_version: str = ""
     unpacker: None | TagFileUnpacker | PackFileUnpacker = None
+    is_big_endian: bool = False
     is_compendium: bool = False
     compendium_ids: list[bytes] = field(default_factory=list)
     # Maps `hk` type names to non-standard hash values found in file.
@@ -211,8 +214,9 @@ class HKX(GameFile):
 
         return cls(
             unpacker=unpacker,
-            hk_version=unpacker.hk_tagfile_format,  # parsed from packfile format
+            hk_version=unpacker.hk_version,  # packfile format (e.g. 'Havok-5.5.0-r1' or 'hk_2010.2.0-r1')
             hk_format=HavokFileFormat.Packfile,
+            is_big_endian=unpacker.byte_order == ByteOrder.BigEndian,
             root=unpacker.root,
             packfile_header_info=unpacker.get_header_info(),
         )
@@ -225,8 +229,9 @@ class HKX(GameFile):
 
         return cls(
             unpacker=unpacker,
-            hk_version=unpacker.hk_tagfile_version,  # correct format
+            hk_version=unpacker.hk_version,  # tagfile format 'YYYYVVvv'
             hk_format=HavokFileFormat.Tagfile,
+            is_big_endian=unpacker.byte_order == ByteOrder.BigEndian,
             root=unpacker.root,
             is_compendium=unpacker.is_compendium,
             compendium_ids=unpacker.compendium_ids,
@@ -244,8 +249,19 @@ class HKX(GameFile):
 
     @property
     def py_havok_module(self) -> PyHavokModule:
-        """Currently only have one Havok types module per release year."""
-        return PyHavokModule(self.hk_version[:4])
+        """Currently only have one Havok types module per release year.
+
+        Trivially retrieved from tagfile version strings. For packfile version strings, the first four digits before the
+        first '-' are used (so '-r1' suffix is ignored).
+        """
+        if self.hk_format == HavokFileFormat.Tagfile:
+            return PyHavokModule(self.hk_version[:4])
+        prefix = self.hk_version.removeprefix("Havok-").removeprefix("hk_").split("-")[0]
+        digits = re.findall(r"\d+", prefix)
+        first_four = "".join(digits)[:4]  # e.g. '2010' or '550'
+        if len(first_four) < 3:
+            raise ValueError(f"Could not find year/version in Havok version string: {self.hk_version}")
+        return PyHavokModule(first_four)
 
     def get_root_tree_string(self, max_primitive_sequence_size=-1) -> str:
         return self.root.get_tree_string(max_primitive_sequence_size=max_primitive_sequence_size)

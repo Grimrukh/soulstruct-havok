@@ -24,44 +24,14 @@ from soulstruct.utilities.binary import BinaryReader, BinaryWriter
 
 from soulstruct_havok.core import HKX
 from soulstruct_havok.enums import PyHavokModule
-from soulstruct_havok.types import hk2010, hk2015, hk2016
+from soulstruct_havok.types import hk550, hk2010, hk2015, hk2016
+from soulstruct_havok.types.protocols.physics import *
 from soulstruct_havok.utilities.files import HAVOK_PACKAGE_PATH
 from soulstruct_havok.utilities.maths import Vector4
 from soulstruct_havok.utilities.mopper import mopper
 from soulstruct_havok.utilities.wavefront import read_obj
 
 _LOGGER = logging.getLogger("soulstruct_havok")
-
-PHYSICS_DATA_T = tp.Union[
-    hk2010.hkpPhysicsData,
-    hk2015.hkpPhysicsData,
-    hk2016.hkpPhysicsData,
-]
-PHYSICS_SYSTEM_T = tp.Union[
-    hk2010.hkpPhysicsSystem,
-    hk2015.hkpPhysicsSystem,
-    hk2016.hkpPhysicsSystem,
-]
-CUSTOM_MESH_SHAPE_T = tp.Union[
-    hk2010.CustomParamStorageExtendedMeshShape,
-    hk2015.CustomMeshParameter,
-    hk2016.CustomMeshParameter,
-]
-SUBPART_STORAGE_T = tp.Union[
-    hk2010.hkpStorageExtendedMeshShapeMeshSubpartStorage,
-    hk2015.hkpStorageExtendedMeshShapeMeshSubpartStorage,
-    hk2016.hkpStorageExtendedMeshShapeMeshSubpartStorage,
-]
-TRIANGLES_SUBPART_T = tp.Union[
-    hk2010.hkpExtendedMeshShapeTrianglesSubpart,
-    hk2015.hkpExtendedMeshShapeTrianglesSubpart,
-    hk2016.hkpExtendedMeshShapeTrianglesSubpart,
-]
-MOPP_CODE_T = tp.Union[
-    hk2010.hkpMoppCode,
-    hk2015.hkpMoppCode,
-    hk2016.hkpMoppCode,
-]
 
 
 class MapCollisionMaterial(IntEnum):
@@ -71,6 +41,8 @@ class MapCollisionMaterial(IntEnum):
     change the friction coefficient.
 
     TODO: Watch IW's awesome video on DS1 collision again.
+
+    TODO: Not confirmed for Demon's Souls (Havok 5.5.0).
     """
     Default = 0  # unknown usage
     Rock = 1  # actual rocks, bricks
@@ -88,19 +60,49 @@ class MapCollisionMaterial(IntEnum):
     Trigger = 40  # other triggers?
 
 
+class DemonsSoulsFaceFlags(IntEnum):
+    """Values attached to specifix mesh faces in Demon's Souls collisions (uint16)."""
+    x0000 = 0x0000  # most common                (in mesh 0 of h0004b0)
+    x0840 = 0x0840  # unknown = 0000100001000000 (in mesh 1 of h0004b0)
+    x2A0B = 0x2A0B  # unknown = 0010101000001011 (in mesh 1 of h0004b0)
+    x2A0C = 0x2A0C  # unknown = 0010101000001100 (in mesh 1 of h0004b0)
+    x43F8 = 0x43F8  # unknown = 0100001111101111 (in mesh 0 of h0004b0)
+    x43EF = 0x43EF  # unknown = 0100001111111000 (in mesh 0 of h0004b0)
+    xFFFF = 0xFFFF  # unknown = 1111111111111111 (in mesh 1 of h0004b0) (could be 'all' or 'default')
+
+
 @dataclass(slots=True)
 class MapCollisionModelMesh:
-    vertices: np.ndarray  # (n, 3) `float32` array (fourth column from HKX dropped)
-    faces: np.ndarray  # (m, 3) `uint16` array (fourth column from HKX dropped)
+    vertices: np.ndarray  # (n, 4) `float32` array directly from HKX (fourth column should be zeroes)
+    faces: np.ndarray  # (m, 4) `uint16` array directly from HKX (fourth column could contain face data)
     material_index: int = 0  # material index for this submesh (see `MapCollisionMaterial`)
+
+    @property
+    def vertices3D(self):
+        """Drop fourth column of vertices."""
+        return self.vertices[:, :3]
 
     @property
     def vertex_count(self):
         return self.vertices.shape[0]
 
     @property
+    def face_vertex_indices(self):
+        """Drop fourth column of faces."""
+        return self.faces[:, :3]
+
+    @property
+    def face_data(self):
+        """Return fourth column of faces, which may contain special flags or just zeroes."""
+        return self.faces[:, 3]
+
+    @property
     def face_count(self):
         return self.faces.shape[0]
+
+    @property
+    def vertex_index_bit_size(self) -> int:
+        return self.faces.dtype.itemsize * 8
 
 
 @dataclass(slots=True)
@@ -128,8 +130,11 @@ class MapCollisionModel(GameFile):
     meshes: list[MapCollisionModelMesh]
     # Havok version of the model, which determines the HKX export format. Set on HKX import and can be changed.
     py_havok_module: PyHavokModule
+    # Indicates if this model will be exported as big-endian.
+    is_big_endian: bool = False
 
     SUPPORTED_MODULES: tp.ClassVar[set[PyHavokModule]] = {
+        PyHavokModule.hk550,
         PyHavokModule.hk2010,
         PyHavokModule.hk2015,
         PyHavokModule.hk2016,
@@ -170,20 +175,30 @@ class MapCollisionModel(GameFile):
             material_indices += (0,) * excess_count
 
         for subpart_storage, material_index in zip(mesh_subparts, material_indices):
-            if len(subpart_storage.indices16) % 4:
-                raise ValueError("Collision HKX mesh subpart `indices16` length must be a multiple of 4.")
-            vertices = subpart_storage.vertices[:, :3]  # drop fourth column
-            face_count = len(subpart_storage.indices16) // 4
-            faces = np.empty((face_count, 3), dtype=np.uint16)
-            for f in range(face_count):
-                index_0 = subpart_storage.indices16[4 * f]
-                index_1 = subpart_storage.indices16[4 * f + 1]
-                index_2 = subpart_storage.indices16[4 * f + 2]
-                # NOTE: Index 3 in `mesh.indices16` quadruples is always 0, so we ignore it.
-                faces[f] = [index_0, index_1, index_2]
+
+            if indices8 := getattr(subpart_storage, "indices8", []):
+                # This HKX uses 8-bit indices.
+                vertex_indices = indices8
+                face_dtype = np.dtype("uint8")
+            elif subpart_storage.indices16:
+                # This HKX uses 16-bit indices.
+                vertex_indices = subpart_storage.indices16
+                face_dtype = np.dtype("uint16")
+            elif subpart_storage.indices32:
+                # This HKX uses 32-bit indices.
+                vertex_indices = subpart_storage.indices32
+                face_dtype = np.dtype("uint32")
+            else:
+                raise ValueError("Collision HKX mesh subpart has no `indices8`, `indices16`, or `indices32`.")
+
+            if len(vertex_indices) % 4:
+                raise ValueError("Collision HKX mesh subpart `indices{N}` length must be a multiple of 4.")
+
+            vertices = subpart_storage.vertices
+            faces = np.array(vertex_indices, dtype=face_dtype).reshape((-1, 4))
             meshes.append(MapCollisionModelMesh(vertices, faces, material_index))
 
-        return cls(name=name, meshes=meshes, py_havok_module=hkx.py_havok_module)
+        return cls(name=name, meshes=meshes, py_havok_module=hkx.py_havok_module, is_big_endian=hkx.is_big_endian)
 
     def to_writer(self) -> BinaryWriter:
         """Just wraps `HKX` class."""
@@ -197,6 +212,9 @@ class MapCollisionModel(GameFile):
 
         # TODO: Template shouldn't strictly be necessary. I'm just too lazy to set up the full HKX structure."""
         match self.py_havok_module:
+            case PyHavokModule.hk550:
+                template_path = HAVOK_PACKAGE_PATH("resources/MapCollisionTemplate550.hkx")
+                hkx = HKX.from_path(template_path)
             case PyHavokModule.hk2010:
                 template_path = HAVOK_PACKAGE_PATH("resources/MapCollisionTemplate2010.hkx")
                 hkx = HKX.from_path(template_path)
@@ -221,44 +239,39 @@ class MapCollisionModel(GameFile):
         # HKX files have only a single system, rigid body, and child shape.)
         child_shape = self.get_child_shape(physics_system)
         total_face_count = sum(mesh.face_count for mesh in self.meshes)
-        child_shape.cachedNumChildShapes = total_face_count
+        if hasattr(child_shape, "cachedNumChildShapes"):
+            child_shape.cachedNumChildShapes = total_face_count
         child_shape.trianglesSubparts = []
         child_shape.meshstorage = []
         child_shape.materialArray = []
 
         for mesh in self.meshes:
 
-            vertices = mesh.vertices
-            faces = mesh.faces
-
-            subpart = self.new_triangles_subpart(len(vertices), len(faces))
+            subpart = self.new_triangles_subpart(mesh)
             child_shape.trianglesSubparts.append(subpart)
 
-            if vertices.shape[1] == 3:
-                # Add fourth column of zeroes.
-                vertices = np.hstack((vertices, np.zeros((mesh.vertex_count, 1), dtype=vertices.dtype)))
-
-            if faces.shape[1] == 3:
-                # Add fourth column of zeroes.
-                faces = np.hstack((faces, np.zeros((mesh.face_count, 1), dtype=faces.dtype)))
-
-            storage = self.new_subpart_storage(vertices, faces)
+            storage = self.new_subpart_storage(mesh)
             child_shape.meshstorage.append(storage)
 
             kwargs = dict(
-                version=37120,
+                version=37120,  # true for all supported games (DeS, DS1)
                 vertexDataBuffer=[255] * mesh.vertex_count,
-                # TODO: `vertexDataStride` is a weird field I can't map out from the 2010 bytes.
-                vertexDataStride=0 if self.py_havok_module == PyHavokModule.hk2010 else 1,
                 primitiveDataBuffer=[],
                 materialNameData=mesh.material_index,
             )
+            # Remaining `CustomMeshParameter` kwargs are module-specific.
             match self.py_havok_module:
+                case PyHavokModule.hk550:
+                    kwargs |= {"zero0": 0, "zero1": 0}
+                    material = hk550.CustomMeshParameter(**kwargs)
                 case PyHavokModule.hk2010:
+                    kwargs |= {"zero0": 0, "zero1": 0}
                     material = hk2010.CustomMeshParameter(**kwargs)
                 case PyHavokModule.hk2015:
+                    kwargs |= {"vertexDataStride": 1}
                     material = hk2015.CustomMeshParameter(**kwargs)
                 case PyHavokModule.hk2016:
+                    kwargs |= {"vertexDataStride": 1}
                     material = hk2016.CustomMeshParameter(**kwargs)
                 case _:  # unreachable
                     raise ValueError(
@@ -271,9 +284,7 @@ class MapCollisionModel(GameFile):
         # to disagree (or just didn't care), because it is included for multi-subpart models. Note that the embedded
         # subpart is a fresh instance, NOT just a reference to the first subpart object from above.
         first_mesh = self.meshes[0]
-        child_shape.embeddedTrianglesSubpart = self.new_triangles_subpart(
-            first_mesh.vertex_count, first_mesh.face_count
-        )
+        child_shape.embeddedTrianglesSubpart = self.new_triangles_subpart(first_mesh)
 
         # Get 3D mins/maxs of all vertices to calculate AABB. (`w = 0` added below.)
         vertex_mins = [mesh.vertices.min(axis=0) for mesh in self.meshes]
@@ -283,67 +294,60 @@ class MapCollisionModel(GameFile):
         half_extents = (global_max - global_min) / 2
         center = (global_max + global_min) / 2
 
-        child_shape.aabbHalfExtents = Vector4([*half_extents, 0.0])
-        child_shape.aabbCenter = Vector4([*center, 0.0])
+        child_shape.aabbHalfExtents = Vector4(half_extents)
+        child_shape.aabbCenter = Vector4(center)
 
         # Use Mopper executable to regenerate binary MOPP code.
         self.regenerate_mopp_data(physics_system)
 
         return hkx
 
+    # noinspection PyTypeChecker
     @staticmethod
-    def get_hkx_physics(hkx: HKX) -> tuple[PHYSICS_DATA_T, PHYSICS_SYSTEM_T]:
-        # noinspection PyTypeChecker
-        physics_data = hkx.root.namedVariants[0].variant  # type: PHYSICS_DATA_T
-        if not isinstance(physics_data, (hk2010.hkpPhysicsData, hk2015.hkpPhysicsData, hk2016.hkpPhysicsSystem)):
+    def get_hkx_physics(hkx: HKX) -> tuple[PhysicsData, PhysicsSystem]:
+        physics_data = hkx.root.namedVariants[0].variant  # type: PhysicsData
+        if physics_data.get_type_name() != "hkpPhysicsData":
             raise TypeError(f"Expected HKX variant 0 to be `hkpPhysicsData`. Found: {physics_data.get_type_name()}")
-        physics_system = physics_data.systems[0]  # type: PHYSICS_SYSTEM_T
+        physics_system = physics_data.systems[0]  # type: PhysicsSystem
         return physics_data, physics_system
 
+    # noinspection PyTypeChecker
     @staticmethod
-    def get_child_shape(physics_system: PHYSICS_SYSTEM_T) -> CUSTOM_MESH_SHAPE_T:
+    def get_child_shape(physics_system: PhysicsSystem) -> FSCustomParamStorageExtendedMeshShape:
         """Validates type of collision shape and returns `childShape`."""
-        shape = physics_system.rigidBodies[0].collidable.shape
-        if not isinstance(shape, (hk2010.hkpMoppBvTreeShape, hk2015.hkpMoppBvTreeShape, hk2016.hkpMoppBvTreeShape)):
+        shape = physics_system.rigidBodies[0].collidable.shape  # type: MoppBvTreeShape
+        if shape.get_type_name() != "hkpMoppBvTreeShape":
             raise TypeError("Expected collision shape to be `hkpMoppBvTreeShape`.")
-        child_shape = shape.child.childShape
-        if not isinstance(
-            child_shape,
-            (
-                hk2010.CustomParamStorageExtendedMeshShape,
-                hk2015.CustomParamStorageExtendedMeshShape,
-                hk2016.CustomParamStorageExtendedMeshShape,
-            ),
-        ):
+        child_shape = shape.child.childShape  # type: FSCustomParamStorageExtendedMeshShape
+        if child_shape.get_type_name() != "CustomParamStorageExtendedMeshShape":
             raise TypeError(
                 f"Expected collision child shape to be `CustomParamStorageExtendedMeshShape`. "
-                f"Found: {child_shape.__class__.__name__}"
+                f"Found: {child_shape.get_type_name()}"
             )
         return child_shape
 
+    # noinspection PyTypeChecker
     @staticmethod
-    def get_mopp_code(physics_system: PHYSICS_SYSTEM_T) -> MOPP_CODE_T:
-        shape = physics_system.rigidBodies[0].collidable.shape
-        if not isinstance(
-            shape,
-            (
-                hk2010.hkpMoppBvTreeShape,
-                hk2015.hkpMoppBvTreeShape,
-                hk2016.hkpMoppBvTreeShape,
-            ),
-        ):
+    def get_mopp_code(physics_system: PhysicsSystem) -> MoppCode:
+        shape = physics_system.rigidBodies[0].collidable.shape  # type: MoppBvTreeShape
+        if shape.get_type_name() != "hkpMoppBvTreeShape":
             raise TypeError("Expected collision shape to be `hkpMoppBvTreeShape`.")
         return shape.code
 
-    @classmethod
-    def regenerate_mopp_data(cls, physics_system: PHYSICS_SYSTEM_T):
-        """Use `mopper.exe` to build new MOPP code, including `code.info.offset` vector."""
-        shape = cls.get_child_shape(physics_system)
+    def regenerate_mopp_data(self, physics_system: PhysicsSystem):
+        """Use `mopper.exe` to build new MOPP code, including `code.info.offset` vector.
+
+        Works for Demon's Souls, Dark Souls: PTDE, and Dark Souls: Remastered. Games after DS1 use `hkcd` classes
+        rather than MOPP code and are currently impossible to build/export.
+        """
+        shape = self.get_child_shape(physics_system)
         meshstorage = shape.meshstorage
-        mopp_code = cls.get_mopp_code(physics_system)
+        mopp_code = self.get_mopp_code(physics_system)
 
         mopper_input = [f"{len(meshstorage)}"]
         for mesh in meshstorage:
+            if not mesh.indices16:
+                raise ValueError("Cannot regenerate MOPP code for mesh with no 16-bit vertex indices.")
             mopper_input.append("")
             mopper_input.append(f"{len(mesh.vertices)}")
 
@@ -353,11 +357,12 @@ class MapCollisionModel(GameFile):
             mopper_input.append(v.getvalue())
             mopper_input.append("")  # blank line
 
-            mopper_input.append(f"{len(mesh.indices16) // 4}")
-            faces = mesh.indices16.copy()
-            while faces:
-                mopper_input.append(f"{faces[0]} {faces[1]} {faces[2]}")
-                faces = faces[4:]  # drop 0 after triple
+            face_count = len(mesh.indices16) // 4
+            mopper_input.append(f"{face_count}")
+            for f in range(face_count):
+                # Write first three elements only.
+                i = f * 4
+                mopper_input.append(f"{mesh.indices16[i]} {mesh.indices16[i + 1]} {mesh.indices16[i + 2]}")
 
         mopp = mopper(mopper_input, mode="-esm")
         new_mopp_code = mopp["hkpMoppCode"]["data"]
@@ -365,19 +370,44 @@ class MapCollisionModel(GameFile):
         mopp_code.data = new_mopp_code
         mopp_code.info.offset = Vector4(new_offset)
 
-    def new_subpart_storage(self, vertices: np.ndarray, faces: np.ndarray) -> SUBPART_STORAGE_T:
+    def new_subpart_storage(self, mesh: MapCollisionModelMesh) -> StorageExtendedMeshShapeMeshSubpartStorage:
         """Create Havok 'subpart storage' class that stores the vertex positions and faces (vertex indices)."""
+
+        if mesh.vertices.shape[1] == 3:
+            # Add fourth column of zeroes.
+            vertices = np.hstack((mesh.vertices, np.zeros((mesh.vertex_count, 1), dtype=mesh.vertices.dtype)))
+        else:
+            vertices = mesh.vertices
+
+        if mesh.faces.shape[1] == 3:
+            # Add fourth column of zeroes.
+            faces = np.hstack((mesh.faces, np.zeros((mesh.face_count, 1), dtype=mesh.faces.dtype)))
+        else:
+            faces = mesh.faces
+        vertex_indices = faces.ravel().tolist()  # flatten to list
+
         kwargs = dict(
             # `referenceCount` / `refCount` defaults to 0
             vertices=vertices,
-            indices8=[],
-            indices16=faces.ravel().tolist(),
+            indices16=[],
             indices32=[],
             materialIndices=[],
             materials=[],
-            namedMaterials=[],
             materialIndices16=[],
         )
+
+        if self.py_havok_module == PyHavokModule.hk550:
+            if mesh.vertex_index_bit_size == 8:
+                raise ValueError("Havok 550 does not support 8-bit mesh vertex indices.")
+            kwargs[f"indices{mesh.vertex_index_bit_size}"] = vertex_indices
+            return hk550.hkpStorageExtendedMeshShapeMeshSubpartStorage(**kwargs)
+
+        kwargs |= dict(
+            indices8=[],
+            namedMaterials=[],
+        )
+        kwargs[f"indices{mesh.vertex_index_bit_size}"] = vertex_indices
+
         match self.py_havok_module:
             case PyHavokModule.hk2010:
                 return hk2010.hkpStorageExtendedMeshShapeMeshSubpartStorage(**kwargs)
@@ -385,51 +415,64 @@ class MapCollisionModel(GameFile):
                 return hk2015.hkpStorageExtendedMeshShapeMeshSubpartStorage(**kwargs)
             case PyHavokModule.hk2016:
                 return hk2016.hkpStorageExtendedMeshShapeMeshSubpartStorage(**kwargs)
-            case _:
-                raise ValueError(f"Cannot export `MapCollisionModel` to HKX for Havok version: {self.py_havok_module}")
 
-    def new_triangles_subpart(self, vertices_count: int, faces_count: int) -> TRIANGLES_SUBPART_T:
+        raise ValueError(f"Cannot export `MapCollisionModel` to HKX for Havok version: {self.py_havok_module}")
+
+    def new_triangles_subpart(self, mesh: MapCollisionModelMesh) -> ExtendedMeshShapeTrianglesSubpart:
         """Returns a new `hkpExtendedMeshShapeTrianglesSubpart` with the given number of vertices and faces.
 
         All other members can be set to default values, fortunately (in DS1 at least).
         """
         kwargs = dict(
-            typeAndFlags=2,
-            shapeInfo=0,
-            materialIndexBase=None,
-            materialBase=None,
-            vertexBase=None,
-            indexBase=None,
-            materialStriding=0,
-            materialIndexStriding=0,
-            userData=0,
-            numTriangleShapes=faces_count,
-            numVertices=vertices_count,
+            numTriangleShapes=mesh.face_count,
             vertexStriding=16,
-            triangleOffset=2010252431,  # TODO: should be given in `mopp.json` (but doesn't seem critical)
-            indexStriding=8,
-            stridingType=2,  # 16-bit
-            flipAlternateTriangles=0,
+            numVertices=mesh.vertex_count,
             extrusion=Vector4.zero(),
+            indexStriding=8,
+            flipAlternateTriangles=0,
+            triangleOffset=-1,  # hard-coded offset in HKX files, but not needed
         )
+        # Remaining fields are module-specific.
         match self.py_havok_module:
+            case PyHavokModule.hk550:
+                kwargs |= dict(
+                    type=0,
+                    materialIndexStridingType=1,
+                    materialStriding=0,
+                    materialIndexStriding=0,
+                    stridingType=1,
+                    numMaterials=1,
+                )
+                return hk550.hkpExtendedMeshShapeTrianglesSubpart(**kwargs)
             case PyHavokModule.hk2010:
-                return hk2010.hkpExtendedMeshShapeTrianglesSubpart(
-                    **kwargs,
+                kwargs |= dict(
+                    typeAndFlags=2,
+                    shapeInfo=0,
+                    userData=0,
+                    stridingType=2,
                     transform=hk2010.hkQsTransform(),
                 )
+                return hk2010.hkpExtendedMeshShapeTrianglesSubpart(**kwargs)
             case PyHavokModule.hk2015:
-                return hk2015.hkpExtendedMeshShapeTrianglesSubpart(
-                    **kwargs,
+                kwargs |= dict(
+                    typeAndFlags=2,
+                    shapeInfo=0,
+                    userData=0,
+                    stridingType=2,
                     transform=hk2015.hkQsTransform(),
                 )
+                return hk2015.hkpExtendedMeshShapeTrianglesSubpart(**kwargs)
             case PyHavokModule.hk2016:
-                return hk2016.hkpExtendedMeshShapeTrianglesSubpart(
-                    **kwargs,
+                kwargs |= dict(
+                    typeAndFlags=2,
+                    shapeInfo=0,
+                    userData=0,
+                    stridingType=2,
                     transform=hk2016.hkQsTransform(),
                 )
-            case _:
-                raise ValueError(f"Cannot export `MapCollisionModel` to HKX for Havok version: {self.py_havok_module}")
+                return hk2016.hkpExtendedMeshShapeTrianglesSubpart(**kwargs)
+
+        raise ValueError(f"Cannot export `MapCollisionModel` to HKX for Havok version: {self.py_havok_module}")
 
     @classmethod
     def from_obj_path(
@@ -510,3 +553,22 @@ class MapCollisionModel(GameFile):
     def write_obj(self, obj_path: Path | str):
         """Write OBJ file to `obj_path`."""
         Path(obj_path).write_text(self.to_obj())
+
+    def __repr__(self) -> str:
+        lines = [
+            "MapCollisionModel(",
+            f"    name=\"{self.name}\",",
+            f"    py_havok_module={repr(self.py_havok_module)},",
+            f"    meshes=[",
+        ]
+        for mesh in self.meshes:
+            lines.append("        MapCollisionModelMesh(")
+            vertices = str(mesh.vertices).replace("\n", "\n                    ")
+            faces = str(mesh.faces).replace("\n", "\n                 ")
+            lines.append(f"           material_index={mesh.material_index},")
+            lines.append(f"           vertices={vertices} <{len(mesh.vertices)}>,")
+            lines.append(f"           faces={faces} <{len(mesh.faces)}>,")
+            lines.append("        ),")
+        lines.append("    ],")
+        lines.append(")")
+        return "\n".join(lines)

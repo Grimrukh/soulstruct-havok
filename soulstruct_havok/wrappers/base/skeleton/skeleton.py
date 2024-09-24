@@ -8,7 +8,7 @@ import typing as tp
 from dataclasses import dataclass, field
 from types import ModuleType
 
-from soulstruct_havok.utilities.maths import Vector3, Vector4
+from soulstruct_havok.utilities.maths import Vector3, Vector4, TRSTransform
 
 from ..type_vars import SKELETON_T, BONE_T
 from .bone import Bone
@@ -92,6 +92,28 @@ class Skeleton(tp.Generic[SKELETON_T, BONE_T], abc.ABC):
     def get_root_bone_indices(self) -> list[int]:
         """Get all root (i.e. parent-less) bone indices."""
         return [i for i, bone in enumerate(self.bones) if bone.parent is None]
+
+    def get_reference_poses(self) -> dict[str, TRSTransform]:
+        """Get a dictionary mapping bone names to their reference poses."""
+        return {bone.name: bone.get_reference_pose() for bone in self.bones}
+
+    def get_arma_space_reference_poses(self) -> dict[str, TRSTransform]:
+        """Get a dictionary mapping bone names to their reference poses in armature space."""
+
+        # We start with local reference poses, and compose parent poses from the top (root bones) down.
+        bone_arma_poses = self.get_reference_poses()
+
+        def local_to_parent(bone_: Bone, parent_ref_pose: TRSTransform):
+            bone_arma_poses[bone_.name] = parent_ref_pose @ bone_arma_poses[bone_.name]
+            # Recur on children, using this bone's just-computed armature-space reference pose.
+            for child_bone in bone_.children:
+                local_to_parent(child_bone, bone_arma_poses[bone_.name])
+
+        for root_bone in self.get_root_bones():
+            # Start recurring transformer on root bones. (Their local space IS armature space.)
+            local_to_parent(root_bone, TRSTransform.identity())
+
+        return bone_arma_poses
 
     def scale_all_translations(self, scale_factor: float | Vector3 | Vector4):
         """Scale all bone translations in place by `scale_factor`."""

@@ -24,7 +24,7 @@ if tp.TYPE_CHECKING:
 
 _LOGGER = logging.getLogger("soulstruct_havok")
 
-colorama.init()
+colorama.just_fix_windows_console()
 YELLOW = colorama.Fore.YELLOW
 MAGENTA = colorama.Fore.MAGENTA
 RESET = colorama.Fore.RESET
@@ -50,12 +50,15 @@ class TagFileUnpacker:
     root: None | hk2015.hkRootLevelContainer | hk2018.hkRootLevelContainer = None
     hk_type_infos: list[TypeInfo] = field(default_factory=list)
     items: list[TagFileItem] = field(default_factory=list)
+    byte_order: ByteOrder = ByteOrder.LittleEndian
     is_compendium: bool = False
     compendium_ids: list[bytes] = field(default_factory=list)
     hsh_overrides: dict[str, int | None] = field(default_factory=dict)
-    hk_tagfile_version: str = ""  # "YYYYVVvv" string
+    hk_version: str = ""  # "YYYYVVvv" string
 
     def unpack(self, reader: BinaryReader, compendium: tp.Optional[HKX] = None, types_only=False):
+
+        # TODO: Detect `byte_order` and set `reader`. (Currently always little-endian.)
 
         with self.unpack_section(reader, "TAG0", "TCM0") as (_, root_magic):
 
@@ -63,19 +66,19 @@ class TagFileUnpacker:
                 # Object file.
                 self.is_compendium = False
                 with self.unpack_section(reader, "SDKV"):
-                    self.hk_tagfile_version = reader.unpack_string(length=8, encoding="utf-8")
+                    self.hk_version = reader.unpack_string(length=8, encoding="utf-8")
                     if not types_only:
-                        if self.hk_tagfile_version.startswith("2015"):
+                        if self.hk_version.startswith("2015"):
                             from soulstruct_havok.types import hk2015
                             self.hk_types_module = hk2015
-                        elif self.hk_tagfile_version.startswith("2016"):
+                        elif self.hk_version.startswith("2016"):
                             from soulstruct_havok.types import hk2016
                             self.hk_types_module = hk2016
-                        elif self.hk_tagfile_version.startswith("2018"):
+                        elif self.hk_version.startswith("2018"):
                             from soulstruct_havok.types import hk2018
                             self.hk_types_module = hk2018
                         else:
-                            raise VersionModuleError(f"No Havok type module for version: {self.hk_tagfile_version}")
+                            raise VersionModuleError(f"No Havok type module for version: {self.hk_version}")
 
                 with self.unpack_section(reader, "DATA"):
                     data_start_offset = reader.position
@@ -119,7 +122,7 @@ class TagFileUnpacker:
                     if modules_to_create:
 
                         init_imports = []
-                        types_path = Path(__file__).parent / f"../types/hk{self.hk_tagfile_version[:4]}"
+                        types_path = Path(__file__).parent / f"../types/hk{self.hk_version[:4]}"
 
                         for type_info, type_module_def, init_import in modules_to_create:
                             new_file = types_path / f"{type_info.py_name}.py"
@@ -127,7 +130,7 @@ class TagFileUnpacker:
                             _LOGGER.info(f"# Wrote new type file: {new_file.resolve()}")
                             init_imports.append(type_info.py_name)
 
-                        print(f"\nImport lines to add to `types.hk{self.hk_tagfile_version[:4]}.__init__.py`:")
+                        print(f"\nImport lines to add to `types.hk{self.hk_version[:4]}.__init__.py`:")
                         for line in sorted(init_imports):
                             print(f"from .{line} import {line}")
                         # Don't raise exception until type match errors have been reported below.

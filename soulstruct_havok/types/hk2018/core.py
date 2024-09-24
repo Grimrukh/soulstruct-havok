@@ -309,7 +309,8 @@ class hkVector4f(hkStruct(_float, 4)):
     def unpack_primitive_array(cls, reader: BinaryReader, length: int, offset: int = None) -> np.ndarray:
         """Unpack vector array with `numpy`."""
         data = reader.read(length * 4 * cls.length, offset=offset)
-        return np.frombuffer(data, dtype=np.float32).reshape((length, cls.length))
+        dtype = np.dtype(f"{reader.default_byte_order}f4")
+        return np.frombuffer(data, dtype=dtype).reshape((length, cls.length))
 
     @classmethod
     def try_pack_primitive_array(cls, writer: BinaryWriter, value: np.ndarray) -> bool:

@@ -11,10 +11,9 @@ from __future__ import annotations
 
 __all__ = ["TypeInfoGenerator"]
 
-import typing as tp
 from collections import deque
 
-from colorama import init as colorama_init, Fore
+import colorama
 
 from soulstruct_havok.tagfile.structs import TagFileItem
 
@@ -22,7 +21,11 @@ from .hk64 import *
 from .info import *
 
 
-colorama_init()
+colorama.just_fix_windows_console()
+BLUE = colorama.Fore.BLUE
+GREEN = colorama.Fore.GREEN
+YELLOW = colorama.Fore.YELLOW
+RESET = colorama.Fore.RESET
 
 
 class TypeInfoGenerator:
@@ -41,7 +44,7 @@ class TypeInfoGenerator:
             else:
                 item_type = item.hk_type
             if self._DEBUG_PRINT:
-                print(f"{Fore.BLUE}Scanning item: {item_type.__name__}{Fore.RESET}")
+                print(f"{BLUE}Scanning item: {item_type.__name__}{RESET}")
             self._scan_hk_type_queue(deque([item_type]), indent=0)
             if item_type.__name__ == "hkRootLevelContainer":
                 self._add_type(getattr(self._module, "_char"))
@@ -53,7 +56,7 @@ class TypeInfoGenerator:
         type_info_index = len(self.type_infos) + 1
         self.type_infos[hk_type.__name__] = hk_type.get_type_info()
         if self._DEBUG_PRINT:
-            print(f"{' ' * indent}  {Fore.GREEN}Created TypeInfo {type_info_index}: {hk_type.__name__}{Fore.RESET}")
+            print(f"{' ' * indent}  {GREEN}Created TypeInfo {type_info_index}: {hk_type.__name__}{RESET}")
 
     def _scan_hk_type_queue(self, hk_type_queue: deque[type[hk]], indent=0):
         hk_type_subqueue = deque()  # type: deque[type[hk]]
@@ -70,7 +73,7 @@ class TypeInfoGenerator:
         if hk_type.__name__ in self._scanned_type_names:
             return  # type already scanned
         if self._DEBUG_PRINT:
-            print(f"{' ' * indent}{Fore.YELLOW}Scanning type: {hk_type.__name__}{Fore.RESET}")
+            print(f"{' ' * indent}{YELLOW}Scanning type: {hk_type.__name__}{RESET}")
         self._scanned_type_names.add(hk_type.__name__)
 
         # Add this type itself (though it most likely was already added when queued).

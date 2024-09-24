@@ -24,6 +24,7 @@ __all__ = [
 import typing as tp
 from collections import deque
 
+import colorama
 import numpy as np
 
 from soulstruct.utilities.inspection import get_hex_repr
@@ -38,6 +39,8 @@ if tp.TYPE_CHECKING:
     from soulstruct.utilities.binary import BinaryReader
     from .hk import hk
     from .base import hkArray_
+
+colorama.just_fix_windows_console()
 
 
 def unpack_bool(hk_type: type[hk], reader: BinaryReader) -> bool:
@@ -62,12 +65,12 @@ def pack_int(hk_type: type[hk], item: PackFileItem, value: int):
 
 def unpack_float32(reader: BinaryReader) -> float | hk:
     """32-bit floats are unpacked directly; others (like half floats) are unpacked as classes (Havok's setup)."""
-    return reader.unpack_value("<f")
+    return reader.unpack_value("f")
 
 
 def pack_float(hk_type: type[hk], item: PackFileItem, value: float | hk):
     if hk_type.tag_type_flags == TagDataType.FloatAndFloat32:
-        item.writer.pack("<f", value)
+        item.writer.pack("f", value)
     else:
         # Will definitely not use or create items.
         pack_class(hk_type, item, value, existing_items={}, data_pack_queue={})
@@ -119,7 +122,7 @@ def pack_class(
 
     if "hkBaseObject" in [parent_type.__name__ for parent_type in hk_type.get_type_hierarchy()]:
         # Pointer for the mysterious base object type.
-        item.writer.pack("<V", 0)
+        item.writer.pack("V", 0)
 
     if debug.DEBUG_PRINT_UNPACK:
         debug.increment_debug_indent()
@@ -147,7 +150,7 @@ def pack_class(
 def unpack_pointer(data_hk_type: type[hk], item: PackFileItem) -> hk | None:
     """`data_hk_type` is used to make sure that the referenced item's `hk_type` is a subclass of it."""
     source_offset = item.reader.position
-    zero = item.reader.unpack_value("<V")  # "dummy" pointer
+    zero = item.reader.unpack_value("V")  # "dummy" pointer
     if zero != 0:
         print(f"{item.hk_type.__name__} item pointers:")
         for offset, pointed_item in item.item_pointers.items():
@@ -172,6 +175,9 @@ def unpack_pointer(data_hk_type: type[hk], item: PackFileItem) -> hk | None:
             debug.debug_print(f"Unpacking NEW ITEM: {pointed_item.hk_type.__name__}")
         pointed_item.start_reader()
         if debug.DEBUG_PRINT_UNPACK:
+            print(pointed_item.hk_type.__name__)  # no indent
+            print(get_hex_repr(pointed_item.raw_data))  # no indent
+        if debug.DEBUG_PRINT_UNPACK:
             debug.increment_debug_indent()
         # NOTE: `pointed_item.hk_type` may be a subclass of `data_hk_type`, so it's important we use it here.
         pointed_item.value = pointed_item.hk_type.unpack_packfile(pointed_item)
@@ -194,12 +200,12 @@ def pack_pointer(
     """Pointer to another item, which may or may not have already been created."""
     if value is None:
         # Null pointer. Space is left for a global fixup, but it will never have a fixup.
-        item.writer.pack("<V", 0)  # global item fixup
+        item.writer.pack("V", 0)  # global item fixup
         return
 
     if value in existing_items:
         item.item_pointers[item.writer.position] = (existing_items[value], 0)
-        item.writer.pack("<V", 0)  # global item fixup
+        item.writer.pack("V", 0)  # global item fixup
         if debug.DEBUG_PRINT_PACK:
             debug.debug_print(f"Existing item: {type(existing_items[value]).__name__}")
         return
@@ -208,7 +214,7 @@ def pack_pointer(
         new_item = existing_items[value] = PackFileItem(hk_type=data_hk_type, long_varints=item.writer.long_varints)
         new_item.value = value
         item.item_pointers[item.writer.position] = (new_item, 0)
-        item.writer.pack("<V", 0)  # global item fixup
+        item.writer.pack("V", 0)  # global item fixup
         if debug.DEBUG_PRINT_PACK:
             debug.debug_print(f"Creating new item and queuing data pack: {type(new_item.value).__name__}")
 
@@ -224,10 +230,11 @@ def pack_pointer(
 
 def unpack_array(data_hk_type: type[hk], item: PackFileItem) -> list:
     array_pointer_offset = item.reader.position
-    zero, array_size, array_capacity_and_flags = item.reader.unpack("<VII")
+    zero, array_size, array_capacity_and_flags = item.reader.unpack("VII")
     if debug.DEBUG_PRINT_UNPACK:
         debug.debug_print(f"Array size: {array_size} | Capacity/Flags: {array_capacity_and_flags}")
     if zero != 0:
+        print(f"Item type: {item.hk_type.__name__}")
         print(f"Zero, array_size, array_caps_flags: {zero, array_size, array_capacity_and_flags}")
         print(f"Item child pointers: {item.child_pointers}")
         print(f"Item item pointers: {item.item_pointers}")
@@ -237,9 +244,18 @@ def unpack_array(data_hk_type: type[hk], item: PackFileItem) -> list:
     if array_size == 0:
         return []
 
-    array_data_offset = item.child_pointers[array_pointer_offset]
+    try:
+        array_data_offset = item.child_pointers[array_pointer_offset]
+    except KeyError:
+        print(f"Item type: {item.hk_type.__name__}")
+        print(f"Zero, array_size, array_caps_flags: {zero, array_size, array_capacity_and_flags}")
+        print(f"Item child pointers: {item.child_pointers}")
+        print(f"Item item pointers: {item.item_pointers}")
+        print(f"Item raw data:\n{get_hex_repr(item.raw_data)}")
+        raise ValueError(f"Array data offset not found in item child pointers: {array_pointer_offset}")
 
     if debug.DEBUG_PRINT_UNPACK:
+        debug.debug_print(f"Array item offset: {hex(array_data_offset)}")
         debug.increment_debug_indent()
     with item.reader.temp_offset(array_data_offset):
         value = data_hk_type.unpack_primitive_array(item.reader, array_size)
@@ -264,14 +280,14 @@ def pack_array(
     array_ptr_pos = item.writer.position
     if debug.DEBUG_PRINT_PACK:
         debug.debug_print(f"Array pointer position: {item.writer.position_hex} ({item.writer.long_varints})")
-    item.writer.pack("<V", 0)  # where the fixup would go, if it was actually resolved
+    item.writer.pack("V", 0)  # where the fixup would go, if it was actually resolved
     if debug.DEBUG_PRINT_PACK:
         debug.debug_print(f"Array length position: {item.writer.position_hex}")
-    item.writer.pack("<I", len(value))  # array length
+    item.writer.pack("I", len(value))  # array length
     # Capacity is same as length, and highest bit is enabled (flags "do not free memory", I believe).
     if debug.DEBUG_PRINT_PACK:
         debug.debug_print(f"Array cap/flags position: {item.writer.position_hex}")
-    item.writer.pack("<I", len(value) | (1 << 31 if with_flag else 0))  # highest bit on
+    item.writer.pack("I", len(value) | (1 << 31 if with_flag else 0))  # highest bit on
     data_hk_type = array_hk_type.get_data_type()
 
     if len(value) == 0:
@@ -336,7 +352,7 @@ def pack_struct(
 def unpack_string(item: PackFileItem) -> str:
     """Read a null-terminated string from item child pointer."""
     pointer_offset = item.reader.position
-    item.reader.unpack_value("<V", asserted=0)
+    item.reader.unpack_value("V", asserted=0)
     try:
         string_offset = item.child_pointers[pointer_offset]
     except KeyError:
@@ -358,7 +374,7 @@ def pack_string(
     """Note that string type (like `hkStringPtr`) is never explicitly defined in packfiles, since they do not have
     their own items, unlike in tagfiles."""
     string_ptr_pos = item.writer.position
-    item.writer.pack("<V", 0)  # where fixup would be resolved
+    item.writer.pack("V", 0)  # where fixup would be resolved
 
     if not value:
         return  # empty strings have no fixup

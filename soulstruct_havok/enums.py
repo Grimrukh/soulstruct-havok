@@ -18,6 +18,7 @@ from soulstruct.utilities.binary import BinaryReader
 
 class PyHavokModule(StrEnum):
     """Supported Havok versions in `soulstruct-havok`."""
+    hk550 = "550"    # Demon's Souls
     hk2010 = "2010"  # DS1:PTDE
     hk2014 = "2014"  # Bloodborne
     hk2015 = "2015"  # DS1:Remastered
@@ -288,11 +289,11 @@ class TagDataType(IntEnum):
         if tagfile_types & cls.Int8:
             fmt = f"{count}B"
         elif tagfile_types & cls.Int16:
-            fmt = f"<{count}H"
+            fmt = f"{count}H"
         elif tagfile_types & cls.Int32:
-            fmt = f"<{count}I"
+            fmt = f"{count}I"
         elif tagfile_types & cls.Int64:
-            fmt = f"<{count}Q"  # This was "<q" in TagTools, which I am 80% sure was a mistake.
+            fmt = f"{count}Q"
         else:
             raise TypeError(f"Cannot get struct format for node sub-type flags {tagfile_types}.")
         return fmt.lower() if tagfile_types & cls.IsSigned or signed else fmt
@@ -350,9 +351,9 @@ class MemberFlags(IntEnum):
     overlap perfectly with this newer class.
     """
 
-    NotSerializable = 0b0000_0001  # 1
-    Protected = 0b0000_0010  # 2
-    Private = 0b0000_0100  # 4
+    NotSerializable = 0b0000_0001  # 1  # '+nosave' or '+serialized(false)' comments in Havok headers?
+    Protected = 0b0000_0010  # 2  # protected member in Havok class
+    Private = 0b0000_0100  # 4  # private member in Havok class
     Default = 0b0010_0000  # 32 (always enabled)
 
     @classmethod

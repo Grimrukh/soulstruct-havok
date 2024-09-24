@@ -35,9 +35,10 @@ class PackFileBaseEntry(abc.ABC):
     local_data_offset: int = -1
     item_byte_size: int = -1
     raw_data: bytes = b""
+    byte_order: ByteOrder = ByteOrder.LittleEndian
     long_varints: bool = False
 
-    # Maps source offsets to dest offsets inside same item.
+    # Maps source offsets to dest offsets inside same item. TODO: Always arrays?
     child_pointers: dict[int, int] = field(default_factory=dict)
     # Maps source offsets to dest entries from same section.
     item_pointers: dict[int, tuple[PackFileBaseEntry, int]] = field(default_factory=dict)
@@ -45,11 +46,12 @@ class PackFileBaseEntry(abc.ABC):
     reader: BinaryReader | None = None
     writer: BinaryWriter | None = None
 
-    def unpack(self, section_reader: BinaryReader, data_size: int, long_varints: bool):
+    def unpack(self, section_reader: BinaryReader, data_size: int, byte_order: ByteOrder, long_varints: bool):
         """`section_reader` should be local for this section, NOT the whole HKX file."""
         self.local_data_offset = section_reader.position  # offset inside data section
         self.item_byte_size = data_size
         self.raw_data = section_reader.read(data_size)  # parsed later
+        self.byte_order = byte_order
         self.long_varints = long_varints
 
     def get_offset_in_item(self, offset: int) -> int:
@@ -65,12 +67,12 @@ class PackFileBaseEntry(abc.ABC):
         """Create raw data reader. Raises `ValueError` if the reader was already created."""
         if self.reader is not None:
             raise ValueError(f"`{self.__class__.__name__}` reader was already created.")
-        self.reader = BinaryReader(self.raw_data, long_varints=self.long_varints)
+        self.reader = BinaryReader(self.raw_data, default_byte_order=self.byte_order, long_varints=self.long_varints)
 
     def start_writer(self):
         if self.writer is not None:
             raise ValueError(f"`{self.__class__.__name__}` writer was already created.")
-        self.writer = BinaryWriter(long_varints=self.long_varints)
+        self.writer = BinaryWriter(byte_order=self.byte_order, long_varints=self.long_varints)
 
 
 @dataclass(slots=True)
@@ -209,7 +211,7 @@ class PackFileHeader(BinaryStruct):
     contents_section_index: int = field(init=False, **Binary(asserted=2))  # data section
     contents_section_offset: int = field(init=False, **Binary(asserted=0))  # start of data section
     contents_type_name_section_index: int = field(init=False, **Binary(asserted=0))  # type name section
-    contents_type_name_section_offset: int = field(init=False, **Binary(asserted=75))  # 'hkRootLevelContainer' str
+    contents_type_name_section_offset: int = field(init=False, **Binary(asserted=(75, 910)))  # 'hkRootLevelContainer' str
     contents_version_string: bytes = field(**BinaryString(14))  # e.g. "hk_2010.2.0-r1"
     _pad1: bytes = field(init=False, **BinaryPad(1))
     _minus_one: byte = field(init=False, **Binary(asserted=0xFF))

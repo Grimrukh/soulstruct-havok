@@ -24,8 +24,8 @@ __all__ = [
 import typing as tp
 from collections import deque
 
+import colorama
 import numpy as np
-from colorama import init as colorama_init, Fore
 
 from soulstruct.utilities.binary import BinaryReader, BinaryWriter
 
@@ -40,7 +40,11 @@ if tp.TYPE_CHECKING:
     from .base import hkArray_, Ptr_, hkRelArray_, hkViewPtr_
 
 
-colorama_init()
+colorama.just_fix_windows_console()
+YELLOW = colorama.Fore.YELLOW
+GREEN = colorama.Fore.GREEN
+BLUE = colorama.Fore.BLUE
+RESET = colorama.Fore.RESET
 
 
 def unpack_bool(hk_type: type[hk], reader: BinaryReader) -> bool:
@@ -211,7 +215,7 @@ def pack_pointer(
         new_item.value = value
         existing_items[value] = new_item
         if debug.DEBUG_PRINT_PACK:
-            debug.debug_print(f"{Fore.YELLOW}Created item {len(items)}: {ptr_hk_type.__name__}{Fore.RESET}")
+            debug.debug_print(f"{YELLOW}Created item {len(items)}: {ptr_hk_type.__name__}{RESET}")
         items.append(new_item)
         new_item.writer = BinaryWriter()
         # Item does NOT recur `.pack_tagfile()` here. It is packed when this item is iterated over.
@@ -284,7 +288,7 @@ def pack_array(
         item.patches.setdefault(new_item.hk_type.__name__, []).append(item_index_pos)
         new_item.value = value
         if debug.DEBUG_PRINT_PACK:
-            debug.debug_print(f"{Fore.YELLOW}Created item {len(items)}: hkArray[{data_hk_type.__name__}]{Fore.RESET}")
+            debug.debug_print(f"{YELLOW}Created item {len(items)}: hkArray[{data_hk_type.__name__}]{RESET}")
         items.append(new_item)
         new_item.writer = BinaryWriter()
 
@@ -298,7 +302,7 @@ def pack_array(
 
     item_creation_queue.setdefault("array", deque()).append(delayed_item_creation)
     if debug.DEBUG_PRINT_PACK:
-        debug.debug_print(f"{Fore.GREEN}Queued item creation: hkArray[{data_hk_type.__name__}]{Fore.RESET}")
+        debug.debug_print(f"{GREEN}Queued item creation: hkArray[{data_hk_type.__name__}]{RESET}")
 
 
 def unpack_struct(
@@ -403,7 +407,7 @@ def pack_string(
         encoded = value.encode("shift_jis_2004") + b"\0"
         new_item = TagFileItem(string_hk_type, is_ptr=False, length=len(encoded))
         if debug.DEBUG_PRINT_PACK:
-            debug.debug_print(f"{Fore.YELLOW}Created item {len(items)}: {string_hk_type.__name__}{Fore.RESET}")
+            debug.debug_print(f"{YELLOW}Created item {len(items)}: {string_hk_type.__name__}{RESET}")
         new_item.value = value
         items.append(new_item)
         new_item.writer = BinaryWriter()
@@ -413,12 +417,12 @@ def pack_string(
     if is_variant_name:
         if debug.DEBUG_PRINT_PACK:
             debug.debug_print(
-                f"{Fore.GREEN}Queued VARIANT NAME STRING: {string_hk_type.__name__} ({value}){Fore.RESET}"
+                f"{GREEN}Queued VARIANT NAME STRING: {string_hk_type.__name__} ({value}){RESET}"
             )
         item_creation_queue.setdefault("variant_name_string", deque()).append(delayed_item_creation)
     else:
         if debug.DEBUG_PRINT_PACK:
-            debug.debug_print(f"{Fore.GREEN}Queued string: {string_hk_type.__name__} ({value}){Fore.RESET}")
+            debug.debug_print(f"{GREEN}Queued string: {string_hk_type.__name__} ({value}){RESET}")
         item_creation_queue.setdefault("string", deque()).append(delayed_item_creation)
 
 

@@ -2,12 +2,9 @@ import logging
 import sys
 from pathlib import Path
 
-try:
-    import colorama
-except ImportError:
-    colorama = None
-else:
-    colorama.init()
+import colorama
+
+colorama.just_fix_windows_console()
 
 
 class _ModuleFormatter(logging.Formatter):

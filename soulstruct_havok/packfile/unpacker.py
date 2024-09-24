@@ -3,14 +3,12 @@ from __future__ import annotations
 __all__ = ["PackFileUnpacker"]
 
 import logging
-import re
 import typing as tp
 from dataclasses import dataclass, field
 from types import ModuleType
 
 from soulstruct.utilities.binary import BinaryReader, ByteOrder
 
-from soulstruct_havok.enums import PyHavokModule
 from soulstruct_havok.types import hk2010, hk2014, hk2015, hk2016, hk2018
 from soulstruct_havok.types.hk import hk
 from soulstruct_havok.types.exceptions import VersionModuleError, TypeNotDefinedError
@@ -29,15 +27,6 @@ ROOT_TYPING = tp.Union[
     hk2016.hkRootLevelContainer,
     hk2018.hkRootLevelContainer,
 ]
-
-_DEBUG_PRINT = []
-_DEBUG_MSG = True
-_DEBUG_TYPE_PRINT = False
-
-
-def _DEBUG(*args, **kwargs):
-    if _DEBUG_MSG:
-        print(*args, **kwargs)
 
 
 class SectionInfo(tp.NamedTuple):
@@ -68,8 +57,6 @@ class PackFileUnpacker:
     item_entries: list[PackFileItem] = field(default_factory=list)
     root: ROOT_TYPING = None
 
-    _PACKFILE_FORMAT_RE = re.compile(r"hk_(\d{4})\.(\d+)\.(\d+)-r(\d+)")
-
     def unpack(self, reader: BinaryReader, types_only=False):
 
         self.byte_order = reader.default_byte_order = ByteOrder.big_endian_bool(
@@ -96,6 +83,7 @@ class PackFileUnpacker:
             raise AssertionError("Type name section has global references. Not expected!")
         if class_name_info.entry_specs:
             raise AssertionError("Type name section has data entries. Not expected!")
+        self.unpack_class_names(class_name_info.raw_data)
 
         type_section_info = self.unpack_section(reader)
         for type_section_entry_pointer in type_section_info.item_pointers:
@@ -103,8 +91,6 @@ class PackFileUnpacker:
                 raise AssertionError("type global error")
 
         data_section_info = self.unpack_section(reader)
-
-        self.unpack_class_names(class_name_info.raw_data)
 
         self.type_entries = self.unpack_type_entries(
             BinaryReader(type_section_info.raw_data),
@@ -131,7 +117,10 @@ class PackFileUnpacker:
         if types_only:
             return
 
-        if self.hk_version.startswith("hk_2010"):
+        if self.hk_version.startswith("Havok-5.5.0"):
+            from soulstruct_havok.types import hk550
+            self.hk_types_module = hk550
+        elif self.hk_version.startswith("hk_2010"):
             from soulstruct_havok.types import hk2010
             self.hk_types_module = hk2010
         elif self.hk_version.startswith("hk_2014"):
@@ -208,7 +197,7 @@ class PackFileUnpacker:
         """
         section = PackFileSectionHeader.from_bytes(reader)
 
-        if self.hk_version == PyHavokModule.hk2014:
+        if self.hk_version.startswith("hk_2014"):
             if reader.read(16).strip(b"\xFF"):
                 raise AssertionError("Expected sixteen 0xFF bytes after section header in HKX packfile version 2014.")
 
@@ -279,7 +268,12 @@ class PackFileUnpacker:
 
             type_section_reader.seek(entry_spec.local_data_offset)
             type_entry = PackFileType(class_name=class_name)
-            type_entry.unpack(type_section_reader, data_size=data_size, long_varints=self.header.pointer_size == 8)
+            type_entry.unpack(
+                type_section_reader,
+                data_size=data_size,
+                byte_order=self.byte_order,
+                long_varints=self.header.pointer_size == 8,
+            )
             type_entries.append(type_entry)
 
         return type_entries
@@ -336,9 +330,14 @@ class PackFileUnpacker:
                 data_size = section_end_offset - entry_spec.local_data_offset
 
             data_section_reader.seek(entry_spec.local_data_offset)
-            data_entry = PackFileItem(hk_type=hk_type)
-            data_entry.unpack(data_section_reader, data_size=data_size, long_varints=self.header.pointer_size == 8)
-            data_entries.append(data_entry)
+            data_item = PackFileItem(hk_type=hk_type)
+            data_item.unpack(
+                data_section_reader,
+                data_size=data_size,
+                byte_order=self.byte_order,
+                long_varints=self.header.pointer_size == 8,
+            )
+            data_entries.append(data_item)
 
         if missing_type_infos:
             for type_py_name, (type_name, type_info) in missing_type_infos.items():
@@ -364,17 +363,6 @@ class PackFileUnpacker:
             flags=self.header.flags,
             header_extension=self.header_extension,
         )
-
-    @property
-    def hk_tagfile_format(self) -> str:
-        match = self._PACKFILE_FORMAT_RE.match(self.hk_version)
-        if not match:
-            raise ValueError(f"Unrecognized Havok packfile version string format: {self.hk_version}")
-        year = int(match.group(1))
-        major_version = int(match.group(2))
-        minor_version = int(match.group(3))
-        # Not sure where revision fits in tagfile format.
-        return f"{year:04d}{major_version:02d}{minor_version:02d}"
 
     def raw_repr(self):
         lines = ["Entries:"]
