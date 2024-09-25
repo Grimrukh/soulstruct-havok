@@ -267,7 +267,7 @@ class hkVector4f(hkStruct(_float, 4)):
     @classmethod
     def try_pack_primitive_array(cls, writer: BinaryWriter, value: np.ndarray) -> bool:
         """Pack `float32` array in standard row-first order."""
-        if not isinstance(value, np.ndarray) or value.dtype != np.float32:
+        if not isinstance(value, np.ndarray) or str(value.dtype) not in {"<f4", ">f4"}:
             raise ValueError(f"Cannot pack non-`np.float32` array as an array of `{cls.__name__}`: {value}")
         if value.shape[1] != cls.length:
             raise ValueError(f"Cannot pack `{cls.__name__}` array with shape {value.shape}.")

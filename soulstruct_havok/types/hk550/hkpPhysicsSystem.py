@@ -20,10 +20,10 @@ class hkpPhysicsSystem(hkReferencedObject):
     __hsh = 4285680663
 
     local_members = (
-        Member(8, "rigidBodies", hkArray(Ptr(hkpRigidBody))),
-        Member(20, "constraints", hkArray(Ptr(hkpConstraintInstance))),
-        Member(32, "actions", hkArray(Ptr(hkpAction))),
-        Member(44, "phantoms", hkArray(Ptr(hkpPhantom))),
+        Member(8, "rigidBodies", hkArray(Ptr(hkpRigidBody), flags=0xC0000000)),
+        Member(20, "constraints", hkArray(Ptr(hkpConstraintInstance), flags=0xC0000000)),
+        Member(32, "actions", hkArray(Ptr(hkpAction), flags=0xC0000000)),
+        Member(44, "phantoms", hkArray(Ptr(hkpPhantom), flags=0xC0000000)),
         Member(56, "name", hkStringPtr),
         Member(60, "userData", hkUlong),
         Member(68, "active", hkBool),

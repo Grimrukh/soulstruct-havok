@@ -20,7 +20,7 @@ class CustomParamStorageExtendedMeshShape(hkpStorageExtendedMeshShape):
         Member(
             216,
             "materialArray",
-            hkArray(Ptr(CustomMeshParameter)),
+            hkArray(Ptr(CustomMeshParameter), flags=0xC0000000),
             MemberFlags.Private,
         ),
     )

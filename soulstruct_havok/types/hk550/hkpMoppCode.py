@@ -19,7 +19,7 @@ class hkpMoppCode(hkReferencedObject):
 
     local_members = (
         Member(16, "info", hkpMoppCodeCodeInfo),
-        Member(32, "data", hkArray(hkUint8)),
+        Member(32, "data", hkArray(hkUint8, flags=0xC0000000)),
     )
     members = hkReferencedObject.members + local_members
 

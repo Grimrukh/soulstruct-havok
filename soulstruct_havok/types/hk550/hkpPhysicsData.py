@@ -19,7 +19,7 @@ class hkpPhysicsData(hkReferencedObject):
 
     local_members = (
         Member(8, "worldCinfo", Ptr(hkpWorldCinfo)),
-        Member(12, "systems", hkArray(Ptr(hkpPhysicsSystem))),
+        Member(12, "systems", hkArray(Ptr(hkpPhysicsSystem), flags=0xC0000000)),
     )
     members = hkReferencedObject.members + local_members
 

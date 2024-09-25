@@ -107,8 +107,8 @@ def unpack_class(hk_type: type[hk], item: PackFileDataItem, instance=None) -> hk
             offset_hex = hex(member.offset)
             item_offset_hex = hex(member_start_offset + member.offset)
             debug.debug_print(
-                f"Unpacking member {GREEN}'{member.name}' (`{member.type.__name__}`) {YELLOW} "
-                f"@ {offset_hex} (item @ {item_offset_hex}) {RESET}"
+                f"Unpacking member {GREEN}'{member.name}' (`{member.type.__name__}`) "
+                f"{YELLOW}@ {offset_hex} (item @ {item_offset_hex}) {RESET}"
             )
         if debug.DEBUG_PRINT_UNPACK:
             debug.increment_debug_indent()
@@ -262,9 +262,9 @@ def pack_pointer(
 
     def delayed_item_creation(_data_pack_queues: PackItemCreationQueues) -> PackFileDataItem:
         new_item.start_writer(_data_pack_queues.byte_order)
-        value.pack_packfile(new_item, value, existing_items, _data_pack_queues)
         if debug.DEBUG_PRINT_PACK:
             debug.debug_print(f"{CYAN}Packing item data: {new_item.get_class_name()}{RESET}")
+        value.pack_packfile(new_item, value, existing_items, _data_pack_queues)
         return new_item
 
     data_pack_queues.item_pointers.append(delayed_item_creation)
@@ -349,6 +349,12 @@ def pack_array(
         item.writer.pad_align(16)  # pre-align for array
         item.child_pointers[array_pointer_offset] = item.writer.position  # fixup
         array_start_offset = item.writer.position
+
+        if debug.DEBUG_PRINT_PACK:
+            debug.debug_print(
+                f"Packing {CYAN}`{array_hk_type.__name__}`{RESET} {length_str} data "
+                f"{YELLOW}@ item {item.writer.position_hex}{RESET}"
+            )
 
         if not data_hk_type.try_pack_primitive_array(item.writer, value):
             # Non-primitive; recur on data type `pack` method.
@@ -460,6 +466,8 @@ def pack_string(
 
     def delayed_string_write(_data_pack_queues: PackItemCreationQueues):
         item.child_pointers[string_ptr_pos] = item.writer.position
+        if debug.DEBUG_PRINT_PACK:
+            debug.debug_print(f"Packing {CYAN}string '{value}\\0' {YELLOW}@ item {item.writer.position_hex}{RESET}")
         item.writer.append(value.encode("shift_jis_2004") + b"\0")
         item.writer.pad_align(16)
 
@@ -468,28 +476,46 @@ def pack_string(
 
 def unpack_named_variant(hk_type: type[hk], item: PackFileDataItem, types_module: dict) -> hk:
     """Detects `variant` type dynamically from `className` member."""
+    if debug.DEBUG_PRINT_UNPACK:
+        debug.increment_debug_indent()
+
     member_start_offset = item.reader.position
+
+    def _debug_print(member_):
+        if debug.DEBUG_PRINT_UNPACK:
+            offset_hex = hex(member_.offset)
+            item_offset_hex = hex(member_start_offset + member_.offset)
+            debug.debug_print(
+                f"Unpacking member {GREEN}'{member_.name}' (`{member_.type.__name__}`) "
+                f"{YELLOW}@ {offset_hex} (item @ {item_offset_hex}) {RESET}"
+            )
+
     kwargs = {}
     # "variant" member type is a subclass of `hkReferencedObject` with name "className".
     name_member, class_name_member, variant_member = hk_type.members[:3]
+
+    _debug_print(name_member)
     name = name_member.type.unpack_packfile(
         item, offset=member_start_offset + name_member.offset
     )
     kwargs[name_member.name] = name
+
+    _debug_print(class_name_member)
     variant_type_name = class_name_member.type.unpack_packfile(
         item, offset=member_start_offset + class_name_member.offset
     )
     kwargs[class_name_member.name] = variant_type_name
+
     variant_py_name = get_py_name(variant_type_name)
     variant_type = types_module[variant_py_name]
+    _debug_print(variant_member)
     item.reader.seek(member_start_offset + variant_member.offset)
     if debug.DEBUG_PRINT_UNPACK:
         debug.debug_print(f"{BLUE}Unpacking named variant: `{variant_py_name}` @ item {item.reader.position_hex}{RESET}")
-        debug.increment_debug_indent()
     variant_instance = unpack_pointer(variant_type, item)
     if debug.DEBUG_PRINT_UNPACK:
-        debug.decrement_debug_indent()
         debug.debug_print(f"-> {variant_instance}")
+        debug.decrement_debug_indent()
     kwargs[variant_member.name] = variant_instance
 
     # noinspection PyArgumentList

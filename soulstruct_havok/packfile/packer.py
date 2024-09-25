@@ -232,6 +232,7 @@ class PackFilePacker:
             item_pointer_queues = PackItemCreationQueues(byte_order)
             item = delayed_item_creation(item_pointer_queues)
 
+            print(f"ITEM: {item.get_class_name()}, {item.writer.position_hex}")
             # Immediately pack arrays and strings within the same item.
             # Note that arrays of pointers will enqueue additional item creation functions.
             while item_pointer_queues.child_pointers:

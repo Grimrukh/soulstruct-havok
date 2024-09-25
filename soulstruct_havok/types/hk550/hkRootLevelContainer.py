@@ -17,7 +17,7 @@ class hkRootLevelContainer(hk):
     __hsh = 661831966
 
     local_members = (
-        Member(0, "namedVariants", hkArray(hkRootLevelContainerNamedVariant)),
+        Member(0, "namedVariants", hkArray(hkRootLevelContainerNamedVariant, flags=0, forced_capacity=0)),
     )
     members = local_members
 

@@ -20,20 +20,23 @@ class hkpExtendedMeshShape(hkpShapeCollection):
     __tag_format_flags = 45
     __version = 4
 
-    # TODO: confident for Havok 5.5.0
     local_members = (
         Member(32, "scaling", hkVector4),
         Member(48, "aabbHalfExtents", hkVector4),
         Member(64, "aabbCenter", hkVector4),
-        # Havok 6.5: "m_numBitsForSubpartIndex" (hkInt32)
         Member(
-            80,  # CONFIRMED
+            80,
             "trianglesSubparts",
-            hkArray(hkpExtendedMeshShapeTrianglesSubpart),
+            hkArray(hkpExtendedMeshShapeTrianglesSubpart, flags=0, forced_capacity=0),
             MemberFlags.Protected,
         ),
         Member(92, "numTrianglesSubparts", _int, MemberFlags.Protected),
-        Member(96, "shapesSubparts", hkArray(hkpExtendedMeshShapeShapesSubpart), MemberFlags.Protected),
+        Member(
+            96,
+            "shapesSubparts",
+            hkArray(hkpExtendedMeshShapeShapesSubpart, flags=0xC0000000),
+            MemberFlags.Protected,
+        ),
         Member(108, "numShapesSubparts", _int, MemberFlags.Protected),
         # NOTE: "weldingInfo and "weldingType" absent.
         Member(112, "embeddedTrianglesSubpart", hkpExtendedMeshShapeTrianglesSubpart, MemberFlags.Protected),  # 64 b

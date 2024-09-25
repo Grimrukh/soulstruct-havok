@@ -10,7 +10,7 @@ from .hkpEntity import hkpEntity
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkpRigidBody(hkpEntity):
     alignment = 16
-    byte_size = 544
+    byte_size = 512
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41

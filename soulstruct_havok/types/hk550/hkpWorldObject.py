@@ -23,7 +23,7 @@ class hkpWorldObject(hkReferencedObject):
         Member(16, "collidable", hkpLinkedCollidable),
         Member(104, "multiThreadCheck", hkMultiThreadCheck),
         Member(112, "name", hkStringPtr),
-        Member(116, "properties", hkArray(hkpProperty)),
+        Member(116, "properties", hkArray(hkpProperty, flags=0xC0000000)),
     )
     members = hkReferencedObject.members + local_members
 

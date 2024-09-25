@@ -22,13 +22,13 @@ class hkpStorageExtendedMeshShape(hkpExtendedMeshShape):
         Member(
             192,
             "meshstorage",
-            hkArray(Ptr(hkpStorageExtendedMeshShapeMeshSubpartStorage)),
+            hkArray(Ptr(hkpStorageExtendedMeshShapeMeshSubpartStorage), flags=0xC0000000),
             MemberFlags.Protected,
         ),
         Member(
             204,  # empty
             "shapestorage",
-            hkArray(Ptr(hkpStorageExtendedMeshShapeShapeSubpartStorage)),
+            hkArray(Ptr(hkpStorageExtendedMeshShapeShapeSubpartStorage), flags=0xC0000000),
             MemberFlags.Protected,
         ),
     )

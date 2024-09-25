@@ -18,12 +18,12 @@ class hkpStorageExtendedMeshShapeMeshSubpartStorage(hkReferencedObject):
     __real_name = "hkpStorageExtendedMeshShape::MeshSubpartStorage"
 
     local_members = (
-        Member(8, "vertices", hkArray(hkVector4)),
-        Member(20, "indices16", hkArray(hkUint16)),  # note lack of `indices8`
-        Member(32, "indices32", hkArray(hkUint32)),
-        Member(44, "materialIndices", hkArray(hkUint8)),
-        Member(56, "materials", hkArray(hkUint32)),
-        Member(68, "materialIndices16", hkArray(hkUint16)),
+        Member(8, "vertices", hkArray(hkVector4, flags=0xC0000000)),
+        Member(20, "indices16", hkArray(hkUint16, flags=0xC0000000)),  # note lack of `indices8`
+        Member(32, "indices32", hkArray(hkUint32, flags=0xC0000000)),
+        Member(44, "materialIndices", hkArray(hkUint8, flags=0xC0000000)),
+        Member(56, "materials", hkArray(hkUint32, flags=0xC0000000)),
+        Member(68, "materialIndices16", hkArray(hkUint16, flags=0xC0000000)),
     )
     members = hkReferencedObject.members + local_members
 

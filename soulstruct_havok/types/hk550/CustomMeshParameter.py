@@ -18,11 +18,14 @@ class CustomMeshParameter(hkReferencedObject):
 
     local_members = (
         Member(8, "version", hkUint32, MemberFlags.Private),
-        Member(12, "vertexDataBuffer", hkArray(hkUint8), MemberFlags.Private),
-        Member(24, "zero0", hkInt32, MemberFlags.Private),  # ?
-        Member(28, "zero1", hkInt32, MemberFlags.Private),  # ?
+        Member(12, "vertexDataBuffer", hkArray(hkUint8, flags=0, forced_capacity=1), MemberFlags.Private),
+        Member(24, "zero0", hkUint32, MemberFlags.Private),  # ?
+        Member(28, "zero1", hkUint32, MemberFlags.Private),  # ?
         Member(32, "materialNameData", hkUint32, MemberFlags.Private),  # definitely here
-        Member(36, "primitiveDataBuffer", hkArray(hkUint8), MemberFlags.Private),  # only place it fits! (empty anyway)
+        # TODO: "primitiveDataBuffer" goes here as of DSR, but seems to be all zeroes here.
+        Member(36, "zero2", hkUint32, MemberFlags.Private),  # ?
+        Member(40, "zero3", hkUint32, MemberFlags.Private),  # ?
+        Member(44, "zero4", hkUint32, MemberFlags.Private),  # ?
     )
     members = hkReferencedObject.members + local_members
 
@@ -31,4 +34,6 @@ class CustomMeshParameter(hkReferencedObject):
     zero0: int
     zero1: int
     materialNameData: int
-    primitiveDataBuffer: list[int]
+    zero2: int
+    zero3: int
+    zero4: int
