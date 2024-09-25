@@ -1,15 +1,18 @@
 from __future__ import annotations
 
-__all__ = ["TagFileItem"]
+__all__ = ["TagItemCreationQueues", "TagFileItem"]
 
 import logging
 import typing as tp
+from collections import deque
+from dataclasses import dataclass, field
+
+from soulstruct.utilities.binary import BinaryWriter, ByteOrder
 
 from soulstruct_havok.enums import TagDataType
 
 if tp.TYPE_CHECKING:
     import numpy as np
-    from soulstruct.utilities.binary import BinaryWriter
     from soulstruct_havok.types.hk import hk, HK_TYPE
     from soulstruct_havok.types.base import Ptr_, hkArray_
 
@@ -17,6 +20,22 @@ if tp.TYPE_CHECKING:
 _LOGGER = logging.getLogger("soulstruct_havok")
 
 
+@dataclass(slots=True)
+class TagItemCreationQueues:
+    # Byte order for item writers.
+    byte_order: ByteOrder
+    pointers: deque[tp.Callable[[TagItemCreationQueues], TagFileItem]] = field(default_factory=deque)
+    arrays: deque[tp.Callable[[TagItemCreationQueues], TagFileItem]] = field(default_factory=deque)
+    # These take precedence over other strings, for some reason.
+    variant_name_strings: deque[tp.Callable[[TagItemCreationQueues], TagFileItem]] = field(default_factory=deque)
+    strings: deque[tp.Callable[[TagItemCreationQueues], TagFileItem]] = field(default_factory=deque)
+
+    def any(self):
+        """Check if any of the queues have items."""
+        return any((self.pointers, self.arrays, self.variant_name_strings, self.strings))
+
+
+@dataclass(slots=True)
 class TagFileItem:
     """Analogous to `PackFileItem` in `packfile`-type HKX files. Appears in "ITEM" section of HKX tagfiles.
 
@@ -24,27 +43,16 @@ class TagFileItem:
     temporarily during tagfile unpack and pack.
     """
 
-    hk_type: HK_TYPE | None
-    value: hk | bool | int | float | list | tuple | np.ndarray | None
+    hk_type: HK_TYPE | None  # may be a pointer or array
+    absolute_offset: int = 0
+    length: int = 1
+    is_ptr: bool = False  # true for `hk` instance pointers, false for everything else (arrays, strings)
+    data: bytes = b""  # for packing
+    value: hk | bool | int | float | list | tuple | str | np.ndarray | None = None
+    patches: dict[str, list[int]] = field(default_factory=dict)  # maps type names to lists of offsets *IN THIS ITEM*
 
-    def __init__(
-        self,
-        hk_type: HK_TYPE,  # may be a pointer or array
-        absolute_offset=0,
-        length=1,
-        is_ptr=False,
-        data=b"",
-    ):
-        self.hk_type = hk_type
-        self.absolute_offset = absolute_offset
-        self.length = length  # number of contained elements if this is an array (otherwise always 1)
-        self.is_ptr = is_ptr
-        self.in_process = False  # prevents recursion
-        self.value = None
-        self.patches = {}  # type: dict[str, list[int]]  # maps type names to lists of offsets *IN THIS ITEM*
-
-        self.writer = None  # type: BinaryWriter | None
-        self.data = data  # for packing
+    writer: BinaryWriter | None = None
+    in_process: bool = False  # prevents recursion
 
     def finish_writer(self):
         if self.writer is None:

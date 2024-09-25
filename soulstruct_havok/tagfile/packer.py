@@ -76,7 +76,9 @@ class TagFilePacker:
             types = "\n    ".join(lines)
             print(f"{GREEN}Final packed type list:\n    {types}{RESET}")
 
-    def to_writer(self, hsh_overrides: dict[str, int] = None) -> BinaryWriter:
+    def to_writer(
+        self, hsh_overrides: dict[str, int] = None, byte_order: ByteOrder = ByteOrder.LittleEndian
+    ) -> BinaryWriter:
         """Pack a tagfile using the `hkRootLevelContainer` (`hkx.root`).
 
         First, we scan the full structure and collect types to write into the tagfile's TYPE section. During this, we
@@ -86,7 +88,7 @@ class TagFilePacker:
         if hsh_overrides is None:
             hsh_overrides = {}
 
-        writer = BinaryWriter(byte_order=ByteOrder.LittleEndian)  # TODO: big_endian always false?
+        writer = BinaryWriter(byte_order=byte_order)
 
         with self.pack_section(writer, "TAG0", flag=False):
 
@@ -120,6 +122,7 @@ class TagFilePacker:
         ref_queue = deque([root_item])
 
         def write_item_data(item_):
+            """Align master writer, set item's offset within it, append item data, and collect patch offsets."""
             item_hk_data_type = item_.get_item_hk_type(self.hk_types_module)
             if issubclass(item_.hk_type, hkArray_) and item_hk_data_type.__name__ != "hkRootLevelContainerNamedVariant":
                 alignment = 16
@@ -135,48 +138,47 @@ class TagFilePacker:
                 self._patches.setdefault(type_name, []).extend(data_patch_offsets)
 
         while ref_queue:
-            ref_subqueue = {
-                "pointer": deque(), "array": deque(), "variant_name_string": deque(), "string": deque()
-            }
+            ref_subqueues = TagItemCreationQueues(writer.default_byte_order)
             ref_item = ref_queue.popleft()
             items_to_write = deque([ref_item])
 
             # Pack `hkRefPtr` item and iterate through it (but not beyond members requiring new item creations)
             # to accumulate item creation funcs into `ref_subqueue`.
-            ref_item.value.pack_tagfile(ref_item, ref_item.value, self.items, existing_items, ref_subqueue)
+            ref_item.value.pack_tagfile(ref_item, ref_item.value, self.items, existing_items, ref_subqueues)
 
             # Array packing may create more items in the same subqueue, so we keep checking it.
-            while any(ref_subqueue.values()):
+            while ref_subqueues.any():
                 # Collected "pointer" item creation funcs are run immediately.
-                while ref_subqueue["pointer"]:
-                    pointer_creation_func = ref_subqueue["pointer"].popleft()
-                    new_ref_item = pointer_creation_func(ref_subqueue)  # does not pack to data
+                while ref_subqueues.pointers:
+                    pointer_creation_func = ref_subqueues.pointers.popleft()
+                    new_ref_item = pointer_creation_func(ref_subqueues)  # does not pack to data
                     if new_ref_item:  # ignore existing items (`None` returned)
                         ref_queue.append(new_ref_item)
                         # NOT appended to `items_to_write`. It will be first in the writing queue when it is
                         # popped from `ref_queue`.
 
-                while ref_subqueue["array"]:
-                    array_creation_func = ref_subqueue["array"].popleft()
+                while ref_subqueues.arrays:
+                    array_creation_func = ref_subqueues.arrays.popleft()
                     # This creation func packs to data immediately, and may add more "pointer" creation funcs
                     # (or potentially "string" creation funcs) to this subqueue for the next pass.
-                    array_item = array_creation_func(ref_subqueue)
+                    array_item = array_creation_func(ref_subqueues)
 
                     if array_item.hk_type.__name__ == "hkArray[hkRootLevelContainerNamedVariant]":
                         # Do variant pointer items immediately. TODO: Set this up more nicely.
-                        while ref_subqueue["pointer"]:
-                            pointer_creation_func = ref_subqueue["pointer"].popleft()
-                            new_ref_item = pointer_creation_func(ref_subqueue)  # does not pack to data
+                        while ref_subqueues.pointers:
+                            pointer_creation_func = ref_subqueues.pointers.popleft()
+                            new_ref_item = pointer_creation_func(ref_subqueues)  # does not pack to data
                             if new_ref_item:  # ignore existing items (`None` returned)
                                 ref_queue.append(new_ref_item)
 
                     items_to_write.append(array_item)
 
-                for item_type in ("variant_name_string", "string"):
-                    while ref_subqueue[item_type]:
-                        string_creation_func = ref_subqueue[item_type].popleft()
+                for item_type in ("variant_name_strings", "strings"):
+                    queue = getattr(ref_subqueues, item_type)
+                    while queue:
+                        string_creation_func = queue.popleft()
                         # This creation func packs the string to data immediately and will never queue anything.
-                        string_item = string_creation_func(ref_subqueue)  # takes argument for consistency
+                        string_item = string_creation_func(ref_subqueues)  # takes argument for consistency
                         items_to_write.append(string_item)
 
             for item in items_to_write:

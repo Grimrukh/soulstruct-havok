@@ -1,3 +1,4 @@
+"""Functions for unpacking and packing Havok data in tagfiles."""
 from __future__ import annotations
 
 __all__ = [
@@ -22,7 +23,6 @@ __all__ = [
 ]
 
 import typing as tp
-from collections import deque
 
 import colorama
 import numpy as np
@@ -30,7 +30,7 @@ import numpy as np
 from soulstruct.utilities.binary import BinaryReader, BinaryWriter
 
 from soulstruct_havok.enums import TagDataType
-from soulstruct_havok.tagfile.structs import TagFileItem
+from soulstruct_havok.tagfile.structs import TagItemCreationQueues, TagFileItem
 from .info import get_py_name
 
 from . import debug
@@ -41,9 +41,12 @@ if tp.TYPE_CHECKING:
 
 
 colorama.just_fix_windows_console()
-YELLOW = colorama.Fore.YELLOW
 GREEN = colorama.Fore.GREEN
+RED = colorama.Fore.RED
+YELLOW = colorama.Fore.YELLOW
 BLUE = colorama.Fore.BLUE
+CYAN = colorama.Fore.CYAN
+MAGENTA = colorama.Fore.MAGENTA
 RESET = colorama.Fore.RESET
 
 
@@ -63,21 +66,23 @@ def unpack_int(hk_type: type[hk], reader: BinaryReader) -> int:
 
 
 def pack_int(hk_type: type[hk], item: TagFileItem, value: int):
-    fmt = TagDataType.get_int_fmt(hk_type.tag_type_flags, signed=value < 0)
+    """TODO: Had `signed = value < 0` here, but surely I can't just override the type restriction like that?"""
+    fmt = TagDataType.get_int_fmt(hk_type.tag_type_flags)
     item.writer.pack(fmt, value)
 
 
 def unpack_float32(reader: BinaryReader) -> float | hk:
     """32-bit floats are unpacked directly; others (like half floats) are unpacked as classes (Havok's setup)."""
-    return reader.unpack_value("<f")
+    return reader.unpack_value("f")
 
 
 def pack_float(hk_type: type[hk], item: TagFileItem, value: float | hk):
-    if hk_type.tag_type_flags == TagDataType.FloatAndFloat32:
-        item.writer.pack("<f", value)
-    else:
-        # Will definitely not use or create items.
-        pack_class(hk_type, item, value, items=[], existing_items={}, item_creation_queue={})
+    if hk_type.tag_type_flags == TagDataType.FloatAndFloat32:  # not `TagDataType.Class`
+        item.writer.pack("f", value)
+        return
+
+    # Will definitely not point to or create items (probably just a lone integer `value` member to pack).
+    pack_class(hk_type, item, value, items=[], existing_items={}, item_creation_queues=None)
 
 
 def unpack_class(hk_type: type[hk], reader: BinaryReader, items: list[TagFileItem], instance=None) -> hk:
@@ -118,7 +123,7 @@ def pack_class(
     value: hk,
     items: list[TagFileItem],
     existing_items: dict[hk, TagFileItem],
-    item_creation_queue: dict[str, deque[tp.Callable]],
+    item_creation_queues: TagItemCreationQueues = None,
 ):
     member_start_offset = item.writer.position
 
@@ -129,7 +134,7 @@ def pack_class(
             debug.debug_print(f"Member '{member.name}' (type `{member.type.__name__}`):")
         # Member offsets may not be perfectly packed together, so we always pad up to the proper offset.
         item.writer.pad_to_offset(member_start_offset + member.offset)
-        member.type.pack_tagfile(item, value[member.name], items, existing_items, item_creation_queue)
+        member.type.pack_tagfile(item, value[member.name], items, existing_items, item_creation_queues)
     if debug.DEBUG_PRINT_PACK:
         debug.decrement_debug_indent()
 
@@ -137,7 +142,7 @@ def pack_class(
 
 
 def unpack_pointer(data_hk_type: type[hk], reader: BinaryReader, items: list[TagFileItem]) -> hk | None:
-    item_index = reader.unpack_value("<I")
+    item_index = reader.unpack_value("I")
     if debug.DEBUG_PRINT_UNPACK:
         debug.debug_print(f"`{data_hk_type.__name__}` pointer item index: {item_index}")
     if item_index == 0:
@@ -158,7 +163,7 @@ def unpack_pointer(data_hk_type: type[hk], reader: BinaryReader, items: list[Tag
         if item.in_process:
             # This can only happen for `hkViewPtr`, I believe, and it will only reference classes.
             # Item value has been set to an empty dictionary already in this case, so it can be viewed here too.
-            if not item.hk_type.get_tag_data_type() == TagDataType.Class:
+            if item.hk_type.get_tag_data_type() != TagDataType.Class:
                 raise AssertionError(f"Found item recursion inside non-class `{item.hk_type.__name__}`.")
         item.in_process = True
         is_named_variant = item.hk_type.__name__ == "hkRootLevelContainerNamedVariant"
@@ -176,15 +181,18 @@ def unpack_pointer(data_hk_type: type[hk], reader: BinaryReader, items: list[Tag
 
 
 def pack_pointer(
-    ptr_hk_type: tp.Union[tp.Type[Ptr_], tp.Type[hkRelArray_], tp.Type[hkViewPtr_]],
+    ptr_hk_type: type[Ptr_] | type[hkRelArray_] | type[hkViewPtr_],
     item: TagFileItem,
     value: hk,
     items: list[TagFileItem],
     existing_items: dict[hk, TagFileItem],
-    item_creation_queue: dict[str, deque[tp.Callable]],
+    item_creation_queues: TagItemCreationQueues,
 ):
     if value is None:
-        item.writer.pack("<I", 0)
+        # Null pointer (i.e. member value is `None`).
+        if debug.DEBUG_PRINT_PACK:
+            debug.debug_print(f"Packing {MAGENTA}`{ptr_hk_type.__name__}` = <nullptr>{RESET}")
+        item.writer.pack("I", 0)
         return
 
     item.patches.setdefault(ptr_hk_type.__name__, []).append(item.writer.position)
@@ -193,39 +201,42 @@ def pack_pointer(
 
     if not isinstance(value, data_hk_type):
         raise TypeError(
-            f"Pointer to `{data_hk_type.__name__}` contained wrong type: `{value.__class__.__name__}`"
+            f"Pointer to `{data_hk_type.get_type_name()}` contained wrong type: `{value.get_type_name()}`"
         )
 
     # Queues up a function that will create the item and write its offset to this position.
     # No need to reserve an index in the writer; it will be recorded in the function body.
 
-    item_index_pos = item.writer.position
-    item.writer.pack("<I", 0)  # temporary
+    item.writer.reserve("ptr_offset", "I", obj=value)
 
-    def delayed_item_creation(_item_creation_queue) -> None | TagFileItem:
+    def delayed_item_creation(_item_creation_queues: TagItemCreationQueues) -> None | TagFileItem:
         # Item may have been created since this function was queued.
         if value in existing_items:
             existing_item = existing_items[value]
-            item.writer.pack_at(item_index_pos, "<I", items.index(existing_item))
+            item.writer.fill("ptr_offset", items.index(existing_item), obj=value)
             return None
 
-        item.writer.pack_at(item_index_pos, "<I", len(items))
+        # Create new `TagFileItem`.
+        item.writer.fill("ptr_offset", len(items), obj=value)
         value_data_hk_type = type(value)  # type: type[hk]  # may be a subclass of `data_hk_type`
-        new_item = TagFileItem(ptr_hk_type, is_ptr=value_data_hk_type.get_tag_data_type() == TagDataType.Class)
-        new_item.value = value
+        new_item = TagFileItem(
+            hk_type=ptr_hk_type,
+            is_ptr=value_data_hk_type.get_tag_data_type() == TagDataType.Class,
+            value=value,
+            writer=BinaryWriter(byte_order=_item_creation_queues.byte_order),
+        )
         existing_items[value] = new_item
         if debug.DEBUG_PRINT_PACK:
             debug.debug_print(f"{YELLOW}Created item {len(items)}: {ptr_hk_type.__name__}{RESET}")
         items.append(new_item)
-        new_item.writer = BinaryWriter()
-        # Item does NOT recur `.pack_tagfile()` here. It is packed when this item is iterated over.
+        # Item does NOT recur `.pack_tagfile()` here. It is packed whenever this item is iterated over.
         return new_item
 
-    item_creation_queue.setdefault("pointer", deque()).append(delayed_item_creation)
+    item_creation_queues.pointers.append(delayed_item_creation)
 
 
 def unpack_array(data_hk_type: type[hk], reader: BinaryReader, items: list[TagFileItem]) -> list:
-    item_index = reader.unpack_value("<I")
+    item_index = reader.unpack_value("I")
     if item_index == 0:
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(f"Empty array (type `{data_hk_type.__name__}`)")
@@ -268,39 +279,44 @@ def pack_array(
     value: list[hk | str | int | float | bool] | np.ndarray,
     items: list[TagFileItem],
     existing_items: dict[hk, TagFileItem],
-    item_creation_queue: dict[str, deque[tp.Callable]],
+    item_creation_queues: TagItemCreationQueues,
 ):
-    """Array items are always created per instance, never re-used. (Not sure if that's correct, but it is here.)"""
+    """Array items are always created per instance, never re-used. (Not sure if that's correct, but it is here.)
+
+    Note that array no longer writes its capacity/flags to the serialized HKX tagfile. It's just an offset to the array
+    data, which is now in a separate item rather than a local 'child' of the same item.
+    """
     if len(value) == 0:
-        item.writer.pack("<I", 0)
+        item.writer.pack("I", 0)
         return
 
-    # Queues up a function that will create the item and write its item index to this position.
-    # No need to reserve an index in the writer; it will be recorded in the function body.
-
-    item_index_pos = item.writer.position
-    item.writer.pack("<I", 0)  # temporary
+    item.patches.setdefault(array_hk_type.get_type_name()).append(item.writer.position)
+    item.writer.reserve("array_offset", "I", obj=value)
     data_hk_type = array_hk_type.get_data_type()  # type: HK_TYPE
 
-    def delayed_item_creation(_item_creation_queue) -> TagFileItem:
-        item.writer.pack_at(item_index_pos, "<I", len(items))
-        new_item = TagFileItem(array_hk_type, is_ptr=False, length=len(value))
-        item.patches.setdefault(new_item.hk_type.__name__, []).append(item_index_pos)
-        new_item.value = value
+    def delayed_item_creation(_item_creation_queues) -> TagFileItem:
+        item.writer.fill("array_offset", len(items), obj=value)
+        new_item = TagFileItem(
+            hk_type=array_hk_type,
+            is_ptr=False,
+            length=len(value),
+            value=value,
+            writer=BinaryWriter(byte_order=_item_creation_queues.byte_order),
+        )
         if debug.DEBUG_PRINT_PACK:
             debug.debug_print(f"{YELLOW}Created item {len(items)}: hkArray[{data_hk_type.__name__}]{RESET}")
         items.append(new_item)
-        new_item.writer = BinaryWriter()
 
+        # Try primitive pack, then fall back to recursive pack.
         if not data_hk_type.try_pack_primitive_array(new_item.writer, value):
             # Non-primitive; recur on data type `pack` method.
             for i, element in enumerate(value):
-                data_hk_type.pack_tagfile(new_item, element, items, existing_items, _item_creation_queue)
+                data_hk_type.pack_tagfile(new_item, element, items, existing_items, _item_creation_queues)
                 new_item.writer.pad_to_offset((i + 1) * data_hk_type.byte_size)
 
         return new_item
 
-    item_creation_queue.setdefault("array", deque()).append(delayed_item_creation)
+    item_creation_queues.arrays.append(delayed_item_creation)
     if debug.DEBUG_PRINT_PACK:
         debug.debug_print(f"{GREEN}Queued item creation: hkArray[{data_hk_type.__name__}]{RESET}")
 
@@ -308,6 +324,7 @@ def pack_array(
 def unpack_struct(
     data_hk_type: type[hk], reader: BinaryReader, items: list[TagFileItem], length: int
 ) -> tuple:
+    """'Structs' (really fixed-length local arrays, e.g. `int[4]`) are packed locally in the item."""
     struct_start_offset = reader.position
 
     # Check for primitive types and unpack all at once (rather than, eg, unpacking 10000 floats over 10000 calls).
@@ -323,7 +340,7 @@ def unpack_struct(
         fmt = TagDataType.get_int_fmt(data_hk_type.tag_type_flags, count=length)
         return reader.unpack(fmt)
     elif data_hk_type.tag_type_flags == TagDataType.FloatAndFloat32:
-        return reader.unpack(f"<{length}f")
+        return reader.unpack(f"{length}f")
     else:  # non-primitive; recur on data type `unpack` method (and do not assume tight packing)
         return tuple(
             data_hk_type.unpack_tagfile(
@@ -340,7 +357,7 @@ def pack_struct(
     value: tuple,
     items: list[TagFileItem],
     existing_items: dict[hk, TagFileItem],
-    item_creation_queue: dict[str, deque[tp.Callable]],
+    item_creation_queues: TagItemCreationQueues,
     length: int,
 ):
     """Structs are packed locally in the same item, but can contain pointers themselves."""
@@ -351,31 +368,34 @@ def pack_struct(
 
     # For primitive types, pack all at once (predictably tight for these primitives, so no need to pad).
     tag_data_type = data_hk_type.get_tag_data_type()
-    if tag_data_type == TagDataType.Invalid:
-        pass
-    elif tag_data_type == TagDataType.Bool:
-        fmt = TagDataType.get_int_fmt(data_hk_type.tag_type_flags, count=length)
-        item.writer.pack(fmt, *[int(v) for v in value])
-    elif tag_data_type == TagDataType.Int:
-        fmt = TagDataType.get_int_fmt(data_hk_type.tag_type_flags, count=length)
-        item.writer.pack(fmt, *value)
-    elif data_hk_type.tag_type_flags == TagDataType.FloatAndFloat32:
-        item.writer.pack(f"<{length}f", *value)
-    else:  # non-primitive; recur on data type `pack` method
-        for i, element in enumerate(value):
-            item.writer.pad_to_offset(struct_start_offset + i * data_hk_type.byte_size)
-            data_hk_type.pack_tagfile(item, element, items, existing_items, item_creation_queue)
+    match tag_data_type:
+        case TagDataType.Invalid:
+            pass
+        case TagDataType.Bool:
+            fmt = TagDataType.get_int_fmt(data_hk_type.tag_type_flags, count=length)
+            item.writer.pack(fmt, *[int(v) for v in value])
+        case TagDataType.Int:
+            fmt = TagDataType.get_int_fmt(data_hk_type.tag_type_flags, count=length)
+            item.writer.pack(fmt, *value)
+        case TagDataType.Float if data_hk_type.tag_type_flags == TagDataType.FloatAndFloat32:
+            item.writer.pack(f"{length}f", *value)
+        case _:
+            # Non-primitive data type; recur on its `pack` method.
+            for i, element in enumerate(value):
+                item.writer.pad_to_offset(struct_start_offset + i * data_hk_type.byte_size)
+                data_hk_type.pack_tagfile(item, element, items, existing_items, item_creation_queues)
 
 
 def unpack_string(reader: BinaryReader, items: list[TagFileItem]) -> str:
     """Nothing more than an array of `char` bytes (standard `const char*`)."""
-    item_index = reader.unpack_value("<I")
+    item_index = reader.unpack_value("I")
     if debug.DEBUG_PRINT_UNPACK:
         debug.debug_print(f"String item index: {item_index}")
     if item_index == 0:
         return ""
     item = items[item_index]
     if item.value is None:
+        # First-time read (probably every time for strings as they're not reused).
         reader.seek(item.absolute_offset)
         encoded = reader.read(item.length)
         item.value = encoded.decode("shift_jis_2004").rstrip("\0")
@@ -387,30 +407,34 @@ def pack_string(
     item: TagFileItem,
     value: str,
     items: list[TagFileItem],
-    item_creation_queue: dict[str, deque[tp.Callable]],
+    item_creation_queues: TagItemCreationQueues,
     is_variant_name=False,
 ):
     """Like arrays (which they are, essentially), strings are never re-used as items."""
     item.patches.setdefault(string_hk_type.__name__, []).append(item.writer.position)
 
     if not value:
-        item.writer.pack("<I", 0)
+        # Empty string.
+        item.writer.pack("I", 0)
         return
     if not isinstance(value, str):
         raise ValueError(f"Cannot pack non-string: {value}")
 
-    item_index_pos = item.writer.position
-    item.writer.pack("<I", 0)  # temporary
+    item.writer.reserve("str_offset", "I", obj=value)
 
-    def delayed_item_creation(_item_creation_queue) -> TagFileItem:
-        item.writer.pack_at(item_index_pos, "<I", len(items))
+    def delayed_item_creation(_item_creation_queues) -> TagFileItem:
+        item.writer.fill("str_offset", len(items), obj=value)
         encoded = value.encode("shift_jis_2004") + b"\0"
-        new_item = TagFileItem(string_hk_type, is_ptr=False, length=len(encoded))
+        new_item = TagFileItem(
+            hk_type=string_hk_type,
+            is_ptr=False,
+            length=len(encoded),
+            value=value,
+            writer=BinaryWriter(byte_order=_item_creation_queues.byte_order),
+        )
         if debug.DEBUG_PRINT_PACK:
             debug.debug_print(f"{YELLOW}Created item {len(items)}: {string_hk_type.__name__}{RESET}")
-        new_item.value = value
         items.append(new_item)
-        new_item.writer = BinaryWriter()
         new_item.writer.append(encoded)  # could write `data` immediately but this is more consistent
         return new_item
 
@@ -419,11 +443,11 @@ def pack_string(
             debug.debug_print(
                 f"{GREEN}Queued VARIANT NAME STRING: {string_hk_type.__name__} ({value}){RESET}"
             )
-        item_creation_queue.setdefault("variant_name_string", deque()).append(delayed_item_creation)
+        item_creation_queues.variant_name_strings.append(delayed_item_creation)
     else:
         if debug.DEBUG_PRINT_PACK:
             debug.debug_print(f"{GREEN}Queued string: {string_hk_type.__name__} ({value}){RESET}")
-        item_creation_queue.setdefault("string", deque()).append(delayed_item_creation)
+        item_creation_queues.strings.append(delayed_item_creation)
 
 
 def unpack_named_variant(
@@ -463,9 +487,12 @@ def pack_named_variant(
     value: hk,
     items: list[TagFileItem],
     existing_items: dict[hk, TagFileItem],
-    item_creation_queue: dict[str, deque[tp.Callable]],
+    item_creation_queues: TagItemCreationQueues,
 ):
-    """Named variants create items for their 'name' members before their 'className' members."""
+    """NOTE: Named variants create items for their 'name' members before their 'className' members.
+
+    We handle this with a special subqueue for variant name strings.
+    """
     member_start_offset = item.writer.position
     if debug.DEBUG_PRINT_PACK:
         debug.increment_debug_indent()
@@ -474,19 +501,19 @@ def pack_named_variant(
     item.writer.pad_to_offset(member_start_offset + name_member.offset)
     if debug.DEBUG_PRINT_PACK:
         debug.debug_print(f"Member 'name' (type `{name_member.type.__name__}`):")
-    pack_string(name_member.type, item, value["name"], items, item_creation_queue, is_variant_name=True)
+    pack_string(name_member.type, item, value["name"], items, item_creation_queues, is_variant_name=True)
 
     class_name_member = hk_type.members[1]
     item.writer.pad_to_offset(member_start_offset + class_name_member.offset)
     if debug.DEBUG_PRINT_PACK:
         debug.debug_print(f"Member 'className' (type `{class_name_member.type.__name__}`):")
-    class_name_member.type.pack_tagfile(item, value["className"], items, existing_items, item_creation_queue)
+    class_name_member.type.pack_tagfile(item, value["className"], items, existing_items, item_creation_queues)
 
     variant_member = hk_type.members[2]
     item.writer.pad_to_offset(member_start_offset + variant_member.offset)
     if debug.DEBUG_PRINT_PACK:
         debug.debug_print(f"Member 'variant' (type `{variant_member.type.__name__}`):")
-    variant_member.type.pack_tagfile(item, value["variant"], items, existing_items, item_creation_queue)
+    variant_member.type.pack_tagfile(item, value["variant"], items, existing_items, item_creation_queues)
 
     if debug.DEBUG_PRINT_PACK:
         debug.decrement_debug_indent()

@@ -13,7 +13,7 @@ from .hkpPhantom import hkpPhantom
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkpPhysicsSystem(hkReferencedObject):
     alignment = 16
-    byte_size = 68
+    byte_size = 72
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
@@ -26,7 +26,7 @@ class hkpPhysicsSystem(hkReferencedObject):
         Member(44, "phantoms", hkArray(Ptr(hkpPhantom))),
         Member(56, "name", hkStringPtr),
         Member(60, "userData", hkUlong),
-        Member(64, "active", hkBool),
+        Member(68, "active", hkBool),
     )
     members = hkReferencedObject.members + local_members
 

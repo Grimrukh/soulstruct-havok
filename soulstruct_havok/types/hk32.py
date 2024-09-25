@@ -91,10 +91,21 @@ def hkRefVariant(data_type: HK_TYPE | DefType, hsh: int = None) -> tp.Type[hkRef
     return ptr_type
 
 
-def hkArray(data_type: HK_TYPE | hkRefPtr_ | hkViewPtr_, hsh: int = None) -> tp.Type[hkArray_]:
-    """Generates an array class with given `data_type` and (optionally) hash."""
+def hkArray(
+    data_type: HK_TYPE | hkRefPtr_ | hkViewPtr_,
+    hsh: int = None,
+    flags: int = hkArray_.Flags.DONT_DEALLOCATE_FLAG,
+    forced_capacity: int | None = None,
+) -> tp.Type[hkArray_]:
+    """Generates an array class with given `data_type` and (optionally) hash.
+
+    `flags` is almost always `DONT_DEALLOCATE_FLAG`, but can be overridden. If `forced_capacity` is given, it will be
+    used instead of the array's real length. This is necessary for some corner cases (mainly From's custom types).
+    """
     # noinspection PyTypeChecker
     array_type = type(f"hkArray[{data_type.__name__}]", (hkArray_,), {})  # type: tp.Type[hkArray_]
+    array_type.flags = flags
+    array_type.forced_capacity = forced_capacity
     array_type.set_data_type(data_type)
     array_type.set_hsh(hsh)
     return array_type

@@ -100,7 +100,7 @@ from soulstruct_havok.types.hk64 import *
 if tp.TYPE_CHECKING:
     from soulstruct.utilities.binary import BinaryReader, BinaryWriter
     from soulstruct_havok.tagfile.structs import TagFileItem
-    from soulstruct_havok.packfile.structs import PackFileItem
+    from soulstruct_havok.packfile.structs import PackFileDataItem
 
 
 # --- Invalid Types --- #
@@ -272,7 +272,7 @@ class hkVector4f(hkStruct(_float, 4)):
         return value
 
     @classmethod
-    def unpack_packfile(cls, item: PackFileItem, offset: int = None) -> Vector4:
+    def unpack_packfile(cls, item: PackFileDataItem, offset: int = None) -> Vector4:
         value = Vector4(super(hkVector4f, cls).unpack_packfile(item, offset))
         return value
 
@@ -315,7 +315,7 @@ class hkQuaternionf(hkStruct(_float, 4)):
         return value
 
     @classmethod
-    def unpack_packfile(cls, item: PackFileItem, offset: int = None) -> Quaternion:
+    def unpack_packfile(cls, item: PackFileDataItem, offset: int = None) -> Quaternion:
         value = Quaternion(super(hkQuaternionf, cls).unpack_packfile(item, offset))
         return value
 

@@ -17,11 +17,14 @@ __all__ = [
 ]
 
 import typing as tp
+from enum import IntEnum
 
+import colorama
 import numpy as np
 
 from soulstruct_havok.enums import TagDataType
-from soulstruct_havok.tagfile.structs import TagFileItem
+from soulstruct_havok.packfile.structs import PackItemCreationQueues, PackFileDataItem
+from soulstruct_havok.tagfile.structs import TagItemCreationQueues, TagFileItem
 from soulstruct_havok.types.info import *
 
 from .hk import hk, DefType
@@ -30,7 +33,15 @@ from . import tagfile, packfile, debug
 if tp.TYPE_CHECKING:
     from collections import deque
     from soulstruct.utilities.binary import BinaryReader
-    from soulstruct_havok.packfile.structs import PackFileItem
+
+colorama.just_fix_windows_console()
+GREEN = colorama.Fore.GREEN
+RED = colorama.Fore.RED
+YELLOW = colorama.Fore.YELLOW
+BLUE = colorama.Fore.BLUE
+CYAN = colorama.Fore.CYAN
+MAGENTA = colorama.Fore.MAGENTA
+RESET = colorama.Fore.RESET
 
 
 class hkBasePointer(hk):
@@ -101,7 +112,7 @@ class Ptr_(hkBasePointer):
         return value
 
     @classmethod
-    def unpack_packfile(cls, item: PackFileItem, offset: int = None):
+    def unpack_packfile(cls, item: PackFileDataItem, offset: int = None):
         offset = item.reader.seek(offset) if offset is not None else item.reader.position
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(f"Unpacking `{cls.__name__}`... (-> {cls.get_tag_data_type().name}) <{hex(offset)}>")
@@ -118,25 +129,21 @@ class Ptr_(hkBasePointer):
         value: hk,
         items: list[TagFileItem],
         existing_items: dict[hk, TagFileItem],
-        item_creation_queue: dict[str, deque[tp.Callable]],
+        item_creation_queues: TagItemCreationQueues = None,
     ):
-        if debug.DEBUG_PRINT_PACK:
-            debug.debug_print(f"Packing `{cls.__name__}`...")
-        tagfile.pack_pointer(cls, item, value, items, existing_items, item_creation_queue)
+        tagfile.pack_pointer(cls, item, value, items, existing_items, item_creation_queues)
         if debug.REQUIRE_INPUT:
             input("Continue?")
 
     @classmethod
     def pack_packfile(
         cls,
-        item: PackFileItem,
+        item: PackFileDataItem,
         value: hk,
-        existing_items: dict[hk, PackFileItem],
-        data_pack_queue: dict[str, deque[tp.Callable]],
+        existing_items: dict[hk, PackFileDataItem],
+        data_pack_queues: PackItemCreationQueues,
     ):
-        if debug.DEBUG_PRINT_PACK:
-            debug.debug_print(f"Packing `{cls.__name__}`...")
-        packfile.pack_pointer(cls, item, value, existing_items, data_pack_queue)
+        packfile.pack_pointer(cls, item, value, existing_items, data_pack_queues)
         if debug.REQUIRE_INPUT:
             input("Continue?")
 
@@ -308,7 +315,7 @@ class hkViewPtr_(hkBasePointer):
         value: hk,
         items: list[TagFileItem],
         existing_items: dict[hk, TagFileItem],
-        item_creation_queue: dict[str, deque[tp.Callable]],
+        item_creation_queues: TagItemCreationQueues = None,
     ):
         """Identical to `Ptr`.
 
@@ -317,7 +324,7 @@ class hkViewPtr_(hkBasePointer):
         """
         if debug.DEBUG_PRINT_PACK:
             debug.debug_print(f"Packing `{cls.__name__}`...")
-        tagfile.pack_pointer(cls, item, value, items, existing_items, item_creation_queue)
+        tagfile.pack_pointer(cls, item, value, items, existing_items, item_creation_queues)
         if debug.REQUIRE_INPUT:
             input("Continue?")
 
@@ -406,7 +413,7 @@ class hkRelArray_(hkBasePointer):
         return value
 
     @classmethod
-    def unpack_packfile(cls, item: PackFileItem, offset: int = None) -> list:
+    def unpack_packfile(cls, item: PackFileDataItem, offset: int = None) -> list:
         offset = item.reader.seek(offset) if offset is not None else item.reader.position
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(f"Unpacking `{cls.__name__}`... ({cls.get_data_type().__name__}) <Entry @ {hex(offset)}>")
@@ -449,7 +456,7 @@ class hkRelArray_(hkBasePointer):
         value: hk,
         items: list[TagFileItem],
         existing_items: dict[hk, TagFileItem],
-        item_creation_queue: dict[str, deque[tp.Callable]],
+        item_creation_queues: TagItemCreationQueues = None,
     ):
         # TODO: This DOES appear in tagfiles that use classes like `hknpConvexShape`.
         #  Examine those classes closely to find out where the relative array is written (and the jump size).
@@ -458,22 +465,22 @@ class hkRelArray_(hkBasePointer):
     @classmethod
     def pack_packfile(
         cls,
-        item: PackFileItem,
+        item: PackFileDataItem,
         value: tuple,
-        existing_items: dict[hk, PackFileItem],
-        data_pack_queue: dict[str, deque[tp.Callable]],
+        existing_items: dict[hk, PackFileDataItem],
+        data_pack_queues: PackItemCreationQueues,
     ):
         """Registers a function that will write the `hkRelArray` contents, and fill its length/jump where appropriate.
 
         This function will be called when the current list (pushed by last `pack_class_packfile()` call) is popped. That
         is, once class members have all been done.
         """
-        if debug.DEBUG_PRINT_PACK:
-            debug.debug_print(f"Packing `{cls.__name__}`...")
         rel_array_header_pos = item.writer.position
         item.writer.pack("<HH", len(value), 0)
 
         if len(value) == 0:
+            if debug.DEBUG_PRINT_PACK:
+                debug.debug_print(f"Packing {MAGENTA}`{cls.__name__}` = <empty>{RESET}")
             return
 
         def delayed_rel_array():
@@ -485,7 +492,7 @@ class hkRelArray_(hkBasePointer):
             array_start_offset = item.writer.position
             for i, element in enumerate(value):
                 item.writer.pad_to_offset(array_start_offset + i * data_type.byte_size)
-                data_type.pack_packfile(item, element, existing_items, data_pack_queue)
+                data_type.pack_packfile(item, element, existing_items, data_pack_queues)
 
         item.pending_rel_arrays[-1].append(delayed_rel_array)
 
@@ -514,11 +521,25 @@ class hkArray_(hkBasePointer):
 
     Other hkArray properties, like `tAllocator` and `m_size`, are constant and can be automatically generated.
     """
+
+    class Flags(IntEnum):
+        """Bit flags that can be set in the highest two bits of the `capacityAndFlags` member of an `hkArray`.
+
+        99% of arrays enable `DONT_DEALLOCATE_FLAG` only. Suspiciously, those that don't are often in FromSoft's custom
+        class extensions, so they may have just neglected to enable it.
+        """
+        DONT_DEALLOCATE_FLAG = 0x80000000  # extremely common; "the storage is not the array's to delete"
+        ALLOCATED_FROM_SPU_FLAG = 0x40000000  # PS3-era SDKs; "array storage allocated as a result of a SPU request"
+        LOCKED_FLAG = 0x40000000  # older SDKs; "will never have its dtor called (read in from packfile for instance)"
+
     alignment = 8  # actually aligned to 16 in tag file data
     byte_size = 16
     tag_type_flags = 8
 
     __tag_format_flags = 43
+
+    flags: int = Flags.DONT_DEALLOCATE_FLAG
+    forced_capacity: int | None = None
 
     _data_type: type[hk] | hkRefPtr_ | hkViewPtr_ | DefType
 
@@ -542,7 +563,7 @@ class hkArray_(hkBasePointer):
         return value
 
     @classmethod
-    def unpack_packfile(cls, item: PackFileItem, offset: int = None):
+    def unpack_packfile(cls, item: PackFileDataItem, offset: int = None):
         offset = item.reader.seek(offset) if offset is not None else item.reader.position
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(f"Unpacking `{cls.__name__}`... <{hex(offset)}>")
@@ -566,27 +587,25 @@ class hkArray_(hkBasePointer):
         value: list[hk] | list[int] | list[float] | list[str] | list[bool],
         items: list[TagFileItem],
         existing_items: dict[hk, TagFileItem],
-        item_creation_queue: dict[str, deque[tp.Callable]],
+        item_creation_queues: TagItemCreationQueues = None,
     ):
         """Remember that array length can be variable, unlike `hkStruct`."""
         if debug.DEBUG_PRINT_PACK:
             debug.debug_print(f"Packing `{cls.__name__}`... (length = {len(value)})")
-        tagfile.pack_array(cls, item, value, items, existing_items, item_creation_queue)
+        tagfile.pack_array(cls, item, value, items, existing_items, item_creation_queues)
         if debug.REQUIRE_INPUT:
             input("Continue?")
 
     @classmethod
     def pack_packfile(
         cls,
-        item: PackFileItem,
+        item: PackFileDataItem,
         value: list[hk] | list[int] | list[float] | list[str] | list[bool],
-        existing_items: dict[hk, PackFileItem],
-        data_pack_queue: dict[str, deque[tp.Callable]],
+        existing_items: dict[hk, PackFileDataItem],
+        data_pack_queues: PackItemCreationQueues,
     ):
         """Remember that array length can be variable, unlike `hkStruct`."""
-        if debug.DEBUG_PRINT_PACK:
-            debug.debug_print(f"Packing `{cls.__name__}`... (length = {len(value)}) at {item.writer.position_hex}")
-        packfile.pack_array(cls, item, value, existing_items, data_pack_queue)
+        packfile.pack_array(cls, item, value, existing_items, data_pack_queues)
         if debug.REQUIRE_INPUT:
             input("Continue?")
 
@@ -641,7 +660,7 @@ class hkEnum_(hk):
         return cls.storage_type.unpack_tagfile(reader, offset, items)
 
     @classmethod
-    def unpack_packfile(cls, item: PackFileItem, offset: int = None):
+    def unpack_packfile(cls, item: PackFileDataItem, offset: int = None):
         # TODO: Parse using storage type or data type? Storage, I think...
         return cls.storage_type.unpack_packfile(item, offset)
 
@@ -652,19 +671,19 @@ class hkEnum_(hk):
         value: tp.Any,
         items: list[TagFileItem],
         existing_items: dict[hk, TagFileItem],
-        item_creation_queue: dict[str, deque[tp.Callable]],
+        item_creation_queues: TagItemCreationQueues = None,
     ):
-        return cls.storage_type.pack_tagfile(item, value, items, existing_items, item_creation_queue)
+        return cls.storage_type.pack_tagfile(item, value, items, existing_items, item_creation_queues)
 
     @classmethod
     def pack_packfile(
         cls,
-        item: PackFileItem,
+        item: PackFileDataItem,
         value: tp.Any,
-        existing_items: dict[hk, PackFileItem],
-        data_pack_queue: dict[str, deque[tp.Callable]],
+        existing_items: dict[hk, PackFileDataItem],
+        data_pack_queues: PackItemCreationQueues,
     ):
-        return cls.storage_type.pack_packfile(item, value, existing_items, data_pack_queue)
+        return cls.storage_type.pack_packfile(item, value, existing_items, data_pack_queues)
 
     @classmethod
     def get_type_info(cls) -> TypeInfo:
@@ -713,7 +732,7 @@ class hkStruct_(hkBasePointer):
         return value
 
     @classmethod
-    def unpack_packfile(cls, item: PackFileItem, offset: int = None) -> tuple:
+    def unpack_packfile(cls, item: PackFileDataItem, offset: int = None) -> tuple:
         offset = item.reader.seek(offset) if offset is not None else item.reader.position
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(f"Unpacking `{cls.__name__}`... (Struct) <Entry @ {hex(offset)}>")
@@ -732,20 +751,20 @@ class hkStruct_(hkBasePointer):
         value: tp.Any,
         items: list[TagFileItem],
         existing_items: dict[hk, TagFileItem],
-        item_creation_queue: dict[str, deque[tp.Callable]],
+        item_creation_queues: TagItemCreationQueues = None,
     ):
-        tagfile.pack_struct(cls.get_data_type(), item, value, items, existing_items, item_creation_queue, cls.length)
+        tagfile.pack_struct(cls.get_data_type(), item, value, items, existing_items, item_creation_queues, cls.length)
 
     @classmethod
     def pack_packfile(
         cls,
-        item: PackFileItem,
+        item: PackFileDataItem,
         value: tp.Any,
-        existing_items: dict[hk, PackFileItem],
-        data_pack_queue: dict[str, deque[tp.Callable]],
+        existing_items: dict[hk, PackFileDataItem],
+        data_pack_queues: PackItemCreationQueues,
     ):
         packfile.pack_struct(
-            cls.get_data_type(), item, value, existing_items, data_pack_queue, cls.length
+            cls.get_data_type(), item, value, existing_items, data_pack_queues, cls.length
         )
 
     @classmethod

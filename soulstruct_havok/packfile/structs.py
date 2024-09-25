@@ -1,35 +1,48 @@
 from __future__ import annotations
 
 __all__ = [
-    "PackFileType",
-    "PackFileItem",
+    "PackItemCreationQueues",
+    "PackFileTypeItem",
+    "PackFileDataItem",
     "PackFileHeader",
     "PackFileHeaderExtension",
     "PackFileSectionHeader",
     "PackFileVersion",
     "PackfileHeaderInfo",
     "ChildPointerStruct",
-    "EntryPointerStruct",
-    "EntrySpecStruct",
+    "ItemPointerStruct",
+    "ItemSpecStruct",
     "TYPE_NAME_HASHES",
 ]
 
 import abc
 import typing as tp
+from collections import deque
 from dataclasses import dataclass, field
 from enum import IntEnum
+
+from soulstruct_havok.enums import PyHavokModule
 
 from soulstruct.utilities.binary import *
 
 if tp.TYPE_CHECKING:
-    from collections import deque
     import numpy as np
     from soulstruct_havok.types.hk import hk
     from soulstruct_havok.types.base import hkArray_, Ptr_
 
 
 @dataclass(slots=True)
-class PackFileBaseEntry(abc.ABC):
+class PackItemCreationQueues:
+    # Byte order to use when creating items.
+    byte_order: ByteOrder
+    # Pointers to arrays or strings inside the same item. These functions don't return new items.
+    child_pointers: deque[tp.Callable[[PackItemCreationQueues], None]] = field(default_factory=deque)
+    # Pointers to other items in the HKX (always actual `Ptr` types). These functions create and return items.
+    item_pointers: deque[tp.Callable[[PackItemCreationQueues], PackFileDataItem]] = field(default_factory=deque)
+
+
+@dataclass(slots=True)
+class PackFileBaseItem(abc.ABC):
     """Base class for 'Type' and 'Item' entries in a PackFile section."""
 
     local_data_offset: int = -1
@@ -38,10 +51,10 @@ class PackFileBaseEntry(abc.ABC):
     byte_order: ByteOrder = ByteOrder.LittleEndian
     long_varints: bool = False
 
-    # Maps source offsets to dest offsets inside same item. TODO: Always arrays?
+    # Maps source offsets to dest offsets inside same entry (arrays and strings).
     child_pointers: dict[int, int] = field(default_factory=dict)
-    # Maps source offsets to dest entries from same section.
-    item_pointers: dict[int, tuple[PackFileBaseEntry, int]] = field(default_factory=dict)
+    # Maps source offsets to other entries from same section (pointers).
+    item_pointers: dict[int, tuple[PackFileBaseItem, int]] = field(default_factory=dict)
 
     reader: BinaryReader | None = None
     writer: BinaryWriter | None = None
@@ -69,14 +82,14 @@ class PackFileBaseEntry(abc.ABC):
             raise ValueError(f"`{self.__class__.__name__}` reader was already created.")
         self.reader = BinaryReader(self.raw_data, default_byte_order=self.byte_order, long_varints=self.long_varints)
 
-    def start_writer(self):
+    def start_writer(self, byte_order: ByteOrder):
         if self.writer is not None:
             raise ValueError(f"`{self.__class__.__name__}` writer was already created.")
-        self.writer = BinaryWriter(byte_order=self.byte_order, long_varints=self.long_varints)
+        self.writer = BinaryWriter(byte_order=byte_order, long_varints=self.long_varints)
 
 
 @dataclass(slots=True)
-class PackFileType(PackFileBaseEntry):
+class PackFileTypeItem(PackFileBaseItem):
 
     @dataclass(slots=True)
     class TYPE_STRUCT_32(BinaryStruct):
@@ -134,7 +147,7 @@ class PackFileType(PackFileBaseEntry):
 
     class_name: str = ""
     # Type override.
-    item_pointers: dict[int, tuple[PackFileType, int]] = field(default_factory=dict)
+    item_pointers: dict[int, tuple[PackFileTypeItem, int]] = field(default_factory=dict)
 
     def get_type_name(self) -> str | None:
         """Quickly look up type name from raw data. Returns `None` if `child_pointers` is undefined/empty."""
@@ -145,8 +158,8 @@ class PackFileType(PackFileBaseEntry):
     def get_byte_size(self) -> int:
         return BinaryReader(self.raw_data).unpack_value("I", offset=8)
 
-    def get_referenced_type_item(self, offset: int) -> PackFileType | None:
-        """Look for `self.item_pointers[offset]` and recover the pointed `PackFileType`."""
+    def get_referenced_type_item(self, offset: int) -> PackFileTypeItem | None:
+        """Look for `self.item_pointers[offset]` and recover the pointed `PackFileTypeItem`."""
         if offset in self.item_pointers:
             type_item, zero = self.item_pointers[offset]
             if zero != 0:
@@ -156,16 +169,17 @@ class PackFileType(PackFileBaseEntry):
         return None
 
     def __repr__(self):
-        return f"PackFileType({self.get_type_name()})"
+        return f"PackFileTypeItem({self.get_type_name()})"
 
 
 @dataclass(slots=True, kw_only=True)
-class PackFileItem(PackFileBaseEntry):
+class PackFileDataItem(PackFileBaseItem):
 
-    item_pointers: dict[int, tuple[PackFileItem, int]] = field(default_factory=dict)
+    item_pointers: dict[int, tuple[PackFileDataItem, int]] = field(default_factory=dict)  # type override
+
     hk_type: tp.Type[hk | hkArray_ | Ptr_] | None = None
     value: None | hk | bool | int | float | list | tuple | np.ndarray = None
-    # Packer-managed lists of functions that fill in array jumps later.
+    # Packer-managed lists of functions that fill in short array jumps later (written after members but before arrays).
     pending_rel_arrays: list[deque[tp.Callable]] = field(default_factory=list)
 
     def get_class_name(self):
@@ -181,7 +195,7 @@ class PackFileItem(PackFileBaseEntry):
             )
 
     def __repr__(self):
-        return f"PackFileItem({self.hk_type.__name__ if self.hk_type else None})"
+        return f"PackFileDataItem({self.hk_type.__name__ if self.hk_type else None})"
 
 
 class PackFileVersion(IntEnum):
@@ -207,11 +221,11 @@ class PackFileHeader(BinaryStruct):
     is_little_endian: bool  # usually True (post DeS I assume)
     padding_option: byte  # 0 or 1 (1 in Bloodborne)
     base_type: byte = field(init=False, **Binary(asserted=1))
-    section_count: int = field(init=False, **Binary(asserted=3))
-    contents_section_index: int = field(init=False, **Binary(asserted=2))  # data section
-    contents_section_offset: int = field(init=False, **Binary(asserted=0))  # start of data section
-    contents_type_name_section_index: int = field(init=False, **Binary(asserted=0))  # type name section
-    contents_type_name_section_offset: int = field(init=False, **Binary(asserted=(75, 910)))  # 'hkRootLevelContainer' str
+    section_count: int = field(init=False, **Binary(asserted=3))  # sections: classnames, types, data
+    data_section_index: int = field(init=False, **Binary(asserted=2))  # always third section
+    data_section_base_offset: int = field(init=False, **Binary(asserted=0))  # just the start of data section
+    classnames_section_index: int = field(init=False, **Binary(asserted=0))  # always first section
+    classnames_section_root_offset: int  # relative offset of string 'hkRootLevelContainer' in classnames (often 75)
     contents_version_string: bytes = field(**BinaryString(14))  # e.g. "hk_2010.2.0-r1"
     _pad1: bytes = field(init=False, **BinaryPad(1))
     _minus_one: byte = field(init=False, **Binary(asserted=0xFF))
@@ -296,14 +310,14 @@ class ChildPointerStruct(BinaryStruct):
 
 
 @dataclass(slots=True)
-class EntryPointerStruct(BinaryStruct):
+class ItemPointerStruct(BinaryStruct):
     source_offset: uint
     dest_section_index: uint  # usually 2 (__data__)
     dest_offset: uint  # usually zero
 
 
 @dataclass(slots=True)
-class EntrySpecStruct(BinaryStruct):
+class ItemSpecStruct(BinaryStruct):
     local_data_offset: uint  # relative offset into "__data__" section
     type_section_index: uint = field(init=False, **Binary(asserted=0))  # always references type section
     type_name_offset: uint  # offset into `section_index` above (always type section)
@@ -311,16 +325,91 @@ class EntrySpecStruct(BinaryStruct):
 
 # Hashes for Havok types (typically generic types) that do not have a hash in the known database XML.
 TYPE_NAME_HASHES = {
-    "2010": {
+    # TODO: Most of these can go in their Python types.
+    PyHavokModule.hk550: {
+        "hkClass": 2384426808,
+        "hkClassMember": 1460610213,
+        "hkClassEnum": 3473487498,
+        "hkClassEnumItem": 1821011918,
+        "hkpPhantom": 450759338,
+        "hkAabb": 378246218,
+        "hkpEntitySmallArraySerializeOverrideType": 3244565483,
+        "hkpPhysicsData": 3831604418,
+        "hkWorldMemoryAvailableWatchDog": 3036025613,
+        "hkpPhysicsSystem": 4025505819,
+        "hkSweptTransform": 1884769803,
+        "hkpShapeContainer": 9072864,
+        "hkpCollidable": 3282205016,
+        "hkpBroadPhaseHandle": 3697870228,
+        "hkpEntity": 931494394,
+        "hkpShapeCollection": 1697782427,
+        "hkpMaterial": 1688372484,
+        "hkpExtendedMeshShapeTrianglesSubpart": 2620421427,
+        "hkpKeyframedRigidMotion": 3207400075,
+        "hkMoppBvTreeShapeBase": 248911681,
+        "hkpMoppCode": 4166643314,
+        "hkAabbUint32": 692521132,
+        "hkpSphereRepShape": 3953650919,
+        "hkpMoppBvTreeShape": 691845851,
+        "hkpRigidBody": 1994269746,
+        "hkpStorageExtendedMeshShapeMeshSubpartStorage": 1359687483,
+        "hkpBvTreeShape": 3953650919,
+        "hkpExtendedMeshShapeSubpart": 3342177404,
+        "CustomMeshParameter": 3922497084,
+        "hkpStorageExtendedMeshShape": 2661821634,
+        "hkpExtendedMeshShape": 137956390,
+        "hkpModifierConstraintAtom": 2335472315,
+        "hkpSingleShapeContainer": 941468275,
+        "hkReferencedObject": 319888443,
+        "hkpCollisionFilter": 906204768,
+        "hkpConstraintInstance": 1706373920,
+        "hkpProperty": 3909673884,
+        "hkRootLevelContainer": 1319344373,
+        "hkpLinkedCollidable": 4041247054,
+        "hkMultiThreadCheck": 545799196,
+        "hkpWorldCinfo": 2507328831,
+        "hkpMaxSizeMotion": 4176799915,
+        "hkpPropertyValue": 2854574535,
+        "hkpCdBody": 2284211689,
+        "hkBaseObject": 9072864,
+        "hkpShape": 2710594662,
+        "hkpExtendedMeshShapeShapesSubpart": 2736185596,
+        "hkpCollidableBoundingVolumeData": 659928215,
+        "hkpConstraintData": 2265812929,
+        "CustomParamStorageExtendedMeshShape": 1293002611,
+        "hkpStorageExtendedMeshShapeShapeSubpartStorage": 3979946320,
+        "hkpTypedBroadPhaseHandle": 461912485,
+        "hkpMotion": 3384613396,
+        "hkpWorldObject": 2683237968,
+        "hkpAction": 1500419766,
+        "hkpConvexListFilter": 2759118977,
+        "hkpConvexShape": 2236610552,
+        "hkRootLevelContainerNamedVariant": 2626239109,
+        "hkpEntitySpuCollisionCallback": 92214401,
+        "hkpMoppCodeCodeInfo": 146537944,
+        "hkMotionState": 3833351686,
+        "hkpConstraintAtom": 70097133,
+    },
+    PyHavokModule.hk2010: {
         "hkClass": 1968725750,
         "hkClassMember": 1551803586,
         "hkClassEnum": 2318797263,
         "hkClassEnumItem": 3463416428,
+        "hkRootLevelContainer": 661831966,
         "hkaAnimationBinding": 1726663025,
         "hkaDefaultAnimatedReferenceFrame": 1837491269,
         "hkaSplineCompressedAnimation": 2033115323,
+        "hkpPhysicsData": 3265552868,
+        "hkpPhysicsSystem": 4285680663,
+        "hkpRigidBody": 1979242501,
+        "hkpMoppBvTreeShape": 2427624761,
+        "hkpMoppCode": 2454464097,
+        "CustomParamStorageExtendedMeshShape": 2191966266,
+        "hkpStorageExtendedMeshShapeMeshSubpartStorage": 1521307110,
+        "CustomMeshParameter": 1015991529,
+
     },
-    "2014": {
+    PyHavokModule.hk2014: {
         "hkClass": 869540739,
         "hkClassMember": 2968495897,
         "hkClassEnum": 2318797263,

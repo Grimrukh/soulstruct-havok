@@ -12,7 +12,7 @@ from .hkpMoppCodeBuildType import hkpMoppCodeBuildType
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkpMoppCode(hkReferencedObject):
     alignment = 16
-    byte_size = 64
+    byte_size = 44
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
@@ -20,10 +20,8 @@ class hkpMoppCode(hkReferencedObject):
     local_members = (
         Member(16, "info", hkpMoppCodeCodeInfo),
         Member(32, "data", hkArray(hkUint8, hsh=2877151166)),
-        Member(48, "buildType", hkEnum(hkpMoppCodeBuildType, hkInt8)),
     )
     members = hkReferencedObject.members + local_members
 
     info: hkpMoppCodeCodeInfo
     data: list[int]
-    buildType: hkpMoppCodeBuildType

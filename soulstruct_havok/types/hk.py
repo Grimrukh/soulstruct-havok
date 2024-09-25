@@ -13,16 +13,17 @@ __all__ = [
 import copy
 import inspect
 import typing as tp
-from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass
 
+import colorama
 import numpy as np
 
 from soulstruct.utilities.binary import BinaryReader, BinaryWriter
 
 from soulstruct_havok.enums import TagDataType, MemberFlags
-from soulstruct_havok.tagfile.structs import TagFileItem
+from soulstruct_havok.packfile.structs import PackItemCreationQueues
+from soulstruct_havok.tagfile.structs import TagItemCreationQueues, TagFileItem
 from soulstruct_havok.types.info import *
 from soulstruct_havok.utilities.maths import Quaternion, Vector4
 
@@ -30,7 +31,11 @@ from . import packfile, tagfile, debug
 
 
 if tp.TYPE_CHECKING:
-    from soulstruct_havok.packfile.structs import PackFileItem
+    from soulstruct_havok.packfile.structs import PackFileDataItem
+
+colorama.just_fix_windows_console()
+CYAN = colorama.Fore.CYAN
+RESET = colorama.Fore.RESET
 
 
 # region Supporting Types
@@ -195,10 +200,10 @@ class hk:
     @staticmethod
     @contextmanager
     def set_types_dict(module):
-        """Assign `soulstruct_havok.types.hk20XX` submodule to `hk` so that dynamic type names can be resolved (e.g.,
+        """Assign `soulstruct_havok.types.hkXXXX` submodule to `hk` so that dynamic type names can be resolved (e.g.,
         `hkRootLevelContainerNamedVariant`, `hkViewPtr`).
 
-        Should be used as a `with` context to ensure the dictionary is destroyed when unpacking is finished. Not
+        Should be used via `with` context to ensure the dictionary is unassigned when unpacking is finished. Not
         required for packing because the types are already assigned.
         """
         hk._TYPES_DICT = {
@@ -274,7 +279,7 @@ class hk:
         return value
 
     @classmethod
-    def unpack_packfile(cls, item: PackFileItem, offset: int = None):
+    def unpack_packfile(cls, item: PackFileDataItem, offset: int = None):
         """Unpack Python data from a Havok packfile.
 
         If `offset` is None, the `item.reader` continues from its current position.
@@ -319,7 +324,9 @@ class hk:
             and not debug.DO_NOT_DEBUG_PRINT_PRIMITIVES
             and cls.__name__ not in {"_float", "hkUint8"}
         ):
-            if isinstance(value, list) and len(value) > 10 and isinstance(value[0], (int, float)):
+            if isinstance(value, np.ndarray) and value.size > 10:
+                debug.debug_print(f"--> {repr(value[:10])}... ({value.size} elements/rows)")
+            elif isinstance(value, list) and len(value) > 10 and isinstance(value[0], (int, float)):
                 debug.debug_print(f"--> {repr(value[:10])}... ({len(value)} total)")
             else:
                 debug.debug_print(f"--> {repr(value)}")
@@ -333,7 +340,7 @@ class hk:
         value: tp.Any,
         items: list[TagFileItem],
         existing_items: dict[hk, TagFileItem],
-        item_creation_queue: dict[str, deque[tp.Callable]],
+        item_creation_queues: TagItemCreationQueues = None,
     ):
         """Use this `hk` type to process and pack the Python `value`.
 
@@ -341,6 +348,10 @@ class hk:
         is currently in is correct). For types with members (Class types), any pointer, array, and string member types
         will cause a new item to be created with its own `BinaryWriter`; this item's data, once complete, will be stored
         in its `data` attribute, and all items' data can be assembled in order at the end.
+
+        Note the difference compared to packfiles: arrays and strings ALSO get their own items in tagfiles, whereas in
+        packfiles, their data just appear after the member field data (which will contain same-item offsets to the
+        packed array/string data).
         """
         if (
             debug.DEBUG_PRINT_PACK
@@ -348,10 +359,10 @@ class hk:
             and cls.__name__ not in {"_float", "hkUint8"}
         ):
             tag_data_type_name = cls.get_tag_data_type().name
-            debug.debug_print(f"Packing `{cls.__name__}` with value {repr(value)}... ({tag_data_type_name})")
+            debug.debug_print(f"Packing {CYAN}`{cls.__name__}` = {repr(value)}{RESET} <{tag_data_type_name}>")
 
         if cls.__name__ == "hkRootLevelContainerNamedVariant":
-            return tagfile.pack_named_variant(cls, item, value, items, existing_items, item_creation_queue)
+            return tagfile.pack_named_variant(cls, item, value, items, existing_items, item_creation_queues)
 
         tag_data_type = cls.get_tag_data_type()
         if tag_data_type == TagDataType.Invalid:
@@ -360,17 +371,17 @@ class hk:
         elif tag_data_type == TagDataType.Bool:
             tagfile.pack_bool(cls, item, value)
         elif tag_data_type in {TagDataType.CharArray, TagDataType.ConstCharArray}:
-            tagfile.pack_string(cls, item, value, items, item_creation_queue)
+            tagfile.pack_string(cls, item, value, items, item_creation_queues)
         elif tag_data_type == TagDataType.Int:
             tagfile.pack_int(cls, item, value)
         elif tag_data_type == TagDataType.Float:
             tagfile.pack_float(cls, item, value)
         elif tag_data_type == TagDataType.Class:
-            tagfile.pack_class(cls, item, value, items, existing_items, item_creation_queue)
+            tagfile.pack_class(cls, item, value, items, existing_items, item_creation_queues)
         elif tag_data_type == TagDataType.Array and cls.__name__ in {"hkPropertyBag", "hkReflectAny"}:
             # TODO: These two newer types are marked as Arrays, for some reason.
             #  Probably indicates that 'Array' actually means some kind of 'Pointer'?
-            tagfile.pack_class(cls, item, value, items, existing_items, item_creation_queue)
+            tagfile.pack_class(cls, item, value, items, existing_items, item_creation_queues)
         else:
             # 'Pointer' and 'Array' types are handled by `Ptr_` and `hkArray_` subclasses, respectively.
             raise ValueError(f"Cannot pack `hk` subclass `{cls.__name__}` with tag data type {tag_data_type.name}.")
@@ -378,10 +389,10 @@ class hk:
     @classmethod
     def pack_packfile(
         cls,
-        item: PackFileItem,
+        item: PackFileDataItem,
         value: tp.Any,
-        existing_items: dict[hk, PackFileItem],
-        data_pack_queue: dict[str, deque[tp.Callable]],
+        existing_items: dict[hk, PackFileDataItem],
+        data_pack_queues: PackItemCreationQueues,
     ):
         """Use this `hk` type to process and pack the Python `value`.
 
@@ -392,12 +403,13 @@ class hk:
         (child) and external reference pointers.
         """
         if debug.DEBUG_PRINT_PACK:
+            tag_data_type_name = cls.get_tag_data_type().name
             debug.debug_print(
-                f"Packing `{cls.__name__}` with value {repr(value)}... ({cls.get_tag_data_type().name})"
+                f"Packing {CYAN}`{cls.__name__}` = {repr(value)}{RESET} <{tag_data_type_name}>"
             )
 
         if cls.__name__ == "hkRootLevelContainerNamedVariant":
-            return packfile.pack_named_variant(cls, item, value, existing_items, data_pack_queue)
+            return packfile.pack_named_variant(cls, item, value, existing_items, data_pack_queues)
 
         tag_data_type = cls.get_tag_data_type()
         if tag_data_type == TagDataType.Invalid:
@@ -406,13 +418,13 @@ class hk:
         elif tag_data_type == TagDataType.Bool:
             packfile.pack_bool(cls, item, value)
         elif tag_data_type in {TagDataType.CharArray, TagDataType.ConstCharArray}:
-            packfile.pack_string(item, value, data_pack_queue)  # `cls` not needed
+            packfile.pack_string(item, value, data_pack_queues)  # `cls` not needed
         elif tag_data_type == TagDataType.Int:
             packfile.pack_int(cls, item, value)
         elif tag_data_type == TagDataType.Float:
             packfile.pack_float(cls, item, value)
         elif tag_data_type == TagDataType.Class:
-            packfile.pack_class(cls, item, value, existing_items, data_pack_queue)
+            packfile.pack_class(cls, item, value, existing_items, data_pack_queues)
         else:
             # 'Pointer' and 'Array' types are handled by `Ptr_` and `hkArray_` subclasses, respectively.
             raise ValueError(f"Cannot pack `hk` subclass `{cls.__name__}` with tag data type {tag_data_type.name}.")
