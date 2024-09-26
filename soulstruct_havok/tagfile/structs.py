@@ -60,16 +60,16 @@ class TagFileItem:
         self.data = bytes(self.writer)
         self.writer = None  # ensure we don't accidentally try to write more
 
-    def get_item_hk_type(self, hk_types_module):
+    def get_item_hk_type(self, hk_types_module) -> HK_TYPE:
         """Get actual data type of item (string, array, pointer, or `hkRootLevelContainer`)."""
         tag_data_type = self.hk_type.get_tag_data_type()
         if tag_data_type == TagDataType.CharArray:
             return getattr(hk_types_module, "_char")
         elif tag_data_type == TagDataType.Array:
-            self.hk_type: hkArray_
+            self.hk_type: type[hkArray_]
             return self.hk_type.get_data_type()
         elif tag_data_type == TagDataType.Pointer:
-            self.hk_type: Ptr_
+            self.hk_type: type[Ptr_]
             return type(self.value)
         elif self.hk_type.__name__ == "hkRootLevelContainer":
             return self.hk_type

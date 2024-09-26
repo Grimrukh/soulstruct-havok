@@ -121,7 +121,7 @@ MISSING_MEMBER_DEFAULTS = {
 }
 
 
-def convert_simple(instance: hk2014.hk, converted_ids: dict[int, hk2015.hk] = None):
+def convert_simple(instance: hk2014.hk, converted_ids: dict[int, hk2015.hk] = None) -> type[hk2015.hk]:
     """Just iterates over members and updates types.
 
     Does not expect or handle any structural change EXCEPT for `memSizeAndFlags`/`refCount`.
@@ -321,7 +321,10 @@ def convert_hknp_ragdoll_hkx_to_hkp(
                     deactivationNumInactiveFrames=(49152, 49152),
                     # TODO: Use my existing motion conversion.
                     motionState=hk2015.hkMotionState(
-                        transform=tuple(hknp_quat_transform.to_matrix4().to_flat_column_order()),
+                        transform=hk2015.hkTransform(
+                            rotation=tuple(hknp_quat_transform.rotation.to_matrix3().to_flat_column_order()),
+                            translation=Vector4((*hknp_quat_transform.translation, 0.0)),
+                        ),
                         sweptTransform=(
                             hknp_motion_c_info.centerOfMassWorld,
                             hknp_motion_c_info.centerOfMassWorld,
@@ -329,7 +332,7 @@ def convert_hknp_ragdoll_hkx_to_hkp(
                             hknp_motion_c_info.orientation,  # quaternion
                             hknp_motion_c_info.centerOfMassWorld,  # TODO: actually differs subtly from first two rows
                         ),
-                        deltaAngle=(0.0, 0.0, 0.0, 0.0),
+                        deltaAngle=Vector4.zero(),
                         objectRadius=hknp_body_c_info.shape.convexRadius * 3.0,  # TODO: very rough
                         linearDamping=hk2015.hkHalf16(value=0),
                         angularDamping=hk2015.hkHalf16(value=15692),
@@ -343,8 +346,8 @@ def convert_hknp_ragdoll_hkx_to_hkp(
                     linearVelocity=hknp_motion_c_info.linearVelocity,
                     angularVelocity=hknp_motion_c_info.angularVelocity,
                     deactivationRefPosition=(
-                        (0.0, 0.0, 0.0, 0.0),
-                        (0.0, 0.0, 0.0, 0.0),
+                        Vector4.zero(),
+                        Vector4.zero(),
                     ),
                     deactivationRefOrientation=(0, 0),
                     savedMotion=None,

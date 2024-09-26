@@ -6,14 +6,14 @@ from soulstruct_havok.enums import *
 from .core import *
 
 
-from .hkbGenerator import hkbGenerator
+from .hkb.hkbGenerator import hkbGenerator
 from .CustomManualSelectorGeneratorOffsetType import CustomManualSelectorGeneratorOffsetType
 from .CustomManualSelectorGeneratorAnimeEndEventType import CustomManualSelectorGeneratorAnimeEndEventType
 from .CustomManualSelectorGeneratorChangeTypeOfSelectedIndexAfterActivate import CustomManualSelectorGeneratorChangeTypeOfSelectedIndexAfterActivate
-from .hkbTransitionEffect import hkbTransitionEffect
+from .hkb.hkbTransitionEffect import hkbTransitionEffect
 from .CustomManualSelectorGeneratorReplanningAI import CustomManualSelectorGeneratorReplanningAI
 from .CustomManualSelectorGeneratorRideSync import CustomManualSelectorGeneratorRideSync
-from .hkbEvent import hkbEvent
+from .hkb.hkbEvent import hkbEvent
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)

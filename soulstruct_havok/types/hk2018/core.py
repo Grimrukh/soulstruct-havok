@@ -111,10 +111,10 @@ import numpy as np
 
 from soulstruct_havok.utilities.maths import Quaternion, TRSTransform, Vector3, Vector4
 from soulstruct_havok.enums import TagDataType, MemberFlags
-from soulstruct_havok.types.hk64 import *
+from soulstruct_havok.types.base import *
 
 if tp.TYPE_CHECKING:
-    from soulstruct.utilities.binary import BinaryReader, BinaryWriter
+    from soulstruct.utilities.binary import BinaryReader
     from soulstruct_havok.tagfile.structs import TagFileItem
     from soulstruct_havok.packfile.structs import PackFileDataItem
 
@@ -307,20 +307,10 @@ class hkVector4f(hkStruct(_float, 4)):
 
     @classmethod
     def unpack_primitive_array(cls, reader: BinaryReader, length: int, offset: int = None) -> np.ndarray:
-        """Unpack vector array with `numpy`."""
+        """Unpack an array of vectors with `numpy`."""
         data = reader.read(length * 4 * cls.length, offset=offset)
         dtype = np.dtype(f"{reader.default_byte_order}f4")
         return np.frombuffer(data, dtype=dtype).reshape((length, cls.length))
-
-    @classmethod
-    def try_pack_primitive_array(cls, writer: BinaryWriter, value: np.ndarray) -> bool:
-        """Pack `float32` array in standard row-first order."""
-        if not isinstance(value, np.ndarray) or value.dtype != np.float32:
-            raise ValueError(f"Cannot pack non-`np.float32` array as an array of `{cls.__name__}`: {value}")
-        if value.shape[1] != cls.length:
-            raise ValueError(f"Cannot pack `{cls.__name__}` array with shape {value.shape}.")
-        writer.append(value.tobytes())
-        return True
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)

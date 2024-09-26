@@ -62,9 +62,9 @@ class TagFilePacker:
     def get_py_type(self, type_name: str) -> type[hk]:
         return getattr(self.hk_types_module, type_name)
 
-    def build_type_info_dict(self):
+    def build_type_info_dict(self, long_varints: bool):
         """Collects all `TypeInfo`s for types used by this file."""
-        self.type_info_dict = TypeInfoGenerator(self.items[1:], self.hk_types_module).type_infos
+        self.type_info_dict = TypeInfoGenerator(self.items[1:], self.hk_types_module, long_varints).type_infos
         type_py_names = [""] + list(self.type_info_dict.keys())
         for type_info in self.type_info_dict.values():
             type_info.indexify(type_py_names)
@@ -77,7 +77,10 @@ class TagFilePacker:
             print(f"{GREEN}Final packed type list:\n    {types}{RESET}")
 
     def to_writer(
-        self, hsh_overrides: dict[str, int] = None, byte_order: ByteOrder = ByteOrder.LittleEndian
+        self,
+        hsh_overrides: dict[str, int] = None,
+        byte_order: ByteOrder = ByteOrder.LittleEndian,
+        long_varints: bool = True,
     ) -> BinaryWriter:
         """Pack a tagfile using the `hkRootLevelContainer` (`hkx.root`).
 
@@ -99,7 +102,7 @@ class TagFilePacker:
 
                 with hk.set_types_dict(self.hk_types_module):
                     data_start_offset = self.pack_data_section(writer)
-                    self.build_type_info_dict()  # also requires types dict to be set to `hk`
+                    self.build_type_info_dict(long_varints)
 
             self.pack_type_section(writer, hsh_overrides)
 
@@ -277,8 +280,17 @@ class TagFilePacker:
                         self.pack_var_int(writer, type_info.version)
 
                     if type_info.tag_format_flags & TagFormatFlags.ByteSize:
-                        self.pack_var_int(writer, type_info.byte_size)
-                        self.pack_var_int(writer, type_info.alignment)
+                        # Byte size and alignment of pointers (-1) is resolved here.
+                        if type_info.byte_size == -1:
+                            byte_size = 8 if writer.long_varints else 4
+                        else:
+                            byte_size = type_info.byte_size
+                        if type_info.alignment == -1:
+                            alignment = 8 if writer.long_varints else 4
+                        else:
+                            alignment = type_info.alignment
+                        self.pack_var_int(writer, byte_size)
+                        self.pack_var_int(writer, alignment)
 
                     if type_info.tag_format_flags & TagFormatFlags.AbstractValue:
                         self.pack_var_int(writer, type_info.abstract_value)

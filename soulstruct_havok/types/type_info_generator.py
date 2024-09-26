@@ -17,7 +17,7 @@ import colorama
 
 from soulstruct_havok.tagfile.structs import TagFileItem
 
-from .hk64 import *
+from .base import *
 from .info import *
 
 
@@ -33,10 +33,11 @@ class TypeInfoGenerator:
 
     _DEBUG_PRINT = False
 
-    def __init__(self, items: list[TagFileItem], hk_types_module):
+    def __init__(self, items: list[TagFileItem], hk_types_module, long_varints=True):
         self.type_infos = {}  # type: dict[str, TypeInfo]
         self._module = hk_types_module
         self._scanned_type_names = set()
+        self._long_varints = long_varints
 
         for item in items:
             if isinstance(item.value, hk):
@@ -54,7 +55,7 @@ class TypeInfoGenerator:
             raise KeyError(f"Type named '{hk_type.__name__}' was collected more than once.")
 
         type_info_index = len(self.type_infos) + 1
-        self.type_infos[hk_type.__name__] = hk_type.get_type_info()
+        self.type_infos[hk_type.__name__] = hk_type.get_type_info(self._long_varints)
         if self._DEBUG_PRINT:
             print(f"{' ' * indent}  {GREEN}Created TypeInfo {type_info_index}: {hk_type.__name__}{RESET}")
 
@@ -131,7 +132,7 @@ class TypeInfoGenerator:
                     self._add_type(Ptr(data_type), indent)
                     # Does not need to be queued.
 
-        # if not issubclass(hk_type, hkStruct_):  # struct member types are covered by pointer data type above
+        # struct member types are covered by pointer data type above
 
         for member in hk_type.local_members:
             if issubclass(member.type, hk) and member.type.__name__ not in self.type_infos:

@@ -6,7 +6,7 @@ from soulstruct_havok.enums import *
 from .core import *
 
 
-from .hkbBlendingTransitionEffect import hkbBlendingTransitionEffect
+from .hkb.hkbBlendingTransitionEffect import hkbBlendingTransitionEffect
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)

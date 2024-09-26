@@ -146,12 +146,15 @@ class PackFilePacker:
         data_start_offset = writer.position
         self.items = {}
         self.packed_items = []
-        root_item = PackFileDataItem(hk_type=self.hkx.root.__class__, long_varints=header_info.long_varints)
+        root_item = PackFileDataItem(
+            hk_type=self.hkx.root.__class__,
+            byte_order=byte_order,
+            long_varints=header_info.long_varints)
         root_item.value = self.hkx.root
         self.items[self.hkx.root] = root_item
 
         def delayed_root_item_pack(_item_creation_queues: PackItemCreationQueues):
-            root_item.start_writer(byte_order=byte_order)
+            root_item.start_writer()
             self.hkx.root.pack_packfile(
                 root_item, self.hkx.root, self.items, _item_creation_queues
             )
@@ -169,7 +172,7 @@ class PackFilePacker:
         # and `b` points to another `hk` instance `d`, then the packed item order will be `(a, b, d, c)`, since item `d`
         # was pointed to during packing of `b`.
         with hk.set_types_dict(self.hk_types_module):
-            self.process_item_creation_queue(deque([delayed_root_item_pack]), byte_order)
+            self.process_item_creation_queue(deque([delayed_root_item_pack]))
 
         for item in self.packed_items:
             # Packed entry data.
@@ -212,7 +215,6 @@ class PackFilePacker:
     def process_item_creation_queue(
         self,
         item_creation_queue: deque[tp.Callable[[PackItemCreationQueues], PackFileDataItem]],
-        byte_order: ByteOrder,
     ):
         """My best attempt at emulating the item/data packing order seen in real HKX files.
 
@@ -229,10 +231,9 @@ class PackFilePacker:
         while item_creation_queue:
             # We collect pointers to other items and arrays/strings in the item's members.
             delayed_item_creation = item_creation_queue.popleft()
-            item_pointer_queues = PackItemCreationQueues(byte_order)
+            item_pointer_queues = PackItemCreationQueues()
             item = delayed_item_creation(item_pointer_queues)
 
-            print(f"ITEM: {item.get_class_name()}, {item.writer.position_hex}")
             # Immediately pack arrays and strings within the same item.
             # Note that arrays of pointers will enqueue additional item creation functions.
             while item_pointer_queues.child_pointers:
@@ -245,7 +246,7 @@ class PackFilePacker:
             self.packed_items.append(item)  # ordered only as they are packed, not created
 
             # Recur on newly collected items (including any added during array packing above).
-            self.process_item_creation_queue(item_pointer_queues.item_pointers, byte_order)
+            self.process_item_creation_queue(item_pointer_queues.item_pointers)
 
     def collect_class_names_from_members(self, instance: hk, class_names: list[str]) -> list[str]:
         """Collect names of all `Ptr` data types from `instance`, recursively."""

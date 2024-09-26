@@ -50,6 +50,15 @@ MAGENTA = colorama.Fore.MAGENTA
 RESET = colorama.Fore.RESET
 
 
+def try_pad_to_offset(item: TagFileItem, offset: int, extra_msg: str):
+    try:
+        item.writer.pad_to_offset(offset)
+    except ValueError:
+        print(f"Item type: {item.hk_type.__name__}")
+        print(extra_msg)
+        raise
+
+
 def unpack_bool(hk_type: type[hk], reader: BinaryReader) -> bool:
     fmt = TagDataType.get_int_fmt(hk_type.tag_type_flags)
     return reader.unpack_value(fmt) > 0
@@ -138,7 +147,7 @@ def pack_class(
     if debug.DEBUG_PRINT_PACK:
         debug.decrement_debug_indent()
 
-    item.writer.pad_to_offset(member_start_offset + hk_type.byte_size)
+    item.writer.pad_to_offset(member_start_offset + hk_type.get_byte_size(True))
 
 
 def unpack_pointer(data_hk_type: type[hk], reader: BinaryReader, items: list[TagFileItem]) -> hk | None:
@@ -263,13 +272,19 @@ def unpack_array(data_hk_type: type[hk], reader: BinaryReader, items: list[TagFi
             item.value = [
                 data_hk_type.unpack_tagfile(
                     reader,
-                    offset=item.absolute_offset + i * data_hk_type.byte_size,
+                    offset=item.absolute_offset + i * data_hk_type.get_byte_size(True),
                     items=items,
                 ) for i in range(item.length)
             ]
 
         if debug.DEBUG_PRINT_UNPACK:
             debug.decrement_debug_indent()
+
+    if len(item.value) > 10 and isinstance(item.value[0], (int, float)):
+        debug.debug_print(f"= {repr(item.value[:10])}... ({len(item.value)} elements)")
+    else:
+        debug.debug_print(f"= {repr(item.value)}")
+
     return item.value
 
 
@@ -310,9 +325,10 @@ def pack_array(
         # Try primitive pack, then fall back to recursive pack.
         if not data_hk_type.try_pack_primitive_array(new_item.writer, value):
             # Non-primitive; recur on data type `pack` method.
+            byte_size = data_hk_type.get_byte_size(True)
             for i, element in enumerate(value):
                 data_hk_type.pack_tagfile(new_item, element, items, existing_items, _item_creation_queues)
-                new_item.writer.pad_to_offset((i + 1) * data_hk_type.byte_size)
+                new_item.writer.pad_to_offset((i + 1) * byte_size)
 
         return new_item
 
@@ -328,7 +344,7 @@ def unpack_struct(
     struct_start_offset = reader.position
 
     # Check for primitive types and unpack all at once (rather than, eg, unpacking 10000 floats over 10000 calls).
-    # We can assume tight packing for these primitives (`data_hk_type.byte_size` is predictable).
+    # We can assume tight packing for these primitives (`data_hk_type.get_byte_size()` is predictable).
     tag_data_type = data_hk_type.get_tag_data_type()
     if tag_data_type == TagDataType.Invalid:
         # Cannot unpack opaque type (and there shouldn't be anything to unpack in the file).
@@ -342,10 +358,11 @@ def unpack_struct(
     elif data_hk_type.tag_type_flags == TagDataType.FloatAndFloat32:
         return reader.unpack(f"{length}f")
     else:  # non-primitive; recur on data type `unpack` method (and do not assume tight packing)
+        byte_size = data_hk_type.get_byte_size(True)
         return tuple(
             data_hk_type.unpack_tagfile(
                 reader,
-                offset=struct_start_offset + i * data_hk_type.byte_size,
+                offset=struct_start_offset + i * byte_size,
                 items=items,
             ) for i in range(length)
         )
@@ -354,7 +371,7 @@ def unpack_struct(
 def pack_struct(
     data_hk_type: type[hk],
     item: TagFileItem,
-    value: tuple,
+    value: tuple | np.ndarray,
     items: list[TagFileItem],
     existing_items: dict[hk, TagFileItem],
     item_creation_queues: TagItemCreationQueues,
@@ -363,27 +380,20 @@ def pack_struct(
     """Structs are packed locally in the same item, but can contain pointers themselves."""
     struct_start_offset = item.writer.position
 
+    if isinstance(value, np.ndarray) and value.ndim > 1:
+        # Flatten array.
+        value = value.flatten()
+
     if len(value) != length:
-        raise ValueError(f"Length of `{data_hk_type.__name__}` value is not {length}: {value}")
+        raise ValueError(f"Length of `{data_hk_type.__name__}` struct is not {length}: {value}")
 
     # For primitive types, pack all at once (predictably tight for these primitives, so no need to pad).
-    tag_data_type = data_hk_type.get_tag_data_type()
-    match tag_data_type:
-        case TagDataType.Invalid:
-            pass
-        case TagDataType.Bool:
-            fmt = TagDataType.get_int_fmt(data_hk_type.tag_type_flags, count=length)
-            item.writer.pack(fmt, *[int(v) for v in value])
-        case TagDataType.Int:
-            fmt = TagDataType.get_int_fmt(data_hk_type.tag_type_flags, count=length)
-            item.writer.pack(fmt, *value)
-        case TagDataType.Float if data_hk_type.tag_type_flags == TagDataType.FloatAndFloat32:
-            item.writer.pack(f"{length}f", *value)
-        case _:
-            # Non-primitive data type; recur on its `pack` method.
-            for i, element in enumerate(value):
-                item.writer.pad_to_offset(struct_start_offset + i * data_hk_type.byte_size)
-                data_hk_type.pack_tagfile(item, element, items, existing_items, item_creation_queues)
+    if not data_hk_type.try_pack_primitive_array(item.writer, value):
+        # Non-primitive data type; recur on its `pack` method.
+        byte_size = data_hk_type.get_byte_size(True)
+        for i, element in enumerate(value):
+            item.writer.pad_to_offset(struct_start_offset + i * byte_size)
+            data_hk_type.pack_tagfile(item, element, items, existing_items, item_creation_queues)
 
 
 def unpack_string(reader: BinaryReader, items: list[TagFileItem]) -> str:

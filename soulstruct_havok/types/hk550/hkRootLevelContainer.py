@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from soulstruct_havok.enums import *
-from .hkRootLevelContainerNamedVariant import hkRootLevelContainerNamedVariant
+from soulstruct_havok.types.hk550.hkRootLevelContainerNamedVariant import hkRootLevelContainerNamedVariant
 from .core import *
 
 

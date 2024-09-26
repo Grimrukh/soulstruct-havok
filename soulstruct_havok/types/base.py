@@ -1,6 +1,15 @@
 from __future__ import annotations
-
 __all__ = [
+    # hk
+    "hk",
+    "HK_TYPE",
+    "TemplateType",
+    "TemplateValue",
+    "Member",
+    "Interface",
+    "DefType",
+
+    # base
     "hkBasePointer",
     "hkContainerHeapAllocator",
     "Ptr_",
@@ -14,6 +23,20 @@ __all__ = [
     "hkStruct_",
     "hkFreeListArray_",
     "hkFlags_",
+
+    # Factory functions
+    "Ptr",
+    "hkRefPtr",
+    "hkRefVariant",
+    "hkArray",
+    "hkViewPtr",
+    "hkRelArray",
+    "hkEnum",
+    "hkStruct",
+    "hkGenericStruct",
+    "hkFreeListArrayElement",
+    "hkFreeListArray",
+    "hkFlags",
 ]
 
 import typing as tp
@@ -22,26 +45,25 @@ from enum import IntEnum
 import colorama
 import numpy as np
 
-from soulstruct_havok.enums import TagDataType
+from soulstruct_havok.enums import TagDataType, MemberFlags
 from soulstruct_havok.packfile.structs import PackItemCreationQueues, PackFileDataItem
 from soulstruct_havok.tagfile.structs import TagItemCreationQueues, TagFileItem
 from soulstruct_havok.types.info import *
 
-from .hk import hk, DefType
+from .hk import *
 from . import tagfile, packfile, debug
 
 if tp.TYPE_CHECKING:
-    from collections import deque
     from soulstruct.utilities.binary import BinaryReader
 
 colorama.just_fix_windows_console()
-GREEN = colorama.Fore.GREEN
-RED = colorama.Fore.RED
-YELLOW = colorama.Fore.YELLOW
-BLUE = colorama.Fore.BLUE
-CYAN = colorama.Fore.CYAN
-MAGENTA = colorama.Fore.MAGENTA
-RESET = colorama.Fore.RESET
+G = colorama.Fore.GREEN
+R = colorama.Fore.RED
+Y = colorama.Fore.YELLOW
+U = colorama.Fore.BLUE
+C = colorama.Fore.CYAN
+M = colorama.Fore.MAGENTA
+X = colorama.Fore.RESET
 
 
 class hkBasePointer(hk):
@@ -61,9 +83,9 @@ class hkBasePointer(hk):
         cls._data_type = data_type
 
     @classmethod
-    def get_type_info(cls) -> TypeInfo:
+    def get_type_info(cls, long_varints: bool) -> TypeInfo:
         """Default implementation for pointer classes."""
-        type_info = super().get_type_info()
+        type_info = super().get_type_info(long_varints)
         type_info.pointer_type_py_name = cls.get_data_type().__name__
         return type_info
 
@@ -92,8 +114,8 @@ class Ptr_(hkBasePointer):
     Differs from `hkRefPtr` below, which has a 'ptr' member of this type and a `tTYPE` template of the pointer's data
     type.
     """
-    alignment = 8  # will be 4 for 32-bit-offset files (e.g. PTDE)
-    byte_size = 8  # will be 4 for 32-bit-offset files (e.g. PTDE)
+    alignment = -1  # could be 4 or 8 depending on 32-bit or 64-bit offset files
+    byte_size = -1  # could be 4 or 8 depending on 32-bit or 64-bit offset files
     tag_type_flags = 6
 
     __tag_format_flags = 11
@@ -104,22 +126,12 @@ class Ptr_(hkBasePointer):
     ) -> hk:
         """Just a pointer."""
         reader.seek(offset)
-        if debug.DEBUG_PRINT_UNPACK:
-            debug.debug_print(f"Unpacking `{cls.__name__}`... ({cls.get_tag_data_type().name}) <{hex(offset)}>")
         value = tagfile.unpack_pointer(cls.get_data_type(), reader, items)
-        if debug.DEBUG_PRINT_UNPACK:
-            debug.debug_print(f"-> {value}")
         return value
 
     @classmethod
     def unpack_packfile(cls, item: PackFileDataItem, offset: int = None):
-        offset = item.reader.seek(offset) if offset is not None else item.reader.position
-        if debug.DEBUG_PRINT_UNPACK:
-            debug.debug_print(f"Unpacking `{cls.__name__}`... (-> {cls.get_tag_data_type().name}) <{hex(offset)}>")
         value = packfile.unpack_pointer(cls.get_data_type(), item)
-        if debug.DEBUG_PRINT_UNPACK:
-            debug.debug_print(f"-> {value}")
-        # entry.reader.seek(offset + cls.byte_size)  # TODO: unnecessary and byte size is wrong for 32-bit
         return value
 
     @classmethod
@@ -148,7 +160,7 @@ class Ptr_(hkBasePointer):
             input("Continue?")
 
     @classmethod
-    def get_type_info(cls) -> TypeInfo:
+    def get_type_info(cls, long_varints: bool) -> TypeInfo:
         pointer_type_py_name = cls.get_data_type().__name__
         type_info = TypeInfo("T*")
 
@@ -156,8 +168,8 @@ class Ptr_(hkBasePointer):
         type_info.pointer_type_py_name = pointer_type_py_name
         type_info.tag_format_flags = cls.__tag_format_flags
         type_info.tag_type_flags = cls.tag_type_flags
-        type_info.byte_size = cls.byte_size
-        type_info.alignment = cls.alignment
+        type_info.byte_size = cls.get_byte_size(long_varints)
+        type_info.alignment = cls.get_alignment(long_varints)
         type_info.hsh = cls.get_hsh()  # pointer type specific (or `None`)
         return type_info
 
@@ -178,8 +190,8 @@ class hkReflectQualifiedType_(Ptr_):
     This pointer never actually varies, and presumably just indicates some reflective member that doesn't matter for
     our purposes here.
     """
-    alignment = 8  # will be 4 for 32-bit-offset files (e.g. PTDE)
-    byte_size = 8  # will be 4 for 32-bit-offset files (e.g. PTDE)
+    alignment = -1  # could be 4 or 8 depending on 32-bit or 64-bit offset files
+    byte_size = -1  # could be 4 or 8 depending on 32-bit or 64-bit offset files
     tag_type_flags = 6
 
     __tag_format_flags = 43
@@ -190,7 +202,7 @@ class hkReflectQualifiedType_(Ptr_):
         return list(cls.__mro__[:-5])  # exclude this, `_Ptr`, `hkBasePointer`, `hk`, and `object`
 
     @classmethod
-    def get_type_info(cls) -> TypeInfo:
+    def get_type_info(cls, long_varints: bool) -> TypeInfo:
         type_info = TypeInfo("hkReflect::QualifiedType")
         type_info.py_class = cls
 
@@ -199,8 +211,8 @@ class hkReflectQualifiedType_(Ptr_):
         ]
         type_info.tag_format_flags = cls.__tag_format_flags
         type_info.tag_type_flags = cls.tag_type_flags
-        type_info.byte_size = cls.byte_size
-        type_info.alignment = cls.alignment
+        type_info.byte_size = cls.get_byte_size(long_varints)
+        type_info.alignment = cls.get_alignment(long_varints)
         type_info.hsh = cls.get_hsh()
         type_info.pointer_type_py_name = "hkReflectType"
         type_info.members = [
@@ -219,11 +231,9 @@ class hkRefPtr_(Ptr_):
     member, whose data type is always the same as the `tTYPE` template of the `hkRefPtr`.
 
     Not sure exactly why this is used instead of a generic 'T*' `Ptr` in some cases.
-
-    TODO: Some `hkRefPtr` classes have hashes in XML. In fact, I think some T* generic pointers do too...
     """
-    alignment = 8  # will be set to 4 if appropriate (for `long_varints=False`)
-    byte_size = 8  # will be set to 4 if appropriate (for `long_varints=False`)
+    alignment = -1  # could be 4 or 8 depending on 32-bit or 64-bit offset files
+    byte_size = -1  # could be 4 or 8 depending on 32-bit or 64-bit offset files
     tag_type_flags = 6
 
     __tag_format_flags = 43
@@ -234,7 +244,7 @@ class hkRefPtr_(Ptr_):
         return list(cls.__mro__[:-5])  # exclude this, `_Ptr`, `hkBasePointer`, `hk`, and `object`
 
     @classmethod
-    def get_type_info(cls) -> TypeInfo:
+    def get_type_info(cls, long_varints: bool) -> TypeInfo:
         type_info = TypeInfo("hkRefPtr")
         type_info.py_class = cls
 
@@ -243,8 +253,8 @@ class hkRefPtr_(Ptr_):
         ]
         type_info.tag_format_flags = cls.__tag_format_flags
         type_info.tag_type_flags = cls.tag_type_flags
-        type_info.byte_size = cls.byte_size
-        type_info.alignment = cls.alignment
+        type_info.byte_size = cls.get_byte_size(long_varints)
+        type_info.alignment = cls.get_alignment(long_varints)
         type_info.hsh = cls.get_hsh()
         type_info.pointer_type_py_name = cls.get_data_type().__name__
         type_info.members = [
@@ -264,14 +274,14 @@ class hkRefVariant_(Ptr_):
         return list(cls.__mro__[:-5])  # exclude this, `Ptr_`, `hkBasePointer`, `hk`, and `object`
 
     @classmethod
-    def get_type_info(cls) -> TypeInfo:
+    def get_type_info(cls, long_varints: bool) -> TypeInfo:
         type_info = TypeInfo("hkRefVariant")
         type_info.py_class = cls
 
         type_info.tag_format_flags = cls.__tag_format_flags
         type_info.tag_type_flags = cls.tag_type_flags
-        type_info.byte_size = cls.byte_size
-        type_info.alignment = cls.alignment
+        type_info.byte_size = cls.get_byte_size(long_varints)
+        type_info.alignment = cls.get_alignment(long_varints)
         type_info.hsh = cls.get_hsh()
         type_info.pointer_type_py_name = cls.get_data_type().__name__
         type_info.members = [
@@ -288,8 +298,8 @@ class hkViewPtr_(hkBasePointer):
     `DefType` (which is just a `Ptr` self-reference), this is a real Havok type with its own genuine type data, and the
     use of `DefType` is internal rather than declared in the member.
     """
-    alignment = 8  # will be set to 4 if appropriate (for `long_varints=False`)
-    byte_size = 8  # will be set to 4 if appropriate (for `long_varints=False`)
+    alignment = -1  # could be 4 or 8 depending on 32-bit or 64-bit offset files
+    byte_size = -1  # could be 4 or 8 depending on 32-bit or 64-bit offset files
     tag_type_flags = 6
 
     __tag_format_flags = 59
@@ -301,11 +311,7 @@ class hkViewPtr_(hkBasePointer):
     ) -> hk:
         """Identical to `Ptr`."""
         reader.seek(offset)
-        if debug.DEBUG_PRINT_UNPACK:
-            debug.debug_print(f"Unpacking `{cls.__name__}`... ({cls.get_tag_data_type().name}) <{hex(offset)}>")
         value = tagfile.unpack_pointer(cls.get_data_type(), reader, items)
-        if debug.DEBUG_PRINT_UNPACK:
-            debug.debug_print(f"-> {value}")
         return value
 
     @classmethod
@@ -329,7 +335,7 @@ class hkViewPtr_(hkBasePointer):
             input("Continue?")
 
     @classmethod
-    def get_type_info(cls) -> TypeInfo:
+    def get_type_info(cls, long_varints: bool) -> TypeInfo:
         data_type_name = cls.get_data_type().__name__
         type_info = TypeInfo("hkViewPtr")
         type_info.py_class = cls
@@ -339,8 +345,8 @@ class hkViewPtr_(hkBasePointer):
         ]
         type_info.tag_format_flags = cls.__tag_format_flags
         type_info.tag_type_flags = cls.tag_type_flags
-        type_info.byte_size = cls.byte_size
-        type_info.alignment = cls.alignment
+        type_info.byte_size = cls.get_byte_size(long_varints)
+        type_info.alignment = cls.get_alignment(long_varints)
         type_info.abstract_value = cls.__abstract_value
         type_info.pointer_type_py_name = data_type_name
         # `hkViewPtr` hash is actually its pointer's hash; `hkViewPtr` has no hash.
@@ -376,47 +382,43 @@ class hkRelArray_(hkBasePointer):
     def unpack_tagfile(
         cls, reader: BinaryReader, offset: int, items: list[TagFileItem] = None
     ) -> list | np.ndarray:
-        offset = reader.seek(offset) if offset is not None else reader.position
-        if debug.DEBUG_PRINT_UNPACK:
-            debug.debug_print(f"Unpacking `{cls.__name__}`... ({cls.get_data_type().__name__}) <{hex(offset)}>")
+        reader.seek(offset) if offset is not None else reader.position
 
         source_offset = reader.position
         length, jump = reader.unpack("<HH")
+
+        if debug.DEBUG_PRINT_UNPACK:
+            debug.increment_debug_indent()
+
         with reader.temp_offset(source_offset + jump):
-            if debug.DEBUG_PRINT_UNPACK:
-                debug.increment_debug_indent()
             data_type = cls.get_data_type()
+            byte_size = data_type.get_byte_size(reader.long_varints)
             if data_type.__name__ in {"hkVector3", "hkVector3f"}:
                 # Read tight array of vectors.
-                data = reader.read(length * 12)
-                dtype = np.dtype(f"{reader.default_byte_order}f4")
-                value = np.frombuffer(data, dtype=dtype).reshape((length, 3))
+                data = reader.unpack(f"{3 * length}f")
+                value = np.array(data, dtype=np.float32).reshape((length, 3))
             elif data_type.__name__ in {"hkVector4", "hkVector4f"}:
                 # Read tight array of vectors.
-                data = reader.read(length * 16)
-                dtype = np.dtype(f"{reader.default_byte_order}f4")
-                value = np.frombuffer(data, dtype=dtype).reshape((length, 4))
+                data = reader.unpack(f"{4 * length}f")
+                value = np.array(data, dtype=np.float32).reshape((length, 4))
             else:  # unpack array as list
                 array_start_offset = reader.position
                 value = [
                     data_type.unpack_tagfile(
                         reader,
-                        offset=array_start_offset + i * data_type.byte_size,
+                        offset=array_start_offset + i * byte_size,
                         items=items,
                     ) for i in range(length)
                 ]
+
         if debug.DEBUG_PRINT_UNPACK:
             debug.decrement_debug_indent()
-        if debug.DEBUG_PRINT_UNPACK:
-            debug.debug_print(f"-> {value}")
-        reader.seek(offset + cls.byte_size)
+
         return value
 
     @classmethod
     def unpack_packfile(cls, item: PackFileDataItem, offset: int = None) -> list:
-        offset = item.reader.seek(offset) if offset is not None else item.reader.position
-        if debug.DEBUG_PRINT_UNPACK:
-            debug.debug_print(f"Unpacking `{cls.__name__}`... ({cls.get_data_type().__name__}) <Entry @ {hex(offset)}>")
+        item.reader.seek(offset) if offset is not None else item.reader.position
 
         if debug.DEBUG_PRINT_UNPACK:
             debug.increment_debug_indent()
@@ -424,29 +426,28 @@ class hkRelArray_(hkBasePointer):
         length, jump = item.reader.unpack("<HH")
         with item.reader.temp_offset(source_offset + jump):
             data_type = cls.get_data_type()
+            byte_size = data_type.get_byte_size(item.long_varints)
             if data_type.__name__ in {"hkVector3", "hkVector3f"}:
                 # Read tight array of vectors.
-                data = item.reader.read(length * 12)
-                dtype = np.dtype(f"{item.reader.default_byte_order}f4")
-                value = np.frombuffer(data, dtype=dtype).reshape((length, 3))
+                data = item.reader.unpack(f"{3 * length}f")
+                value = np.array(data, dtype=np.float32).reshape((length, 3))
             elif data_type.__name__ in {"hkVector4", "hkVector4f"}:
                 # Read tight array of vectors.
-                data = item.reader.read(length * 16)
-                dtype = np.dtype(f"{item.reader.default_byte_order}f4")
-                value = np.frombuffer(data, dtype=dtype).reshape((length, 4))
+                data = item.reader.unpack(f"{4 * length}f")
+                value = np.array(data, dtype=np.float32).reshape((length, 4))
             else:  # unpack array as list
                 array_start_offset = item.reader.position
                 value = [
                     data_type.unpack_packfile(
                         item,
-                        offset=array_start_offset + i * data_type.byte_size,
+                        offset=array_start_offset + i * byte_size,
                     ) for i in range(length)
                 ]
         if debug.DEBUG_PRINT_UNPACK:
             debug.decrement_debug_indent()
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(f"-> {value}")
-        item.reader.seek(offset + cls.byte_size)
+
         return value
 
     @classmethod
@@ -480,7 +481,7 @@ class hkRelArray_(hkBasePointer):
 
         if len(value) == 0:
             if debug.DEBUG_PRINT_PACK:
-                debug.debug_print(f"Packing {MAGENTA}`{cls.__name__}` = <empty>{RESET}")
+                debug.debug_print(f"Packing {M}`{cls.__name__}` = <empty>{X}")
             return
 
         def delayed_rel_array():
@@ -489,9 +490,10 @@ class hkRelArray_(hkBasePointer):
                 debug.debug_print(f"Writing `hkRelArray` and writing jump {jump} at offset {rel_array_header_pos}.")
             item.writer.pack_at(rel_array_header_pos, "<HH", len(value), jump)
             data_type = cls.get_data_type()
+            byte_size = data_type.get_byte_size(item.long_varints)
             array_start_offset = item.writer.position
             for i, element in enumerate(value):
-                item.writer.pad_to_offset(array_start_offset + i * data_type.byte_size)
+                item.writer.pad_to_offset(array_start_offset + i * byte_size)
                 data_type.pack_packfile(item, element, existing_items, data_pack_queues)
 
         item.pending_rel_arrays[-1].append(delayed_rel_array)
@@ -500,7 +502,7 @@ class hkRelArray_(hkBasePointer):
             input("Continue?")
 
     @classmethod
-    def get_type_info(cls) -> TypeInfo:
+    def get_type_info(cls, long_varints: bool) -> TypeInfo:
         raise TypeError("Cannot convert `hkRelArray_` to `TypeInfo` yet for packing packfiles.")
 
     @classmethod
@@ -532,8 +534,9 @@ class hkArray_(hkBasePointer):
         ALLOCATED_FROM_SPU_FLAG = 0x40000000  # PS3-era SDKs; "array storage allocated as a result of a SPU request"
         LOCKED_FLAG = 0x40000000  # older SDKs; "will never have its dtor called (read in from packfile for instance)"
 
-    alignment = 8  # actually aligned to 16 in tag file data
-    byte_size = 16
+    # NOTE:
+    alignment = 8  # actually aligned to 16 in tag file data (manually)
+    byte_size = 16  # actually 12 in 32-bit
     tag_type_flags = 8
 
     __tag_format_flags = 43
@@ -549,35 +552,19 @@ class hkArray_(hkBasePointer):
     ) -> list:
         reader.seek(offset)
         if debug.DEBUG_PRINT_UNPACK:
-            debug.debug_print(f"Unpacking `{cls.__name__}`... <{hex(offset)}>")
             debug.increment_debug_indent()
         value = tagfile.unpack_array(cls.get_data_type(), reader, items)
         if debug.DEBUG_PRINT_UNPACK:
             debug.decrement_debug_indent()
-            if len(value) > 10 and isinstance(value[0], (int, float)):
-                debug.debug_print(f"--> {repr(value[:10])}... ({len(value)} elements)")
-            else:
-                debug.debug_print(f"--> {repr(value)}")
         if debug.REQUIRE_INPUT:
             input("Continue?")
         return value
 
     @classmethod
     def unpack_packfile(cls, item: PackFileDataItem, offset: int = None):
-        offset = item.reader.seek(offset) if offset is not None else item.reader.position
-        if debug.DEBUG_PRINT_UNPACK:
-            debug.debug_print(f"Unpacking `{cls.__name__}`... <{hex(offset)}>")
-            debug.increment_debug_indent()
         value = packfile.unpack_array(cls.get_data_type(), item)
-        if debug.DEBUG_PRINT_UNPACK:
-            debug.decrement_debug_indent()
-            if len(value) > 10 and isinstance(value[0], (int, float)):
-                debug.debug_print(f"--> {repr(value[:10])}... ({len(value)} elements)")
-            else:
-                debug.debug_print(f"--> {repr(value)}")
         if debug.REQUIRE_INPUT:
             input("Continue?")
-        item.reader.seek(offset + cls.byte_size)
         return value
 
     @classmethod
@@ -610,7 +597,7 @@ class hkArray_(hkBasePointer):
             input("Continue?")
 
     @classmethod
-    def get_type_info(cls) -> TypeInfo:
+    def get_type_info(cls, long_varints: bool) -> TypeInfo:
         data_type_py_name = cls.get_data_type().__name__
         type_info = TypeInfo("hkArray")
         type_info.py_class = cls
@@ -621,8 +608,8 @@ class hkArray_(hkBasePointer):
         ]
         type_info.tag_format_flags = cls.__tag_format_flags
         type_info.tag_type_flags = cls.tag_type_flags
-        type_info.byte_size = cls.byte_size
-        type_info.alignment = cls.alignment
+        type_info.byte_size = cls.get_byte_size(long_varints)
+        type_info.alignment = cls.get_alignment(long_varints)
         type_info.hsh = cls.get_hsh()
         type_info.pointer_type_py_name = data_type_py_name
         type_info.members = [
@@ -686,7 +673,7 @@ class hkEnum_(hk):
         return cls.storage_type.pack_packfile(item, value, existing_items, data_pack_queues)
 
     @classmethod
-    def get_type_info(cls) -> TypeInfo:
+    def get_type_info(cls, long_varints: bool) -> TypeInfo:
         type_info = TypeInfo("hkEnum")
         type_info.py_class = cls
 
@@ -723,25 +710,20 @@ class hkStruct_(hkBasePointer):
     def unpack_tagfile(cls, reader: BinaryReader, offset: int, items: list[TagFileItem] = None) -> tuple:
         reader.seek(offset)
         if debug.DEBUG_PRINT_UNPACK:
-            debug.debug_print(f"Unpacking `{cls.__name__}`... (Struct) <{hex(offset)}>")
             debug.increment_debug_indent()
         value = tagfile.unpack_struct(cls.get_data_type(), reader, items, cls.length)
         if debug.DEBUG_PRINT_UNPACK:
             debug.decrement_debug_indent()
-            debug.debug_print(f"-> {repr(value)}")
         return value
 
     @classmethod
     def unpack_packfile(cls, item: PackFileDataItem, offset: int = None) -> tuple:
-        offset = item.reader.seek(offset) if offset is not None else item.reader.position
+        item.reader.seek(offset) if offset is not None else item.reader.position
         if debug.DEBUG_PRINT_UNPACK:
-            debug.debug_print(f"Unpacking `{cls.__name__}`... (Struct) <Entry @ {hex(offset)}>")
             debug.increment_debug_indent()
         value = packfile.unpack_struct(cls.get_data_type(), item, length=cls.length)
         if debug.DEBUG_PRINT_UNPACK:
             debug.decrement_debug_indent()
-            debug.debug_print(f"-> {repr(value)}")
-        item.reader.seek(offset + cls.byte_size)
         return value
 
     @classmethod
@@ -768,7 +750,7 @@ class hkStruct_(hkBasePointer):
         )
 
     @classmethod
-    def get_type_info(cls) -> TypeInfo:
+    def get_type_info(cls, long_varints: bool) -> TypeInfo:
         data_type = cls.get_data_type()
         if cls.is_generic:
             data_type_py_name = data_type.__name__
@@ -782,12 +764,11 @@ class hkStruct_(hkBasePointer):
             ]
             type_info.tag_format_flags = 11
             type_info.tag_type_flags = cls.tag_type_flags  # already set to correct subtype (including length)
-            type_info.byte_size = data_type.byte_size * cls.length
-            type_info.alignment = data_type.alignment
-            # TODO: Some generic T[N] types have hashes. Could find it here from XML...
+            type_info.byte_size = data_type.get_byte_size(long_varints) * cls.length
+            type_info.alignment = data_type.get_alignment(long_varints)
         else:
             # Default method is fine, but we may remove the parent class and add a `data_type` pointer.
-            type_info = super().get_type_info()
+            type_info = super().get_type_info(long_varints)
 
             # Immediate children of `hkStruct_` have no parent.
             parent_type = cls.__base__
@@ -839,3 +820,174 @@ class hkFlags_(hk):
     @classmethod
     def get_default_value(cls):
         return 0
+
+
+# region Type Factory Functions
+
+def Ptr(data_type: HK_TYPE | DefType, hsh: int = None) -> tp.Type[Ptr_]:
+    """Create a `_Ptr` subclass dynamically, pointing to a particular type."""
+    data_type_name = data_type.get_type_name()
+    # noinspection PyTypeChecker
+    ptr_type = type(f"Ptr[{data_type_name}]", (Ptr_,), {})  # type: tp.Type[Ptr_]
+    ptr_type.set_data_type(data_type)
+    ptr_type.set_hsh(hsh)
+    return ptr_type
+
+
+def hkRefPtr(data_type: HK_TYPE | DefType, hsh: int = None) -> tp.Type[hkRefPtr_]:
+    """Create a `_hkRefPtr` subclass dynamically, pointing to a particular type."""
+    data_type_name = data_type.get_type_name()
+    # noinspection PyTypeChecker
+    ptr_type = type(f"hkRefPtr[{data_type_name}]", (hkRefPtr_,), {})  # type: tp.Type[hkRefPtr_]
+    ptr_type.set_data_type(data_type)
+    ptr_type.set_hsh(hsh)
+    return ptr_type
+
+
+def hkRefVariant(data_type: HK_TYPE | DefType, hsh: int = None) -> tp.Type[hkRefVariant_]:
+    """Create a `hkRefVariant_` subclass dynamically, pointing to a particular type.
+
+    Note that the pointed type must always be "hkReferencedObject".
+    """
+    data_type_name = data_type.get_type_name()
+    if data_type_name != "hkReferencedObject":
+        raise ValueError(
+            f"`hkRefVariant` was defined with a data type other than `hkReferencedObject`: {data_type_name}"
+        )
+    # noinspection PyTypeChecker
+    ptr_type = type(f"hkRefVariant[{data_type_name}]", (hkRefVariant_,), {})  # type: tp.Type[hkRefVariant_]
+    ptr_type.set_data_type(data_type)
+    ptr_type.set_hsh(hsh)
+    return ptr_type
+
+
+def hkArray(
+    data_type: HK_TYPE | hkRefPtr_ | hkViewPtr_ | DefType,
+    hsh: int = None,
+    flags: int = hkArray_.Flags.DONT_DEALLOCATE_FLAG,
+    forced_capacity: int | None = None,
+) -> tp.Type[hkArray_]:
+    """Generates an array class with given `data_type` and (optionally) hash.
+
+    `flags` is almost always `DONT_DEALLOCATE_FLAG`, but can be overridden. If `forced_capacity` is given, it will be
+    used instead of the array's real length. This is necessary for some corner cases (mainly From's custom types).
+    """
+    data_type_name = data_type.get_type_name()
+    # noinspection PyTypeChecker
+    array_type = type(f"hkArray[{data_type_name}]", (hkArray_,), {})  # type: tp.Type[hkArray_]
+    array_type.flags = flags
+    array_type.forced_capacity = forced_capacity
+    array_type.set_data_type(data_type)
+    array_type.set_hsh(hsh)
+    return array_type
+
+
+def hkViewPtr(data_type_name: str, hsh: int = None) -> tp.Type[hkViewPtr_]:
+    """Create a `_hkViewPtr` subclass dynamically.
+
+    To avoid Python circular imports, it is necessary to retrieve the type dynamically here from the module set in `hk`
+    using a `DefType`. Since that's forced, the user only needs to give the type name.
+    """
+    # noinspection PyTypeChecker
+    ptr_type = type(f"hkViewPtr[{data_type_name}]", (hkViewPtr_,), {})  # type: tp.Type[hkViewPtr_]
+    ptr_type.set_data_type(DefType(data_type_name, lambda: hk.get_module_type(data_type_name)))
+    ptr_type.set_hsh(hsh)
+    return ptr_type
+
+
+def hkRelArray(data_type: HK_TYPE) -> tp.Type[hkRelArray_]:
+    """Create a `hkRelArray_` subclass dynamically."""
+    data_type_name = data_type.type_name if isinstance(data_type, DefType) else data_type.__name__
+    # noinspection PyTypeChecker
+    rel_array_type = type(f"hkRelArray[{data_type_name}]", (hkRelArray_,), {})  # type: tp.Type[hkRelArray_]
+    rel_array_type.set_data_type(data_type)
+    return rel_array_type
+
+
+def hkEnum(enum_type: HK_TYPE, storage_type: HK_TYPE) -> tp.Type[hkEnum_]:
+    """Generates a `_hkEnum` subclass dynamically."""
+    # noinspection PyTypeChecker
+    wrapper_type = type(f"hkEnum[{enum_type.__name__}]", (hkEnum_,), {})  # type: tp.Type[hkEnum_]
+    wrapper_type.enum_type = enum_type
+    wrapper_type.storage_type = storage_type
+    return wrapper_type
+
+
+def hkStruct(data_type: HK_TYPE, length: int) -> tp.Type[hkStruct_]:
+    """Generates a `hkStruct_` subclass dynamically.
+
+    Needs all the basic `hk` information, unfortunately, as it can vary (except `tag_format_flags`, which is always 11).
+    """
+    # noinspection PyTypeChecker
+    struct_type = type(f"hkStruct[{data_type.__name__}, {length}]", (hkStruct_,), {})  # type: tp.Type[hkStruct_]
+    struct_type.is_generic = False
+    struct_type.set_data_type(data_type)
+    if length > 255:
+        raise ValueError(f"Maximum `hkStruct` (`T[N]`) length is 255. Invalid: {length}")
+    struct_type.length = length
+    struct_type.tag_type_flags = TagDataType.Struct | length << 8
+    return struct_type
+
+
+def hkGenericStruct(data_type: HK_TYPE, length: int) -> tp.Type[hkStruct_]:
+    """Generates a `hkStruct_` subclass dynamically.
+
+    Needs all the basic `hk` information, unfortunately, as it can vary (except `tag_format_flags`, which is always 11).
+    """
+    # noinspection PyTypeChecker
+    struct_type = type(f"hkStruct[{data_type.__name__}, {length}]", (hkStruct_,), {})  # type: tp.Type[hkStruct_]
+    struct_type.is_generic = True
+    struct_type.set_data_type(data_type)
+    if length > 255:
+        raise ValueError(f"Maximum `hkStruct` (`T[N]`) length is 255. Invalid: {length}")
+    struct_type.length = length
+    struct_type.tag_type_flags = TagDataType.Struct | length << 8
+    return struct_type
+
+
+def hkFreeListArrayElement(parent_type: HK_TYPE):
+    """NOTE: This super-shallow subclass is not represented anywhere else."""
+    # noinspection PyTypeChecker
+    element_type = type(f"hkFreeListArrayElement[{parent_type.__name__}]", (parent_type,), {})  # type: HK_TYPE
+    element_type.set_tag_format_flags(0)  # shallow subclass
+    return element_type  # nothing else to change
+
+
+def hkFreeListArray(
+    elements_data_type: HK_TYPE,
+    first_free_data_type: HK_TYPE,
+    elements_hsh: int = None,
+) -> tp.Type[hkFreeListArray_]:
+    if isinstance(elements_data_type, DefType):
+        elements_data_type_name = elements_data_type.type_name
+    else:
+        elements_data_type_name = elements_data_type.__name__
+    first_free_data_type_name = first_free_data_type.__name__  # e.g., `hkInt32`
+    # noinspection PyTypeChecker
+    hk_free_list_array_type = type(
+        f"hkFreeListArray[{elements_data_type_name}, {first_free_data_type_name}]",
+        (hkFreeListArray_,),
+        {},
+    )  # type: tp.Type[hkFreeListArray_]
+    hk_free_list_array_type.local_members = (
+        Member(0, "elements", hkArray(elements_data_type, hsh=elements_hsh), MemberFlags.Protected),
+        Member(16, "firstFree", first_free_data_type, MemberFlags.Protected),
+    )
+    hk_free_list_array_type.members = hk_free_list_array_type.local_members
+    return hk_free_list_array_type
+
+
+def hkFlags(storage_type: HK_TYPE, hsh: int = None) -> tp.Type[hkFlags_]:
+    # noinspection PyTypeChecker
+    flags_type = type(f"hkFlags[{storage_type.__name__}]", (hkFlags_,), {})  # type: tp.Type[hkFlags_]
+    flags_type.alignment = storage_type.alignment
+    flags_type.byte_size = storage_type.byte_size
+    flags_type.tag_type_flags = storage_type.tag_type_flags
+    flags_type.set_hsh(hsh)
+    flags_type.local_members = (
+        Member(0, "storage", storage_type, MemberFlags.Protected),
+    )
+    flags_type.members = flags_type.local_members
+    return flags_type
+
+# endregion

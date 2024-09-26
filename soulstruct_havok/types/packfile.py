@@ -26,6 +26,7 @@ from collections import deque
 
 import colorama
 import numpy as np
+from soulstruct_havok.types.debug import get_indented_array
 
 from soulstruct.utilities.inspection import get_hex_repr
 
@@ -41,13 +42,13 @@ if tp.TYPE_CHECKING:
     from .base import hkArray_, Ptr_, hkRelArray_, hkViewPtr_
 
 colorama.just_fix_windows_console()
-GREEN = colorama.Fore.GREEN
-RED = colorama.Fore.RED
-YELLOW = colorama.Fore.YELLOW
-BLUE = colorama.Fore.BLUE
-CYAN = colorama.Fore.CYAN
-MAGENTA = colorama.Fore.MAGENTA
-RESET = colorama.Fore.RESET
+G = colorama.Fore.GREEN
+R = colorama.Fore.RED
+Y = colorama.Fore.YELLOW
+U = colorama.Fore.BLUE
+C = colorama.Fore.CYAN
+M = colorama.Fore.MAGENTA
+X = colorama.Fore.RESET
 
 
 def try_pad_to_offset(item: PackFileDataItem, offset: int, extra_msg: str):
@@ -61,40 +62,57 @@ def try_pad_to_offset(item: PackFileDataItem, offset: int, extra_msg: str):
 
 def unpack_bool(hk_type: type[hk], reader: BinaryReader) -> bool:
     fmt = TagDataType.get_int_fmt(hk_type.tag_type_flags)
-    return reader.unpack_value(fmt) > 0
+    value = reader.unpack_value(fmt) > 0
+    if debug.DEBUG_PRINT_UNPACK and not debug.DO_NOT_DEBUG_PRINT_PRIMITIVES:
+        debug.debug_print(f"{U}= {repr(value)}{X}")
+    return value
 
 
 def pack_bool(hk_type: type[hk], item: PackFileDataItem, value: bool):
     fmt = TagDataType.get_int_fmt(hk_type.tag_type_flags)
+    if debug.DEBUG_PRINT_PACK:
+        debug.debug_print(f"{Y}{item.hex}{X}: {G}{hk_type.get_type_name()}{X}{U} -> {value}{X}")
     item.writer.pack(fmt, int(value))
 
 
 def unpack_int(hk_type: type[hk], reader: BinaryReader) -> int:
     fmt = TagDataType.get_int_fmt(hk_type.tag_type_flags)
-    return reader.unpack_value(fmt)
+    value = reader.unpack_value(fmt)
+    if debug.DEBUG_PRINT_UNPACK and not debug.DO_NOT_DEBUG_PRINT_PRIMITIVES:
+        debug.debug_print(f"{U}= {repr(value)}{X}")
+    return value
 
 
 def pack_int(hk_type: type[hk], item: PackFileDataItem, value: int):
     """TODO: Had `signed = value < 0` here, but surely I can't just override the type restriction like that?"""
     fmt = TagDataType.get_int_fmt(hk_type.tag_type_flags)
+    if debug.DEBUG_PRINT_PACK:
+        debug.debug_print(f"{Y}{item.hex}{X}: {G}{hk_type.get_type_name()}{X}{U} -> {value}{X}")
     item.writer.pack(fmt, value)
 
 
 def unpack_float32(reader: BinaryReader) -> float | hk:
     """32-bit floats are unpacked directly; others (like half floats) are unpacked as classes (Havok's setup)."""
-    return reader.unpack_value("f")
+    value = reader.unpack_value("f")
+    if debug.DEBUG_PRINT_UNPACK and not debug.DO_NOT_DEBUG_PRINT_PRIMITIVES:
+        debug.debug_print(f"{U}= {repr(value)}{X}")
+    return value
 
 
 def pack_float(hk_type: type[hk], item: PackFileDataItem, value: float | hk):
     if hk_type.tag_type_flags == TagDataType.FloatAndFloat32:
+        if debug.DEBUG_PRINT_PACK:
+            debug.debug_print(f"{Y}{item.hex}{X}: {G}{hk_type.get_type_name()}{X}{U} -> {value}{X}")
         item.writer.pack("f", value)
     else:
         # Will definitely not use or create items.
         pack_class(hk_type, item, value, existing_items={}, data_pack_queues=None)
 
 
-def unpack_class(hk_type: type[hk], item: PackFileDataItem, instance=None) -> hk:
-    """Existing `instance` created by caller can be passed, which is useful for managing recursion.
+def unpack_class(hk_type: type[hk], item: PackFileDataItem) -> hk:
+    """Main method for serialized Havok classes.
+
+    Iterates over the class's members and unpacks them in order.
 
     NOTE: This is not used for `hkRootLevelContainerNamedVariant`, which uses a special dynamic unpacker to detect the
     appropriate `hkReferencedObject` subclass it points to with its `hkRefVariant` pointer.
@@ -102,16 +120,36 @@ def unpack_class(hk_type: type[hk], item: PackFileDataItem, instance=None) -> hk
     kwargs = {}
 
     member_start_offset = item.reader.position
+    if debug.DEBUG_PRINT_UNPACK:
+        debug.debug_print(f"{Y}{item.hex}{X}: {C}<Class>{X} {G}{hk_type.get_type_name()}{X}")
+
     for member in hk_type.members:
+        item_member_offset = member_start_offset + member.offset
+
+        item_pos = item.reader.position
+        if debug.DEBUG_PRINT_UNPACK and item_pos < item_member_offset:
+            debug.debug_print(
+                f"{Y}{item.hex}: {R}Space before member {M}{member.name}{X} "
+                f"{R}({hex(item_pos - member_start_offset)} -> {hex(member.offset)}){X}"
+            )
+
         if debug.DEBUG_PRINT_UNPACK:
             offset_hex = hex(member.offset)
-            item_offset_hex = hex(member_start_offset + member.offset)
+            item_offset_hex = hex(item_member_offset)
             debug.debug_print(
-                f"Unpacking member {GREEN}'{member.name}' (`{member.type.__name__}`) "
-                f"{YELLOW}@ {offset_hex} (item @ {item_offset_hex}) {RESET}"
+                f"{Y}{item_offset_hex}: [{offset_hex}] {M}{member.name} {G}{member.type.__name__}{X}"
             )
+
+        if item_pos > item_member_offset:
+            # Member offsets must be incorrect in the class definition.
+            raise ValueError(
+                f"Item reader position ({hex(item_pos)}) is already "
+                f"past member '{member.name}' offset {hex(item_member_offset)}."
+            )
+
         if debug.DEBUG_PRINT_UNPACK:
             debug.increment_debug_indent()
+
         member_value = member.type.unpack_packfile(
             item,
             offset=member_start_offset + member.offset,
@@ -120,12 +158,17 @@ def unpack_class(hk_type: type[hk], item: PackFileDataItem, instance=None) -> hk
             debug.decrement_debug_indent()
         kwargs[member.py_name] = member_value
 
-    if instance is None:
-        # noinspection PyArgumentList
-        instance = hk_type(**kwargs)
-    else:
-        for name, value in kwargs.items():
-            setattr(instance, name, value)  # type hint will be given in class definition
+    byte_size = hk_type.get_byte_size(item.long_varints)
+    if item.reader.position < member_start_offset + byte_size:
+        if debug.DEBUG_PRINT_UNPACK:
+            debug.debug_print(
+                f"{Y}{item.hex}: {R}Space after all members ({hex(item.reader.position - member_start_offset)} -> "
+                f"{hex(byte_size)}){X}"
+            )
+        item.reader.seek(member_start_offset + byte_size)
+
+    # noinspection PyArgumentList
+    instance = hk_type(**kwargs)
 
     return instance
 
@@ -159,8 +202,7 @@ def pack_class(
         if debug.DEBUG_PRINT_PACK:
             member_type_name = type(member_value).__name__
             debug.debug_print(
-                f"Packing member {GREEN}'{member.name}' (`{member_type_name} : {member.type.__name__}`) "
-                f"{YELLOW}@ item {item.writer.position_hex} {RESET}"
+                f"{Y}{item.hex}: {M}{member.name} {G}{member_type_name} : {member.type.__name__}{X}"
             )
             debug.increment_debug_indent()
         # TODO: with_flag = member.name != "partitions" ?
@@ -169,7 +211,7 @@ def pack_class(
         if debug.DEBUG_PRINT_PACK:
             debug.decrement_debug_indent()
 
-    try_pad_to_offset(item, members_start_offset + hk_type.byte_size, "End of class")
+    try_pad_to_offset(item, members_start_offset + hk_type.get_byte_size(item.long_varints), "End of class")
     if debug.DEBUG_PRINT_PACK:
         debug.decrement_debug_indent()
 
@@ -187,10 +229,11 @@ def unpack_pointer(data_hk_type: type[hk], item: PackFileDataItem) -> hk | None:
         for offset, pointed_item in item.item_pointers.items():
             print(f"    Offset {offset} -> {pointed_item}")
         raise ValueError(f"Found non-zero value at item pointer offset {source_offset}: {zero}")
+
     try:
         pointed_item, item_data_offset = item.item_pointers[source_offset]
     except KeyError:
-        return None  # null pointer
+        return None  # null pointer (or incorrect member - no way to tell)
 
     if item_data_offset != 0:
         print(pointed_item.item_pointers)
@@ -204,11 +247,8 @@ def unpack_pointer(data_hk_type: type[hk], item: PackFileDataItem) -> hk | None:
         # Unpack item (first time).
         if debug.DEBUG_PRINT_UNPACK:
             # Real item type is not known yet (could be a subclass of this reported type).
-            debug.debug_print(f"{BLUE}Unpacking NEW ITEM: {pointed_item.hk_type.get_type_name()}{RESET}")
+            debug.debug_print(f"{U}NEW ITEM: {pointed_item.hk_type.get_type_name()}{X}")
         pointed_item.start_reader()
-        # if debug.DEBUG_PRINT_UNPACK:
-        #     print(pointed_item.hk_type.__name__)  # no indent
-        #     print(get_hex_repr(pointed_item.raw_data))  # no indent
         if debug.DEBUG_PRINT_UNPACK:
             debug.increment_debug_indent()
         # NOTE: `pointed_item.hk_type` may be a subclass of `data_hk_type`, so it's important we use it here.
@@ -218,7 +258,7 @@ def unpack_pointer(data_hk_type: type[hk], item: PackFileDataItem) -> hk | None:
 
     else:
         if debug.DEBUG_PRINT_UNPACK:
-            debug.debug_print(f"{MAGENTA}Pointer to existing item: {pointed_item.get_class_name()}{RESET}")
+            debug.debug_print(f"{M}Pointer to existing item: {pointed_item.get_class_name()}{X}")
     return pointed_item.value
 
 
@@ -234,36 +274,36 @@ def pack_pointer(
         # Null pointer. Item will not contain an item pointer here, and type will not appear in other HKX sections
         # (unless the same type has an instance elsewhere, of course).
         if debug.DEBUG_PRINT_PACK:
-            debug.debug_print(f"Packing {MAGENTA}`{ptr_hk_type.__name__}` {RED}<nullptr>{RESET}")
+            debug.debug_print(f"{Y}{item.hex}: {G}{ptr_hk_type.__name__}{R} -> Null{X}")
         item.writer.pack("V", 0)
         return
 
     if value in existing_items:
         # Item has already been unpacked and previously referenced.
         item.item_pointers[item.writer.position] = (existing_items[value], 0)
-        item.writer.pack("V", 0)  # dummy pointer
         if debug.DEBUG_PRINT_PACK:
             existing_type_name = existing_items[value].get_class_name()  # may be subclass of `ptr_hk_type`
-            debug.debug_print(
-                f"{MAGENTA}Packing existing `{ptr_hk_type.__name__}`{RESET}= {CYAN}`{existing_type_name}`{RESET}"
-            )
+            debug.debug_print(f"{Y}{item.hex}: {G}{ptr_hk_type.__name__}{U} -> existing {existing_type_name}{X}")
+        item.writer.pack("V", 0)  # dummy pointer
         return
     else:
         # NOTE: This uses the data type, NOT the `Ptr` type. Copies `long_varints` from source item.
         new_item = existing_items[value] = PackFileDataItem(
             hk_type=ptr_hk_type.get_data_type(),
-            long_varints=item.writer.long_varints,
+            byte_order=item.byte_order,
+            long_varints=item.long_varints,
             value=value,
         )
         item.item_pointers[item.writer.position] = (new_item, 0)
-        item.writer.pack("V", 0)  # dummy pointer
         if debug.DEBUG_PRINT_PACK:
-            debug.debug_print(f"{BLUE}Creating new item for queued packing: {new_item.get_class_name()}{RESET}")
+            debug.debug_print(f"{Y}{item.hex}: {G}{new_item.get_class_name()}{U} -> new {new_item.get_class_name()}{X}")
+        item.writer.pack("V", 0)  # dummy pointer
 
     def delayed_item_creation(_data_pack_queues: PackItemCreationQueues) -> PackFileDataItem:
-        new_item.start_writer(_data_pack_queues.byte_order)
+        new_item.start_writer()
         if debug.DEBUG_PRINT_PACK:
-            debug.debug_print(f"{CYAN}Packing item data: {new_item.get_class_name()}{RESET}")
+            # Will have no indentation, as only the root packer loop calls this.
+            debug.debug_print(f"{C}Starting item pack: {new_item.get_class_name()}{X}")
         value.pack_packfile(new_item, value, existing_items, _data_pack_queues)
         return new_item
 
@@ -273,17 +313,24 @@ def pack_pointer(
 def unpack_array(data_hk_type: type[hk], item: PackFileDataItem) -> list:
     array_pointer_offset = item.reader.position
     zero, array_size, array_capacity_and_flags = item.reader.unpack("VII")
-    if debug.DEBUG_PRINT_UNPACK:
-        debug.debug_print(f"Array size: {array_size} | Capacity/Flags: {array_capacity_and_flags}")
+    color = R if array_capacity_and_flags != array_size | 0x80000000 else X
     if zero != 0:
         print(f"Item type: {item.hk_type.__name__}")
         print(f"Zero, array_size, array_caps_flags: {zero, array_size, array_capacity_and_flags}")
-        print(f"Item child pointers: {item.child_pointers}")
-        print(f"Item item pointers: {item.item_pointers}")
-        print(f"Item raw data:\n{get_hex_repr(item.raw_data)}")
+        print(f"Item child pointers: {item.child_pointers_hex}")
+        print(f"Item item pointers: {item.item_pointers_hex}")
+        if len(item.raw_data) < 1000:
+            print(f"Item raw data:\n{get_hex_repr(item.raw_data)}")
+        else:
+            print(f"Item raw data (first 1000 bytes):\n{get_hex_repr(item.raw_data[:1000])}")
         raise AssertionError(f"Found non-null data at child pointer offset {hex(array_pointer_offset)}: {zero}")
 
     if array_size == 0:
+        if debug.DEBUG_PRINT_UNPACK:
+            debug.debug_print(
+                f"{Y}{array_pointer_offset}:{X} {M}{data_hk_type.get_type_name()}[0]{X} "
+                f"{color}({hex(array_capacity_and_flags)}){X} {U}= []{X}"
+            )
         return []
 
     try:
@@ -291,22 +338,35 @@ def unpack_array(data_hk_type: type[hk], item: PackFileDataItem) -> list:
     except KeyError:
         print(f"Item type: {item.hk_type.__name__}")
         print(f"Zero, array_size, array_caps_flags: {zero, array_size, array_capacity_and_flags}")
-        print(f"Item child pointers: {item.child_pointers}")
-        print(f"Item item pointers: {item.item_pointers}")
-        print(f"Item raw data:\n{get_hex_repr(item.raw_data)}")
+        print(f"Item child pointers: {item.child_pointers_hex}")
+        print(f"Item item pointers: {item.item_pointers_hex}")
+        if len(item.raw_data) < 1000:
+            print(f"Item raw data:\n{get_hex_repr(item.raw_data)}")
+        else:
+            print(f"Item raw data (first 1000 bytes):\n{get_hex_repr(item.raw_data[:1000])}")
         raise ValueError(f"Array data offset not found in item child pointers: {array_pointer_offset}")
 
-    if debug.DEBUG_PRINT_UNPACK:
-        debug.debug_print(f"Array data offset: {hex(array_data_offset)}")
-        debug.increment_debug_indent()
+    # We step into the array data offset so that we can monitor expected member offsets.
     with item.reader.temp_offset(array_data_offset):
         value = data_hk_type.unpack_primitive_array(item.reader, array_size)
         if value is None:
             # Not a primitive array. Use data type. Array elements are tightly packed.
+            if debug.DEBUG_PRINT_UNPACK:
+                debug.debug_print(
+                    f"{Y}{hex(array_data_offset)}: {M}{data_hk_type.get_type_name()}[{array_size}]{X} "
+                    f"{color}({hex(array_capacity_and_flags)}){X}"
+                )
+                debug.increment_debug_indent()
             value = [data_hk_type.unpack_packfile(item) for _ in range(array_size)]
+            if debug.DEBUG_PRINT_UNPACK:
+                debug.decrement_debug_indent()
 
     if debug.DEBUG_PRINT_UNPACK:
-        debug.decrement_debug_indent()
+        if len(value) > 10:
+            value_repr = get_indented_array(value[:10]) if isinstance(value, np.ndarray) else repr(value[:10])
+            debug.debug_print(f"{Y}{hex(array_pointer_offset)}: {U}{value_repr}...{X} ({len(value)} elements)")
+        else:
+            debug.debug_print(f"{Y}{hex(array_pointer_offset)}: {U}{repr(value)}{X}")
 
     return value
 
@@ -321,10 +381,10 @@ def pack_array(
     array_pointer_offset = item.writer.position
     array_length = len(value)
     if debug.DEBUG_PRINT_PACK:
-        length_str = f"{RED}<empty>{RESET}" if array_length == 0 else f"{CYAN}<{array_length}>{RESET}"
         debug.debug_print(
-            f"Packing {MAGENTA}`{array_hk_type.__name__}`{RESET} {length_str} pointer "
-            f"{YELLOW}@ item {item.writer.position_hex}{RESET}")
+            f"{Y}{item.hex}: {G}{array_hk_type.get_data_type().__name__}{C if array_length > 0 else R}[{array_length}] "
+            f"{U if array_length > 0 else R}-> {'Child' if array_length > 0 else 'Null'}"
+        )
     item.writer.pack("V", 0)  # where the fixup would go, if it was actually resolved
     item.writer.pack("I", array_length)
     capacity = array_hk_type.forced_capacity if array_hk_type.forced_capacity is not None else array_length
@@ -345,31 +405,38 @@ def pack_array(
             containing item is finished. *No items are written until the previous item finishes.*
         """
 
-        sub_creation_queues = PackItemCreationQueues(_data_pack_queues.byte_order)
+        sub_creation_queues = PackItemCreationQueues()
         item.writer.pad_align(16)  # pre-align for array
         item.child_pointers[array_pointer_offset] = item.writer.position  # fixup
         array_start_offset = item.writer.position
 
         if debug.DEBUG_PRINT_PACK:
             debug.debug_print(
-                f"Packing {CYAN}`{array_hk_type.__name__}`{RESET} {length_str} data "
-                f"{YELLOW}@ item {item.writer.position_hex}{RESET}"
+                f"{Y}{item.hex}{X}: {C}Array {array_hk_type.get_data_type().__name__}{C}[{array_length}]{X}"
             )
 
         if not data_hk_type.try_pack_primitive_array(item.writer, value):
             # Non-primitive; recur on data type `pack` method.
+            if debug.DEBUG_PRINT_PACK:
+                debug.increment_debug_indent()
             for i, element in enumerate(value):
                 data_hk_type.pack_packfile(item, element, existing_items, sub_creation_queues)
                 try_pad_to_offset(
                     item,
-                    array_start_offset + (i + 1) * data_hk_type.byte_size,
-                    f"{item.get_class_name()} (Array) {data_hk_type.get_type_name()}[{i}]",
+                    array_start_offset + (i + 1) * data_hk_type.get_byte_size(item.long_varints),
+                    f"{item.get_class_name()} (Array) {data_hk_type.get_type_name()}[{i + 1}]",
                 )
+            if debug.DEBUG_PRINT_PACK:
+                debug.decrement_debug_indent()
 
         # Immediately recur on any new array/string data queued up (i.e., depth-first for packing arrays and strings).
         while sub_creation_queues.child_pointers:
+            if debug.DEBUG_PRINT_PACK:
+                debug.increment_debug_indent()
             delayed_pack = sub_creation_queues.child_pointers.popleft()
             delayed_pack(sub_creation_queues)
+            if debug.DEBUG_PRINT_PACK:
+                debug.decrement_debug_indent()
         # Pass global item pointers to higher queue for later creation.
         while sub_creation_queues.item_pointers:
             delayed_item_creation = sub_creation_queues.item_pointers.popleft()
@@ -383,56 +450,60 @@ def unpack_struct(
 ) -> tuple:
     """Identical to tagfile (just different recursive method)."""
     struct_start_offset = item.reader.position
-    # TODO: Speed up for primitive types.
-    return tuple(
-        data_hk_type.unpack_packfile(
-            item,
-            offset=struct_start_offset + i * data_hk_type.byte_size,
-        ) for i in range(length)
-    )
+    byte_size = data_hk_type.get_byte_size(item.long_varints)
+    value = data_hk_type.unpack_primitive_array(item.reader, length)
+    if value is None:
+        # Recur on struct data type.
+        value = tuple(
+            data_hk_type.unpack_packfile(
+                item,
+                offset=struct_start_offset + i * byte_size,
+            ) for i in range(length)
+        )
+    else:
+        value = tuple(value)
+
+    if debug.DEBUG_PRINT_UNPACK:
+        if len(value) > 10:
+            value_repr = get_indented_array(value[:10]) if isinstance(value, np.ndarray) else repr(value[:10])
+            debug.debug_print(f"{Y}{hex(struct_start_offset)}: {U}{value_repr}...{X} ({len(value)} elements)")
+        else:
+            debug.debug_print(f"{Y}{hex(struct_start_offset)}: {U}{repr(value)}{X}")
+
+    return tuple(value)
 
 
 def pack_struct(
     data_hk_type: type[hk],
     item: PackFileDataItem,
-    value: tuple,
+    value: tuple | np.ndarray,
     existing_items: dict[hk, PackFileDataItem],
     data_pack_queues: PackItemCreationQueues,
     length: int,
 ):
     """Structs are packed locally in the same item, but can contain pointers themselves."""
     struct_start_offset = item.writer.position
+
+    if isinstance(value, np.ndarray) and value.ndim > 1:
+        # Flatten array.
+        value = value.flatten()
+
     if len(value) != length:
-        raise ValueError(f"Length of `{data_hk_type.__name__}` value is not {length}: {value}")
+        raise ValueError(f"Length of `{data_hk_type.__name__}` struct is not {length}: {value}")
 
     if debug.DEBUG_PRINT_PACK:
-        debug.debug_print(
-            f"Packing {CYAN}`{data_hk_type.get_type_name()}[{length}]` struct "
-            f"{YELLOW}@ item {item.writer.position_hex}{RESET}"
-        )
+        debug.debug_print(f"{Y}{item.hex}{X}: Struct {G}{data_hk_type.get_type_name()}[{length}]{U} -> {value}{X}")
 
-    # For primitive types, pack all at once (predictably tight for these primitives, so no need to pad).
-    tag_data_type = data_hk_type.get_tag_data_type()
-    match tag_data_type:
-        case TagDataType.Invalid:
-            pass
-        case TagDataType.Bool:
-            fmt = TagDataType.get_int_fmt(data_hk_type.tag_type_flags, count=length)
-            item.writer.pack(fmt, *[int(v) for v in value])
-        case TagDataType.Int:
-            fmt = TagDataType.get_int_fmt(data_hk_type.tag_type_flags, count=length)
-            item.writer.pack(fmt, *value)
-        case TagDataType.Float if data_hk_type.tag_type_flags == TagDataType.FloatAndFloat32:
-            item.writer.pack(f"{length}f", *value)
-        case _:
-            # Non-primitive data type; recur on its `pack` method.
-            for i, element in enumerate(value):
-                try_pad_to_offset(
-                    item,
-                    struct_start_offset + i * data_hk_type.byte_size,
-                    f"{item.get_class_name()} (Struct) {data_hk_type.get_type_name()}[{i}]",
-                )
-                data_hk_type.pack_packfile(item, element, existing_items, data_pack_queues)
+    if not data_hk_type.try_pack_primitive_array(item.writer, value):
+        # Non-primitive data type; recur on its `pack` method.
+        byte_size = data_hk_type.get_byte_size(item.long_varints)
+        for i, element in enumerate(value):
+            try_pad_to_offset(
+                item,
+                struct_start_offset + i * byte_size,
+                f"{item.get_class_name()} (Struct) {data_hk_type.get_type_name()}[{i}]",
+            )
+            data_hk_type.pack_packfile(item, element, existing_items, data_pack_queues)
 
 
 def unpack_string(item: PackFileDataItem) -> str:
@@ -443,11 +514,10 @@ def unpack_string(item: PackFileDataItem) -> str:
         string_offset = item.child_pointers[pointer_offset]
     except KeyError:
         return ""
+    # We step into the offset so that we can monitor expected member offsets.
+    string = item.reader.unpack_string(offset=string_offset, reset_old_offset=True, encoding="shift_jis_2004")
     if debug.DEBUG_PRINT_UNPACK:
-        debug.debug_print(f"{BLUE}Unpacking string at offset {hex(string_offset)}{RESET}")
-    string = item.reader.unpack_string(offset=string_offset, encoding="shift_jis_2004")
-    if debug.DEBUG_PRINT_UNPACK:
-        debug.debug_print(f"    -> '{string}'")
+        debug.debug_print(f"{Y}{hex(string_offset)}: {U}String = '{string}'{X}")
     return string
 
 
@@ -467,7 +537,7 @@ def pack_string(
     def delayed_string_write(_data_pack_queues: PackItemCreationQueues):
         item.child_pointers[string_ptr_pos] = item.writer.position
         if debug.DEBUG_PRINT_PACK:
-            debug.debug_print(f"Packing {CYAN}string '{value}\\0' {YELLOW}@ item {item.writer.position_hex}{RESET}")
+            debug.debug_print(f"{Y}{item.hex}{X}: {G}string {U}-> \"{value}\"{X}")
         item.writer.append(value.encode("shift_jis_2004") + b"\0")
         item.writer.pad_align(16)
 
@@ -486,8 +556,7 @@ def unpack_named_variant(hk_type: type[hk], item: PackFileDataItem, types_module
             offset_hex = hex(member_.offset)
             item_offset_hex = hex(member_start_offset + member_.offset)
             debug.debug_print(
-                f"Unpacking member {GREEN}'{member_.name}' (`{member_.type.__name__}`) "
-                f"{YELLOW}@ {offset_hex} (item @ {item_offset_hex}) {RESET}"
+                f"{Y}{item_offset_hex} ({offset_hex}){X}: {G}'{member_.name}' = {member_.type.__name__}{X}"
             )
 
     kwargs = {}
@@ -511,7 +580,7 @@ def unpack_named_variant(hk_type: type[hk], item: PackFileDataItem, types_module
     _debug_print(variant_member)
     item.reader.seek(member_start_offset + variant_member.offset)
     if debug.DEBUG_PRINT_UNPACK:
-        debug.debug_print(f"{BLUE}Unpacking named variant: `{variant_py_name}` @ item {item.reader.position_hex}{RESET}")
+        debug.debug_print(f"{Y}{item.hex}: {U}Named Variant '{name}' = {variant_py_name}{X}")
     variant_instance = unpack_pointer(variant_type, item)
     if debug.DEBUG_PRINT_UNPACK:
         debug.debug_print(f"-> {variant_instance}")
@@ -531,5 +600,5 @@ def pack_named_variant(
     existing_items: dict[hk, PackFileDataItem],
     data_pack_queues: PackItemCreationQueues,
 ):
-    """Actually no different from `pack_class()`, because packfiles don't need `className` first."""
+    """Actually no different from `pack_class()`, because packfiles don't write the `className` string first."""
     return pack_class(hk_type, item, value, existing_items, data_pack_queues)

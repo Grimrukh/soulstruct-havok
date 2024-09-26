@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from soulstruct_havok.enums import *
 from .core import *
-from .hkSweptTransform import hkSweptTransform
+from soulstruct_havok.types.hk550.hkSweptTransform import hkSweptTransform
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
@@ -22,8 +22,8 @@ class hkMotionState(hk):
         Member(160, "objectRadius", hkReal),
         Member(164, "linearDamping", hkReal),
         Member(168, "angularDamping", hkReal),
-        Member(172, "maxLinearVelocity", hkUFloat8),
-        Member(173, "maxAngularVelocity", hkUFloat8),
+        Member(172, "maxLinearVelocity", hkUint8),
+        Member(173, "maxAngularVelocity", hkUint8),
         Member(174, "deactivationClass", hkUint8),
     )
     members = local_members
@@ -34,6 +34,6 @@ class hkMotionState(hk):
     objectRadius: float
     linearDamping: float
     angularDamping: float
-    maxLinearVelocity: hkUFloat8
-    maxAngularVelocity: hkUFloat8
+    maxLinearVelocity: int
+    maxAngularVelocity: int
     deactivationClass: int

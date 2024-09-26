@@ -8,11 +8,11 @@ from soulstruct_havok.enums import *
 from .core import *
 
 if tp.TYPE_CHECKING:
-    from .hkbBehaviorGraph import hkbBehaviorGraph
+    from .hkb.hkbBehaviorGraph import hkbBehaviorGraph
 
 
 def deferred_hkbBehaviorGraph():
-    from .hkbBehaviorGraph import hkbBehaviorGraph
+    from .hkb.hkbBehaviorGraph import hkbBehaviorGraph
     return hkbBehaviorGraph
 
 

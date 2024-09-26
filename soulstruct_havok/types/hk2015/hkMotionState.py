@@ -30,12 +30,12 @@ class hkMotionState(hk):
     members = local_members
 
     transform: hkTransform
-    sweptTransform: tuple[Vector4]
+    sweptTransform: tuple[Vector4, Vector4, Vector4, Vector4, Vector4]
     deltaAngle: Vector4
     objectRadius: float
-    linearDamping: float
-    angularDamping: float
-    timeFactor: float
+    linearDamping: hkHalf16
+    angularDamping: hkHalf16
+    timeFactor: hkHalf16
     maxLinearVelocity: hkUFloat8
     maxAngularVelocity: hkUFloat8
     deactivationClass: int

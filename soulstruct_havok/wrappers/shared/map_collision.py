@@ -256,22 +256,21 @@ class MapCollisionModel(GameFile):
             kwargs = dict(
                 version=37120,  # true for all supported games (DeS, DS1)
                 vertexDataBuffer=[255] * mesh.vertex_count,
-                primitiveDataBuffer=[],
                 materialNameData=mesh.material_index,
             )
             # Remaining `CustomMeshParameter` kwargs are module-specific.
             match self.py_havok_module:
                 case PyHavokModule.hk550:
-                    kwargs |= {"zero0": 0, "zero1": 0}
+                    kwargs |= {"zero0": 0, "zero1": 0, "zero2": 0, "zero3": 0, "zero4": 0}
                     material = hk550.CustomMeshParameter(**kwargs)
                 case PyHavokModule.hk2010:
-                    kwargs |= {"zero0": 0, "zero1": 0}
+                    kwargs |= {"zero0": 0, "zero1": 0, "zero2": 0, "zero3": 0, "zero4": 0}
                     material = hk2010.CustomMeshParameter(**kwargs)
                 case PyHavokModule.hk2015:
-                    kwargs |= {"vertexDataStride": 1}
+                    kwargs |= {"vertexDataStride": 1, "primitiveDataBuffer": []}
                     material = hk2015.CustomMeshParameter(**kwargs)
                 case PyHavokModule.hk2016:
-                    kwargs |= {"vertexDataStride": 1}
+                    kwargs |= {"vertexDataStride": 1, "primitiveDataBuffer": []}
                     material = hk2016.CustomMeshParameter(**kwargs)
                 case _:  # unreachable
                     raise ValueError(

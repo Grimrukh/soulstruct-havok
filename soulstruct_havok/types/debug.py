@@ -11,8 +11,10 @@ __all__ = [
     "increment_debug_indent",
     "decrement_debug_indent",
     "debug_print",
+    "get_indented_array",
 ]
 
+import numpy as np
 
 DEBUG_PRINT_UNPACK = False
 DEBUG_PRINT_PACK = False
@@ -41,3 +43,7 @@ def decrement_debug_indent():
 
 def debug_print(msg):
     print(" " * _INDENT + str(msg))
+
+
+def get_indented_array(array: np.ndarray) -> str:
+    return "\n" + "\n".join([f"{' ' * _INDENT}{row}" for row in array])

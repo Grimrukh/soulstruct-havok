@@ -79,7 +79,6 @@ __all__ = [
     "hkQuaternion",
     "hkUint64",
     "hkUintReal",
-    "hkUFloat8",
     "hkHalf16",
     "hkBaseObject",
     "hkReferencedObject",
@@ -96,10 +95,10 @@ import numpy as np
 
 from soulstruct_havok.utilities.maths import Quaternion, TRSTransform, Vector3, Vector4
 from soulstruct_havok.enums import MemberFlags
-from soulstruct_havok.types.hk32 import *
+from soulstruct_havok.types.base import *
 
 if tp.TYPE_CHECKING:
-    from soulstruct.utilities.binary import BinaryReader, BinaryWriter
+    from soulstruct.utilities.binary import BinaryReader
     from soulstruct_havok.tagfile.structs import TagFileItem
     from soulstruct_havok.packfile.structs import PackFileDataItem
 
@@ -259,20 +258,10 @@ class hkVector4f(hkStruct(_float, 4)):
 
     @classmethod
     def unpack_primitive_array(cls, reader: BinaryReader, length: int, offset: int = None) -> np.ndarray:
-        """Unpack vector array with `numpy`."""
+        """Unpack an array of vectors with `numpy`."""
         data = reader.read(length * 4 * cls.length, offset=offset)
         dtype = np.dtype(f"{reader.default_byte_order}f4")
         return np.frombuffer(data, dtype=dtype).reshape((length, cls.length))
-
-    @classmethod
-    def try_pack_primitive_array(cls, writer: BinaryWriter, value: np.ndarray) -> bool:
-        """Pack `float32` array in standard row-first order."""
-        if not isinstance(value, np.ndarray) or value.dtype != np.float32:
-            raise ValueError(f"Cannot pack non-`np.float32` array as an array of `{cls.__name__}`: {value}")
-        if value.shape[1] != cls.length:
-            raise ValueError(f"Cannot pack `{cls.__name__}` array with shape {value.shape}.")
-        writer.append(value.tobytes())
-        return True
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
@@ -516,19 +505,7 @@ class hkUintReal(_unsigned_int):
     local_members = ()
 
 
-@dataclass(slots=True, eq=False, repr=False, kw_only=True)
-class hkUFloat8(hk):
-    alignment = 2
-    byte_size = 1
-    __tag_format_flags = 41
-    tag_type_flags = 7
-
-    local_members = (
-        Member(0, "value", hkUint8),
-    )
-    members = local_members
-
-    value: int
+# NOTE: No `hkUFloat8` in 2010.
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)

@@ -33,8 +33,6 @@ if tp.TYPE_CHECKING:
 
 @dataclass(slots=True)
 class PackItemCreationQueues:
-    # Byte order to use when creating items.
-    byte_order: ByteOrder
     # Pointers to arrays or strings inside the same item. These functions don't return new items.
     child_pointers: deque[tp.Callable[[PackItemCreationQueues], None]] = field(default_factory=deque)
     # Pointers to other items in the HKX (always actual `Ptr` types). These functions create and return items.
@@ -82,10 +80,26 @@ class PackFileBaseItem(abc.ABC):
             raise ValueError(f"`{self.__class__.__name__}` reader was already created.")
         self.reader = BinaryReader(self.raw_data, default_byte_order=self.byte_order, long_varints=self.long_varints)
 
-    def start_writer(self, byte_order: ByteOrder):
+    def start_writer(self):
         if self.writer is not None:
             raise ValueError(f"`{self.__class__.__name__}` writer was already created.")
-        self.writer = BinaryWriter(byte_order=byte_order, long_varints=self.long_varints)
+        self.writer = BinaryWriter(byte_order=self.byte_order, long_varints=self.long_varints)
+
+    @property
+    def hex(self):
+        if self.writer:
+            return self.writer.position_hex
+        if self.reader:
+            return self.reader.position_hex
+        return "XX"
+
+    @property
+    def child_pointers_hex(self) -> dict[str, str]:
+        return {hex(k): hex(v) for k, v in self.child_pointers.items()}
+
+    @property
+    def item_pointers_hex(self) -> dict[str, tuple[PackFileBaseItem, int]]:
+        return {hex(k): v for k, v in self.item_pointers.items()}
 
 
 @dataclass(slots=True)
@@ -248,9 +262,9 @@ class PackFileSectionHeader(BinaryStruct):
     section_tag: bytes = field(**BinaryString(19))  # e.g. b"__classnames__" (type section)
     minus_one: byte = field(init=False, **Binary(asserted=0xFF))
     absolute_data_start: uint
-    child_pointers_offset: uint
-    item_pointers_offset: uint
-    item_specs_offset: uint
+    child_pointers_offset: uint  # "local fixups"
+    item_pointers_offset: uint  # "global fixups"
+    item_specs_offset: uint  # "virtual fixups"
     exports_offset: uint
     imports_offset: uint
     end_offset: uint

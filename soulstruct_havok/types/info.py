@@ -23,8 +23,8 @@ if tp.TYPE_CHECKING:
 
 
 # Any type whose real Havok name does not start with one of these will have an underscore prepended to its Python name.
-# (The 'Custom' prefix is for at least one FromSoftware mesh subtype.)
-HAVOK_TYPE_PREFIXES = ("hk", "hcl", "Custom")
+# (The 'Custom' and 'fsnp' prefixes are used by FromSoftware's custom types.)
+HAVOK_TYPE_PREFIXES = ("hk", "hcl", "Custom", "fsnp")
 
 
 def get_py_name(real_name: str) -> str:

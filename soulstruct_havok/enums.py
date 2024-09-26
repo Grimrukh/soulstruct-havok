@@ -229,8 +229,8 @@ class TagDataType(IntEnum):
     Float = 0b00000101  # 5
     Pointer = 0b00000110  # 6
     Class = 0b00000111  # 7
-    Array = 0b00001000  # 8  # also type of `hkPropertyBag` and `hkReflect::Type` in newer Havok
-    Struct = 0b00101000  # 40
+    Array = 0b00001000  # 8  # array pointer; also type of `hkPropertyBag` and `hkReflect::Type` in newer Havok
+    Struct = 0b00101000  # 40  # fixed-length `T[N]` array
     ConstCharArray = 0b10000011  # 131  # type of `const char*` and `hkStringPtr` in newer Havok
 
     # HIGHER BYTES

@@ -9,7 +9,7 @@ from types import ModuleType
 
 from soulstruct.utilities.binary import BinaryReader, ByteOrder
 
-from soulstruct_havok.types import hk2010, hk2014, hk2015, hk2016, hk2018
+from soulstruct_havok.types import hk550, hk2010, hk2014, hk2015, hk2016, hk2018
 from soulstruct_havok.types.hk import hk
 from soulstruct_havok.types.exceptions import VersionModuleError, TypeNotDefinedError
 from soulstruct_havok.types.info import TypeInfo, get_py_name
@@ -21,6 +21,7 @@ _LOGGER = logging.getLogger("soulstruct_havok")
 
 ROOT_TYPING = tp.Union[
     None,
+    hk550.hkRootLevelContainer,
     hk2010.hkRootLevelContainer,
     hk2014.hkRootLevelContainer,
     hk2015.hkRootLevelContainer,
@@ -66,7 +67,9 @@ class PackFileUnpacker:
         self.header = PackFileHeader.from_bytes(reader)
 
         self.hk_version = self.header.contents_version_string.decode()
-        _LOGGER.info(f"Unpacking packfile with hk version: {self.hk_version}")
+        _LOGGER.info(
+            f"Unpacking packfile with hk version: {self.hk_version} "
+            f"({self.byte_order.name}, pointer size = {self.header.pointer_size})")
 
         if self.header.version.has_header_extension:
             self.header_extension = PackFileHeaderExtension.from_bytes(reader)
@@ -119,22 +122,16 @@ class PackFileUnpacker:
             return
 
         if self.hk_version.startswith("Havok-5.5.0"):
-            from soulstruct_havok.types import hk550
             self.hk_types_module = hk550
         elif self.hk_version.startswith("hk_2010"):
-            from soulstruct_havok.types import hk2010
             self.hk_types_module = hk2010
         elif self.hk_version.startswith("hk_2014"):
-            from soulstruct_havok.types import hk2014
             self.hk_types_module = hk2014
         elif self.hk_version.startswith("hk_2015"):
-            from soulstruct_havok.types import hk2015
             self.hk_types_module = hk2015
         elif self.hk_version.startswith("hk_2016"):
-            from soulstruct_havok.types import hk2016
             self.hk_types_module = hk2016
         elif self.hk_version.startswith("hk_2018"):
-            from soulstruct_havok.types import hk2018
             self.hk_types_module = hk2018
         else:
             raise VersionModuleError(f"No Havok type module for version: {self.hk_version}")
@@ -152,7 +149,7 @@ class PackFileUnpacker:
 
         root_item = self.data_items[0]
         if root_item.hk_type != self.hk_types_module.hkRootLevelContainer:
-            raise TypeError(f"First data item in HKX was not root node: {root_item.hk_type.__name__}")
+            raise TypeError(f"First data item in HKX was not `hkRootLevelContainer`: {root_item.get_class_name()}")
         root_item.start_reader()
         with hk.set_types_dict(self.hk_types_module):
             self.root = self.hk_types_module.hkRootLevelContainer.unpack_packfile(root_item)

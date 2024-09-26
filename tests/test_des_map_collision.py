@@ -5,6 +5,7 @@ from soulstruct_havok.types.debug import SET_DEBUG_PRINT
 
 
 def test():
+    SET_DEBUG_PRINT(True)
     hkx = HKX.from_path("resources/DES/h0004b0.hkx")
     # print(hkx.get_root_tree_string(max_primitive_sequence_size=5000))
 

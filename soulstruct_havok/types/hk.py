@@ -88,6 +88,10 @@ class DefType:
         self.type_name = type_name
         self.action = action
 
+    def get_type_name(self):
+        """Mimics method of `hk`."""
+        return self.type_name
+
 # endregion
 
 
@@ -197,6 +201,20 @@ class hk:
             return hierarchy[1]
         return None
 
+    @classmethod
+    def get_alignment(cls, long_varints: bool):
+        """Get alignment for this type, considering `long_varints` setting when alignment is -1 (pointers)."""
+        if cls.alignment == -1:
+            return 8 if long_varints else 4
+        return cls.alignment
+
+    @classmethod
+    def get_byte_size(cls, long_varints: bool):
+        """Get byte size for this type, considering `long_varints` setting when size is -1 (pointers)."""
+        if cls.byte_size == -1:
+            return 8 if long_varints else 4
+        return cls.byte_size
+
     @staticmethod
     @contextmanager
     def set_types_dict(module):
@@ -271,11 +289,13 @@ class hk:
         else:
             # Note that 'Pointer', 'Array', and 'Struct' types have their own explicit subclasses.
             raise ValueError(f"Cannot unpack `hk` subclass `{cls.__name__}` with tag data type {tag_data_type.name}.")
+
         if debug.DEBUG_PRINT_UNPACK:
             if isinstance(value, list) and len(value) > 10 and isinstance(value[0], (int, float)):
-                debug.debug_print(f"--> {repr(value[:10])}... ({len(value)} elements)")
+                debug.debug_print(f"= {repr(value[:10])}... ({len(value)} elements)")
             else:
-                debug.debug_print(f"--> {repr(value)}")
+                debug.debug_print(f"= {repr(value)}")
+
         return value
 
     @classmethod
@@ -286,13 +306,7 @@ class hk:
 
         `item` already contains resolved pointers to other items, so no item list needs to be passed around.
         """
-        offset = item.reader.seek(offset) if offset is not None else item.reader.position
-        if (
-            debug.DEBUG_PRINT_UNPACK
-            and not debug.DO_NOT_DEBUG_PRINT_PRIMITIVES
-            and cls.__name__ not in {"_float", "hkUint8"}
-        ):
-            debug.debug_print(f"Unpacking `{cls.__name__}`... ({cls.get_tag_data_type().name}) <{hex(offset)}>")
+        item.reader.seek(offset) if offset is not None else item.reader.position
 
         if cls.__name__ == "hkRootLevelContainerNamedVariant":
             # Retrieve other classes from subclass's module, as they will be dynamically attached to the root container.
@@ -314,23 +328,24 @@ class hk:
             value = packfile.unpack_int(cls, item.reader)
         elif cls.tag_type_flags == TagDataType.FloatAndFloat32:
             value = packfile.unpack_float32(item.reader)  # `cls` not needed
-        elif tag_data_type in {TagDataType.Class, TagDataType.Float}:  # non-32-bit floats have members
+        elif tag_data_type in {TagDataType.Class, TagDataType.Float}:  # non-32-bit floats have members (`value`)
             value = packfile.unpack_class(cls, item)
         else:
             # Note that 'Pointer', 'Array', and 'Struct' types have their own explicit subclasses.
             raise ValueError(f"Cannot unpack `hk` subclass `{cls.__name__}` with tag data type {tag_data_type}.")
-        if (
-            debug.DEBUG_PRINT_UNPACK
-            and not debug.DO_NOT_DEBUG_PRINT_PRIMITIVES
-            and cls.__name__ not in {"_float", "hkUint8"}
-        ):
-            if isinstance(value, np.ndarray) and value.size > 10:
-                debug.debug_print(f"--> {repr(value[:10])}... ({value.size} elements/rows)")
-            elif isinstance(value, list) and len(value) > 10 and isinstance(value[0], (int, float)):
-                debug.debug_print(f"--> {repr(value[:10])}... ({len(value)} total)")
-            else:
-                debug.debug_print(f"--> {repr(value)}")
-        item.reader.seek(offset + cls.byte_size)
+
+        # if (
+        #     debug.DEBUG_PRINT_UNPACK
+        #     and not debug.DO_NOT_DEBUG_PRINT_PRIMITIVES
+        #     and cls.__name__ not in {"_float", "hkUint8"}
+        # ):
+        #     if isinstance(value, np.ndarray) and value.size > 10:
+        #         debug.debug_print(f"= {repr(value[:10])}... ({value.size} elements/rows)")
+        #     elif isinstance(value, list) and len(value) > 10 and isinstance(value[0], (int, float)):
+        #         debug.debug_print(f"= {repr(value[:10])}... ({len(value)} total)")
+        #     else:
+        #         debug.debug_print(f"= {repr(value)}")
+
         return value
 
     @classmethod
@@ -402,12 +417,6 @@ class hk:
         in its `raw_data` attribute, and all items' data can be appended in order at the end, followed by their internal
         (child) and external reference pointers.
         """
-        if debug.DEBUG_PRINT_PACK:
-            tag_data_type_name = cls.get_tag_data_type().name
-            debug.debug_print(
-                f"Packing {CYAN}`{cls.__name__}` = {repr(value)}{RESET} <{tag_data_type_name}>"
-            )
-
         if cls.__name__ == "hkRootLevelContainerNamedVariant":
             return packfile.pack_named_variant(cls, item, value, existing_items, data_pack_queues)
 
@@ -457,7 +466,36 @@ class hk:
 
     @classmethod
     def try_pack_primitive_array(cls, writer: BinaryWriter, value: list | np.ndarray) -> bool:
-        """Try to pack an array of primitive types (or overridden supported subclasses) in one call."""
+        """Try to pack an array of primitive types in one call.
+
+        For convenience, checks `cls` name against some basic maths types like `hkVector4` that are technically version-
+        specific but still ultimately just a sequence of ints/floats to pack.
+
+        We make no assumptions about how the user has chosen to shape their array. For example, a 2D array could
+        represent a `hkStruct[hkVector4f, 4]`, a `hkArray[hkVector4f]`, or a `hkStruct[float, 16]` (flat Havok matrix).
+        Every primitive in `value` ultimately needs to be serialized.
+
+        However, the one thing we do NOT support is flat Havok types like `hkStruct[float, 16]` being represented as
+        nested lists (e.g. `[[1, 2, 3, 4], [5, 6, 7, 8], ...]`) rather than a (4, 4) NumPy array.
+
+        NOTE: We don't need to validate the length of `value` for fixed-length struct types, as the caller will have
+        already done this. The caller has probably already flattened any NumPy array as well.
+        """
+
+        if isinstance(value, np.ndarray) and value.ndim > 1:
+            # All arrays must be flattened. See docstring.
+            value = value.flatten()
+
+        if cls.get_type_name() in {"hkVector4", "hkVector4f"}:
+            if isinstance(value, (list, tuple)):
+                # Sequence of 4-float vectors/iterables is permitted. We handle it by converting it to a NumPy array,
+                # then flattening it, which validates dimensionality at the same time.
+                value = np.array(value, dtype=np.float32).flatten()
+            writer.pack(f"{len(value)}f", *value)
+            return True
+
+        # `value` must be a flat sequence of bools/ints/floats at this point.
+
         match cls.get_tag_data_type():
             case TagDataType.Invalid:
                 return True  # nothing to pack
@@ -469,15 +507,14 @@ class hk:
                 fmt = TagDataType.get_int_fmt(cls.tag_type_flags, count=len(value))
                 writer.pack(fmt, *value)
                 return True
-
-        if cls.tag_type_flags == TagDataType.FloatAndFloat32:
-            writer.pack(f"{len(value)}f", *value)
-            return True
+            case TagDataType.Float if cls.tag_type_flags == TagDataType.FloatAndFloat32:
+                writer.pack(f"{len(value)}f", *value)
+                return True
 
         return False
 
     @classmethod
-    def get_type_info(cls) -> TypeInfo:
+    def get_type_info(cls, long_varints: bool) -> TypeInfo:
         """Construct a `TypeInfo` with all information except references to other `TypeInfo`s, which is done later."""
         type_info = TypeInfo(cls.get_real_name())
         type_info.py_class = cls
@@ -485,8 +522,8 @@ class hk:
             type_info.parent_type_py_name = parent_type_name
         type_info.tag_format_flags = cls.get_tag_format_flags()
         type_info.tag_type_flags = cls.tag_type_flags
-        type_info.byte_size = cls.byte_size
-        type_info.alignment = cls.alignment
+        type_info.byte_size = cls.get_byte_size(long_varints)
+        type_info.alignment = cls.get_alignment(long_varints)
         type_info.version = cls.get_version()
         type_info.abstract_value = cls.get_abstract_value()
         type_info.hsh = cls.get_hsh()

@@ -46,12 +46,21 @@ class HavokFileFormat(StrEnum):
 class HKX(GameFile):
     """Havok data used in FromSoft games to hold model skeletons, animations, ragdoll physics, collisions, etc.
 
-    HKX files are a form of compressed XML used by the Havok physics engine. This class can read from both pre-2015
-    `packfile`-type HKX files (used up to and including DS3) and post-2015 `tagfile`-type HKX files (used in DSR and
-    Sekiro), and freely write to either format.
+    HKX files are a form of binary XML used by the Havok physics engine. This class can read from both pre-2015
+    `packfile`-type HKX files (used up to and including DS3) and post-2015 `tagfile`-type HKX files (used in DSR,
+    Sekiro, and Elden Ring), and freely write to either format.
 
     Use `write_packfile()` and `write_tagfile()` to specify the format you want to output. If you use `write()`, it will
-    default to writing the format that was loaded. Same for `pack()` and its two variants.
+    default to writing the format that was loaded and set to `hk_format`. Same for `pack()` and its two variants.
+
+    Versions used by various FromSoftware games:
+        Demon's Souls (PSE):                    Havok-5.5.0-r1 (packfile)
+        Dark Souls Prepare to Die Edition:      hk_2010-2.0-r1 (packfile)
+        Bloodborne:                             hk_2014-1.0-r1 (packfile)
+        Dark Souls 3:                           hk_2014-1.0-r1 (packfile)
+        Dark Souls Remastered:                  20150100 (tagfile)
+        Sekiro:                                 20160200 (tagfile)
+        Elden Ring:                             20180100 (tagfile)
     """
     EXT: tp.ClassVar[str] = ".hkx"
 
@@ -244,7 +253,13 @@ class HKX(GameFile):
                 raise ValueError("You must set `hkx.packfile_header_info` before you can write to packfile format.")
             return PackFilePacker(self).to_writer(self.packfile_header_info)
         elif self.hk_format == HavokFileFormat.Tagfile:
-            return TagFilePacker(self).to_writer(hsh_overrides=self.hsh_overrides)
+            # TODO: Can't automatically detect `byte_order` or `long_varints` for tagfiles.
+            #  But since it's a new format (2015+), it's probably always long, and little-endian for PC at least.
+            return TagFilePacker(self).to_writer(
+                hsh_overrides=self.hsh_overrides,
+                byte_order=ByteOrder.LittleEndian,
+                long_varints=True,
+            )
         raise ValueError(f"Invalid `hk_format`: {self.hk_format}. Should be 'packfile' or 'tagfile'.")
 
     @property
@@ -287,103 +302,3 @@ class HKX(GameFile):
         )
 
     base_hkx_repr = __repr__
-
-    # region OUTDATED CONVERSION METHODS
-
-    # TODO: All ridiculously outdated, but probably contains info I need to move elsewhere. Mostly related to updating
-    #  Havok 2010 classes to higher versions:
-    #   - updated `AnimationType` enumeration
-    #   - change `hkSweptTransform` class to a tuple of five `hkVector4f` instances
-    #   - change certain instances of `hkUint8` class to `hkUFloat8` class
-    #  Pretty sure this is all handled already.
-
-    # Call these to PERMANENTLY convert the HKX instance to the given Havok version. This works by iterating over all
-    # the nodes and changing their type to the corresponding type in the requested version's type database. Only the
-    # listed versions are available.
-
-    # Packfile versions (up to 2014) use version string format "hk_YYYY.A.B-rC", where A and B are major/minor versions
-    # and C is a "revision" (or maybe "release") version.
-
-    # Tagfile versions (2015 and after) use version string format "YYYYAABB", where AA is a major version and BB is a
-    # minor version (e.g. "20160100").
-
-    # The default `hk_format` of the `HKX` will also be changed to "packfile" or "tagfile" whenever you use one of
-    # these conversion methods.
-
-    # Versions used by various FromSoftware games:
-    #   Dark Souls Prepare to Die Edition:      hk_2010-2.0-r1
-    #   Bloodborne:                             hk_2014-1.0-r1
-    #   Dark Souls 3:                           hk_2014-1.0-r1
-    #   Dark Souls Remastered:                  20150100
-    #   Sekiro:                                 20160100 (I think, could be 20160200)
-
-    def _convert_swept_transform_to_tuple(self):
-        """Convert `hkSweptTransform` nodes (member "sweptTransform" of `hkMotionState` to a Tuple of five `hkVector4f`
-        instances.
-
-        The `hkSweptTransform` type is modified itself and replaced with the new `T[N]` Tuple type, and any node that
-        had this type has its value changed from a dictionary to a tuple.
-        """
-        hkSweptTransform = self.hkx_types.get_type("hkSweptTransform")
-        if hkSweptTransform is None:
-            return  # nothing to change
-
-        vector_index = self.hkx_types.get_type_index("hkVector4f")
-
-        # Convert `hkSweptTransform` to `T[N]`.
-        hkSweptTransform.name = "T[N]"
-        hkSweptTransform.parent_type_index = 0
-        hkSweptTransform.pointer_type_index = vector_index
-        hkSweptTransform.byte_size = 80
-        hkSweptTransform.alignment = 16
-        hkSweptTransform.templates = [HKXTemplate(name="tT", type_index=vector_index), HKXTemplate(name="vN", value=5)]
-        hkSweptTransform.tag_format_flags = 11
-        hkSweptTransform.tag_type_flags = 1320
-
-        for node in self.all_nodes:
-            if node.get_type_name(self.hkx_types) == "hkMotionState":
-                swept_transform_node = node.value["sweptTransform"]  # type: HKXNode
-                # noinspection PyTypeChecker
-                new_tuple = (
-                    swept_transform_node.value["centerOfMass0"],
-                    swept_transform_node.value["centerOfMass1"],
-                    swept_transform_node.value["rotation0"],  # `hkQuaternionf` will become `hkVector4f`
-                    swept_transform_node.value["rotation1"],  # `hkQuaternionf` will become `hkVector4f`
-                    swept_transform_node.value["centerOfMassLocal"],
-                )
-                swept_transform_node.value = new_tuple
-                for vector_node in swept_transform_node.value:
-                    vector_node.type_index = vector_index
-
-    def _convert_uint8_to_ufloat8(self):
-        """A few nodes are unpacked in 2010 as primitive `hkUint8` nodes that need to become `hkUFloat8` Class nodes."""
-
-        ufloat8_index = self.hkx_types.get_type_index("hkUFloat8")
-
-        for node in self.all_nodes:
-            node_type_name = node.get_type_name(self.hkx_types)
-
-            if node_type_name == "hkMotionState":
-                uint8_node = node.value["maxLinearVelocity"]
-                node.value["maxLinearVelocity"] = HKXNode(
-                    type_index=ufloat8_index,
-                    value={"value": uint8_node},
-                )
-                self.all_nodes.append(node.value["maxLinearVelocity"])
-
-                uint8_node = node.value["maxAngularVelocity"]
-                node.value["maxAngularVelocity"] = HKXNode(
-                    type_index=ufloat8_index,
-                    value={"value": uint8_node},
-                )
-                self.all_nodes.append(node.value["maxAngularVelocity"])
-
-            elif node_type_name == "hkpBallSocketConstraintAtom":
-                uint8_node = node.value["velocityStabilizationFactor"]
-                node.value["velocityStabilizationFactor"] = HKXNode(
-                    type_index=ufloat8_index,
-                    value={"value": uint8_node},
-                )
-                self.all_nodes.append(node.value["velocityStabilizationFactor"])
-
-    # endregion
