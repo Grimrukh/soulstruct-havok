@@ -280,10 +280,11 @@ def unpack_array(data_hk_type: type[hk], reader: BinaryReader, items: list[TagFi
         if debug.DEBUG_PRINT_UNPACK:
             debug.decrement_debug_indent()
 
-    if len(item.value) > 10 and isinstance(item.value[0], (int, float)):
-        debug.debug_print(f"= {repr(item.value[:10])}... ({len(item.value)} elements)")
-    else:
-        debug.debug_print(f"= {repr(item.value)}")
+    if debug.DEBUG_PRINT_UNPACK:
+        if len(item.value) > 10 and isinstance(item.value[0], (int, float)):
+            debug.debug_print(f"= {repr(item.value[:10])}... ({len(item.value)} elements)")
+        else:
+            debug.debug_print(f"= {repr(item.value)}")
 
     return item.value
 
