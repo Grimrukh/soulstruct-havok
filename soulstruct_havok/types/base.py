@@ -131,6 +131,8 @@ class Ptr_(hkBasePointer):
 
     @classmethod
     def unpack_packfile(cls, item: PackFileDataItem, offset: int = None):
+        if offset is not None:
+            item.reader.seek(offset)
         value = packfile.unpack_pointer(cls.get_data_type(), item)
         return value
 
@@ -418,7 +420,8 @@ class hkRelArray_(hkBasePointer):
 
     @classmethod
     def unpack_packfile(cls, item: PackFileDataItem, offset: int = None) -> list:
-        item.reader.seek(offset) if offset is not None else item.reader.position
+        if offset is not None:
+            item.reader.seek(offset)
 
         if debug.DEBUG_PRINT_UNPACK:
             debug.increment_debug_indent()
@@ -562,6 +565,8 @@ class hkArray_(hkBasePointer):
 
     @classmethod
     def unpack_packfile(cls, item: PackFileDataItem, offset: int = None):
+        if offset is not None:
+            item.reader.seek(offset)
         value = packfile.unpack_array(cls.get_data_type(), item)
         if debug.REQUIRE_INPUT:
             input("Continue?")
@@ -718,7 +723,8 @@ class hkStruct_(hkBasePointer):
 
     @classmethod
     def unpack_packfile(cls, item: PackFileDataItem, offset: int = None) -> tuple:
-        item.reader.seek(offset) if offset is not None else item.reader.position
+        if offset is not None:
+            item.reader.seek(offset)
         if debug.DEBUG_PRINT_UNPACK:
             debug.increment_debug_indent()
         value = packfile.unpack_struct(cls.get_data_type(), item, length=cls.length)

@@ -26,9 +26,8 @@ from collections import deque
 
 import colorama
 import numpy as np
+from scipy.constants import value
 from soulstruct_havok.types.debug import get_indented_array
-
-from soulstruct.utilities.inspection import get_hex_repr
 
 from soulstruct_havok.enums import TagDataType
 from soulstruct_havok.packfile.structs import PackItemCreationQueues, PackFileDataItem
@@ -226,17 +225,27 @@ def unpack_pointer(data_hk_type: type[hk], item: PackFileDataItem) -> hk | None:
     zero = item.reader.unpack_value("V")  # "dummy" pointer
     if zero != 0:
         print(f"{item.hk_type.__name__} item pointers:")
-        for offset, pointed_item in item.item_pointers.items():
-            print(f"    Offset {offset} -> {pointed_item}")
+        for offset, pointed_item in item.all_item_pointers.items():
+            print(f"    Offset {hex(offset)} -> {pointed_item}")
         raise ValueError(f"Found non-zero value at item pointer offset {source_offset}: {zero}")
 
     try:
-        pointed_item, item_data_offset = item.item_pointers[source_offset]
+        pointed_item, item_data_offset = item.remaining_item_pointers.pop(source_offset)
     except KeyError:
-        return None  # null pointer (or incorrect member - no way to tell)
+        if source_offset not in item.all_item_pointers:
+            return None  # null pointer (or incorrect member - no way to tell, but unused pointer should be found later)
+
+        # Tried to access a pointer that was already used.
+        print(f"{item.hk_type.__name__} item pointers:")
+        for offset, pointed_item in item.all_item_pointers.items():
+            print(f"    {R if offset == source_offset else X}{hex(offset)} -> {pointed_item}{X}")
+        raise ValueError("Tried to use item pointer (in red) a second time.")
 
     if item_data_offset != 0:
-        print(pointed_item.item_pointers)
+        # Global item pointers always point to the start of the other item!
+        print(f"{item.hk_type.__name__} item pointers:")
+        for offset, pointed_item in item.all_item_pointers.items():
+            print(f"    {R if offset == source_offset else X}{hex(offset)} -> {pointed_item}{X}")
         raise AssertionError(f"Data item pointer (global ref dest) was not zero: {item_data_offset}.")
     if not issubclass(pointed_item.hk_type, data_hk_type):
         raise ValueError(
@@ -280,7 +289,7 @@ def pack_pointer(
 
     if value in existing_items:
         # Item has already been unpacked and previously referenced.
-        item.item_pointers[item.writer.position] = (existing_items[value], 0)
+        item.all_item_pointers[item.writer.position] = (existing_items[value], 0)
         if debug.DEBUG_PRINT_PACK:
             existing_type_name = existing_items[value].get_class_name()  # may be subclass of `ptr_hk_type`
             debug.debug_print(f"{Y}{item.hex}: {G}{ptr_hk_type.__name__}{U} -> existing {existing_type_name}{X}")
@@ -294,7 +303,7 @@ def pack_pointer(
             long_varints=item.long_varints,
             value=value,
         )
-        item.item_pointers[item.writer.position] = (new_item, 0)
+        item.all_item_pointers[item.writer.position] = (new_item, 0)
         if debug.DEBUG_PRINT_PACK:
             debug.debug_print(f"{Y}{item.hex}: {G}{new_item.get_class_name()}{U} -> new {new_item.get_class_name()}{X}")
         item.writer.pack("V", 0)  # dummy pointer
@@ -315,17 +324,14 @@ def unpack_array(data_hk_type: type[hk], item: PackFileDataItem) -> list:
     zero, array_size, array_capacity_and_flags = item.reader.unpack("VII")
     color = R if array_capacity_and_flags != array_size | 0x80000000 else X
     if zero != 0:
-        print(f"Item type: {item.hk_type.__name__}")
-        print(f"Zero, array_size, array_caps_flags: {zero, array_size, array_capacity_and_flags}")
-        print(f"Item child pointers: {item.child_pointers_hex}")
-        print(f"Item item pointers: {item.item_pointers_hex}")
-        if len(item.raw_data) < 1000:
-            print(f"Item raw data:\n{get_hex_repr(item.raw_data)}")
-        else:
-            print(f"Item raw data (first 1000 bytes):\n{get_hex_repr(item.raw_data[:1000])}")
-        raise AssertionError(f"Found non-null data at child pointer offset {hex(array_pointer_offset)}: {zero}")
+        item.print_item_dump()
+        raise ValueError(f"Found non-null data at child pointer offset {hex(array_pointer_offset)}: {zero}")
 
     if array_size == 0:
+        if array_pointer_offset in item.all_child_pointers:
+            item.print_item_dump()
+            raise ValueError(f"Zero-size array has a child pointer fixup: {hex(array_pointer_offset)}")
+
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(
                 f"{Y}{array_pointer_offset}:{X} {M}{data_hk_type.get_type_name()}[0]{X} "
@@ -334,16 +340,9 @@ def unpack_array(data_hk_type: type[hk], item: PackFileDataItem) -> list:
         return []
 
     try:
-        array_data_offset = item.child_pointers[array_pointer_offset]
+        array_data_offset = item.remaining_child_pointers.pop(array_pointer_offset)
     except KeyError:
-        print(f"Item type: {item.hk_type.__name__}")
-        print(f"Zero, array_size, array_caps_flags: {zero, array_size, array_capacity_and_flags}")
-        print(f"Item child pointers: {item.child_pointers_hex}")
-        print(f"Item item pointers: {item.item_pointers_hex}")
-        if len(item.raw_data) < 1000:
-            print(f"Item raw data:\n{get_hex_repr(item.raw_data)}")
-        else:
-            print(f"Item raw data (first 1000 bytes):\n{get_hex_repr(item.raw_data[:1000])}")
+        item.print_item_dump()
         raise ValueError(f"Array data offset not found in item child pointers: {array_pointer_offset}")
 
     # We step into the array data offset so that we can monitor expected member offsets.
@@ -407,7 +406,7 @@ def pack_array(
 
         sub_creation_queues = PackItemCreationQueues()
         item.writer.pad_align(16)  # pre-align for array
-        item.child_pointers[array_pointer_offset] = item.writer.position  # fixup
+        item.all_child_pointers[array_pointer_offset] = item.writer.position  # fixup
         array_start_offset = item.writer.position
 
         if debug.DEBUG_PRINT_PACK:
@@ -511,9 +510,13 @@ def unpack_string(item: PackFileDataItem) -> str:
     pointer_offset = item.reader.position
     item.reader.unpack_value("V", asserted=0)
     try:
-        string_offset = item.child_pointers[pointer_offset]
+        string_offset = item.remaining_child_pointers.pop(pointer_offset)
     except KeyError:
-        return ""
+        if pointer_offset not in item.all_child_pointers:
+            # Empty string with no child pointer.
+            return ""
+        item.print_item_dump()
+        raise ValueError(f"String data offset not found in item child pointers: {pointer_offset}")
     # We step into the offset so that we can monitor expected member offsets.
     string = item.reader.unpack_string(offset=string_offset, reset_old_offset=True, encoding="shift_jis_2004")
     if debug.DEBUG_PRINT_UNPACK:
@@ -535,7 +538,7 @@ def pack_string(
         return  # empty strings have no fixup
 
     def delayed_string_write(_data_pack_queues: PackItemCreationQueues):
-        item.child_pointers[string_ptr_pos] = item.writer.position
+        item.all_child_pointers[string_ptr_pos] = item.writer.position
         if debug.DEBUG_PRINT_PACK:
             debug.debug_print(f"{Y}{item.hex}{X}: {G}string {U}-> \"{value}\"{X}")
         item.writer.append(value.encode("shift_jis_2004") + b"\0")

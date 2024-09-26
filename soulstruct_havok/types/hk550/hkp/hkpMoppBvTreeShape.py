@@ -17,9 +17,6 @@ class hkpMoppBvTreeShape(hkMoppBvTreeShapeBase):
 
     __tag_format_flags = 41
 
-    # TODO: Base class seems to only have size 44, but these members start at 48,
-    #  unless `hkpSingleShapeContainer`'s members start at 8 rather than 4.
-    #  All serialized data is zero anyway; only the `child` member pointer really matters.
     local_members = (
         Member(48, "child", hkpSingleShapeContainer, MemberFlags.Protected),
         Member(56, "childSize", _int, MemberFlags.NotSerializable),

@@ -12,7 +12,7 @@ from soulstruct_havok.types.hk550.hkp.hkpMoppCode import hkpMoppCode
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkMoppBvTreeShapeBase(hkpBvTreeShape):
     alignment = 16
-    byte_size = 44
+    byte_size = 48
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 57
@@ -22,6 +22,7 @@ class hkMoppBvTreeShapeBase(hkpBvTreeShape):
         Member(20, "moppData", Ptr(hkReflectDetailOpaque), MemberFlags.NotSerializable),
         Member(24, "moppDataSize", hkUint32, MemberFlags.NotSerializable),
         Member(28, "codeInfoCopy", hkVector4, MemberFlags.NotSerializable),
+        # Four byte padding here.
     )
 
     members = hkpBvTreeShape.members + local_members

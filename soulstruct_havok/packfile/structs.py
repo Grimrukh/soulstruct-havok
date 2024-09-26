@@ -24,6 +24,7 @@ from enum import IntEnum
 from soulstruct_havok.enums import PyHavokModule
 
 from soulstruct.utilities.binary import *
+from soulstruct.utilities.inspection import get_hex_repr
 
 if tp.TYPE_CHECKING:
     import numpy as np
@@ -50,9 +51,9 @@ class PackFileBaseItem(abc.ABC):
     long_varints: bool = False
 
     # Maps source offsets to dest offsets inside same entry (arrays and strings).
-    child_pointers: dict[int, int] = field(default_factory=dict)
+    all_child_pointers: dict[int, int] = field(default_factory=dict)
     # Maps source offsets to other entries from same section (pointers).
-    item_pointers: dict[int, tuple[PackFileBaseItem, int]] = field(default_factory=dict)
+    all_item_pointers: dict[int, tuple[PackFileBaseItem, int]] = field(default_factory=dict)
 
     reader: BinaryReader | None = None
     writer: BinaryWriter | None = None
@@ -94,12 +95,12 @@ class PackFileBaseItem(abc.ABC):
         return "XX"
 
     @property
-    def child_pointers_hex(self) -> dict[str, str]:
-        return {hex(k): hex(v) for k, v in self.child_pointers.items()}
+    def all_child_pointers_hex(self) -> dict[str, str]:
+        return {hex(k): hex(v) for k, v in self.all_child_pointers.items()}
 
     @property
-    def item_pointers_hex(self) -> dict[str, tuple[PackFileBaseItem, int]]:
-        return {hex(k): v for k, v in self.item_pointers.items()}
+    def all_item_pointers_hex(self) -> dict[str, tuple[PackFileBaseItem, int]]:
+        return {hex(k): v for k, v in self.all_item_pointers.items()}
 
 
 @dataclass(slots=True)
@@ -165,9 +166,9 @@ class PackFileTypeItem(PackFileBaseItem):
 
     def get_type_name(self) -> str | None:
         """Quickly look up type name from raw data. Returns `None` if `child_pointers` is undefined/empty."""
-        if not self.child_pointers:
+        if not self.all_child_pointers:
             return None
-        return BinaryReader(self.raw_data).unpack_string(self.child_pointers[0], encoding="utf-8")
+        return BinaryReader(self.raw_data).unpack_string(self.all_child_pointers[0], encoding="utf-8")
 
     def get_byte_size(self) -> int:
         return BinaryReader(self.raw_data).unpack_value("I", offset=8)
@@ -189,12 +190,15 @@ class PackFileTypeItem(PackFileBaseItem):
 @dataclass(slots=True, kw_only=True)
 class PackFileDataItem(PackFileBaseItem):
 
-    item_pointers: dict[int, tuple[PackFileDataItem, int]] = field(default_factory=dict)  # type override
+    all_item_pointers: dict[int, tuple[PackFileDataItem, int]] = field(default_factory=dict)  # type override
 
     hk_type: tp.Type[hk | hkArray_ | Ptr_] | None = None
     value: None | hk | bool | int | float | list | tuple | np.ndarray = None
     # Packer-managed lists of functions that fill in short array jumps later (written after members but before arrays).
     pending_rel_arrays: list[deque[tp.Callable]] = field(default_factory=list)
+
+    remaining_child_pointers: dict[int, int] = field(default_factory=dict)
+    remaining_item_pointers: dict[int, tuple[PackFileDataItem, int]] = field(default_factory=dict)
 
     def get_class_name(self):
         """Get (real) Havok class name for packfile class name section."""
@@ -207,6 +211,19 @@ class PackFileDataItem(PackFileBaseItem):
             raise ValueError(
                 f"Packfile item type is not `hkRootLevelContainer` or a pointer: {type(self.value).__name__}"
             )
+
+    def prepare_pointers(self):
+        self.remaining_child_pointers = self.all_child_pointers.copy()
+        self.remaining_item_pointers = self.all_item_pointers.copy()
+
+    def print_item_dump(self):
+        print(f"Item type: {self.hk_type.__name__}")
+        print(f"Item child pointers: {self.all_child_pointers_hex}")
+        print(f"Item item pointers: {self.all_item_pointers_hex}")
+        if len(self.raw_data) < 1000:
+            print(f"Item raw data:\n{get_hex_repr(self.raw_data)}")
+        else:
+            print(f"Item raw data (first 1000 bytes):\n{get_hex_repr(self.raw_data[:1000])}")
 
     def __repr__(self):
         return f"PackFileDataItem({self.hk_type.__name__ if self.hk_type else None})"

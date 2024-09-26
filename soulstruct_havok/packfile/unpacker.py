@@ -7,6 +7,8 @@ import typing as tp
 from dataclasses import dataclass, field
 from types import ModuleType
 
+import colorama
+
 from soulstruct.utilities.binary import BinaryReader, ByteOrder
 
 from soulstruct_havok.types import hk550, hk2010, hk2014, hk2015, hk2016, hk2018
@@ -18,6 +20,10 @@ from .structs import *
 from .type_unpacker import PackFileTypeUnpacker
 
 _LOGGER = logging.getLogger("soulstruct_havok")
+
+colorama.just_fix_windows_console()
+R = colorama.Fore.RED
+X = colorama.Fore.RESET
 
 ROOT_TYPING = tp.Union[
     None,
@@ -147,12 +153,31 @@ class PackFileUnpacker:
             data_section_info.item_pointers,
         )
 
+        for item in self.data_items:
+            # Prepare pointers for consumption, so we can detect unused ones and raise an error.
+            item.prepare_pointers()
+
         root_item = self.data_items[0]
         if root_item.hk_type != self.hk_types_module.hkRootLevelContainer:
             raise TypeError(f"First data item in HKX was not `hkRootLevelContainer`: {root_item.get_class_name()}")
         root_item.start_reader()
         with hk.set_types_dict(self.hk_types_module):
             self.root = self.hk_types_module.hkRootLevelContainer.unpack_packfile(root_item)
+
+        # Check for unused pointers.
+        for item in self.data_items:
+            if item.remaining_child_pointers:
+                item.print_item_dump()
+                print(f"Remaining child pointers for item `{item.get_class_name()}`:")
+                for k, v in item.all_child_pointers.items():
+                    print(f"    {R if k in item.remaining_child_pointers else X}{hex(k)} -> {hex(v)}{X}")
+                raise ValueError(f"Item `{item.get_class_name()}` has remaining child pointers. See red in printout.")
+            if item.remaining_item_pointers:
+                item.print_item_dump()
+                print(f"Remaining item pointers for item `{item.get_class_name()}`:")
+                for k, v in item.all_item_pointers.items():
+                    print(f"    {R if k in item.remaining_item_pointers else X}{hex(k)} -> {v}{X}")
+                raise ValueError(f"Item `{item.get_class_name()}` has remaining item pointers. See red in printout.")
 
     @staticmethod
     def localize_pointers(
@@ -168,7 +193,7 @@ class PackFileUnpacker:
                     # Check that source object is also dest object.
                     if (item_dest_offset := item.get_offset_in_item(child_pointer.dest_offset)) == -1:
                         raise ValueError("Child pointer source object must be destination object.")
-                    item.child_pointers[item_source_offset] = item_dest_offset
+                    item.all_child_pointers[item_source_offset] = item_dest_offset
                     break
             else:
                 raise ValueError(f"Could not find source/dest items of child pointer: {child_pointer}.")
@@ -182,7 +207,7 @@ class PackFileUnpacker:
                 raise ValueError(f"Could not find source item of item pointer: {item_pointer}.")
             for item in items:
                 if (item_dest_offset := item.get_offset_in_item(item_pointer.dest_offset)) != -1:
-                    source_item.item_pointers[item_source_offset] = (item, item_dest_offset)
+                    source_item.all_item_pointers[item_source_offset] = (item, item_dest_offset)
                     break
             else:
                 raise ValueError(f"Could not find dest item of item pointer: {item_pointer}.")
@@ -371,11 +396,11 @@ class PackFileUnpacker:
                 f"{hex(item.local_data_offset)} - {hex(item.local_data_offset + item.item_byte_size)}"
                 f"]"
             )
-            lines.append(f"        Child pointers ({len(item.child_pointers)}):")
-            for ref_source, ref_dest in item.child_pointers.items():
+            lines.append(f"        Child pointers ({len(item.all_child_pointers)}):")
+            for ref_source, ref_dest in item.all_child_pointers.items():
                 lines.append(f"            Local Offset: {ref_source} -> {ref_dest}")
-            lines.append(f"        Entry pointers ({len(item.item_pointers)}):")
-            for ref_source, (dest_item, ref_dest) in item.item_pointers.items():
+            lines.append(f"        Entry pointers ({len(item.all_item_pointers)}):")
+            for ref_source, (dest_item, ref_dest) in item.all_item_pointers.items():
                 lines.append(f"            Global Offset: {ref_source} -> {ref_dest} ({dest_item.hk_type.__name__})")
             lines.append(f"        Raw data length: {len(item.raw_data)}")
         return "\n".join(lines)
