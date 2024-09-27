@@ -157,39 +157,52 @@ class MapCollisionModel(GameFile):
             raise ValueError("No rigid bodies found in HKX physics system.")
         name = physics_system.rigidBodies[0].name
         meshes = []
-        child_shape = cls.get_child_shape(physics_system)
+        child_shape, has_material_array = cls.get_child_shape(physics_system)
         mesh_subparts = child_shape.meshstorage
-        material_indices = tuple(material.materialNameData for material in child_shape.materialArray)
-        if len(material_indices) > len(mesh_subparts):
+        if has_material_array:
+            material_indices = tuple(material.materialNameData for material in child_shape.materialArray)
+            if len(material_indices) > len(mesh_subparts):
+                _LOGGER.warning(
+                    f"Number of material indices ({len(material_indices)}) exceeds number of subparts "
+                    f"({len(mesh_subparts)}). Ignoring excess materials."
+                )
+                material_indices = material_indices[:len(mesh_subparts)]
+            elif len(material_indices) < len(mesh_subparts):
+                _LOGGER.warning(
+                    f"Number of material indices ({len(material_indices)}) is less than number of subparts "
+                    f"({len(mesh_subparts)}). Excess subparts defaulting to material index 0."
+                )
+                excess_count = len(mesh_subparts) - len(material_indices)
+                material_indices += (0,) * excess_count
+        else:
+            # Default materials are all zero. User should assign real materials before exporting.
             _LOGGER.warning(
-                f"Number of material indices ({len(material_indices)}) exceeds number of subparts "
-                f"({len(mesh_subparts)}). Ignoring excess materials."
+                f"No custom material array present in collision '{hkx.path_name}'. Defaulting all materials to index 0."
             )
-            material_indices = material_indices[:len(mesh_subparts)]
-        elif len(material_indices) < len(mesh_subparts):
-            _LOGGER.warning(
-                f"Number of material indices ({len(material_indices)}) is less than number of subparts "
-                f"({len(mesh_subparts)}). Excess subparts defaulting to material index 0."
-            )
-            excess_count = len(mesh_subparts) - len(material_indices)
-            material_indices += (0,) * excess_count
+            material_indices = (0,) * len(mesh_subparts)
 
         for subpart_storage, material_index in zip(mesh_subparts, material_indices):
 
             if indices8 := getattr(subpart_storage, "indices8", []):
-                # This HKX uses 8-bit indices.
+                # This HKX uses 8-bit indices. (Never observed and probably never will.)
                 vertex_indices = indices8
                 face_dtype = np.dtype("uint8")
+                if subpart_storage.indices16:
+                    raise ValueError("Collision HKX mesh subpart has both `indices8` and `indices16` data.")
+                if subpart_storage.indices32:
+                    raise ValueError("Collision HKX mesh subpart has both `indices8` and `indices32` data.")
             elif subpart_storage.indices16:
                 # This HKX uses 16-bit indices.
                 vertex_indices = subpart_storage.indices16
                 face_dtype = np.dtype("uint16")
+                if subpart_storage.indices32:
+                    raise ValueError("Collision HKX mesh subpart has both `indices16` and `indices32` data.")
             elif subpart_storage.indices32:
                 # This HKX uses 32-bit indices.
                 vertex_indices = subpart_storage.indices32
                 face_dtype = np.dtype("uint32")
             else:
-                raise ValueError("Collision HKX mesh subpart has no `indices8`, `indices16`, or `indices32`.")
+                raise ValueError("Collision HKX mesh subpart has no `indices8`, `indices16`, or `indices32` data.")
 
             if len(vertex_indices) % 4:
                 raise ValueError("Collision HKX mesh subpart `indices{N}` length must be a multiple of 4.")
@@ -237,7 +250,7 @@ class MapCollisionModel(GameFile):
         # We only assign data (vertices, faces, material indices) to the `CustomParamStorageExtendedMeshShape`, which
         # is stored deep at `physicsData.systems[0].rigidBodies[0].collidable.shape.child.childShape`. (These collision
         # HKX files have only a single system, rigid body, and child shape.)
-        child_shape = self.get_child_shape(physics_system)
+        child_shape, _ = self.get_child_shape(physics_system)  # template always has custom material data
         total_face_count = sum(mesh.face_count for mesh in self.meshes)
         if hasattr(child_shape, "cachedNumChildShapes"):
             child_shape.cachedNumChildShapes = total_face_count
@@ -312,18 +325,27 @@ class MapCollisionModel(GameFile):
 
     # noinspection PyTypeChecker
     @staticmethod
-    def get_child_shape(physics_system: PhysicsSystem) -> FSCustomParamStorageExtendedMeshShape:
-        """Validates type of collision shape and returns `childShape`."""
+    def get_child_shape(physics_system: PhysicsSystem) -> tuple[FSCustomParamStorageExtendedMeshShape, bool]:
+        """Validates type of collision shape and returns `childShape`, along with a bool indicating if the shape uses
+        FromSoft's custom subclass `CustomParamStorageExtendedMeshShape` (which includes material name data).
+
+        NOTE: Some old collisions may just use `hkpStorageExtendedMeshShape` rather than FromSoft's custom subclass that
+        adds 'material name data'. We support that here too, but only on import - the custom subclass is always used on
+        export, as the game will need it to function. Submesh materials should be assigned manually in this case, as
+        they will default to zero if absent. (In other words, free restoration of cut content!)
+        """
         shape = physics_system.rigidBodies[0].collidable.shape  # type: MoppBvTreeShape
         if shape.get_type_name() != "hkpMoppBvTreeShape":
             raise TypeError("Expected collision shape to be `hkpMoppBvTreeShape`.")
         child_shape = shape.child.childShape  # type: FSCustomParamStorageExtendedMeshShape
         if child_shape.get_type_name() != "CustomParamStorageExtendedMeshShape":
+            if child_shape.get_type_name() == "hkpStorageExtendedMeshShape":
+                return child_shape, False
             raise TypeError(
                 f"Expected collision child shape to be `CustomParamStorageExtendedMeshShape`. "
                 f"Found: {child_shape.get_type_name()}"
             )
-        return child_shape
+        return child_shape, True
 
     # noinspection PyTypeChecker
     @staticmethod
@@ -339,7 +361,7 @@ class MapCollisionModel(GameFile):
         Works for Demon's Souls, Dark Souls: PTDE, and Dark Souls: Remastered. Games after DS1 use `hkcd` classes
         rather than MOPP code and are currently impossible to build/export.
         """
-        shape = self.get_child_shape(physics_system)
+        shape, _ = self.get_child_shape(physics_system)
         meshstorage = shape.meshstorage
         mopp_code = self.get_mopp_code(physics_system)
 
