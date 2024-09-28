@@ -445,6 +445,8 @@ class MapCollisionModel(GameFile):
         All other members can be set to default values, fortunately (in DS1 at least).
         """
         kwargs = dict(
+            materialStriding=0,
+            materialIndexStriding=0,
             numTriangleShapes=mesh.face_count,
             vertexStriding=16,
             numVertices=mesh.vertex_count,
@@ -459,10 +461,8 @@ class MapCollisionModel(GameFile):
                 kwargs |= dict(
                     type=0,
                     materialIndexStridingType=1,
-                    materialStriding=0,
-                    materialIndexStriding=0,
                     stridingType=1,
-                    numMaterials=1,
+                    numMaterials=1,  # TODO: always 1?
                 )
                 return hk550.hkpExtendedMeshShapeTrianglesSubpart(**kwargs)
             case PyHavokModule.hk2010:

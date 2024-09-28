@@ -306,7 +306,7 @@ def pack_array(
         item.writer.pack("I", 0)
         return
 
-    item.patches.setdefault(array_hk_type.get_type_name()).append(item.writer.position)
+    item.patches.setdefault(array_hk_type.get_type_name(), []).append(item.writer.position)
     item.writer.reserve("array_offset", "I", obj=value)
     data_hk_type = array_hk_type.get_data_type()  # type: HK_TYPE
 
