@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from soulstruct_havok.enums import *
 from .core import *
 
-from .hkp.hkpBvTreeShape import hkpBvTreeShape
-from .hkp.hkpMoppCode import hkpMoppCode
+from ._hkp.hkpBvTreeShape import hkpBvTreeShape
+from ._hkp.hkpMoppCode import hkpMoppCode
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)

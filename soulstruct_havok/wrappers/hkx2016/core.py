@@ -67,16 +67,21 @@ class AnimationHKX(BaseAnimationHKX):
             hkx2010.write(temp_interleaved_path)
             _LOGGER.debug("Calling `CompressAnim`...")
             compress_anim_path = str(HAVOK_PACKAGE_PATH("resources/CompressAnim.exe"))
-            ret_code = sp.call(
-                [compress_anim_path, str(temp_interleaved_path), str(temp_spline_path), "1", "0.001"]
-            )
-            _LOGGER.debug(f"Done. Return code: {ret_code}")
-            if ret_code != 0:
-                raise RuntimeError(f"`CompressAnim.exe` had return code {ret_code}.")
+            try:
+                sp.check_output(
+                    [compress_anim_path, str(temp_interleaved_path), str(temp_spline_path), "1", "0.001"],
+                    stderr=sp.STDOUT,
+                )
+            except sp.CalledProcessError as ex:
+                _LOGGER.error(
+                    f"Spline animation compression failed. Error in `CompressAnim.exe`: {ex.output.decode()}\n"
+                    f"Left temp interleaved HKX file for inspection: {temp_interleaved_path}"
+                )
+                raise RuntimeError from ex
+            temp_interleaved_path.unlink(missing_ok=True)
             _LOGGER.debug("Reading 2010 spline-compressed animation...")
             hkx2010_spline = AnimationHKX2010.from_path(temp_spline_path)
         finally:
-            temp_interleaved_path.unlink(missing_ok=True)
             temp_spline_path.unlink(missing_ok=True)
 
         _LOGGER.debug("Upgrading to 2015...")

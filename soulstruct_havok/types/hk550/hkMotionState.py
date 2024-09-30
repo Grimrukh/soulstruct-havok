@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from soulstruct_havok.enums import *
 from .core import *
-from soulstruct_havok.types.hk550.hkSweptTransform import hkSweptTransform
+from .hkSweptTransform import hkSweptTransform
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)

@@ -6,7 +6,7 @@ from soulstruct_havok.enums import *
 from .core import *
 
 
-from .hkb.hkbModifier import hkbModifier
+from ._hkb.hkbModifier import hkbModifier
 from .CustomLookAtTwistModifierMultiRotationAxisType import CustomLookAtTwistModifierMultiRotationAxisType
 from .CustomLookAtTwistModifierTwistParam import CustomLookAtTwistModifierTwistParam
 from .CustomLookAtTwistModifierSetAngleMethod import CustomLookAtTwistModifierSetAngleMethod

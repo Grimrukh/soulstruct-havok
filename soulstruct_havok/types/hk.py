@@ -111,7 +111,7 @@ class hk:
     # This field is used by tagfiles to indicate which of these other attributes should be read/written.
     __tag_format_flags: tp.ClassVar[int] = 0
 
-    # These fields are optional (defaulting to `None`), not inherited (hence the double udnerscore), and have class
+    # These fields are optional (defaulting to `None`), not inherited (hence the double underscore), and have class
     # methods for getting and setting.
     __hsh: tp.ClassVar[int | None] = None  # only used by some types
     __abstract_value: tp.ClassVar[int | None] = None  # only used by some 'Class' types

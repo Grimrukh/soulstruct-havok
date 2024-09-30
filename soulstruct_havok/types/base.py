@@ -525,6 +525,9 @@ class hkArray_(hkBasePointer):
     type (the first item in the array). These details aren't needed for actually unpacking and repacking data, though.
 
     Other hkArray properties, like `tAllocator` and `m_size`, are constant and can be automatically generated.
+
+    NOTE: In tagfiles, Havok stopped writing the `m_capacityAndFlags` member in the `hkArray` class in 2013. It is
+    always 0 in tagfiles, and the capacity is determined by the length of the array. This is not the case in packfiles.
     """
 
     class Flags(IntEnum):
@@ -703,6 +706,8 @@ class hkEnum_(hk):
 class hkStruct_(hkBasePointer):
     """Simple wrapper type for both 'T[N]' types and built-in tuple types like `hkVector4f`.
 
+    TODO: I made up this name a long time ago. It's simply a 'C++ Tuple' (fixed-length array) and should be renamed.
+
     These types store a fixed amount of data locally (e.g., within the same item) rather than separately, like arrays.
 
     NOTE: For generic 'T[N]' tuples, length is actually stored twice: in the 'vN' template, and in the second most
@@ -873,10 +878,15 @@ def hkArray(
     flags: int = hkArray_.Flags.DONT_DEALLOCATE_FLAG,
     forced_capacity: int | None = None,
 ) -> tp.Type[hkArray_]:
-    """Generates an array class with given `data_type` and (optionally) hash.
+    """Generates Havok's version of a `std::vector`-like "EZ Array" class.
+
+    These arrays support dynamic resizing and possess other flags regarding their usage. Of course, for our purposes in
+    just reading/writing Havok binary files, that functionality doesn't matter, but the `hkArray` attributes must be
+    serialized properly.
 
     `flags` is almost always `DONT_DEALLOCATE_FLAG`, but can be overridden. If `forced_capacity` is given, it will be
-    used instead of the array's real length. This is necessary for some corner cases (mainly From's custom types).
+    used instead of the array's real length. This is necessary for some corner cases (mainly From's custom types) that
+    have weird initial capacities in vanilla files.
     """
     data_type_name = data_type.get_type_name()
     # noinspection PyTypeChecker
@@ -886,6 +896,13 @@ def hkArray(
     array_type.set_data_type(data_type)
     array_type.set_hsh(hsh)
     return array_type
+
+
+def SimpleArray(
+    data_type: HK_TYPE | hkRefPtr_ | hkViewPtr_ | DefType,
+    hsh: int = None,
+):
+    """Generic "simple" array that is just a pointer and a length. No usage/capacity flags like `hkArray`."""
 
 
 def hkViewPtr(data_type_name: str, hsh: int = None) -> tp.Type[hkViewPtr_]:

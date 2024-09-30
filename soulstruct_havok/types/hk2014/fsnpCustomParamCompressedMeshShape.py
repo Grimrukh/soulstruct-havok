@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from soulstruct_havok.enums import *
 from .core import *
-from .hknp.hknpCompressedMeshShape import hknpCompressedMeshShape
+from ._hknp.hknpCompressedMeshShape import hknpCompressedMeshShape
 from .fsnpCustomMeshParameter import fsnpCustomMeshParameter
 
 

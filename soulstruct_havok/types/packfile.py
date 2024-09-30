@@ -26,7 +26,6 @@ from collections import deque
 
 import colorama
 import numpy as np
-from scipy.constants import value
 from soulstruct_havok.types.debug import get_indented_array
 
 from soulstruct_havok.enums import TagDataType
@@ -248,6 +247,7 @@ def unpack_pointer(data_hk_type: type[hk], item: PackFileDataItem) -> hk | None:
             print(f"    {R if offset == source_offset else X}{hex(offset)} -> {pointed_item}{X}")
         raise AssertionError(f"Data item pointer (global ref dest) was not zero: {item_data_offset}.")
     if not issubclass(pointed_item.hk_type, data_hk_type):
+        item.print_item_dump()
         raise ValueError(
             f"Pointer-referenced item type {pointed_item.hk_type.__name__} is not a child of expected type "
             f"{data_hk_type.__name__}."
@@ -508,7 +508,11 @@ def pack_struct(
 def unpack_string(item: PackFileDataItem) -> str:
     """Read a null-terminated string from item child pointer."""
     pointer_offset = item.reader.position
-    item.reader.unpack_value("V", asserted=0)
+    try:
+        item.reader.unpack_value("V", asserted=0)
+    except AssertionError:
+        item.print_item_dump()
+        raise ValueError(f"Non-zero found at expected string pointer offset: {pointer_offset}")
     try:
         string_offset = item.remaining_child_pointers.pop(pointer_offset)
     except KeyError:

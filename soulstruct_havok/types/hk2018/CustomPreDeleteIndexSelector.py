@@ -6,7 +6,7 @@ from soulstruct_havok.enums import *
 from .core import *
 
 
-from .hkb.hkbCustomIdSelector import hkbCustomIdSelector
+from ._hkb.hkbCustomIdSelector import hkbCustomIdSelector
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)

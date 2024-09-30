@@ -1,7 +1,7 @@
 from .core import *
-from .hka import *
-from .hkp import *
-from .hkx import *
+from ._hka import *
+from ._hkp import *
+from ._hkx import *
 
 from .CustomMeshParameter import CustomMeshParameter
 from .CustomParamStorageExtendedMeshShape import CustomParamStorageExtendedMeshShape

@@ -315,8 +315,9 @@ class AnimationContainer(tp.Generic[
         # All `hkaInterleavedUncompressedAnimation` instances have this conversion class method.
         interleaved_animation = interleaved_cls.from_spline_animation(self.animation, transforms)
 
-        # Set Havok instance.
+        # Set Havok instance and binding.
         self.animation_container.animations = [interleaved_animation]
+        self.animation_binding.animation = interleaved_animation
 
         self.spline_data = None
 

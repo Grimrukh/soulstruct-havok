@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from soulstruct_havok.enums import *
 from .core import *
-from .hknp.hknpMaterial import hknpMaterial
+from ._hknp.hknpMaterial import hknpMaterial
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)

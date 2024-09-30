@@ -6,7 +6,7 @@ import typing as tp
 from dataclasses import dataclass, field
 from types import ModuleType
 
-from soulstruct_havok.enums import PackMemberType, TagFormatFlags, TagDataType, MemberFlags, PackMemberFlags
+from soulstruct_havok.enums import ClassMemberType, TagFormatFlags, TagDataType, MemberFlags, PackMemberFlags
 from soulstruct_havok.types.info import TypeInfo, MemberInfo, get_py_name
 
 if tp.TYPE_CHECKING:
@@ -53,7 +53,7 @@ class PackFileTypeUnpacker:
     # Maps Python parent names to lists of Python child names.
     parent_children: dict[str, list[str]] = field(default_factory=dict)
     enum_dicts: dict[str, EnumValues] = field(default_factory=dict)
-    enum_storage_types: dict[str, PackMemberType] = field(default_factory=dict)
+    enum_storage_types: dict[str, ClassMemberType] = field(default_factory=dict)
 
     def __init__(
         self,
@@ -80,7 +80,7 @@ class PackFileTypeUnpacker:
 
         self.parent_children = {}
         self.enum_dicts = {}  # type: dict[str, EnumValues]
-        self.enum_storage_types = {}  # type: dict[str, PackMemberType]
+        self.enum_storage_types = {}  # type: dict[str, ClassMemberType]
 
         type_infos = [None]  # type: list[None | TypeInfo]  # first element is `None` to mimic 1-indexing
 
@@ -100,7 +100,7 @@ class PackFileTypeUnpacker:
                 try:
                     member.type_info = [t for t in type_infos[1:] if t.py_name == member.type_py_name][0]
                 except IndexError:
-                    if not PackMemberType.is_builtin_type(member.type_py_name):
+                    if not ClassMemberType.is_builtin_type(member.type_py_name):
                         print([t.name for t in type_infos[1:]])
                         print(f"Cannot find member type: {member.type_py_name}")
                         raise
@@ -167,18 +167,18 @@ class PackFileTypeUnpacker:
                     member_name_offset = entry.child_pointers[member_offset]
                     member_name = entry.reader.unpack_string(offset=member_name_offset, encoding="utf-8")
                     _DEBUG(f"    Member \"{member_name}\" ({member_offset} | {hex(member_offset)}) ({member.flags})")
-                    member_type = PackMemberType(member.member_type)
-                    member_subtype = PackMemberType(member.member_subtype)
+                    member_type = ClassMemberType(member.member_type)
+                    member_subtype = ClassMemberType(member.member_subtype)
                     _DEBUG(f"      {member_type.name} | {member_subtype.name}")
                     member_type_item = entry.get_referenced_type_item(member_offset + self.pointer_size)
 
-                    if member_type == PackMemberType.TYPE_ARRAY:
-                        if member_subtype == PackMemberType.TYPE_STRUCT:
+                    if member_type == ClassMemberType.TYPE_ARRAY:
+                        if member_subtype == ClassMemberType.TYPE_STRUCT:
                             type_py_name = f"hkArray[{get_py_name(member_type_item.get_type_name())}]"
                             member_py_name = f"hkArray({get_py_name(member_type_item.get_type_name())})"
                             type_hint = f"list[{get_py_name(member_type_item.get_type_name())}]"
                             required_types = [get_py_name(member_type_item.get_type_name())]
-                        elif member_subtype == PackMemberType.TYPE_POINTER:
+                        elif member_subtype == ClassMemberType.TYPE_POINTER:
                             if member_type_item is None:  # invalid
                                 type_py_name = "hkArray[hkReflectDetailOpaque]"
                                 member_py_name = "hkArray(hkReflectDetailOpaque)"
@@ -200,7 +200,7 @@ class PackFileTypeUnpacker:
                                     required_types = [class_name]
                                 type_hint = f"list[{class_name}]"
 
-                        elif member_subtype == PackMemberType.TYPE_VOID:
+                        elif member_subtype == ClassMemberType.TYPE_VOID:
                             type_py_name = f"hkArray[hkReflectDetailOpaque]"
                             member_py_name = "hkArray(hkReflectDetailOpaque)"
                             type_hint = "list"
@@ -211,8 +211,8 @@ class PackFileTypeUnpacker:
                             type_hint = f"list[{member_subtype.get_true_py_type_name()}]"
                             required_types = [member_subtype.get_py_type_name()]
 
-                    elif member_type == PackMemberType.TYPE_RELARRAY:
-                        if member_subtype == PackMemberType.TYPE_STRUCT:
+                    elif member_type == ClassMemberType.TYPE_RELARRAY:
+                        if member_subtype == ClassMemberType.TYPE_STRUCT:
                             # Array of class instances.
                             class_name = get_py_name(member_type_item.get_type_name())
                             type_py_name = f"hkRelArray[{class_name}]"
@@ -226,15 +226,15 @@ class PackFileTypeUnpacker:
                             type_hint = f"list[{member_subtype.get_true_py_type_name()}]"
                             required_types = [member_subtype.get_py_type_name()]
 
-                    elif member_type == PackMemberType.TYPE_STRUCT:
+                    elif member_type == ClassMemberType.TYPE_STRUCT:
                         # `member_type_index` is already correct (no pointers).
-                        if member_subtype != PackMemberType.TYPE_VOID:
+                        if member_subtype != ClassMemberType.TYPE_VOID:
                             raise AssertionError(f"Found non-void data type for Class member {member_name}.")
                         type_py_name = member_py_name = type_hint = get_py_name(member_type_item.get_type_name())
                         required_types = [member_py_name]
 
-                    elif member_type == PackMemberType.TYPE_POINTER:
-                        if member_subtype == PackMemberType.TYPE_STRUCT:
+                    elif member_type == ClassMemberType.TYPE_POINTER:
+                        if member_subtype == ClassMemberType.TYPE_STRUCT:
                             # `member_type_index` is already correct.
                             class_name = get_py_name(member_type_item.get_type_name())
                             type_py_name = f"Ptr[{class_name}]"
@@ -255,7 +255,7 @@ class PackFileTypeUnpacker:
                                 member_py_name = f"Ptr({class_name})"
                                 required_types = [class_name]
                             type_hint = class_name
-                        elif member_subtype == PackMemberType.TYPE_VOID:
+                        elif member_subtype == ClassMemberType.TYPE_VOID:
                             type_py_name = "Ptr[hkReflectDetailOpaque]"
                             member_py_name = "Ptr(hkReflectDetailOpaque)"
                             type_hint = "None"
@@ -263,7 +263,7 @@ class PackFileTypeUnpacker:
                         else:
                             raise AssertionError(f"Invalid data type for Ptr: {member_subtype.name}")
 
-                    elif member_type == PackMemberType.TYPE_ENUM:
+                    elif member_type == ClassMemberType.TYPE_ENUM:
                         enum_offset = member_offset + (16 if self.long_varints else 8)
                         enum_type_item = entry.get_referenced_type_item(enum_offset)
                         storage_type_name = member_subtype.get_py_type_name()
@@ -287,7 +287,7 @@ class PackFileTypeUnpacker:
                         type_hint = member_subtype.get_true_py_type_name()
                         required_types = [enum_type_name, storage_type_name]
 
-                    elif member_type == PackMemberType.TYPE_FLAGS:
+                    elif member_type == ClassMemberType.TYPE_FLAGS:
                         # storage_offset = member_offset + (16 if self.long_varints else 8)
                         # storage_type_item = entry.get_referenced_type_item(storage_offset)
                         type_py_name = f"hkFlags[{member_subtype.get_py_type_name()}]"
@@ -296,7 +296,7 @@ class PackFileTypeUnpacker:
                         required_types = [member_subtype.get_py_type_name()]
 
                     else:  # primitive (subtype must be `TYPE_VOID`)
-                        if member_subtype != PackMemberType.TYPE_VOID:
+                        if member_subtype != ClassMemberType.TYPE_VOID:
                             raise AssertionError(
                                 f"Non-void subtype for primitive member {member_name}: {member_subtype}"
                             )

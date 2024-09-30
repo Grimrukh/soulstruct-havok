@@ -559,6 +559,10 @@ class hkBaseObject(hk):
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkReferencedObject(hkBaseObject):
+    """NOTE: In Havok 2014 specifically, the memSizeAndFlags and refCount members were glued together.
+
+    This also imbued the class with 16-byte alignment and size.
+    """
     alignment = 16
     byte_size = 16
     __tag_format_flags = 41

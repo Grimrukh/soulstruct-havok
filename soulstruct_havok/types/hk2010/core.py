@@ -528,8 +528,8 @@ class hkHalf16(hk):
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkBaseObject(hk):
-    alignment = 8
-    byte_size = 8
+    alignment = 4
+    byte_size = 4
     __tag_format_flags = 41
     tag_type_flags = 7
     local_members = ()

@@ -1,9 +1,9 @@
 from .core import *
-from .hka import *
-from .hkcd import *
-from .hknp import *
-from .hkp import *
-from .hkx import *
+from ._hka import *
+from ._hkcd import *
+from ._hknp import *
+from ._hkp import *
+from ._hkx import *
 
 # FromSoftware custom types (note new 'fsnp' prefix).
 from .fsnpCustomParamCompressedMeshShape import fsnpCustomParamCompressedMeshShape
