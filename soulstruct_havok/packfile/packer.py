@@ -109,12 +109,6 @@ class PackFilePacker:
             # The classnames section names don't have '::' hierarchy separators.
             packed_class_name = class_name.replace(":", "")
 
-            if class_name == root_cls_name:
-                # Header records the relative section offset of root class name.
-                self.header.fill(
-                    writer, "classnames_section_root_offset", writer.position - class_section_absolute_data_start
-                )
-
             try:
                 hsh = module_hashes[packed_class_name]
             except KeyError:
@@ -131,6 +125,11 @@ class PackFilePacker:
                     )
             writer.pack("IB", hsh, 0x09)
             class_name_offsets[class_name] = writer.position - class_section_absolute_data_start
+
+            if class_name == root_cls_name:
+                # Header records the relative section offset of root class name (usually 'hkRootLevelContainer' @ 0x4b).
+                self.header.fill(writer, "classnames_section_root_offset", class_name_offsets[class_name])
+
             writer.append(packed_class_name.encode("ascii") + b"\0")
 
         writer.pad_align(16, b"\xFF")

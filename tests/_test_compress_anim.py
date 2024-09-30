@@ -4,23 +4,23 @@ from soulstruct_havok.wrappers.hkx2015 import AnimationHKX
 
 
 def main():
-    path = Path("__temp_interleaved__.hkx")
-    hkx = HKX.from_path(path)
-    hkx.root.namedVariants[0].variant.bindings[0].animation = hkx.root.namedVariants[0].variant.animations[0]
-    hkx.write("__fixed_interleaved__.hkx")
-    # print(hkx.get_root_tree_string())
-
-
-def main2():
     anibnd_path = Path(DSR_PATH, "chr/c1200.anibnd.dcx")
     a00_3000 = AnimationHKX.from_binder_path(anibnd_path, "a00_3000.hkx")
     a00_3000.animation_container.spline_to_interleaved()
 
-    a00_3000.write("c1200_a00_3000_interleaved.hkx")
+    # a00_3000.write("c1200_a00_3000_interleaved_old.hkx")
+    # a00_3000_2010 = a00_3000.to_2010_hkx()
+    # a00_3000_2010.write("c1200_a00_3000_interleaved_hk2010.hkx")
 
-    # print("Converted spline to interleaved.")
-    # a00_3000.get_spline_hkx()
+    print("Converted spline to interleaved.")
+    a00_3000.get_spline_hkx()
+
+
+def compare():
+    from soulstruct.utilities.inspection import compare_binary_files
+    compare_binary_files("c1200_a00_3000_interleaved_hk2010_old.hkx", "c1200_a00_3000_interleaved_hk2010.hkx")
 
 
 if __name__ == '__main__':
-    main2()
+    main()
+    # compare()
