@@ -220,7 +220,8 @@ class AnimationContainer(tp.Generic[
         if hasattr(extracted_motion, "duration"):
             extracted_motion.duration = duration
 
-    def get_track_names(self) -> list[str]:
+    def get_track_annotation_names(self) -> list[str]:
+        """Annotations may not be present, which will make this list empty."""
         return [
             annotation_track.trackName
             for annotation_track in self.animation.annotationTracks
@@ -357,24 +358,41 @@ class AnimationContainer(tp.Generic[
 
     def get_track_parent_indices(self, skeleton: Skeleton) -> list[int]:
         """Get a list of parent indices (-1 for root tracks) based on the parent bones of corresponding bones in
-        `skeleton`."""
+        `skeleton`.
+
+        Note that not all bones may be animated! A parent bone of some child may not be animated, in which case the
+        animated child bone will be treated as a root bone (-1).
+
+        TODO: Tracks may sometimes 'skip' a generation of bones. I should use the reference pose in this case.
+        """
         track_bone_indices = self.animation_binding.transformTrackToBoneIndices
         track_parent_indices = []  # type: list[int]
-        for track_index in range(len(track_bone_indices)):
-            bone_index = track_bone_indices[track_index]
+        for track_index, bone_index in enumerate(track_bone_indices):
             bone = skeleton.bones[bone_index]
-            track_parent_indices.append(track_bone_indices.index(bone.parent.index) if bone.parent else -1)
+            if bone.parent and bone.parent.index in track_bone_indices:
+                track_parent_indices.append(track_bone_indices.index(bone.parent.index))
+            else:
+                track_parent_indices.append(-1)  # root bone (or bone with non-animated parent)
         return track_parent_indices
 
     def get_track_child_indices(self, skeleton: Skeleton) -> list[list[int]]:
         """Get a list of lists of child indices for each track in the animation, based on children of corresponding
-        bones in `skeleton`."""
+        bones in `skeleton`.
+
+        Note that not all bones may be animated! A child bone may not be animated, in which case its index will not
+        appear.
+
+        TODO: Tracks may sometimes 'skip' a generation of bones. I should use the reference pose in this case.
+        """
         track_bone_indices = self.animation_binding.transformTrackToBoneIndices
         track_child_indices = []  # type: list[list[int]]
-        for track_index in range(len(track_bone_indices)):
-            bone_index = track_bone_indices[track_index]  # will almost always be the same, but being safe
+        for track_index, bone_index in enumerate(track_bone_indices):
             bone = skeleton.bones[bone_index]
-            child_indices = [track_bone_indices.index(child_bone.index) for child_bone in bone.children]
+            child_indices = []
+            for child_bone in bone.children:
+                if child_bone.index in track_bone_indices:
+                    child_indices.append(track_bone_indices.index(child_bone.index))
+                # Otherwise, ignore non-animated child.
             track_child_indices.append(child_indices)
         return track_child_indices
 

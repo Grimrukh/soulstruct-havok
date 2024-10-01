@@ -63,12 +63,12 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
     def from_minimal_data_interleaved(
         cls,
         frame_transforms: list[list[TRSTransform]],  # outer list is frames, inner list is tracks (must be regular)
-        track_names: list[str],
         transform_track_bone_indices: list[int],
         root_motion_array: np.ndarray | None = None,  # four columns: X, Y, Z, Y rotation
         original_skeleton_name="master",
         frame_rate: float = 30.0,
         skeleton_for_armature_to_local: BaseSkeletonHKX = None,
+        track_names: list[str] = (),
     ) -> tp.Self:
         """Create an interleaved, uncompressed `BaseAnimationHKX` instance from scratch by filling only the critical
         Havok fields.
@@ -83,8 +83,11 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
         If `skeleton_for_armature_to_local` is given, it is assumed that `frame_transforms` are currently in armature
         space and require conversion to local space, which can only be done by providing the skeleton (so the 'track
         hierarchy' can be determined). It should NOT be given if `frame_transforms` are already in local space.
+
+        Track names are optional and will be written to track annotations if given. Length of names must match track
+        count in this case.
         """
-        if len(track_names) != len(transform_track_bone_indices):
+        if track_names and len(track_names) != len(transform_track_bone_indices):
             raise ValueError(
                 f"Number of track names ({len(track_names)}) does not match number of track bone indices "
                 f"({len(transform_track_bone_indices)})."
@@ -126,6 +129,16 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
         else:
             extracted_motion = None
 
+        if track_names:
+            annotation_tracks = [
+                cls.TYPES_MODULE.hkaAnnotationTrack(
+                    trackName=track_name,
+                    annotations=[],
+                ) for track_name in track_names
+            ]
+        else:
+            annotation_tracks = []
+
         animation = cls.TYPES_MODULE.hkaInterleavedUncompressedAnimation(
             # hkaAnimation:
             type=1,  # correct for all Havok versions
@@ -133,12 +146,7 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
             numberOfTransformTracks=len(track_names),
             numberOfFloatTracks=0,
             extractedMotion=extracted_motion,
-            annotationTracks=[
-                cls.TYPES_MODULE.hkaAnnotationTrack(
-                    trackName=track_name,
-                    annotations=[],
-                ) for track_name in track_names
-            ],
+            annotationTracks=annotation_tracks,
             # hkaInterleavedUncompressedAnimation:
             transforms=qs_transforms,
             floats=[],  # never used
@@ -179,16 +187,19 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
     def from_minimal_data_spline(
         cls,
         spline_data: SplineCompressedAnimationData,
-        track_names: list[str],
         frame_count: int,
         transform_track_bone_indices: list[int],
         root_motion_array: np.ndarray | None = None,  # four columns: X, Y, Z, Y rotation
         original_skeleton_name="master",
         frame_rate: float = 30.0,
+        track_names: list[str] = (),
     ) -> tp.Self:
         """Create a spline-compressed `BaseAnimationHKX` instance from scratch by filling only critical Havok fields.
 
         Spline-compressed data must already be constructed and passed in.
+
+        Track names are optional and will be written to track annotations if given. Length of names must match track
+        count in this case.
         """
         if cls.TYPES_MODULE == hk550:
             raise ValueError("Spline-compressed animations not supported by Havok version 5.5.0 (Demon's Souls).")
@@ -204,7 +215,7 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
         # block offsets are set to the final offset.
         float_block_offset = len(data)
 
-        if track_count != len(track_names):
+        if track_names and track_count != len(track_names):
             raise ValueError(
                 f"Number of track names ({len(track_names)}) does not match number of tracks in spline data "
                 f"({track_count})."
@@ -225,6 +236,16 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
         # Animation type enumeration changed between 2010 and 2014.
         animation_type = 5 if cls.get_version_string().startswith("hk_2010") else 3  # spline
 
+        if track_names:
+            annotation_tracks = [
+                cls.TYPES_MODULE.hkaAnnotationTrack(
+                    trackName=track_name,
+                    annotations=[],
+                ) for track_name in track_names
+            ]
+        else:
+            annotation_tracks = []
+
         animation = cls.TYPES_MODULE.hkaSplineCompressedAnimation(
             # hkaAnimation:
             type=animation_type,
@@ -232,12 +253,7 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
             numberOfTransformTracks=track_count,
             numberOfFloatTracks=0,
             extractedMotion=extracted_motion,
-            annotationTracks=[
-                cls.TYPES_MODULE.hkaAnnotationTrack(
-                    trackName=track_name,
-                    annotations=[],
-                ) for track_name in track_names
-            ],
+            annotationTracks=annotation_tracks,
             # hkaSplineCompressedAnimation:
             numFrames=frame_count,
             numBlocks=block_count,

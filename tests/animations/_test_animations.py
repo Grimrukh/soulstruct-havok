@@ -1,6 +1,7 @@
 import time
 
-from soulstruct import Path
+from soulstruct import Path, ELDEN_RING_PATH
+from soulstruct.eldenring.containers import DivBinder
 from soulstruct_havok.core import HKX
 from soulstruct_havok.types.debug import SET_DEBUG_PRINT
 from soulstruct_havok.fromsoft import darksouls1ptde, darksouls1r, bloodborne, sekiro, eldenring
@@ -44,12 +45,12 @@ def test_dsr():
     p = time.perf_counter()
     hkx_scratch = darksouls1r.AnimationHKX.from_minimal_data_spline(
         spline_data=hkx.animation_container.spline_data,
-        track_names=hkx.animation_container.get_track_names(),
         frame_count=hkx.animation_container.frame_count,
         transform_track_bone_indices=hkx.animation_container.get_track_bone_indices(),
         root_motion_array=hkx.animation_container.get_reference_frame_samples(),
         original_skeleton_name=hkx.animation_container.animation_binding.originalSkeletonName,
         frame_rate=30.0,
+        track_names=hkx.animation_container.get_track_annotation_names(),
     )
     print(f"Scratch time: {time.perf_counter() - p:.4f}")
 
@@ -95,11 +96,32 @@ def test_bb():
 
 
 def test_er():
-    path = Path("../resources/ER/a000_003000.hkx")
-    SET_DEBUG_PRINT(True, dump_items=("hkaSplineCompressedAnimation",))
-    compendium = HKX.from_path(Path("../resources/ER/c3252_div00.compendium"))
-    hkx = eldenring.AnimationHKX.from_path(path, compendium=compendium)
-    s1 = hkx.get_root_tree_string(max_primitive_sequence_size=10)
+
+    chrbnd_path = Path(ELDEN_RING_PATH, "../../ELDEN RING (Modding 1.12)/Game/chr/c3251.chrbnd.dcx")
+    from soulstruct import FLVER
+    flver = FLVER.from_binder_path(chrbnd_path, "c3251.flver")
+    flver_bone_names = [bone.name for bone in flver.bones]
+
+    div_path = Path("../resources/ER/c3251.anibnd.dcx")
+    div_binder = DivBinder.from_path(div_path)
+    # SET_DEBUG_PRINT(True, dump_items=("hkaSplineCompressedAnimation",))
+    hkx = eldenring.AnimationHKX.from_binder(
+        div_binder, entry_spec="a000_003000.hkx", compendium_name="c3251_div00.compendium"
+    )
+    hkx_skeleton = eldenring.SkeletonHKX.from_binder(
+        div_binder, entry_spec="skeleton.hkx", compendium_name="c3251_div00.compendium"
+    )
+    for bone in hkx_skeleton.skeleton.bones:
+        if bone.name not in flver_bone_names:
+            print(bone.name)
+    return
+    print(hkx.animation_container.get_track_annotation_names())
+    hkx.animation_container.spline_to_interleaved()
+    arma_frames = hkx.animation_container.get_interleaved_data_in_armature_space(hkx_skeleton.skeleton)
+    # s1 = hkx.get_root_tree_string(max_primitive_sequence_size=10)
+    print(len(arma_frames))
+    print(len(arma_frames[0]))
+    return
 
     hkx.animation_container.spline_to_interleaved()
 
