@@ -284,6 +284,13 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
             hk_version=cls.get_version_string(),
         )
 
+    def get_spline_hkx(self) -> tp.Self:
+        """Get a spline-compressed version of this interleaved animation.
+
+        Implemented per subclass and generally involves a round trip to hk2010.
+        """
+        raise TypeError(f"{self.__class__.__name__} cannot be spline-compressed by Soulstruct.")
+
     def __repr__(self):
         if self.animation_container.is_spline:
             return f"{self.__class__.__name__}(<SplineCompressed>)"

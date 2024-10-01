@@ -161,7 +161,7 @@ class AnimationContainer(tp.Generic[
         if hasattr(extracted_motion, "referenceFrameSamples"):
             return extracted_motion.referenceFrameSamples
 
-        cls_name = extracted_motion.__class__.__name__
+        cls_name = extracted_motion.get_type_name()
         raise TypeError(f"No reference frame samples (root motion) for animation extracted motion class `{cls_name}`.")
 
     def set_reference_frame_samples(self, samples: np.ndarray, frame_rate: float = 30.0):

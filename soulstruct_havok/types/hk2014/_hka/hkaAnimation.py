@@ -25,7 +25,7 @@ class hkaAnimation(hkReferencedObject):
         Member(16, "duration", hkReal),
         Member(20, "numberOfTransformTracks", hkInt32),
         Member(24, "numberOfFloatTracks", hkInt32),
-        Member(28, "pad_align", hkInt32),
+        Member(28, "pad_align", hkInt32, MemberFlags.NotSerializable),
         Member(32, "extractedMotion", Ptr(hkaAnimatedReferenceFrame)),
         Member(40, "annotationTracks", hkArray(hkaAnnotationTrack)),
     )

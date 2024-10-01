@@ -156,8 +156,6 @@ class PackFileUnpacker:
         for item in self.data_items:
             # Prepare pointers for consumption, so we can detect unused ones and raise an error.
             item.prepare_pointers()
-            for cp in item.all_child_pointers:
-                print(cp % 0x8)
 
         root_item = self.data_items[0]
         if root_item.hk_type != self.hk_types_module.hkRootLevelContainer:

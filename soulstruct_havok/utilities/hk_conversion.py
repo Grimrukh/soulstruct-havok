@@ -48,38 +48,50 @@ def convert_hk(
     Non-`hk` members (primitive Python types or arrays) are copied directly.
 
     If a member name in `source_object` is not found in `dest_object_type`, an error will be raised and the converter
-    will attempt to handle it automatically: the source object's class, the name and value of the member, and the
-    in-progress instance of `dest_object_type` will all be passed to `source_error_handler`. This handler should
-    attempt to update the appropriate new members in the dest object, and return a list of new member names affected.
-    If it returns `None`, that will indicate that the handler could not resolve the problem, and the error will
-    be raised to the caller (which may be a higher call of this same function, and will attempt to handle the error the
-    same way).
+    will attempt to handle it automatically: the `source_object`, the member name, the member value, and the in-progress
+    `dest_kwargs` for constructing the dest object will all be passed to `source_error_handler`. This handler should
+    attempt to update the appropriate kwargs for the dest object, and return a list of new member names affected
+    (typically just any keys updated in the kwargs). If it returns `None`, that will indicate that the handler could not
+    resolve the problem, and the error will be raised to the caller (which may be a higher call of this same function,
+    and will attempt to handle the error the same way).
 
     If any member names in `dest_object_type` are not found in `source_object`, and are not in one of the lists
-    returned by a `dest_error_handler` call, then an error will be immediately raised (as every member MUST be set to
-    something in Python).
+    returned by a `dest_error_handler` call (indicating that they were already converted from the source in some way),
+    then an error will be immediately raised UNLESS the dest member is `NotSerializable`, in which case its default can
+    easily be detected from its type (zero or None). We do not allow use of defaults for other serializable members, so
+    we can detect any real misses in the conversion process.
 
     Typically, you will call this on the `hkRootLevelContainer` at the top of the HKX file.
-
-    TODO: `NotSerializable` members should be defaultable (0, None, or empty, I imagine).
     """
     dest_kwargs = {}
     dest_object_member_names = dest_object_type.get_member_names()
     handled_dest_member_names = []
 
-    for member_name in source_object.get_member_names():
+    for member in source_object.members:
+
+        member_name = member.name
         source_member_value = getattr(source_object, member_name)
 
         if member_name not in dest_object_member_names:
             if source_error_handler:
                 handled_names = source_error_handler(source_object, member_name, source_member_value, dest_kwargs)
                 if handled_names is None:
+
+                    if member.extra_flags & MemberFlags.NotSerializable:
+                        # This member is not serialized, so we can just skip it.
+                        continue
+
                     raise HKConversionError(
                         f"Error handler could not resolve missing member '{member_name}' for destination object "
                         f"{dest_object_type.__name__}."
                     )
                 # Handled names could be empty (e.g., deleted members).
                 handled_dest_member_names += handled_names
+                continue
+
+            if member.extra_flags & MemberFlags.NotSerializable:
+                # This member is not serialized, so we can just skip it. Note that we still allow manual handling above,
+                # though I can't think you'd ever want to do this except to be maximally explicit.
                 continue
 
             raise HKConversionError(
@@ -146,13 +158,13 @@ def convert_hk(
         handled_dest_member_names.append(member_name)
 
     # Check that all dest members were handled.
-    for dest_member_name in dest_object_type.get_member_names():
+    for dest_member in dest_object_type.members:
+        dest_member_name = dest_member.name
         if dest_member_name not in handled_dest_member_names:
             if dest_error_handler and dest_error_handler(dest_object_type, dest_kwargs, dest_member_name):
                 continue  # error was handled
 
             # Try to get default value (`NotSerializable` members only).
-            dest_member = dest_object_type.get_member(dest_member_name)
             if dest_member.extra_flags & MemberFlags.NotSerializable:
                 try:
                     default = dest_member.type.get_default_value()

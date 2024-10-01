@@ -18,7 +18,6 @@ import subprocess as sp
 import typing as tp
 from dataclasses import dataclass
 
-import numpy as np
 from soulstruct.dcx import DCXType
 
 from soulstruct_havok.core import HavokFileFormat
@@ -27,7 +26,6 @@ from soulstruct_havok.types import hk2010, hk2015
 from soulstruct_havok.types.hk2015 import *
 from soulstruct_havok.utilities.files import HAVOK_PACKAGE_PATH
 from soulstruct_havok.utilities.hk_conversion import convert_hk
-from soulstruct_havok.utilities.maths import TRSTransform
 from soulstruct_havok.fromsoft.base import *
 from soulstruct_havok.fromsoft.darksouls1ptde import AnimationHKX as AnimationHKX_PTDE
 
@@ -108,11 +106,10 @@ class AnimationHKX(BaseAnimationHKX):
         elif self.animation_container.is_interleaved:
             self.animation_container.save_interleaved_data()
 
-        def source_error_handler(_, name: str, value, dest_kwargs: dict[str, tp.Any]):
-            if name == "refCount":
-                dest_kwargs["referenceCount"] = value
-                return ["referenceCount"]
-            if name in ("partitionIndices", "frameType"):  # absent from 2010
+        def source_error_handler(source_obj: hk, name: str, __, ___):
+            if isinstance(source_obj, hk2015.hkaAnimatedReferenceFrame) and name == "frameType":
+                return []  # not serializable anyway
+            if isinstance(source_obj, hk2015.hkaAnimationBinding) and name == "partitionIndices":
                 return []
 
         import time
@@ -143,12 +140,10 @@ class AnimationHKX(BaseAnimationHKX):
         HKX files appear inside compressed binders and are NOT compressed themselves.
         """
 
-        def source_handler(_, name: str, value, dest_kwargs: dict[str, tp.Any]):
-            if name == "referenceCount":
-                dest_kwargs["refCount"] = value
-                return ["refCount"]
-
         def dest_handler(dest_type: type[hk], dest_kwargs: dict[str, tp.Any], name: str):
+            if dest_type is hk2015.hkaAnimatedReferenceFrame and name == "frameType":
+                dest_kwargs["frameType"] = 0  # not serializable anyway
+                return True
             if dest_type is hk2015.hkaAnimationBinding and name == "partitionIndices":
                 dest_kwargs["partitionIndices"] = []
                 return True
@@ -159,7 +154,7 @@ class AnimationHKX(BaseAnimationHKX):
 
         import time
         t = time.perf_counter()
-        root2015 = convert_hk(hkx2010.root, hk2015.hkRootLevelContainer, hk2015, source_handler, dest_handler)
+        root2015 = convert_hk(hkx2010.root, hk2015.hkRootLevelContainer, hk2015, None, dest_handler)
         _LOGGER.info(f"Converted hk2010 animation to hk2015 animation in {time.perf_counter() - t:.3f} s.")
         return cls(
             dcx_type=dcx_type,
@@ -167,57 +162,6 @@ class AnimationHKX(BaseAnimationHKX):
             hk_format=HavokFileFormat.Tagfile,
             hk_version="20150100",
         )
-
-    @classmethod
-    def from_dsr_interleaved_template(
-        cls,
-        skeleton_hkx: SkeletonHKX,
-        interleaved_data: list[list[TRSTransform]],
-        transform_track_to_bone_indices: list[int] = None,
-        root_motion: np.ndarray | None = None,
-        is_armature_space=False,
-    ) -> AnimationHKX:
-        """Open bundled template HKX for Dark Souls Remastered (c2240, Capra Demon, animation 200).
-
-        Arguments reflect the minimal data required to create a new animation from the template.
-        """
-        template_path = HAVOK_PACKAGE_PATH("resources/AnimationTemplate_DSR.hkx")
-        hkx = cls.from_path(template_path)
-        container = hkx.animation_container
-
-        container.spline_to_interleaved()
-
-        container.animation.duration = (len(interleaved_data) - 1) / 30.0  # TODO: assumes 30 FPS (always valid?)
-
-        container.animation_binding.originalSkeletonName = skeleton_hkx.skeleton.skeleton.name
-        if transform_track_to_bone_indices is None:
-            # Default: same as bone order.
-            transform_track_to_bone_indices = list(range(len(skeleton_hkx.skeleton.bones)))
-        container.animation_binding.transformTrackToBoneIndices = transform_track_to_bone_indices
-        container.animation.numberOfTransformTracks = len(transform_track_to_bone_indices)
-        container.animation.annotationTracks = [
-            hkaAnnotationTrack(
-                trackName=skeleton_hkx.skeleton.bones[bone_index].name,
-                annotations=[],
-            )
-            for bone_index in transform_track_to_bone_indices
-        ]
-
-        if is_armature_space:
-            # NOTE: Must be called AFTER setting new transform track -> bone mapping above.
-            container.set_interleaved_data_from_armature_space(skeleton_hkx.skeleton, interleaved_data)
-        else:
-            # Interleaved data is already in bones' spaces and can be set directly.
-            container.interleaved_data = interleaved_data
-        container.save_interleaved_data()
-        container.animation.floats = []
-
-        if root_motion is None:
-            hkx.animation_container.animation.extractedMotion = None
-        else:  # template has some reference frame samples already
-            hkx.animation_container.set_reference_frame_samples(root_motion)
-
-        return hkx.get_spline_hkx()
 
 
 @dataclass(slots=True)

@@ -487,7 +487,7 @@ class TrackQuaternion:
     value: SplineQuaternion | Quaternion | None  # single (static) or spline quaternion
     spline_header: SplineHeader | None = None
     rotation_quantization_type: RotationQuantizationType = RotationQuantizationType.ThreeComp40
-    raw_value: bytes | list[int] | None = b""  # one or multiple quantized quaternions
+    raw_value: bytes | list[bytes] | None = b""  # one or multiple quantized quaternions
 
     @classmethod
     def from_reader(cls, reader: BinaryReader, track_flags: int, rotation_quantization_type: RotationQuantizationType):

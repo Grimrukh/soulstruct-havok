@@ -231,9 +231,9 @@ class PackFileDataItem(PackFileBaseItem):
 
 class PackFileVersion(IntEnum):
     Version0x05 = 0x05
-    Version0x08 = 0x08
+    Version0x08 = 0x08  # DS1:PTDE
     Version0x09 = 0x09
-    Version0x0B = 0x0B
+    Version0x0B = 0x0B  # Bloodborne
 
     @property
     def has_header_extension(self):

@@ -15,7 +15,7 @@ import inspect
 import re
 import typing as tp
 from contextlib import contextmanager
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 import colorama
 import numpy as np

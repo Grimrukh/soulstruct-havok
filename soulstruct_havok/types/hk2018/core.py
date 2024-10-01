@@ -929,7 +929,7 @@ class hkPropertyBag(hkBasePointer):
     )
     members = local_members
 
-    bag: hkDefaultPropertyBag = None
+    bag: hkDefaultPropertyBag | None = None
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)

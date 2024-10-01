@@ -1,6 +1,7 @@
 import time
 
 from soulstruct import Path
+from soulstruct_havok.core import HKX
 from soulstruct_havok.types.debug import SET_DEBUG_PRINT
 from soulstruct_havok.fromsoft import darksouls1ptde, darksouls1r, bloodborne, sekiro, eldenring
 
@@ -9,7 +10,23 @@ def test_ptde():
     path = Path("../resources/PTDE/c2240/a00_0200.hkx")
     SET_DEBUG_PRINT(True, dump_items=("hkaSplineCompressedAnimation",))
     hkx = darksouls1ptde.AnimationHKX.from_path(path)
-    print(hkx.get_root_tree_string(max_primitive_sequence_size=10))
+    s1 = hkx.get_root_tree_string(max_primitive_sequence_size=10)
+
+    hkx.animation_container.spline_to_interleaved()
+    spline_hkx = hkx.get_spline_hkx()
+
+    s2 = spline_hkx.get_root_tree_string(max_primitive_sequence_size=10)
+
+    print(f"Equal? {s1 == s2}")
+    # Print differences in strings, line by line.
+    lines1 = s1.split("\n")
+    lines2 = s2.split("\n")
+    for i, (line1, line2) in enumerate(zip(lines1, lines2)):
+        if line1 != line2:
+            print(f"Line {i}:")
+            print(f"  {line1}")
+            print(f"  {line2}")
+            print()
 
 
 def test_dsr():
@@ -57,10 +74,53 @@ def test_bb():
     path = Path("../resources/BB/c2020/a000_003000.hkx")
     SET_DEBUG_PRINT(True, dump_items=("hkaSplineCompressedAnimation",))
     hkx = bloodborne.AnimationHKX.from_path(path)
-    print(hkx.get_root_tree_string(max_primitive_sequence_size=10))
+    s1 = hkx.get_root_tree_string(max_primitive_sequence_size=10)
+
+    hkx.animation_container.spline_to_interleaved()
+
+    spline_hkx = hkx.get_spline_hkx()
+    s2 = spline_hkx.get_root_tree_string(max_primitive_sequence_size=10)
+
+    print(f"Equal? {s1 == s2}")
+
+    # Print differences in strings, line by line.
+    lines1 = s1.split("\n")
+    lines2 = s2.split("\n")
+    for i, (line1, line2) in enumerate(zip(lines1, lines2)):
+        if line1 != line2:
+            print(f"Line {i}:")
+            print(f"  {line1}")
+            print(f"  {line2}")
+            print()
+
+
+def test_er():
+    path = Path("../resources/ER/a000_003000.hkx")
+    SET_DEBUG_PRINT(True, dump_items=("hkaSplineCompressedAnimation",))
+    compendium = HKX.from_path(Path("../resources/ER/c3252_div00.compendium"))
+    hkx = eldenring.AnimationHKX.from_path(path, compendium=compendium)
+    s1 = hkx.get_root_tree_string(max_primitive_sequence_size=10)
+
+    hkx.animation_container.spline_to_interleaved()
+
+    spline_hkx = hkx.get_spline_hkx()
+    s2 = spline_hkx.get_root_tree_string(max_primitive_sequence_size=10)
+
+    print(f"Equal? {s1 == s2}")
+
+    # Print differences in strings, line by line.
+    lines1 = s1.split("\n")
+    lines2 = s2.split("\n")
+    for i, (line1, line2) in enumerate(zip(lines1, lines2)):
+        if line1 != line2:
+            print(f"Line {i}:")
+            print(f"  {line1}")
+            print(f"  {line2}")
+            print()
 
 
 if __name__ == '__main__':
     # test_ptde()
-    test_dsr()
+    # test_dsr()
     # test_bb()
+    test_er()

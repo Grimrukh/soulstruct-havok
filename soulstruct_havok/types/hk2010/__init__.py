@@ -17,4 +17,4 @@ from .hkSweptTransform import hkSweptTransform
 from .hkWorldMemoryAvailableWatchDog import hkWorldMemoryAvailableWatchDog
 
 
-VERSION = "hk_2010.1.0-r1"
+VERSION = "hk_2010.2.0-r1"
