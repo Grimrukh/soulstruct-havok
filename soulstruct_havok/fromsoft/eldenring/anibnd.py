@@ -3,7 +3,7 @@ from __future__ import annotations
 import typing as tp
 from dataclasses import dataclass, field
 
-from soulstruct_havok.wrappers.base.anibnd import BaseANIBND
+from soulstruct_havok.fromsoft.base.anibnd import BaseANIBND
 from .file_types import AnimationHKX, SkeletonHKX, AnimationContainerType
 
 

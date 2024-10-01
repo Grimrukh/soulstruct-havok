@@ -82,7 +82,7 @@ def ptde_packfile_test():
 
 def dsr_spline_conversion_test():
     """Test conversion of 2015 spline animations to 2010 interleaved, and vice versa, with Hork's tool."""
-    from soulstruct_havok.wrappers.hkx2015 import AnimationHKX
+    from soulstruct_havok.fromsoft.darksouls1r import AnimationHKX
 
     SET_DEBUG_PRINT(unpack=False, pack=False)
 

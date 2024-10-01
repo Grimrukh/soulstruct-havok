@@ -12,17 +12,17 @@ from .hkaAnimatedReferenceFrame import hkaAnimatedReferenceFrame
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkaDefaultAnimatedReferenceFrame(hkaAnimatedReferenceFrame):
     alignment = 16
-    byte_size = 96
+    byte_size = 72
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     __hsh = 2816999057
 
     local_members = (
-        Member(32, "up", hkVector4),
-        Member(48, "forward", hkVector4),
-        Member(64, "duration", hkReal),
-        Member(72, "referenceFrameSamples", hkArray(hkVector4, hsh=2234779563)),
+        Member(20, "up", hkVector4),
+        Member(36, "forward", hkVector4),
+        Member(52, "duration", hkReal),
+        Member(56, "referenceFrameSamples", hkArray(hkVector4, hsh=2234779563)),
     )
     members = hkaAnimatedReferenceFrame.members + local_members
 

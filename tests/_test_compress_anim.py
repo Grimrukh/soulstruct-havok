@@ -1,19 +1,14 @@
 from soulstruct import Path, DSR_PATH
 from soulstruct_havok import HKX
-from soulstruct_havok.wrappers.hkx2015 import AnimationHKX
+from soulstruct_havok.fromsoft.darksouls1r import AnimationHKX
 
 
 def main():
-    anibnd_path = Path(DSR_PATH, "chr/c1200.anibnd.dcx")
+    anibnd_path = Path(DSR_PATH, "chr/c2240.anibnd.dcx")
     a00_3000 = AnimationHKX.from_binder_path(anibnd_path, "a00_3000.hkx")
-    a00_3000.animation_container.spline_to_interleaved()
 
-    # a00_3000.write("c1200_a00_3000_interleaved_old.hkx")
-    # a00_3000_2010 = a00_3000.to_2010_hkx()
-    # a00_3000_2010.write("c1200_a00_3000_interleaved_hk2010.hkx")
-
-    print("Converted spline to interleaved.")
-    a00_3000.get_spline_hkx()
+    print(a00_3000.get_root_tree_string(max_primitive_sequence_size=10))
+    return
 
 
 def compare():

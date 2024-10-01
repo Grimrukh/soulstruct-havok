@@ -17,7 +17,7 @@ import numpy as np
 from soulstruct_havok.types import hk2018
 from soulstruct_havok.types.hk2018 import *
 from soulstruct_havok.utilities.mesh import Mesh
-from soulstruct_havok.wrappers.base import *
+from soulstruct_havok.fromsoft.base import *
 
 _LOGGER = logging.getLogger("soulstruct_havok")
 

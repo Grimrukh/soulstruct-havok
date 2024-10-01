@@ -5,8 +5,8 @@ from pathlib import Path
 from soulstruct.config import DSR_PATH
 from soulstruct_havok.utilities.maths import *
 
-from soulstruct_havok.wrappers.hkx2015.anibnd import ANIBND as ANIBND_DSR
-from soulstruct_havok.wrappers.hkx2018.anibnd import ANIBND as ANIBND_ER
+from soulstruct_havok.fromsoft.darksouls1r.anibnd import ANIBND as ANIBND_DSR
+from soulstruct_havok.fromsoft.eldenring.anibnd import ANIBND as ANIBND_ER
 
 GAME_CHR_PATH = DSR_PATH + "/chr"
 

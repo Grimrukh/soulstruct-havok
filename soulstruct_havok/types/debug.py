@@ -18,6 +18,7 @@ import numpy as np
 
 DEBUG_PRINT_UNPACK = False
 DEBUG_PRINT_PACK = False
+DUMP_ITEMS = ()
 DO_NOT_DEBUG_PRINT_PRIMITIVES = False
 REQUIRE_INPUT = False
 
@@ -25,10 +26,11 @@ REQUIRE_INPUT = False
 _INDENT = 0
 
 
-def SET_DEBUG_PRINT(unpack=False, pack=False):
-    global DEBUG_PRINT_UNPACK, DEBUG_PRINT_PACK
+def SET_DEBUG_PRINT(unpack=False, pack=False, dump_items=()):
+    global DEBUG_PRINT_UNPACK, DEBUG_PRINT_PACK, DUMP_ITEMS
     DEBUG_PRINT_UNPACK = unpack
     DEBUG_PRINT_PACK = pack
+    DUMP_ITEMS = dump_items
 
 
 def increment_debug_indent():

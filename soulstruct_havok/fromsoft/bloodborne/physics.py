@@ -7,7 +7,7 @@ from types import ModuleType
 from soulstruct.utilities.maths import Vector3, Vector4
 
 from soulstruct_havok.types.hk2014 import hknpPhysicsSceneData, hknpPhysicsSystemData
-from soulstruct_havok.wrappers.base.utilities import scale_hknp_shape, scale_constraint_data
+from soulstruct_havok.fromsoft.base.utilities import scale_hknp_shape, scale_constraint_data
 
 
 class PhysicsData:

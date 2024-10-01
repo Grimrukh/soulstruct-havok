@@ -7,8 +7,7 @@ class AnimationType(IntEnum):
     HK_DELTA_COMPRESSED_ANIMATION = 2
     HK_WAVELET_COMPRESSED_ANIMATION = 3
     HK_MIRRORED_ANIMATION = 4
-    HK_SPLINE_COMPRESSED_ANIMATION = 5
-    HK_QUANTIZED_COMPRESSED_ANIMATION = 6
+    # No Spline/Quantized animations in Havok 5.5.
 
 
 class BlendHint(IntEnum):

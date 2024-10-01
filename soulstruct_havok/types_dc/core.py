@@ -51,6 +51,24 @@ def convert_hk_type(hk_type: type[old_hk]):
     I think I'll keep alignment AND byte size for now, since they are genuinely written to the tagfile types section. In
     cases where the alignment or byte size is larger than the packed member size, this Python class generator will add
     a comment below the last member indicating as such.
+
+    TODO: Some notes.
+        - In hk2014, `hkaAnimation` as a whole is 4-byte aligned (its members start at 12 following its
+        `hkReferencedObject` parent class), but the `extractedMotion` pointer is 8-byte aligned. So class alignment does
+        NOT inherit from the most alignment-restrictive member.
+        - This doesn't happen in hk2015 (tagfiles). The `hkaAnimation` class is 16-byte aligned immediately and there's
+        no need to align just before `extractedMotion`. So this is probably weirdness occurring in the only Havok
+        version where 8-byte pointers intersect with the packfile format.
+            - This probably makes sense, because the packfile format does not record 'type alignment' at all, AFAIK.
+            So it's possible that NO alignment occurs between the members of parent/child types, and each member is
+            instead responsible for its own alignment. In hk2010, pointers and arrays are only 4-byte aligned, so this
+            generally doesn't matter, but in hk2014, pointers are 8-byte aligned, so it does.
+            - I suspect that it's the same for arrays, since I've noticed that every single child pointer in every
+            hk2014 packfile item is aligned to 8 bytes.
+        - In summary:
+            - In packfiles, each member aligns itself, which can create invisible pad bytes between members WITHIN the
+            same class.
+            - In tagfiles,
     """
 
     lines = [

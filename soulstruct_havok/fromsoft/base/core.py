@@ -12,7 +12,7 @@ import typing as tp
 from dataclasses import dataclass
 from types import ModuleType
 
-from soulstruct_havok.core import HKX
+from soulstruct_havok.core import HKX, HavokFileFormat
 from soulstruct_havok.types import hk
 
 _LOGGER = logging.getLogger("soulstruct_havok")
@@ -26,6 +26,11 @@ class BaseWrappedHKX(HKX, abc.ABC):
 
     # Assigned for version-specific subclasses.
     TYPES_MODULE: tp.ClassVar[ModuleType]
+
+    @classmethod
+    def _type(cls, name: str) -> type[hk]:
+        """Shortcut for getting a type from the dynamically-attached `soulstruct_havok.types` submodule."""
+        return getattr(cls.TYPES_MODULE, name)
 
     def get_variant(self, variant_index: int, *valid_types: tp.Type[HK_T]) -> HK_T:
         """Get variant at `variant_index`, check that it is one of the given `valid_types`, and return its type."""
@@ -42,3 +47,9 @@ class BaseWrappedHKX(HKX, abc.ABC):
     @classmethod
     def get_version_string(cls) -> str:
         return cls.TYPES_MODULE.VERSION
+
+    @classmethod
+    def get_default_hk_format(cls) -> HavokFileFormat:
+        if cls.TYPES_MODULE.VERSION.startswith("20"):
+            return HavokFileFormat.Tagfile
+        return HavokFileFormat.Packfile

@@ -11,7 +11,7 @@ import numpy as np
 from soulstruct_havok.spline_compression import SplineCompressedAnimationData
 from soulstruct_havok.utilities.maths import TRSTransform, Vector3, Vector4
 
-from soulstruct_havok.wrappers.base.type_vars import (
+from soulstruct_havok.fromsoft.base.type_vars import (
     ANIMATION_CONTAINER_T,
     ANIMATION_T,
     ANIMATION_BINDING_T,
@@ -107,46 +107,47 @@ class AnimationContainer(tp.Generic[
             raise TypeError(f"Animation type `{type(self.animation).__name__}` is not spline-compressed.")
 
     def load_interleaved_data(self, reload=False):
-        if self.is_interleaved:
-            if self.interleaved_data is not None and not reload:
-                # Already exists. Do nothing.
-                return
-            # Otherwise, reorganize lists and convert transforms to `TRSTransform`.
-            track_count = self.animation.numberOfTransformTracks
-            transforms = self.animation.transforms
-            if len(transforms) % track_count > 0:
-                raise ValueError(
-                    f"Number of transforms in interleaved animation data ({len(transforms)}) is not a multiple of the "
-                    f"number of transform tracks: {track_count}")
-            frame_count = len(transforms) // track_count
-            self.interleaved_data = []
-            for i in range(frame_count):
-                frame = [t.to_trs_transform() for t in transforms[i * track_count:(i + 1) * track_count]]
-                self.interleaved_data.append(frame)
-        else:
+        if not self.is_interleaved:
             raise TypeError(f"Animation type `{type(self.animation).__name__}` is not interleaved.")
 
+        if self.interleaved_data is not None and not reload:
+            # Already exists. Do nothing.
+            return
+        # Otherwise, reorganize lists and convert transforms to `TRSTransform`.
+        track_count = self.animation.numberOfTransformTracks
+        transforms = self.animation.transforms
+        if len(transforms) % track_count > 0:
+            raise ValueError(
+                f"Number of transforms in interleaved animation data ({len(transforms)}) is not a multiple of the "
+                f"number of transform tracks: {track_count}")
+        frame_count = len(transforms) // track_count
+        self.interleaved_data = []
+        for i in range(frame_count):
+            frame = [t.to_trs_transform() for t in transforms[i * track_count:(i + 1) * track_count]]
+            self.interleaved_data.append(frame)
+
     def save_interleaved_data(self):
-        if self.is_interleaved:
-            if not self.interleaved_data:
-                raise ValueError("Interleaved data has not been loaded yet. Nothing to save.")
-            qs_transform_cls = self.types_module.hkQsTransform
-            transforms = []
-            track_count = None
-            for frame in self.interleaved_data:
-                if track_count is None:
-                    track_count = len(frame)
-                elif len(frame) != track_count:
-                    raise ValueError(
-                        f"Interleaved animation data has inconsistent track counts between frames: "
-                        f"{track_count} vs {len(frame)}."
-                    )
-                transforms += [qs_transform_cls.from_trs_transform(t) for t in frame]
-            self.animation.transforms = transforms
-            self.animation.numberOfTransformTracks = track_count  # guaranteed to be set above
-            _LOGGER.info("Saved interleaved data to animation.")
-        else:
+        """Convert exposed interleaved `TRSTransform` nested lists back to Havok types."""
+        if not self.is_interleaved:
             raise TypeError(f"Animation type `{type(self.animation).__name__}` is not interleaved.")
+
+        if not self.interleaved_data:
+            raise ValueError("Interleaved data has not been loaded yet. Nothing to save.")
+        qs_transform_cls = self.types_module.hkQsTransform
+        transforms = []
+        track_count = None
+        for frame in self.interleaved_data:
+            if track_count is None:
+                track_count = len(frame)
+            elif len(frame) != track_count:
+                raise ValueError(
+                    f"Interleaved animation data has inconsistent track counts between frames: "
+                    f"{track_count} vs {len(frame)}."
+                )
+            transforms += [qs_transform_cls.from_trs_transform(t) for t in frame]
+        self.animation.transforms = transforms
+        self.animation.numberOfTransformTracks = track_count  # guaranteed to be set above
+        _LOGGER.info("Saved interleaved data to animation.")
 
     def get_reference_frame_samples(self) -> np.ndarray:
         """Get reference frame sample array ("root motion") from animation if available.
@@ -163,22 +164,14 @@ class AnimationContainer(tp.Generic[
         cls_name = extracted_motion.__class__.__name__
         raise TypeError(f"No reference frame samples (root motion) for animation extracted motion class `{cls_name}`.")
 
-    def set_reference_frame_samples(self, samples: np.ndarray):
-        """Set reference frame sample array ("root motion") in animation if available."""
-        if not self.animation.extractedMotion:
-            # TODO: create extracted motion?
-            raise ValueError("No `extractedMotion` reference frame exists for this animation.")
+    def set_reference_frame_samples(self, samples: np.ndarray, frame_rate: float = 30.0):
+        """Set reference frame sample array ("root motion") in animation if available.
 
-        extracted_motion = self.animation.extractedMotion
-        if not hasattr(extracted_motion, "referenceFrameSamples"):
-            # TODO: create extracted motion of required class?
-            cls_name = extracted_motion.__class__.__name__
-            raise TypeError(
-                f"No reference frame samples (root motion) for animation extracted motion class `{cls_name}`."
-            )
+        Duration is calculated from sample count (minus 1) over frame rate.
+        """
 
         if samples.shape[1] == 3:
-            # Assume no rotation: add an extra column of zeroes (`hkVector4` array).
+            # Assume no rotation: add an extra column of zeroes to convert to `hkArray[hkVector4]` format.
             samples = np.c_[samples, np.zeros((samples.shape[0], 1))]
         if samples.shape[1] != 4:
             raise ValueError(
@@ -186,6 +179,38 @@ class AnimationContainer(tp.Generic[
             )
         if samples.dtype != np.float32:
             samples = samples.astype(np.float32)
+
+        duration = (len(samples) - 1) / frame_rate
+
+        if not self.animation.extractedMotion:
+
+            default_animated_ref_frame_type = getattr(self.types_module, "hkaDefaultAnimatedReferenceFrame", None)
+            if default_animated_ref_frame_type is None:
+                raise ValueError(
+                    "No `extractedMotion` animated reference frame ('root motion') exists for this animation and could "
+                    "not create it."
+                )
+
+            self.animation.extracted_motion = default_animated_ref_frame_type(
+                up=Vector4((0.0, 1.0, 0.0, 0.0)),
+                forward=Vector4((0.0, 0.0, 1.0, 0.0)),
+                duration=duration,
+                referenceFrameSamples=samples,
+            )
+
+            _LOGGER.info("Created new `hkaDefaultAnimatedReferenceFrame` instance for animation root motion samples.")
+            return
+
+        extracted_motion = self.animation.extractedMotion
+        if not hasattr(extracted_motion, "referenceFrameSamples"):
+            cls_name = extracted_motion.__class__.__name__
+            raise TypeError(
+                f"Animation HKX uses a different `hkaAnimatedReferenceFrame` subclass for its extracted (root) motion: "
+                f"{cls_name}. Cannot set reference frame samples. (You can set `extractedMotion = None` and call this "
+                f"again to create a new `hkaDefaultAnimatedReferenceFrame` instance.)"
+            )
+
+        extracted_motion.duration = duration
         extracted_motion.referenceFrameSamples = samples
 
     def set_animation_duration(self, duration: float):
@@ -194,6 +219,15 @@ class AnimationContainer(tp.Generic[
         extracted_motion = self.animation.extractedMotion
         if hasattr(extracted_motion, "duration"):
             extracted_motion.duration = duration
+
+    def get_track_names(self) -> list[str]:
+        return [
+            annotation_track.trackName
+            for annotation_track in self.animation.annotationTracks
+        ]
+
+    def get_track_bone_indices(self) -> list[int]:
+        return self.animation_binding.transformTrackToBoneIndices
 
     def get_track_index_of_bone(self, bone_index: int):
         try:
@@ -368,9 +402,23 @@ class AnimationContainer(tp.Generic[
 
         track_child_indices = self.get_track_child_indices(skeleton)
         root_track_indices = self.get_root_track_indices(skeleton)
+        return self.local_transforms_to_armature_transforms(
+            self.interleaved_data, track_child_indices, root_track_indices
+        )
+
+    @staticmethod
+    def local_transforms_to_armature_transforms(
+        local_space_frames: list[list[TRSTransform]],
+        track_child_indices: list[list[int]],
+        root_track_indices: list[int],
+    ) -> list[list[TRSTransform]]:
+        """Use given 'track hierarchy' to transform all frames from local space to armature space.
+
+        The list of root tracks is required to start the recursive transformations.
+        """
         arma_space_frames = []  # type: list[list[TRSTransform]]
 
-        for frame_local_transforms in self.interleaved_data:
+        for frame_local_transforms in local_space_frames:
 
             arma_space_track_transforms = [TRSTransform.identity() for _ in range(len(frame_local_transforms))]
 
@@ -399,13 +447,24 @@ class AnimationContainer(tp.Generic[
             self.load_interleaved_data()
 
         track_parent_indices = self.get_track_parent_indices(skeleton)
+        self.interleaved_data = self.armature_transforms_to_local_transforms(
+            armature_space_frames, track_parent_indices
+        )
+
+    @staticmethod
+    def armature_transforms_to_local_transforms(
+        armature_space_frames: list[list[TRSTransform]],
+        track_parent_indices: list[int],
+    ) -> list[list[TRSTransform]]:
+        """Use given 'track hierarchy' to transform all frames from armature space to each track's (bone's ) space."""
         local_space_frames = []  # type: list[list[TRSTransform]]
 
         for frame_armature_transforms in armature_space_frames:
 
             local_space_track_transforms = []
 
-            # Converting back from complete armature space to local space is easy and requires no recursion.
+            # Converting back from complete armature space to local space is easy and requires no recursion, as we
+            # only need to pre-multiply by the inverse of the parent's armature space transform (already known).
             parent_inverse_matrices = {}  # type: dict[int, TRSTransform]
             for track_index, armature_transform in enumerate(frame_armature_transforms):
                 if track_parent_indices[track_index] == -1:
@@ -422,7 +481,7 @@ class AnimationContainer(tp.Generic[
 
             local_space_frames.append(local_space_track_transforms)
 
-        self.interleaved_data = local_space_frames
+        return local_space_frames
 
     def load_data(self):
         """Load managed spline or interleaved data. Should be called after reading HKX file."""

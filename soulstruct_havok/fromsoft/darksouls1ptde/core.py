@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from soulstruct_havok.types import hk2010
 from soulstruct_havok.types.hk2010 import *
-from soulstruct_havok.wrappers.base import *
+from soulstruct_havok.fromsoft.base import *
 
 AnimationContainerType = AnimationContainer[
     hkaAnimationContainer, hkaAnimation, hkaAnimationBinding,

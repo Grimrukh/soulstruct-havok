@@ -5,7 +5,7 @@ __all__ = ["ANIBND"]
 import typing as tp
 from dataclasses import dataclass, field
 
-from soulstruct_havok.wrappers.base.anibnd import BaseANIBND
+from soulstruct_havok.fromsoft.base.anibnd import BaseANIBND
 from .core import AnimationHKX, SkeletonHKX, AnimationContainerType
 
 

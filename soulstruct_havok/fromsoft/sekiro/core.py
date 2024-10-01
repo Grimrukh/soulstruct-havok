@@ -23,13 +23,13 @@ from soulstruct.dcx import DCXType
 
 from soulstruct_havok.core import HavokFileFormat
 from soulstruct_havok.packfile.structs import PackFileVersion, PackfileHeaderInfo
-from soulstruct_havok.types import hk2010, hk2015
-from soulstruct_havok.types.hk2015 import *
+from soulstruct_havok.types import hk2010, hk2016
+from soulstruct_havok.types.hk2016 import *
 from soulstruct_havok.utilities.files import HAVOK_PACKAGE_PATH
 from soulstruct_havok.utilities.hk_conversion import convert_hk
 from soulstruct_havok.utilities.maths import TRSTransform
-from soulstruct_havok.wrappers.base import *
-from soulstruct_havok.wrappers.hkx2010 import AnimationHKX as AnimationHKX2010
+from soulstruct_havok.fromsoft.base import *
+from soulstruct_havok.fromsoft.darksouls1ptde import AnimationHKX as AnimationHKX2010
 
 _LOGGER = logging.getLogger("soulstruct_havok")
 
@@ -44,7 +44,7 @@ PhysicsDataType = PhysicsData[hkpPhysicsData, hkpPhysicsSystem]
 
 @dataclass(slots=True, repr=False)
 class AnimationHKX(BaseAnimationHKX):
-    TYPES_MODULE: tp.ClassVar = hk2015
+    TYPES_MODULE: tp.ClassVar = hk2016
     root: hkRootLevelContainer = None
     animation_container: AnimationContainerType = None
 
@@ -93,7 +93,7 @@ class AnimationHKX(BaseAnimationHKX):
             anim_2015.animation_container.animation_container.bindings[i].animation = anim
             anim.type = 3  # spline-compressed in Havok 2015 (was 5 in Havok 2010)
 
-        _LOGGER.info("Successfully converted interleaved animation to hk2015 spline animation.")
+        _LOGGER.info("Successfully converted interleaved animation to hk2016 spline animation.")
         return anim_2015
 
     def to_2010_hkx(self) -> AnimationHKX2010:
@@ -149,7 +149,7 @@ class AnimationHKX(BaseAnimationHKX):
                 return ["refCount"]
 
         def dest_handler(dest_type: type[hk], dest_kwargs: dict[str, tp.Any], name: str):
-            if dest_type is hk2015.hkaAnimationBinding and name == "partitionIndices":
+            if dest_type is hk2016.hkaAnimationBinding and name == "partitionIndices":
                 dest_kwargs["partitionIndices"] = []
                 return True
             return False
@@ -159,13 +159,13 @@ class AnimationHKX(BaseAnimationHKX):
 
         import time
         t = time.perf_counter()
-        root2015 = convert_hk(hkx2010.root, hk2015.hkRootLevelContainer, hk2015, source_handler, dest_handler)
-        print(f"2010 to 2015 time: {time.perf_counter() - t}")
+        root2016 = convert_hk(hkx2010.root, hk2016.hkRootLevelContainer, hk2016, source_handler, dest_handler)
+        _LOGGER.info(f"Converted hk2010 animation to hk2016 animation in {time.perf_counter() - t:.3f} s.")
         return cls(
             dcx_type=dcx_type,
-            root=root2015,
+            root=root2016,
             hk_format=HavokFileFormat.Tagfile,
-            hk_version="2015",
+            hk_version="20160200",
         )
 
     @classmethod
@@ -221,112 +221,39 @@ class AnimationHKX(BaseAnimationHKX):
 
 @dataclass(slots=True)
 class SkeletonHKX(BaseSkeletonHKX):
-    TYPES_MODULE: tp.ClassVar = hk2015
+    TYPES_MODULE: tp.ClassVar = hk2016
     root: hkRootLevelContainer = None
     skeleton: SkeletonType = None
 
 
 @dataclass(slots=True)
 class CollisionHKX(BaseCollisionHKX):
-    TYPES_MODULE: tp.ClassVar = hk2015
+    TYPES_MODULE: tp.ClassVar = hk2016
     root: hkRootLevelContainer = None
     physics_data: PhysicsDataType = None
 
 
 @dataclass(slots=True)
 class ClothHKX(BaseClothHKX):
-    TYPES_MODULE: tp.ClassVar = hk2015
+    TYPES_MODULE: tp.ClassVar = hk2016
     root: hkRootLevelContainer = None
     cloth_physics_data: ClothPhysicsData[hkpPhysicsData, hkpPhysicsSystem] = None
 
 
 @dataclass(slots=True)
 class RagdollHKX(BaseRagdollHKX):
-    TYPES_MODULE: tp.ClassVar = hk2015
+    TYPES_MODULE: tp.ClassVar = hk2016
     root: hkRootLevelContainer = None
-    animation_skeleton: SkeletonType = None
+    standard_skeleton: SkeletonType = None
     ragdoll_skeleton: SkeletonType = None
     physics_data: PhysicsDataType = None
     animation_to_ragdoll_skeleton_mapper: SkeletonMapperType = None
     ragdoll_to_animation_skeleton_mapper: SkeletonMapperType = None
 
-    def inject_animation_skeleton(
-        self,
-        animation_skeleton_hkx: SkeletonHKX,
-        bone_redirect_func: tp.Callable[[str], str] = None,
-    ):
-        """Replace first skeleton in ragdoll HKX with skeleton in given `skeleton_hkx` (e.g. from ANIBND) and attempt
-        to remap bones by name.
-
-        If `bone_redirect_func` is given, it will be used to convert old bone names to new bone names when repairing the
-        bone references in both skeleton mappers. Otherwise, the same bone names must appear.
-        """
-        anim_skeleton = animation_skeleton_hkx.skeleton  # wrapper
-
-        a_to_r = self.animation_to_ragdoll_skeleton_mapper.skeleton_mapper.mapping
-        old_animation_skeleton = a_to_r.skeletonA
-        a_to_r.skeletonA = anim_skeleton.skeleton  # `hkaSkeleton` instance
-        for simple_mapping in a_to_r.simpleMappings:
-            bone_a_index = simple_mapping.boneA
-            bone_a_name = old_animation_skeleton.bones[bone_a_index].name
-            new_bone_a_name = bone_redirect_func(bone_a_name) if bone_redirect_func else bone_a_name
-            try:
-                simple_mapping.boneA = anim_skeleton.bones_by_name[new_bone_a_name].index
-            except KeyError:
-                raise ValueError(f"Simple map bone '{bone_a_name}' not found in new animation skeleton.")
-        for chain_mapping in a_to_r.chainMappings:
-            start_bone_a_index = chain_mapping.startBoneA
-            start_bone_a_name = old_animation_skeleton.bones[start_bone_a_index].name
-            new_start_bone_a_name = bone_redirect_func(start_bone_a_name) if bone_redirect_func else start_bone_a_name
-            try:
-                chain_mapping.startBoneA = anim_skeleton.bones_by_name[new_start_bone_a_name].index
-            except KeyError:
-                raise ValueError(f"Chain map start bone '{start_bone_a_name}' not found in new animation skeleton.")
-
-            end_bone_a_index = chain_mapping.endBoneA
-            end_bone_a_name = old_animation_skeleton.bones[end_bone_a_index].name
-            new_end_bone_a_name = bone_redirect_func(end_bone_a_name) if bone_redirect_func else end_bone_a_name
-            try:
-                chain_mapping.endBoneA = anim_skeleton.bones_by_name[new_end_bone_a_name].index
-            except KeyError:
-                raise ValueError(f"Chain map end bone '{end_bone_a_name}' not found in new animation skeleton.")
-
-        r_to_a = self.ragdoll_to_animation_skeleton_mapper.skeleton_mapper.mapping
-        old_animation_skeleton = r_to_a.skeletonB
-        r_to_a.skeletonB = anim_skeleton.skeleton  # `hkaSkeleton` instance
-        for simple_mapping in r_to_a.simpleMappings:
-            bone_b_index = simple_mapping.boneB
-            bone_b_name = old_animation_skeleton.bones[bone_b_index].name
-            new_bone_b_name = bone_redirect_func(bone_b_name) if bone_redirect_func else bone_b_name
-            try:
-                simple_mapping.boneB = anim_skeleton.bones_by_name[new_bone_b_name].index
-            except KeyError:
-                raise ValueError(f"Simple map bone '{bone_b_name}' not found in new animation skeleton.")
-        for chain_mapping in r_to_a.chainMappings:
-            start_bone_b_index = chain_mapping.startBoneB
-            start_bone_b_name = old_animation_skeleton.bones[start_bone_b_index].name
-            new_start_bone_b_name = bone_redirect_func(start_bone_b_name) if bone_redirect_func else start_bone_b_name
-            try:
-                chain_mapping.startBoneB = anim_skeleton.bones_by_name[new_start_bone_b_name].index
-            except KeyError:
-                raise ValueError(f"Chain map start bone '{start_bone_b_name}' not found in new animation skeleton.")
-
-            end_bone_b_index = chain_mapping.endBoneB
-            end_bone_b_name = old_animation_skeleton.bones[end_bone_b_index].name
-            new_end_bone_b_name = bone_redirect_func(end_bone_b_name) if bone_redirect_func else end_bone_b_name
-            try:
-                chain_mapping.endBoneB = anim_skeleton.bones_by_name[new_end_bone_b_name].index
-            except KeyError:
-                raise ValueError(f"Chain map end bone '{end_bone_b_name}' not found in new animation skeleton.")
-
-        # Replace animation skeleton wrapper.
-        self.animation_skeleton = Skeleton(self.TYPES_MODULE, anim_skeleton.skeleton)
-        # Note that we do NOT need to change the ragdoll skeleton in `hkaRagdollInstance` (variant 2).
-
 
 @dataclass(slots=True)
 class RemoAnimationHKX(BaseRemoAnimationHKX):
-    TYPES_MODULE: tp.ClassVar = hk2015
+    TYPES_MODULE: tp.ClassVar = hk2016
     root: hkRootLevelContainer = None
     animation_container: AnimationContainerType = None
     skeleton: SkeletonType = None

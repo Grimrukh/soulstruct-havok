@@ -278,8 +278,15 @@ class HKX(GameFile):
             raise ValueError(f"Could not find year/version in Havok version string: {self.hk_version}")
         return PyHavokModule(first_four)
 
-    def get_root_tree_string(self, max_primitive_sequence_size=-1) -> str:
-        return self.root.get_tree_string(max_primitive_sequence_size=max_primitive_sequence_size)
+    def get_root_tree_string(
+        self,
+        max_primitive_sequence_size=-1,
+        max_nonprimitive_sequence_size=-1,
+    ) -> str:
+        return self.root.get_tree_string(
+            max_primitive_sequence_size=max_primitive_sequence_size,
+            max_nonprimitive_sequence_size=max_nonprimitive_sequence_size,
+        )
 
     def __repr__(self) -> str:
         """Returns names of root variant classes."""

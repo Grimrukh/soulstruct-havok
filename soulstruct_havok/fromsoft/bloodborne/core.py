@@ -6,12 +6,12 @@ __all__ = ["AnimationHKX", "SkeletonHKX"]
 
 from soulstruct_havok.types import hk2014
 from soulstruct_havok.types.hk2014 import *
-from soulstruct_havok.wrappers.base import *
+from soulstruct_havok.fromsoft.base import *
 from dataclasses import dataclass
 
 AnimationContainerType = AnimationContainer[
     hkaAnimationContainer, hkaAnimation, hkaAnimationBinding,
-    # hkaInterleavedUncompressedAnimation,  # TODO: need class for hk2014
+    hkaInterleavedUncompressedAnimation,
     hkaSplineCompressedAnimation,
     hkaDefaultAnimatedReferenceFrame,
 ]

@@ -257,6 +257,8 @@ def unpack_pointer(data_hk_type: type[hk], item: PackFileDataItem) -> hk | None:
         if debug.DEBUG_PRINT_UNPACK:
             # Real item type is not known yet (could be a subclass of this reported type).
             debug.debug_print(f"{U}NEW ITEM: {pointed_item.hk_type.get_type_name()}{X}")
+            if pointed_item.hk_type.get_type_name() in debug.DUMP_ITEMS:
+                pointed_item.print_item_dump()
         pointed_item.start_reader()
         if debug.DEBUG_PRINT_UNPACK:
             debug.increment_debug_indent()

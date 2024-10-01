@@ -8,8 +8,8 @@ import numpy as np
 from scipy.optimize import linear_sum_assignment
 
 from soulstruct_havok.utilities.maths import TRSTransform
-from soulstruct_havok.wrappers.hkx2015.core import AnimationHKX, SkeletonHKX
-from soulstruct_havok.wrappers.hkx2015.anibnd import ANIBND
+from soulstruct_havok.fromsoft.darksouls1r.core import AnimationHKX, SkeletonHKX
+from soulstruct_havok.fromsoft.darksouls1r.anibnd import ANIBND
 
 
 def retarget_animation(

@@ -1,6 +1,6 @@
 import numpy as np
 from soulstruct_havok import HKX
-from soulstruct_havok.wrappers.shared.map_collision import MapCollisionModel
+from soulstruct_havok.fromsoft.shared.map_collision import MapCollisionModel
 from soulstruct_havok.types.debug import SET_DEBUG_PRINT
 
 

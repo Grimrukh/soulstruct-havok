@@ -1,7 +1,8 @@
-"""Map collision HKX wrappers for Dark Souls 1 (PTDE and DSR).
+"""Map collision HKX wrappers for MOPP-based `hkp` meshes used in Demon's Souls and Dark Souls 1 (PTDE/DSR).
 
-The changes in HKX format between these are minor, other than the Havok version (2010 vs. 2015) and packfile/tagfile
-format. This class stores just the meshes and handles reading/writing of both for either version of DS1.
+The changes in HKX format between these are minor, other than the Havok version (5.5.0 / 2010 / 2015) and the use of
+tagfile rather than packfile for DSR. This class stores just the meshes and handles reading/writing of both for the
+different games. It is unified, rather than inherited per-game, to make usage with Blender wrapping easier.
 """
 from __future__ import annotations
 
@@ -24,7 +25,7 @@ from soulstruct.utilities.binary import BinaryReader, BinaryWriter
 
 from soulstruct_havok.core import HKX
 from soulstruct_havok.enums import PyHavokModule
-from soulstruct_havok.types import hk550, hk2010, hk2015, hk2016
+from soulstruct_havok.types import hk550, hk2010, hk2015
 from soulstruct_havok.types.protocols.physics import *
 from soulstruct_havok.utilities.files import HAVOK_PACKAGE_PATH
 from soulstruct_havok.utilities.maths import Vector4
@@ -42,7 +43,7 @@ class MapCollisionMaterial(IntEnum):
 
     TODO: Watch IW's awesome video on DS1 collision again.
 
-    TODO: Not confirmed for Demon's Souls (Havok 5.5.0).
+    TODO: Not confirmed for Demon's Souls (Havok 5.5.0) but looks good so far.
     """
     Default = 0  # unknown usage
     Rock = 1  # actual rocks, bricks
@@ -137,7 +138,6 @@ class MapCollisionModel(GameFile):
         PyHavokModule.hk550,
         PyHavokModule.hk2010,
         PyHavokModule.hk2015,
-        PyHavokModule.hk2016,
     }
 
     @classmethod
@@ -219,24 +219,21 @@ class MapCollisionModel(GameFile):
         return hkx.to_writer()
 
     def to_hkx(self) -> HKX:
-        """Use bundled template HKX of appropriate Havok version (from DS1) to insert mesh data into a new HKX file."""
+        """Use bundled template HKX of appropriate Havok version to insert mesh data into a new HKX file."""
         if not self.meshes:
             raise ValueError("Map collision has no `meshes`. Cannot convert to collision HKX.")
 
-        # TODO: Template shouldn't strictly be necessary. I'm just too lazy to set up the full HKX structure."""
+        # Template is the easiest way to set up the full HKX structure. (These are the only three games that use MOPP.)
         match self.py_havok_module:
             case PyHavokModule.hk550:
-                template_path = HAVOK_PACKAGE_PATH("resources/MapCollisionTemplate550.hkx")
+                template_path = HAVOK_PACKAGE_PATH("resources/MapCollisionTemplate_DES.hkx")
                 hkx = HKX.from_path(template_path)
             case PyHavokModule.hk2010:
-                template_path = HAVOK_PACKAGE_PATH("resources/MapCollisionTemplate2010.hkx")
+                template_path = HAVOK_PACKAGE_PATH("resources/MapCollisionTemplate_PTDE.hkx")
                 hkx = HKX.from_path(template_path)
             case PyHavokModule.hk2015:
-                template_path = HAVOK_PACKAGE_PATH("resources/MapCollisionTemplate2015.hkx")
+                template_path = HAVOK_PACKAGE_PATH("resources/MapCollisionTemplate_DSR.hkx")
                 hkx = HKX.from_path(template_path)
-            case PyHavokModule.hk2016:
-                # TODO: What game did I even add hk2016 for...? Sekiro?
-                raise NotImplementedError("Havok 2016 does not yet support MapCollisionModel export. (Need template.)")
             case _:
                 raise ValueError(f"Cannot export `MapCollisionModel` to HKX for Havok version: {self.py_havok_module}")
 
@@ -282,9 +279,6 @@ class MapCollisionModel(GameFile):
                 case PyHavokModule.hk2015:
                     kwargs |= {"vertexDataStride": 1, "primitiveDataBuffer": []}
                     material = hk2015.CustomMeshParameter(**kwargs)
-                case PyHavokModule.hk2016:
-                    kwargs |= {"vertexDataStride": 1, "primitiveDataBuffer": []}
-                    material = hk2016.CustomMeshParameter(**kwargs)
                 case _:  # unreachable
                     raise ValueError(
                         f"Cannot export `MapCollisionModel` to HKX for Havok version: {self.py_havok_module}"
@@ -434,8 +428,6 @@ class MapCollisionModel(GameFile):
                 return hk2010.hkpStorageExtendedMeshShapeMeshSubpartStorage(**kwargs)
             case PyHavokModule.hk2015:
                 return hk2015.hkpStorageExtendedMeshShapeMeshSubpartStorage(**kwargs)
-            case PyHavokModule.hk2016:
-                return hk2016.hkpStorageExtendedMeshShapeMeshSubpartStorage(**kwargs)
 
         raise ValueError(f"Cannot export `MapCollisionModel` to HKX for Havok version: {self.py_havok_module}")
 
@@ -483,15 +475,6 @@ class MapCollisionModel(GameFile):
                     transform=hk2015.hkQsTransform(),
                 )
                 return hk2015.hkpExtendedMeshShapeTrianglesSubpart(**kwargs)
-            case PyHavokModule.hk2016:
-                kwargs |= dict(
-                    typeAndFlags=2,
-                    shapeInfo=0,
-                    userData=0,
-                    stridingType=2,
-                    transform=hk2016.hkQsTransform(),
-                )
-                return hk2016.hkpExtendedMeshShapeTrianglesSubpart(**kwargs)
 
         raise ValueError(f"Cannot export `MapCollisionModel` to HKX for Havok version: {self.py_havok_module}")
 

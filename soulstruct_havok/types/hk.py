@@ -12,9 +12,10 @@ __all__ = [
 
 import copy
 import inspect
+import re
 import typing as tp
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import colorama
 import numpy as np
@@ -191,6 +192,7 @@ class hk:
 
     @classmethod
     def get_type_hierarchy(cls) -> list[type[hk]]:
+        """Other 'basic' subclasses of `hk` will extend the exclusion range to include themselves (e.g. `Ptr`)."""
         return list(cls.__mro__[:-2])  # exclude `hk` and `object`
 
     @classmethod
@@ -214,6 +216,10 @@ class hk:
         if cls.byte_size == -1:
             return 8 if long_varints else 4
         return cls.byte_size
+
+    @classmethod
+    def is_referenced_object(cls) -> bool:
+        return "hkReferencedObject" in [parent.__name__ for parent in cls.get_type_hierarchy()]
 
     @staticmethod
     @contextmanager
@@ -624,21 +630,26 @@ class hk:
                 return member
         raise KeyError(f"No member named '{member_name}' in class `{cls.__name__}`.")
 
+    @classmethod
+    def has_member(cls, member_name: str) -> bool:
+        return any(member.name == member_name for member in cls.members)
+
     def get_tree_string(
         self,
         indent=0,
-        instances_shown: list[hk] = None,
+        instances_shown: set[int] = None,
         instances_repeated: set[int] = None,
         max_primitive_sequence_size=-1,
+        max_nonprimitive_sequence_size=-1,
         ignore_basic_defaults=True,
         _is_base_call=True,
     ) -> str:
         """Recursively build indented string of this instance and everything within its members."""
         from .base import hkViewPtr_
 
-        # Set instance tracking lists if this is a base call.
+        # Set instance tracking sets if this is a base call.
         if instances_shown is None:
-            instances_shown = []
+            instances_shown = set()
         if instances_repeated is None:
             instances_repeated = set()
 
@@ -667,45 +678,55 @@ class hk:
                 # Reference is likely to be circular: a value that has not even finished being written yet (and we
                 # don't know what the instance number will be yet).
                 lines.append(
-                    f"    {member.name} = {member_value.__class__.__name__}(),"
+                    f"    {member.name} = {member_value.get_type_name()}(),"
                     f"  # <VIEW>"
                 )
             elif isinstance(member_value, hk):
-                if member_value in instances_shown:
+                # NOTE: Only `hkReferencedObject` instances can possibly be repeated, so we save time on that here.
+                is_referenced = member_value.is_referenced_object()
+                value_id = id(member_value)
+                if is_referenced and value_id in instances_shown:
                     lines.append(
-                        f"    {member.name} = {member_value.__class__.__name__}(),"
-                        f"  # <{instances_shown.index(member_value)}>")
-                    instances_repeated.add(id(member_value))
+                        f"    {member.name} = {member_value.get_type_name()}(),  # <{value_id}>")
+                    instances_repeated.add(value_id)
                 else:
                     member_str = member_value.get_tree_string(
                         indent + 4, instances_shown, instances_repeated, max_primitive_sequence_size,
-                        _is_base_call=False,
+                        max_nonprimitive_sequence_size, _is_base_call=False,
                     )
-                    lines.append(
-                        f"    {member.name} = {member_str},"
-                        f"  # <{len(instances_shown)}>"
-                    )
-                    instances_shown.append(member_value)
+                    if is_referenced:
+                        lines.append(f"    {member.name} = {member_str},  # <{value_id}>")
+                        instances_shown.add(id(member_value))
+                    else:
+                        lines.append(f"    {member.name} = {member_str},")
             elif isinstance(member_value, list):
                 if not member_value:
                     lines.append(f"    {member.name} = [],")
                 elif isinstance(member_value[0], hk):
-                    lines.append(f"    {member.name} = [")
-                    for element in member_value:
-                        element: hk
-                        if element in instances_shown:
-                            lines.append(f"        {element.__class__.__name__},  # <{instances_shown.index(element)}>")
-                            instances_repeated.add(id(element))
-                        else:
-                            element_string = element.get_tree_string(
-                                indent + 8, instances_shown, instances_repeated, max_primitive_sequence_size,
-                                _is_base_call=False
-                            )
-                            lines.append(
-                                f"        {element_string},  # <{len(instances_shown)}>"
-                            )
-                            instances_shown.append(element)
-                    lines.append(f"    ],")
+                    if 0 < max_nonprimitive_sequence_size < len(member_value):
+                        lines.append(
+                            f"    {member.name} = [<{len(member_value[0].members)} {member_value[0].get_type_name()}>],"
+                        )
+                    else:
+                        is_referenced = member_value[0].is_referenced_object()
+                        lines.append(f"    {member.name} = [")
+                        for element in member_value:
+                            element: hk
+                            element_id = id(element)
+                            if is_referenced and element_id in instances_shown:
+                                lines.append(f"        {element.get_type_name()},  # <{element_id}>")
+                                instances_repeated.add(id(element))
+                            else:
+                                element_string = element.get_tree_string(
+                                    indent + 8, instances_shown, instances_repeated, max_primitive_sequence_size,
+                                    max_nonprimitive_sequence_size, _is_base_call=False
+                                )
+                                if is_referenced:
+                                    lines.append(f"        {element_string},  # <{element_id}>")
+                                    instances_shown.add(element_id)
+                                else:
+                                    lines.append(f"        {element_string},")
+                        lines.append(f"    ],")
                 elif isinstance(member_value[0], (list, tuple, Quaternion, Vector4)):
                     if 0 < max_primitive_sequence_size < len(member_value):
                         lines.append(
@@ -728,22 +749,30 @@ class hk:
                 if not member_value:
                     lines.append(f"    {member.name} = (),")
                 elif isinstance(member_value[0], hk):
-                    lines.append(f"    {member.name} = (")
-                    for element in member_value:
-                        element: hk
-                        if element in instances_shown:
-                            lines.append(f"        {element.__class__.__name__},  # <{instances_shown.index(element)}>")
-                            instances_repeated.add(id(element))
-                        else:
-                            element_string = element.get_tree_string(
-                                indent + 8, instances_shown, instances_repeated, max_primitive_sequence_size,
-                                _is_base_call=False,
-                            )
-                            lines.append(
-                                f"        {element_string},  # <{len(instances_shown)}>"
-                            )
-                            instances_shown.append(element)
-                    lines.append(f"    ),")
+                    if 0 < max_nonprimitive_sequence_size < len(member_value):
+                        lines.append(
+                            f"    {member.name} = (<{len(member_value[0].members)} {member_value[0].get_type_name()}>),"
+                        )
+                    else:
+                        is_referenced = member_value[0].is_referenced_object()
+                        lines.append(f"    {member.name} = (")
+                        for element in member_value:
+                            element: hk
+                            element_id = id(element)
+                            if is_referenced and element in instances_shown:
+                                lines.append(f"        {element.get_type_name()},  # <{element_id}>")
+                                instances_repeated.add(id(element))
+                            else:
+                                element_string = element.get_tree_string(
+                                    indent + 8, instances_shown, instances_repeated, max_primitive_sequence_size,
+                                    max_nonprimitive_sequence_size, _is_base_call=False,
+                                )
+                                if is_referenced:
+                                    lines.append(f"        {element_string},  # <{element_id}>")
+                                    instances_shown.add(element_id)
+                                else:
+                                    lines.append(f"        {element_string},")
+                        lines.append(f"    ),")
                 elif isinstance(member_value[0], (list, tuple, Quaternion, Vector4)):
                     if 0 < max_primitive_sequence_size < len(member_value):
                         lines.append(
@@ -769,14 +798,20 @@ class hk:
                 raise TypeError(f"Cannot parse value of member '{member.name}' for tree string: {type(member_value)}")
         lines.append(")")
         tree_str = f"\n{' ' * indent}".join(lines)
+
         if _is_base_call:
-            repeated_count = 0
-            for i, instance in enumerate(instances_shown):
-                if id(instance) in instances_repeated:
-                    tree_str = tree_str.replace(f",  # <{i}>\n", f",  # <{repeated_count}>\n")
-                    repeated_count += 1
-                else:  # instance never repeated; strip out index comments
-                    tree_str = tree_str.replace(f",  # <{i}>\n", ",\n")
+            reference_index = 0
+            replacements = {}
+            for shown_id in instances_shown:
+                if shown_id in instances_repeated:
+                    replacements[f",  # <{shown_id}>"] = f",  # <{reference_index}>"
+                    reference_index += 1
+                else:
+                    replacements[f"  # <{shown_id}>"] = ""
+
+            pattern = re.compile("|".join(re.escape(k) for k in replacements))
+            tree_str = pattern.sub(lambda m: replacements[m.group(0)], tree_str)
+
         return tree_str
 
     def __eq__(self, other: hk):

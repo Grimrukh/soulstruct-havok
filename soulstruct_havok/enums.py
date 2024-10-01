@@ -17,12 +17,15 @@ from soulstruct.utilities.binary import BinaryReader
 
 
 class PyHavokModule(StrEnum):
-    """Supported Havok versions in `soulstruct-havok`."""
+    """Supported Havok versions in `soulstruct-havok`.
+
+    Ordered by release date so that comparison operators can be used to declare added/removed feature support.
+    """
     hk550 = "550"    # Demon's Souls
-    hk2010 = "2010"  # DS1:PTDE
-    hk2014 = "2014"  # Bloodborne
-    hk2015 = "2015"  # DS1:Remastered
-    hk2016 = "2016"  # DS3
+    hk2010 = "2010"  # Dark Souls (PTDE)
+    hk2014 = "2014"  # Bloodborne / DS3
+    hk2015 = "2015"  # Dark Souls (Remastered)
+    hk2016 = "2016"  # Sekiro
     hk2018 = "2018"  # Elden Ring
 
 

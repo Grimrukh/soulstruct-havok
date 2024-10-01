@@ -10,7 +10,7 @@ from .hkaAnimatedReferenceFramehkaReferenceFrameTypeEnum import hkaAnimatedRefer
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkaAnimatedReferenceFrame(hkReferencedObject):
     alignment = 16
-    byte_size = 24
+    byte_size = 20
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
