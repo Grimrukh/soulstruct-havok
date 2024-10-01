@@ -4,12 +4,17 @@ __all__ = ["AnimationHKX", "SkeletonHKX", "ClothHKX", "RagdollHKX"]
 
 import logging
 import subprocess as sp
+import typing as tp
 from dataclasses import dataclass
 
+import numpy as np
+
+from soulstruct_havok.packfile.structs import PackfileHeaderInfo, PackFileVersion
 from soulstruct_havok.types import hk2010
 from soulstruct_havok.types.hk2010 import *
 from soulstruct_havok.fromsoft.base import *
 from soulstruct_havok.utilities.files import HAVOK_PACKAGE_PATH
+from soulstruct_havok.utilities.maths import TRSTransform
 
 AnimationContainerType = AnimationContainer[
     hkaAnimationContainer, hkaAnimation, hkaAnimationBinding,
@@ -27,6 +32,22 @@ class AnimationHKX(BaseAnimationHKX):
     TYPES_MODULE = hk2010
     root: hkRootLevelContainer = None
     animation_container: AnimationContainerType = None
+
+    @classmethod
+    def get_default_hkx_kwargs(cls) -> dict[str, tp.Any]:
+        kwargs = super(AnimationHKX, cls).get_default_hkx_kwargs()
+        kwargs |= dict(
+            packfile_header_info=PackfileHeaderInfo(
+                header_version=PackFileVersion.Version0x08,
+                pointer_size=4,
+                is_little_endian=True,
+                padding_option=0,
+                contents_version_string=b"hk_2010.2.0-r1",
+                flags=0,
+                header_extension=None,
+            )
+        )
+        return kwargs
 
     def get_spline_hkx(self) -> AnimationHKX:
         """Uses Horkrux's compiled converter to convert interleaved HKX to spline HKX.

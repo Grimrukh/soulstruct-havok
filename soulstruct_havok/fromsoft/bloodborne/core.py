@@ -11,7 +11,6 @@ from dataclasses import dataclass
 
 from soulstruct.dcx import DCXType
 
-from soulstruct_havok.core import HavokFileFormat
 from soulstruct_havok.utilities.hk_conversion import convert_hk
 from soulstruct_havok.packfile.structs import PackFileVersion, PackfileHeaderInfo, PackFileHeaderExtension
 from soulstruct_havok.types import hk2010, hk2014
@@ -37,6 +36,29 @@ class AnimationHKX(BaseAnimationHKX):
     TYPES_MODULE = hk2014
     root: hkRootLevelContainer = None
     animation_container: AnimationContainerType = None
+
+    @classmethod
+    def get_default_hkx_kwargs(cls) -> dict[str, tp.Any]:
+        kwargs = super(AnimationHKX, cls).get_default_hkx_kwargs()
+        kwargs |= dict(
+            packfile_header_info=PackfileHeaderInfo(
+                header_version=PackFileVersion.Version0x0B,
+                pointer_size=8,
+                is_little_endian=True,
+                padding_option=1,
+                contents_version_string=b"hk_2014.1.0-r1",
+                flags=0,
+                header_extension=PackFileHeaderExtension(
+                    unk_x3C=21,
+                    section_offset=16,
+                    unk_x40=20,
+                    unk_x44=0,
+                    unk_x48=0,
+                    unk_x4C=0,
+                ),
+            )
+        )
+        return kwargs
 
     def get_spline_hkx(self) -> AnimationHKX:
         """Uses Horkrux's compiled converter to convert interleaved HKX to spline HKX.
@@ -111,17 +133,7 @@ class AnimationHKX(BaseAnimationHKX):
         return AnimationHKX_PTDE(
             dcx_type=DCXType.Null,
             root=root2010,
-            hk_format=HavokFileFormat.Packfile,
-            hk_version="hk_2010.2.0-r1",
-            packfile_header_info=PackfileHeaderInfo(
-                header_version=PackFileVersion.Version0x08,
-                pointer_size=4,
-                is_little_endian=True,
-                padding_option=0,
-                contents_version_string=b"hk_2010.2.0-r1",
-                flags=0,
-                header_extension=None,
-            ),
+            **AnimationHKX_PTDE.get_default_hkx_kwargs(),
         )
 
     @classmethod
@@ -149,30 +161,7 @@ class AnimationHKX(BaseAnimationHKX):
         root2014 = convert_hk(hkx2010.root, hk2014.hkRootLevelContainer, hk2014, None, dest_handler)
         _LOGGER.info(f"Converted hk2010 animation to hk2014 animation in {time.perf_counter() - t:.3f} s.")
 
-        header_extension = PackFileHeaderExtension(
-            unk_x3C=21,
-            section_offset=16,
-            unk_x40=20,
-            unk_x44=0,
-            unk_x48=0,
-            unk_x4C=0,
-        )
-
-        return cls(
-            dcx_type=dcx_type,
-            root=root2014,
-            hk_format=HavokFileFormat.Packfile,
-            hk_version="hk_2014.1.0-r1",
-            packfile_header_info=PackfileHeaderInfo(
-                header_version=PackFileVersion.Version0x0B,
-                pointer_size=8,
-                is_little_endian=True,
-                padding_option=1,
-                contents_version_string=b"hk_2014.1.0-r1",
-                flags=0,
-                header_extension=header_extension,
-            ),
-        )
+        return cls(dcx_type=dcx_type, root=root2014, **cls.get_default_hkx_kwargs())
 
 
 @dataclass(slots=True, repr=False)

@@ -39,6 +39,14 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
             self.TYPES_MODULE, self.get_variant(0, *ANIMATION_CONTAINER_T.__constraints__))
 
     @classmethod
+    def get_default_hkx_kwargs(cls) -> dict[str, tp.Any]:
+        """Overridden by packfile-using Havok versions to create their headers automatically."""
+        return dict(
+            hk_format=cls.get_default_hk_format(),
+            hk_version=cls.get_version_string(),
+        )
+
+    @classmethod
     def get_default_animated_reference_frame(cls, root_motion_array: np.ndarray, frame_rate: float = 30.0) -> hk:
         """Create a new `hkaDefaultAnimatedReferenceFrame` instance from a root motion array."""
         if root_motion_array.shape[1] != 4:
@@ -152,13 +160,17 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
             floats=[],  # never used
         )
 
+        if not cls.get_version_string().startswith(("Havok_", "hk_2010")):
+            extra_binding_kwargs = {"partitionIndices": []}
+        else:
+            extra_binding_kwargs = {}
         binding = cls.TYPES_MODULE.hkaAnimationBinding(
             originalSkeletonName=original_skeleton_name,
             animation=animation,
             transformTrackToBoneIndices=transform_track_bone_indices,
             floatTrackToFloatSlotIndices=[],
-            partitionIndices=[],
             blendHint=0,
+            **extra_binding_kwargs,
         )
 
         root = cls.TYPES_MODULE.hkRootLevelContainer(
@@ -177,11 +189,7 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
             ],
         )
 
-        return cls(
-            root=root,
-            hk_format=cls.get_default_hk_format(),
-            hk_version=cls.get_version_string(),
-        )
+        return cls(root=root, **cls.get_default_hkx_kwargs())
 
     @classmethod
     def from_minimal_data_spline(
@@ -294,11 +302,7 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
                 ),
             ],
         )
-        return cls(
-            root=root,
-            hk_format=cls.get_default_hk_format(),
-            hk_version=cls.get_version_string(),
-        )
+        return cls(root=root, **cls.get_default_hkx_kwargs())
 
     def get_spline_hkx(self) -> tp.Self:
         """Get a spline-compressed version of this interleaved animation.
