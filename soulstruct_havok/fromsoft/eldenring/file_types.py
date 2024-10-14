@@ -6,6 +6,7 @@ __all__ = [
     "AnimationContainerType",
     "SkeletonType",
     "SkeletonMapperType",
+    "NavmeshHKX",
 ]
 
 import logging
