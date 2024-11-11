@@ -6,11 +6,14 @@ __all__ = [
     "Shape",
     "ConvexShape",
     "SingleShapeContainer",
+    "StorageMeshShapeSubpartStorage",
+    "StorageMeshShape",
     "StorageExtendedMeshShapeMaterial",
     "StorageExtendedMeshShapeMeshSubpartStorage",
     "StorageExtendedMeshShapeShapeSubpartStorage",
     "ExtendedMeshShapeTrianglesSubpart",
     "ExtendedMeshShapeShapesSubpart",
+    "StorageExtendedMeshShape",
     "FSCustomMeshParameter",
     "FSCustomParamStorageExtendedMeshShape",
     "LinkedCollidable",
@@ -68,6 +71,17 @@ class SingleShapeContainer(BaseHK, tp.Protocol):
     childShape: Shape
 
 
+class StorageMeshShapeSubpartStorage(BaseHK, tp.Protocol):
+    vertices: list[float]  # flattened triplets
+    indices16: list[int]
+    materials: list[int]  # should be just one material
+
+
+class StorageMeshShape(Shape, tp.Protocol):
+    """Ancient, pre-FS-customization class used in Demon's Soul m07_01_00_00. Minimal fields needed."""
+    storage: list[StorageMeshShapeSubpartStorage]
+
+
 class StorageExtendedMeshShapeMaterial(BaseHK, tp.Protocol):
     # hkpMeshMaterial
     filterInfo: int
@@ -83,12 +97,12 @@ class StorageExtendedMeshShapeMeshSubpartStorage(BaseHK, tp.Protocol):
     indices16: list[int]
     indices32: list[int]
     materialIndices: list[int]
-    # `materials` type differs in early versions (int).
+    materials: list[int | StorageExtendedMeshShapeMaterial]  # `int` in Havok 5.5.0 and earlier
 
 
 class StorageExtendedMeshShapeShapeSubpartStorage(BaseHK, tp.Protocol):
     materialIndices: list[int]
-    materials: list[StorageExtendedMeshShapeMaterial]
+    materials: list[int | StorageExtendedMeshShapeMaterial]  # `int` in Havok 5.5.0 and earlier
     materialIndices16: list[int]
 
 
@@ -107,14 +121,7 @@ class ExtendedMeshShapeShapesSubpart(BaseHK, tp.Protocol):
     childShapes: list[ConvexShape]
 
 
-class FSCustomMeshParameter(BaseHK, tp.Protocol):
-    version: int
-    vertexDataBuffer: list[int]
-    materialNameData: int
-
-
-class FSCustomParamStorageExtendedMeshShape(Shape, tp.Protocol):
-    """Shares its name with FromSoft's custom subclass."""
+class StorageExtendedMeshShape(Shape, tp.Protocol):
     # hkpExtendedMeshShape
     aabbHalfExtents: Vector4
     aabbCenter: Vector4
@@ -126,6 +133,17 @@ class FSCustomParamStorageExtendedMeshShape(Shape, tp.Protocol):
     # hkpStorageExtendedMeshShape
     meshstorage: list[StorageExtendedMeshShapeMeshSubpartStorage]
     shapestorage: list[StorageExtendedMeshShapeShapeSubpartStorage]
+
+
+class FSCustomMeshParameter(BaseHK, tp.Protocol):
+    """Shares its name with FromSoft's custom subclass, so FS prefix required."""
+    version: int
+    vertexDataBuffer: list[int]
+    materialNameData: int
+
+
+class FSCustomParamStorageExtendedMeshShape(StorageExtendedMeshShape, tp.Protocol):
+    """Shares its name with FromSoft's custom subclass, so FS prefix required."""
     # CustomParamStorageExtendedMeshShape
     materialArray: list[FSCustomMeshParameter]
 

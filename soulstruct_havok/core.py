@@ -276,6 +276,12 @@ class HKX(GameFile):
         first_four = "".join(digits)[:4]  # e.g. '2010' or '550'
         if len(first_four) < 3:
             raise ValueError(f"Could not find year/version in Havok version string: {self.hk_version}")
+
+        # NOTE: Some old Demon's Souls map collisions use Havok 5.1.0, but the relevant classes are unchanged.
+        # Doing a hacky redirect here for now, since I doubt I will ever support 5.1.0 properly.
+        if first_four == "510":
+            first_four = "550"
+
         return PyHavokModule(first_four)
 
     def get_root_tree_string(

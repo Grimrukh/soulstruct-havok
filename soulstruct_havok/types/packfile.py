@@ -345,7 +345,7 @@ def unpack_array(data_hk_type: type[hk], item: PackFileDataItem) -> list:
         array_data_offset = item.remaining_child_pointers.pop(array_pointer_offset)
     except KeyError:
         item.print_item_dump()
-        raise ValueError(f"Array data offset not found in item child pointers: {array_pointer_offset}")
+        raise ValueError(f"Array data offset not found in item child pointers: {hex(array_pointer_offset)}")
 
     # We step into the array data offset so that we can monitor expected member offsets.
     with item.reader.temp_offset(array_data_offset):
@@ -522,7 +522,7 @@ def unpack_string(item: PackFileDataItem) -> str:
             # Empty string with no child pointer.
             return ""
         item.print_item_dump()
-        raise ValueError(f"String data offset not found in item child pointers: {pointer_offset}")
+        raise ValueError(f"String data offset not found in item child pointers: {hex(pointer_offset)}")
     # We step into the offset so that we can monitor expected member offsets.
     string = item.reader.unpack_string(offset=string_offset, reset_old_offset=True, encoding="shift_jis_2004")
     if debug.DEBUG_PRINT_UNPACK:

@@ -8,7 +8,6 @@ from ..core import *
 from .hkpShapeCollection import hkpShapeCollection
 from .hkpExtendedMeshShapeTrianglesSubpart import hkpExtendedMeshShapeTrianglesSubpart
 from .hkpExtendedMeshShapeShapesSubpart import hkpExtendedMeshShapeShapesSubpart
-from .hkpWeldingUtilityWeldingType import hkpWeldingUtilityWeldingType
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
@@ -55,4 +54,4 @@ class hkpExtendedMeshShape(hkpShapeCollection):
     numShapesSubparts: int
     embeddedTrianglesSubpart: hkpExtendedMeshShapeTrianglesSubpart
     triangleRadius: float
-    pad16: tuple[int, ...]
+    pad16: tuple[int, int, int] = (0, 0, 0)

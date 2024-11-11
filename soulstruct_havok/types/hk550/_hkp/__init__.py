@@ -43,6 +43,10 @@ from .hkpMaterial import hkpMaterial
 from .hkpMaterialResponseType import hkpMaterialResponseType
 from .hkpMaxSizeMotion import hkpMaxSizeMotion
 from .hkpMeshMaterial import hkpMeshMaterial
+from .hkpMeshShape import hkpMeshShape
+from .hkpMeshShapeIndexStridingType import hkpMeshShapeIndexStridingType
+from .hkpMeshShapeMaterialIndexStridingType import hkpMeshShapeMaterialIndexStridingType
+from .hkpMeshShapeSubpart import hkpMeshShapeSubpart
 from .hkpModifierConstraintAtom import hkpModifierConstraintAtom
 from .hkpMoppBvTreeShape import hkpMoppBvTreeShape
 from .hkpMoppCode import hkpMoppCode
@@ -68,11 +72,15 @@ from .hkpShapeCollection import hkpShapeCollection
 from .hkpShapeCollectionFilter import hkpShapeCollectionFilter
 from .hkpShapeContainer import hkpShapeContainer
 from .hkpShapeShapeType import hkpShapeShapeType
+from .hkpSimpleMeshShape import hkpSimpleMeshShape
+from .hkpSimpleMeshShapeTriangle import hkpSimpleMeshShapeTriangle
 from .hkpSingleShapeContainer import hkpSingleShapeContainer
 from .hkpSphereRepShape import hkpSphereRepShape
 from .hkpStorageExtendedMeshShape import hkpStorageExtendedMeshShape
 from .hkpStorageExtendedMeshShapeMeshSubpartStorage import hkpStorageExtendedMeshShapeMeshSubpartStorage
 from .hkpStorageExtendedMeshShapeShapeSubpartStorage import hkpStorageExtendedMeshShapeShapeSubpartStorage
+from .hkpStorageMeshShape import hkpStorageMeshShape
+from .hkpStorageMeshShapeSubpartStorage import hkpStorageMeshShapeSubpartStorage
 from .hkpTwistLimitConstraintAtom import hkpTwistLimitConstraintAtom
 from .hkpTypedBroadPhaseHandle import hkpTypedBroadPhaseHandle
 from .hkpWeldingUtilityWeldingType import hkpWeldingUtilityWeldingType

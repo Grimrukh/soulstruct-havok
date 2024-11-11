@@ -86,21 +86,25 @@ class PackFileUnpacker:
         if self.header.pointer_size not in {4, 8}:
             raise ValueError(f"Packfile pointer size must be 4 or 8, not {self.header.pointer_size}.")
 
-        class_name_info = self.unpack_section(reader)
-        if class_name_info.child_pointers:
-            raise AssertionError("'classnames' section has child pointers. Not expected!")
-        if class_name_info.item_pointers:
-            raise AssertionError("'classnames' section has item pointers. Not expected!")
-        if class_name_info.item_specs:
-            raise AssertionError("'classnames' section has items. Not expected!")
-        self.unpack_class_names(class_name_info.raw_data)
+        # Section order is almost always (classnames, types, data). However, very old Demon's Souls (m07) collisions
+        # somtimes have (classnames, data, types). We always pack the standard order, but are flexible when reading.
+        section_order = self.header.get_section_order()
+        section_infos = [self.unpack_section(reader) for _ in range(3)]
+        classnames_section_info = section_infos[section_order["classnames"]]
+        type_section_info = section_infos[section_order["types"]]
+        data_section_info = section_infos[section_order["data"]]
 
-        type_section_info = self.unpack_section(reader)
+        if classnames_section_info.child_pointers:
+            raise AssertionError("'classnames' section has child pointers. Not expected!")
+        if classnames_section_info.item_pointers:
+            raise AssertionError("'classnames' section has item pointers. Not expected!")
+        if classnames_section_info.item_specs:
+            raise AssertionError("'classnames' section has items. Not expected!")
+        self.unpack_class_names(classnames_section_info.raw_data)
+
         for type_section_item_pointer in type_section_info.item_pointers:
             if type_section_item_pointer.dest_section_index != 1:
                 raise AssertionError("'types' section has an item pointer with destination section index != -1.")
-
-        data_section_info = self.unpack_section(reader)
 
         self.type_items = self.unpack_type_items(
             BinaryReader(type_section_info.raw_data, default_byte_order=self.byte_order),
@@ -127,7 +131,9 @@ class PackFileUnpacker:
         if types_only:
             return
 
-        if self.hk_version.startswith("Havok-5.5.0"):
+        if self.hk_version.startswith("Havok-5.1.0"):  # TODO: testing simple redirect
+            self.hk_types_module = hk550
+        elif self.hk_version.startswith("Havok-5.5.0"):
             self.hk_types_module = hk550
         elif self.hk_version.startswith("hk_2010"):
             self.hk_types_module = hk2010

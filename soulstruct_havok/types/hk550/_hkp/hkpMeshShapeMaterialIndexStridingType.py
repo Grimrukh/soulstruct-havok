@@ -7,17 +7,21 @@ from ..core import *
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
-class hkpWeldingUtilityWeldingType(hk):
+class hkpMeshShapeMaterialIndexStridingType(hk):
     """
-    WELDING_TYPE_ANTICLOCKWISE = 0,
-    WELDING_TYPE_CLOCKWISE = 4,
-    WELDING_TYPE_TWO_SIDED = 5,
-    WELDING_TYPE_NONE = 6
+    enum MaterialIndexStridingType
+    {
+        MATERIAL_INDICES_INVALID,
+        MATERIAL_INDICES_INT8,
+        MATERIAL_INDICES_INT16,
+        MATERIAL_INDICES_MAX_ID
+    };
     """
+
     alignment = 4
     byte_size = 4
     tag_type_flags = TagDataType.Int | TagDataType.IsSigned | TagDataType.Int32
 
     __tag_format_flags = 9
-    __real_name = "hkpWeldingUtility::WeldingType"
+    __real_name = "hkpMeshShape::MaterialIndexStridingType"
     local_members = ()

@@ -253,14 +253,25 @@ class PackFileHeader(BinaryStruct):
     padding_option: byte  # 0 or 1 (1 in Bloodborne)
     base_type: byte = field(init=False, **Binary(asserted=1))
     section_count: int = field(init=False, **Binary(asserted=3))  # sections: classnames, types, data
-    data_section_index: int = field(init=False, **Binary(asserted=2))  # always third section
+    data_section_index: int = field(init=False, **Binary(asserted=[0, 1, 2]))  # usually 2
     data_section_base_offset: int = field(init=False, **Binary(asserted=0))  # just the start of data section
-    classnames_section_index: int = field(init=False, **Binary(asserted=0))  # always first section
+    classnames_section_index: int = field(init=False, **Binary(asserted=[0, 1, 2]))  # usually 0
     classnames_section_root_offset: int  # relative offset of string 'hkRootLevelContainer' in classnames (often 0x4b)
     contents_version_string: bytes = field(**BinaryString(14))  # e.g. "hk_2010.2.0-r1"
     _pad1: bytes = field(init=False, **BinaryPad(1))
     _minus_one: byte = field(init=False, **Binary(asserted=0xFF))
     flags: int  # usually 0
+
+    def get_section_order(self) -> dict[str, int]:
+        """Infer section order from `data_section_index` and `classnames_section_index`.
+
+        Almost always `{classnames: 0, types: 1, data: 2}`.
+        """
+        return {
+            "classnames": self.classnames_section_index,
+            "types": next(iter({0, 1, 2} - {self.classnames_section_index, self.data_section_index})),
+            "data": self.data_section_index,
+        }
 
 
 @dataclass(slots=True)

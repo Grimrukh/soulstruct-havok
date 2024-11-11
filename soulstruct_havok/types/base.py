@@ -395,11 +395,7 @@ class hkRelArray_(hkBasePointer):
         with reader.temp_offset(source_offset + jump):
             data_type = cls.get_data_type()
             byte_size = data_type.get_byte_size(reader.long_varints)
-            if data_type.__name__ in {"hkVector3", "hkVector3f"}:
-                # Read tight array of vectors.
-                data = reader.unpack(f"{3 * length}f")
-                value = np.array(data, dtype=np.float32).reshape((length, 3))
-            elif data_type.__name__ in {"hkVector4", "hkVector4f"}:
+            if data_type.__name__ in {"hkVector4", "hkVector4f"}:
                 # Read tight array of vectors.
                 data = reader.unpack(f"{4 * length}f")
                 value = np.array(data, dtype=np.float32).reshape((length, 4))
@@ -430,11 +426,7 @@ class hkRelArray_(hkBasePointer):
         with item.reader.temp_offset(source_offset + jump):
             data_type = cls.get_data_type()
             byte_size = data_type.get_byte_size(item.long_varints)
-            if data_type.__name__ in {"hkVector3", "hkVector3f"}:
-                # Read tight array of vectors.
-                data = item.reader.unpack(f"{3 * length}f")
-                value = np.array(data, dtype=np.float32).reshape((length, 3))
-            elif data_type.__name__ in {"hkVector4", "hkVector4f"}:
+            if data_type.__name__ in {"hkVector4", "hkVector4f"}:
                 # Read tight array of vectors.
                 data = item.reader.unpack(f"{4 * length}f")
                 value = np.array(data, dtype=np.float32).reshape((length, 4))

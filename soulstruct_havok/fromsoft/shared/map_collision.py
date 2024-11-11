@@ -157,9 +157,11 @@ class MapCollisionModel(GameFile):
             raise ValueError("No rigid bodies found in HKX physics system.")
         name = physics_system.rigidBodies[0].name
         meshes = []
-        child_shape, has_material_array = cls.get_child_shape(physics_system)
-        mesh_subparts = child_shape.meshstorage
-        if has_material_array:
+        child_shape, shape_type = cls.get_child_shape(physics_system)
+
+        if shape_type == "CUSTOM":
+            child_shape: FSCustomParamStorageExtendedMeshShape
+            mesh_subparts = child_shape.meshstorage
             material_indices = tuple(material.materialNameData for material in child_shape.materialArray)
             if len(material_indices) > len(mesh_subparts):
                 _LOGGER.warning(
@@ -174,42 +176,72 @@ class MapCollisionModel(GameFile):
                 )
                 excess_count = len(mesh_subparts) - len(material_indices)
                 material_indices += (0,) * excess_count
+
+            for subpart_storage, material_index in zip(mesh_subparts, material_indices, strict=True):
+                vertices = subpart_storage.vertices  # already 4-column
+
+                vertex_indices, face_dtype = cls.get_vertex_indices_and_dtype(subpart_storage)
+                if len(vertex_indices) % 4:
+                    raise ValueError("Collision HKX mesh subpart `indices{N}` length must be a multiple of 4.")
+                faces = np.array(vertex_indices, dtype=face_dtype).reshape((-1, 4))
+
+                meshes.append(MapCollisionModelMesh(vertices, faces, material_index))
+
+        elif shape_type == "STORAGE_EXTENDED":
+            # Check for a single material index in `meshstorage.materials`. Note that this array contains Havok material
+            # definitions from Havok 2010 onwards, rather than the integers seen in Havok 5.5.0, which might explain why
+            # FromSoft extended the class with their own simple integer material array (though even Demon's Souls uses
+            # the custom class, and its materials are still just integers; perhaps they knew about the upcoming Havok
+            # changes before Demon's Souls release).
+            child_shape: StorageExtendedMeshShape
+            material_indices_list = []
+            for mesh_subpart in child_shape.meshstorage:
+                if mesh_subpart.materials and isinstance(mesh_subpart.materials[0], int):
+                    material_indices_list.append(mesh_subpart.materials[0])
+                else:
+                    material_indices_list.append(0)  # default for future export using custom class
+
+            for subpart_storage, material_index in zip(child_shape.meshstorage, material_indices_list, strict=True):
+                vertices = subpart_storage.vertices  # already 4-column
+
+                vertex_indices, face_dtype = cls.get_vertex_indices_and_dtype(subpart_storage)
+                if len(vertex_indices) % 4:
+                    raise ValueError("Collision HKX mesh subpart `indices{N}` length must be a multiple of 4.")
+                faces = np.array(vertex_indices, dtype=face_dtype).reshape((-1, 4))
+
+                meshes.append(MapCollisionModelMesh(vertices, faces, material_index))
+
+        elif shape_type == "STORAGE":
+            # See above. The `hkpStorageMeshShape` class was dropped at some point (maybe Havok 2010?) and probably
+            # never switched from integer materials to Havok classes, but we check nonetheless.
+            child_shape: StorageMeshShape
+            material_indices_list = []
+            for mesh_subpart in child_shape.storage:  # no `meshstorage` and `shapestorage`
+                if mesh_subpart.materials and isinstance(mesh_subpart.materials[0], int):
+                    material_indices_list.append(mesh_subpart.materials[0])
+                else:
+                    material_indices_list.append(0)  # default for future export using custom class
+
+            for subpart_storage, material_index in zip(child_shape.storage, material_indices_list, strict=True):
+
+                # Vertices are a flattened array of float triples. We add the fourth column for consistency.
+                vertices_3d = np.reshape(subpart_storage.vertices, (-1, 3))
+                vertices = np.concatenate((vertices_3d, np.zeros((vertices_3d.shape[0], 1), dtype=np.float32)), axis=1)
+
+                vertex_indices, face_dtype = cls.get_vertex_indices_and_dtype(subpart_storage)
+                if len(vertex_indices) % 3:
+                    raise ValueError(
+                        "Collision HKX mesh subpart `indices{N}` length must be a multiple of 3 (old storage class)."
+                    )
+                # Faces are index triples. We add a fourth column for face data.
+                faces = np.array(vertex_indices, dtype=face_dtype).reshape((-1, 3))
+                faces = np.concatenate((faces, np.zeros((faces.shape[0], 1), dtype=face_dtype)), axis=1)
+
+                meshes.append(MapCollisionModelMesh(vertices, faces, material_index))
+
         else:
-            # Default materials are all zero. User should assign real materials before exporting.
-            _LOGGER.warning(
-                f"No custom material array present in collision '{hkx.path_name}'. Defaulting all materials to index 0."
-            )
-            material_indices = (0,) * len(mesh_subparts)
-
-        for subpart_storage, material_index in zip(mesh_subparts, material_indices):
-
-            if indices8 := getattr(subpart_storage, "indices8", []):
-                # This HKX uses 8-bit indices. (Never observed and probably never will.)
-                vertex_indices = indices8
-                face_dtype = np.dtype("uint8")
-                if subpart_storage.indices16:
-                    raise ValueError("Collision HKX mesh subpart has both `indices8` and `indices16` data.")
-                if subpart_storage.indices32:
-                    raise ValueError("Collision HKX mesh subpart has both `indices8` and `indices32` data.")
-            elif subpart_storage.indices16:
-                # This HKX uses 16-bit indices.
-                vertex_indices = subpart_storage.indices16
-                face_dtype = np.dtype("uint16")
-                if subpart_storage.indices32:
-                    raise ValueError("Collision HKX mesh subpart has both `indices16` and `indices32` data.")
-            elif subpart_storage.indices32:
-                # This HKX uses 32-bit indices.
-                vertex_indices = subpart_storage.indices32
-                face_dtype = np.dtype("uint32")
-            else:
-                raise ValueError("Collision HKX mesh subpart has no `indices8`, `indices16`, or `indices32` data.")
-
-            if len(vertex_indices) % 4:
-                raise ValueError("Collision HKX mesh subpart `indices{N}` length must be a multiple of 4.")
-
-            vertices = subpart_storage.vertices
-            faces = np.array(vertex_indices, dtype=face_dtype).reshape((-1, 4))
-            meshes.append(MapCollisionModelMesh(vertices, faces, material_index))
+            # Shouldn't be reachable.
+            raise ValueError(f"Unknown shape type: {shape_type}")
 
         return cls(name=name, meshes=meshes, py_havok_module=hkx.py_havok_module, is_big_endian=hkx.is_big_endian)
 
@@ -308,6 +340,33 @@ class MapCollisionModel(GameFile):
 
         return hkx
 
+    @staticmethod
+    def get_vertex_indices_and_dtype(
+        subpart_storage: StorageExtendedMeshShapeMeshSubpartStorage | StorageMeshShapeSubpartStorage
+    ) -> tuple[np.ndarray, np.dtype]:
+        if indices8 := getattr(subpart_storage, "indices8", []):
+            # This HKX uses 8-bit indices. (Never observed and probably never will.)
+            vertex_indices = indices8
+            face_dtype = np.dtype("uint8")
+            if subpart_storage.indices16:
+                raise ValueError("Collision HKX mesh subpart has both `indices8` and `indices16` data.")
+            if subpart_storage.indices32:
+                raise ValueError("Collision HKX mesh subpart has both `indices8` and `indices32` data.")
+        elif subpart_storage.indices16:
+            # This HKX uses 16-bit indices.
+            vertex_indices = subpart_storage.indices16
+            face_dtype = np.dtype("uint16")
+            if subpart_storage.indices32:
+                raise ValueError("Collision HKX mesh subpart has both `indices16` and `indices32` data.")
+        elif subpart_storage.indices32:
+            # This HKX uses 32-bit indices.
+            vertex_indices = subpart_storage.indices32
+            face_dtype = np.dtype("uint32")
+        else:
+            raise ValueError("Collision HKX mesh subpart has no `indices8`, `indices16`, or `indices32` data.")
+
+        return vertex_indices, face_dtype
+
     # noinspection PyTypeChecker
     @staticmethod
     def get_hkx_physics(hkx: HKX) -> tuple[PhysicsData, PhysicsSystem]:
@@ -319,9 +378,10 @@ class MapCollisionModel(GameFile):
 
     # noinspection PyTypeChecker
     @staticmethod
-    def get_child_shape(physics_system: PhysicsSystem) -> tuple[FSCustomParamStorageExtendedMeshShape, bool]:
-        """Validates type of collision shape and returns `childShape`, along with a bool indicating if the shape uses
-        FromSoft's custom subclass `CustomParamStorageExtendedMeshShape` (which includes material name data).
+    def get_child_shape(physics_system: PhysicsSystem) -> tuple[FSCustomParamStorageExtendedMeshShape, str]:
+        """Validates type of collision shape and returns `childShape`, along with a string indicating if the shape uses
+        FromSoft's custom subclass `CustomParamStorageExtendedMeshShape` (which includes material name data), the base
+        Havok `hkpStorageExtendedMeshShape`, or the even older Havok `hkpStorageMeshShape`.
 
         NOTE: Some old collisions may just use `hkpStorageExtendedMeshShape` rather than FromSoft's custom subclass that
         adds 'material name data'. We support that here too, but only on import - the custom subclass is always used on
@@ -334,12 +394,16 @@ class MapCollisionModel(GameFile):
         child_shape = shape.child.childShape  # type: FSCustomParamStorageExtendedMeshShape
         if child_shape.get_type_name() != "CustomParamStorageExtendedMeshShape":
             if child_shape.get_type_name() == "hkpStorageExtendedMeshShape":
-                return child_shape, False
+                # Pre-custom class is supported, will just have no material data.
+                return child_shape, "STORAGE_EXTENDED"
+            if child_shape.get_type_name() == "hkpStorageMeshShape":
+                # Pre-custom, non-extended class is supported, will just have no material data.
+                return child_shape, "STORAGE"
             raise TypeError(
                 f"Expected collision child shape to be `CustomParamStorageExtendedMeshShape`. "
                 f"Found: {child_shape.get_type_name()}"
             )
-        return child_shape, True
+        return child_shape, "CUSTOM"
 
     # noinspection PyTypeChecker
     @staticmethod
