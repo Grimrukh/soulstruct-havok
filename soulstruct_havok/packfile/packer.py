@@ -65,9 +65,11 @@ class PackFilePacker:
             pointer_size=header_info.pointer_size,
             is_little_endian=header_info.is_little_endian,
             padding_option=header_info.padding_option,
+            data_section_index=2,
+            classnames_section_index=0,
+            classnames_section_root_offset=RESERVED,
             contents_version_string=header_info.contents_version_string,
             flags=header_info.flags,
-            classnames_section_root_offset=RESERVED,
         )
 
         self.header.to_writer(writer)
