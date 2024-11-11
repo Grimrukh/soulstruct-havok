@@ -58,8 +58,6 @@ class PackFilePacker:
         byte_order = ByteOrder.LittleEndian if header_info.is_little_endian else ByteOrder.BigEndian
         writer = BinaryWriter(byte_order=byte_order)
 
-        # TODO: Header section indices/offsets could theoretically vary from my asserted values.
-        #  Have already seen this with 'classnames_section_base_offset', which is always 75 in DS1 but varies in DeS.
         self.header = PackFileHeader(
             version=header_info.header_version,
             pointer_size=header_info.pointer_size,
