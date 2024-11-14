@@ -9,15 +9,16 @@ from .hkaAnnotationTrackAnnotation import hkaAnnotationTrackAnnotation
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkaAnnotationTrack(hk):
-    alignment = 16
-    byte_size = 16
+    alignment = 4
+    byte_size = 12
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
+    __hsh = 2221917840
 
     local_members = (
         Member(0, "trackName", hkStringPtr),
-        Member(4, "annotations", hkArray(hkaAnnotationTrackAnnotation)),
+        Member(4, "annotations", SimpleArray(hkaAnnotationTrackAnnotation)),
     )
     members = local_members
 

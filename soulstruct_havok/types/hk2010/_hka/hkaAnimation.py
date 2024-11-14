@@ -11,7 +11,7 @@ from .hkaAnnotationTrack import hkaAnnotationTrack
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkaAnimation(hkReferencedObject):
-    alignment = 16
+    alignment = 4
     byte_size = 40
     tag_type_flags = TagDataType.Class
 

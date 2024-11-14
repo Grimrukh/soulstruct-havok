@@ -387,7 +387,7 @@ class PackFileUnpacker:
             header_version=self.header.version,
             pointer_size=self.header.pointer_size,
             is_little_endian=self.header.is_little_endian,
-            padding_option=self.header.padding_option,
+            reuse_padding_optimization=self.header.reuse_padding_optimization,
             contents_version_string=self.header.contents_version_string,
             flags=self.header.flags,
             header_extension=self.header_extension,

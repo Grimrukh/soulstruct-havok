@@ -8,16 +8,17 @@ from .hkxAttributeGroup import hkxAttributeGroup
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
-class hkxAttributeHolder(hkReferencedObject):
-    alignment = 16
-    byte_size = 20
+class hkxAttributeHolder(hk):
+    alignment = 4
+    byte_size = 8
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
+    __hsh = 1146766394
 
     local_members = (
-        Member(8, "attributeGroups", hkArray(hkxAttributeGroup)),
+        Member(0, "attributeGroups", SimpleArray(hkxAttributeGroup)),
     )
-    members = hkReferencedObject.members + local_members
+    members = local_members
 
     attributeGroups: list[hkxAttributeGroup]

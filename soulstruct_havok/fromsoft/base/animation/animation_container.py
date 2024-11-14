@@ -517,11 +517,15 @@ class AnimationContainer(tp.Generic[
 
     @property
     def is_spline(self) -> bool:
-        return type(self.animation).__name__ == "hkaSplineCompressedAnimation"
+        return type(self.animation).__name__.startswith("hkaSpline")
 
     @property
     def is_interleaved(self) -> bool:
-        return type(self.animation).__name__ == "hkaInterleavedUncompressedAnimation"
+        return type(self.animation).__name__.startswith("hkaInterleaved")
+
+    @property
+    def is_wavelet(self) -> bool:
+        return type(self.animation).__name__.startswith("hkaWavelet")
 
     @property
     def track_count(self):

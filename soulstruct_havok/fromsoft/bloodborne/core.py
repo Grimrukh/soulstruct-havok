@@ -1,4 +1,4 @@
-"""TODO: Bloodborne/DS3 cloth and ragdoll files have no wrappers."""
+"""TODO: Bloodborne/DS3 cloth and ragdoll files have no Python types yet."""
 
 from __future__ import annotations
 
@@ -45,16 +45,16 @@ class AnimationHKX(BaseAnimationHKX):
                 header_version=PackFileVersion.Version0x0B,
                 pointer_size=8,
                 is_little_endian=True,
-                padding_option=1,
+                reuse_padding_optimization=1,
                 contents_version_string=b"hk_2014.1.0-r1",
                 flags=0,
                 header_extension=PackFileHeaderExtension(
-                    unk_x3C=21,
+                    unk_x3c=21,
                     section_offset=16,
                     unk_x40=20,
                     unk_x44=0,
                     unk_x48=0,
-                    unk_x4C=0,
+                    unk_x4c=0,
                 ),
             )
         )

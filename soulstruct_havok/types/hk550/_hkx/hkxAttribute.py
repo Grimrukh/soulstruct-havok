@@ -13,6 +13,7 @@ class hkxAttribute(hk):
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
+    __hsh = 2437785281
 
     local_members = (
         Member(0, "name", hkStringPtr),

@@ -9,15 +9,16 @@ from .hkxAttribute import hkxAttribute
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkxAttributeGroup(hk):
-    alignment = 16
-    byte_size = 16
+    alignment = 4
+    byte_size = 12
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
+    __hsh = 375898140
 
     local_members = (
         Member(0, "name", hkStringPtr),
-        Member(4, "attributes", hkArray(hkxAttribute)),
+        Member(4, "attributes", SimpleArray(hkxAttribute)),
     )
     members = local_members
 

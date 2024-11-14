@@ -7,14 +7,11 @@ import subprocess as sp
 import typing as tp
 from dataclasses import dataclass
 
-import numpy as np
-
 from soulstruct_havok.packfile.structs import PackfileHeaderInfo, PackFileVersion
 from soulstruct_havok.types import hk2010
 from soulstruct_havok.types.hk2010 import *
 from soulstruct_havok.fromsoft.base import *
 from soulstruct_havok.utilities.files import HAVOK_PACKAGE_PATH
-from soulstruct_havok.utilities.maths import TRSTransform
 
 AnimationContainerType = AnimationContainer[
     hkaAnimationContainer, hkaAnimation, hkaAnimationBinding,
@@ -41,7 +38,7 @@ class AnimationHKX(BaseAnimationHKX):
                 header_version=PackFileVersion.Version0x08,
                 pointer_size=4,
                 is_little_endian=True,
-                padding_option=0,
+                reuse_padding_optimization=0,
                 contents_version_string=b"hk_2010.2.0-r1",
                 flags=0,
                 header_extension=None,

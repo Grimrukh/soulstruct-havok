@@ -13,6 +13,7 @@ class hkaBone(hk):
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
+    __hsh = 2805993968
 
     local_members = (
         Member(0, "name", hkStringPtr),

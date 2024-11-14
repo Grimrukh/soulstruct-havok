@@ -251,13 +251,15 @@ class HKX(GameFile):
         if self.hk_format == HavokFileFormat.Packfile:
             if not self.packfile_header_info:
                 raise ValueError("You must set `hkx.packfile_header_info` before you can write to packfile format.")
+            # Update endianness of packfile header info.
+            self.packfile_header_info.is_little_endian = not self.is_big_endian
             return PackFilePacker(self).to_writer(self.packfile_header_info)
         elif self.hk_format == HavokFileFormat.Tagfile:
             # TODO: Can't automatically detect `byte_order` or `long_varints` for tagfiles.
             #  But since it's a new format (2015+), it's probably always long, and little-endian for PC at least.
             return TagFilePacker(self).to_writer(
                 hsh_overrides=self.hsh_overrides,
-                byte_order=ByteOrder.LittleEndian,
+                byte_order=ByteOrder.big_endian_bool(self.is_big_endian),
                 long_varints=True,
             )
         raise ValueError(f"Invalid `hk_format`: {self.hk_format}. Should be 'packfile' or 'tagfile'.")

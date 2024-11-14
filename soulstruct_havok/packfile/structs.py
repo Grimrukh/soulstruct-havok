@@ -230,10 +230,10 @@ class PackFileDataItem(PackFileBaseItem):
 
 
 class PackFileVersion(IntEnum):
-    Version0x05 = 0x05
+    Version0x05 = 0x05  # Demon's Souls
     Version0x08 = 0x08  # DS1:PTDE
-    Version0x09 = 0x09
-    Version0x0B = 0x0B  # Bloodborne
+    Version0x09 = 0x09  # DS1:PTDE (rare)
+    Version0x0B = 0x0B  # Bloodborne, DS3, Sekiro
 
     @property
     def has_header_extension(self):
@@ -242,16 +242,50 @@ class PackFileVersion(IntEnum):
 
 @dataclass(slots=True)
 class PackFileHeader(BinaryStruct):
-    """Packfile header structure."""
+    """Packfile header structure.
+
+    Notes on `reuse_padding_optimization` from Havok 5.5.0:
+
+        Determines whether members of subclasses appear after alignment padding. Say we have two structs:
+
+        struct A { hkVector4 x; int i; };
+        struct B : public A { int j; };
+
+        All compilers have sizeof(A) == 2 * sizeof(hkVector4) because of the alignment padding (the alignment of the
+        struct is equal to the alignment of its largest member). Some compilers simply append members of subclasses to
+        the base class, i.e. so that `offsetof(B, j) == sizeof(A)` (reuse_padding_optimization == 0). Others can reuse
+        the padding for derived classes so that `sizeof(B) == sizeof(A)` and `offsetof(B, j) == offsetof(B, i) +
+        sizeof(int)` (reuse_padding_optimization == 1).
+
+        Put another way: if `reuse_padding_optimization == 0`, alignment occurs BETWEEN the members of each class in
+        a hierarchy of `hk` classes. If `reuse_padding_optimization == 1`, alignment only occurs after writing the
+        complete bottom-level subclass.
+
+    Notes on `empty_base_class_optimization` from Havok 5.5.0:
+
+        Determines whether empty base classes are optimized out. Say we have two structs:
+
+        struct A {};
+        struct B : public A { int x; };
+
+        All compilers have `sizeof(A) > 0`. Some compilers reuse the padding for derived class members such that
+        `offsetof(B, x) == 0` (empty_base_class_optimization == 1).
+
+        Always 1 for all FromSoft games observed so far. Note that `hkBaseObject`, despite having no members, always
+        contains a null pointer (size 4 or 8) in HKX files for vtable storage.
+    """
 
     magic0: uint = field(init=False, **Binary(asserted=0x57E0E057))
     magic1: uint = field(init=False, **Binary(asserted=0x10C0C010))
-    user_tag: int = field(init=False, **Binary(asserted=0))
-    version: PackFileVersion = field(**Binary(int))  # 0x05 (Des), 0x08/0x09 (DS1PTDE), 0x0B (BB/DS3/SEK)
-    pointer_size: byte  # 4 or 8
-    is_little_endian: bool  # usually True (post DeS I assume)
-    padding_option: byte  # 0 or 1 (1 in Bloodborne)
-    base_type: byte = field(init=False, **Binary(asserted=1))
+    user_tag: int = field(init=False, **Binary(asserted=0))  # 0 in all FromSoft games
+    version: PackFileVersion = field(**Binary(int))
+
+    # Four `LayoutRules` bytes:
+    pointer_size: byte = field(**Binary(asserted=[4, 8]))
+    is_little_endian: bool  # False for Demon's Souls only (not Bloodborne I think)
+    reuse_padding_optimization: byte = field(**Binary(asserted=[0, 1]))  # 0 or 1 (1 in Demon's Souls, Bloodborne)
+    empty_base_class_optimization: byte = field(init=False, **Binary(asserted=1))  # 1 in all FromSoft games
+
     section_count: int = field(init=False, **Binary(asserted=3))  # sections: classnames, types, data
     data_section_index: int = field(**Binary(asserted=[0, 1, 2]))  # usually 2
     data_section_base_offset: int = field(init=False, **Binary(asserted=0))  # just the start of data section
@@ -276,12 +310,12 @@ class PackFileHeader(BinaryStruct):
 
 @dataclass(slots=True)
 class PackFileHeaderExtension(BinaryStruct):
-    unk_x3C: short
+    unk_x3c: short
     section_offset: short
     unk_x40: uint
     unk_x44: uint
     unk_x48: uint
-    unk_x4C: uint
+    unk_x4c: uint
 
 
 @dataclass(slots=True)
@@ -330,7 +364,7 @@ class PackfileHeaderInfo:
     header_version: PackFileVersion
     pointer_size: int
     is_little_endian: bool
-    padding_option: int
+    reuse_padding_optimization: int
     contents_version_string: bytes
     flags: int
     header_extension: None | PackFileHeaderExtension = None  # optional (only in version 0x0B: Bloodborne)
@@ -369,10 +403,10 @@ class ItemSpecStruct(BinaryStruct):
 TYPE_NAME_HASHES = {
     # TODO: Most of these can go in their Python types.
     PyHavokModule.hk550: {
-        "hkClass": 2384426808,
-        "hkClassMember": 1460610213,
-        "hkClassEnum": 3473487498,
-        "hkClassEnumItem": 1821011918,
+        "hkClass": 2384426808,  # TODO: 947330958 in animation HKX
+        "hkClassMember": 1460610213,  # TODO: 2770603863 in animation HKX
+        "hkClassEnum": 3473487498,  # TODO: 2318797263 in animation HKX
+        "hkClassEnumItem": 1821011918,  # TODO: 3463416428 in animation HKX
         "hkpPhantom": 450759338,
         "hkAabb": 378246218,
         "hkpEntitySmallArraySerializeOverrideType": 3244565483,

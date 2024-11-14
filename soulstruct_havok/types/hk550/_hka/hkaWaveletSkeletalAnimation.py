@@ -10,15 +10,16 @@ from .hkaWaveletSkeletalAnimationQuantizationFormat import hkaWaveletSkeletalAni
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkaWaveletSkeletalAnimation(hkaSkeletalAnimation):
-    alignment = 16
-    byte_size = 92
+    alignment = 4
+    byte_size = 96
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
+    __hsh = 1500839912
 
     local_members = (
-        Member(36, "numberOfPoses", hkInt32),
-        Member(40, "blockSize", hkInt32),
+        Member(36, "numberOfPoses", _int),
+        Member(40, "blockSize", _int),
         Member(44, "qFormat", hkaWaveletSkeletalAnimationQuantizationFormat),
         Member(64, "staticMaskIdx", hkUint32),
         Member(68, "staticDOFsIdx", hkUint32),
@@ -26,7 +27,7 @@ class hkaWaveletSkeletalAnimation(hkaSkeletalAnimation):
         Member(76, "blockIndexSize", hkUint32),
         Member(80, "quantizedDataIdx", hkUint32),
         Member(84, "quantizedDataSize", hkUint32),
-        Member(88, "dataBuffer", hkArray(hkUint8)),
+        Member(88, "dataBuffer", SimpleArray(hkUint8)),
     )
     members = hkaSkeletalAnimation.members + local_members
 

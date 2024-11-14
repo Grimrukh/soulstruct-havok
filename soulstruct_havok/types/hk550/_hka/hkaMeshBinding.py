@@ -16,6 +16,7 @@ class hkaMeshBinding(hkReferencedObject):
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
+    __hsh = 3451067916
 
     local_members = (
         Member(8, "mesh", Ptr(hkxMesh)),

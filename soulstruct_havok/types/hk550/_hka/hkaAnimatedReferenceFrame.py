@@ -13,4 +13,4 @@ class hkaAnimatedReferenceFrame(hkReferencedObject):
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
-    local_members = ()
+    __hsh = 3666640253

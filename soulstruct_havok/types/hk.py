@@ -705,7 +705,7 @@ class hk:
                 elif isinstance(member_value[0], hk):
                     if 0 < max_nonprimitive_sequence_size < len(member_value):
                         lines.append(
-                            f"    {member.name} = [<{len(member_value[0].members)} {member_value[0].get_type_name()}>],"
+                            f"    {member.name} = [<{len(member_value)} {member_value[0].get_type_name()}>],"
                         )
                     else:
                         is_referenced = member_value[0].is_referenced_object()

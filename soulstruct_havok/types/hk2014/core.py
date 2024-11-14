@@ -31,6 +31,7 @@ __all__ = [
     "hkRefPtr",
     "hkRefVariant",
     "hkArray",
+    "SimpleArray",
     "hkViewPtr",
     "hkRelArray",
     "hkEnum",

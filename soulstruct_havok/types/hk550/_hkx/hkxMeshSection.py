@@ -10,20 +10,21 @@ from .hkxMaterial import hkxMaterial
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
-class hkxMeshSection(hkReferencedObject):
-    alignment = 16
-    byte_size = 40
+class hkxMeshSection(hk):
+    alignment = 4
+    byte_size = 24
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
+    __hsh = 2435614819
 
     local_members = (
-        Member(8, "vertexBuffer", Ptr(hkxVertexBuffer)),
-        Member(12, "indexBuffers", hkArray(Ptr(hkxIndexBuffer))),
-        Member(24, "material", Ptr(hkxMaterial)),
-        Member(28, "userChannels", hkArray(Ptr(hkReferencedObject))),
+        Member(0, "vertexBuffer", Ptr(hkxVertexBuffer)),
+        Member(4, "indexBuffers", SimpleArray(Ptr(hkxIndexBuffer))),
+        Member(12, "material", Ptr(hkxMaterial)),
+        Member(16, "userChannels", SimpleArray(Ptr(hkReferencedObject))),  # `hkVariant.m_class`
     )
-    members = hkReferencedObject.members + local_members
+    members = local_members
 
     vertexBuffer: hkxVertexBuffer
     indexBuffers: list[hkxIndexBuffer]

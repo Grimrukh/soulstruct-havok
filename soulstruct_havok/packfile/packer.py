@@ -62,7 +62,7 @@ class PackFilePacker:
             version=header_info.header_version,
             pointer_size=header_info.pointer_size,
             is_little_endian=header_info.is_little_endian,
-            padding_option=header_info.padding_option,
+            reuse_padding_optimization=header_info.reuse_padding_optimization,
             data_section_index=2,
             classnames_section_index=0,
             classnames_section_root_offset=RESERVED,

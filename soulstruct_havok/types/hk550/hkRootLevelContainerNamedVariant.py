@@ -13,17 +13,18 @@ class hkRootLevelContainerNamedVariant(hk):
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
+    __hsh = 2235206044
 
     local_members = (
         Member(0, "name", hkStringPtr),
         Member(4, "className", hkStringPtr),
         # NOTE: In CPP, these two members are inside `hkVariant`, which is not serialized.
-        Member(8, "variant", Ptr(hkReferencedObject)),  # `hkVariant.m_object`
+        Member(8, "variant", Ptr(hk)),  # `hkVariant.m_object`; does not need to be `hkReferencedObject`
         Member(12, "variantClass", Ptr(hkReflectDetailOpaque)),  # `hkVariant.m_class`
     )
     members = local_members
 
     name: str
     className: str
-    variant: hkReferencedObject
+    variant: hk
     variantClass: None = None

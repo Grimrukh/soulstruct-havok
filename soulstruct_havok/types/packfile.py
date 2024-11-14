@@ -13,6 +13,8 @@ __all__ = [
     "pack_pointer",
     "unpack_array",
     "pack_array",
+    "unpack_simple_array",
+    "pack_simple_array",
     "unpack_struct",
     "pack_struct",
     "unpack_string",
@@ -37,7 +39,7 @@ from . import debug
 if tp.TYPE_CHECKING:
     from soulstruct.utilities.binary import BinaryReader
     from .hk import hk
-    from .base import hkArray_, Ptr_, hkRelArray_, hkViewPtr_
+    from .base import hkArray_, SimpleArray_, Ptr_, hkRelArray_, hkViewPtr_
 
 colorama.just_fix_windows_console()
 G = colorama.Fore.GREEN
@@ -47,6 +49,11 @@ U = colorama.Fore.BLUE
 C = colorama.Fore.CYAN
 M = colorama.Fore.MAGENTA
 X = colorama.Fore.RESET
+
+
+# NOTE: Not using "shift_jis_2004", since (as with other FromSoft formats) it "over corrects" a bit, e.g. replacing
+# double backslashes with the yen symbol. TODO: Might need to make this version-specific.
+STRING_ENCODING = "shift-jis"
 
 
 def try_pad_to_offset(item: PackFileDataItem, offset: int, extra_msg: str):
@@ -336,7 +343,7 @@ def unpack_array(data_hk_type: type[hk], item: PackFileDataItem) -> list:
 
         if debug.DEBUG_PRINT_UNPACK:
             debug.debug_print(
-                f"{Y}{array_pointer_offset}:{X} {M}{data_hk_type.get_type_name()}[0]{X} "
+                f"{Y}{hex(array_pointer_offset)}:{X} {M}{data_hk_type.get_type_name()}[0]{X} "
                 f"{color}({hex(array_capacity_and_flags)}){X} {U}= []{X}"
             )
         return []
@@ -446,6 +453,132 @@ def pack_array(
     data_pack_queues.child_pointers.append(delayed_array_pack)
 
 
+def unpack_simple_array(data_hk_type: type[hk], item: PackFileDataItem) -> list:
+    """Functions the same as `unpack_array()`, but has no capacity/flags."""
+    child_pointer_offset = item.reader.position
+    zero, array_size = item.reader.unpack("VI")  # `array_size` is really a `hkInt32` member called `num{Member}`
+    if zero != 0:
+        item.print_item_dump()
+        raise ValueError(f"Found non-null data at child pointer offset {hex(child_pointer_offset)}: {zero}")
+
+    if array_size == 0:
+        if child_pointer_offset in item.all_child_pointers:
+            item.print_item_dump()
+            raise ValueError(f"Zero-size simple array has a child pointer fixup: {hex(child_pointer_offset)}")
+
+        if debug.DEBUG_PRINT_UNPACK:
+            debug.debug_print(
+                f"{Y}{hex(child_pointer_offset)}:{X} {M}{data_hk_type.get_type_name()}[0] {U}= []{X}"
+            )
+        return []
+
+    try:
+        array_data_offset = item.remaining_child_pointers.pop(child_pointer_offset)
+    except KeyError:
+        item.print_item_dump()
+        raise ValueError(f"Simple array data offset not found in item child pointers: {hex(child_pointer_offset)}")
+
+    # We step into the array data offset so that we can monitor expected member offsets.
+    with item.reader.temp_offset(array_data_offset):
+        value = data_hk_type.unpack_primitive_array(item.reader, array_size)
+        if value is None:
+            # Not a primitive array. Use data type. Array elements are tightly packed.
+            if debug.DEBUG_PRINT_UNPACK:
+                debug.debug_print(
+                    f"{Y}{hex(array_data_offset)}: {M}{data_hk_type.get_type_name()}[{array_size}]{X}"
+                )
+                debug.increment_debug_indent()
+            value = [data_hk_type.unpack_packfile(item) for _ in range(array_size)]
+            if debug.DEBUG_PRINT_UNPACK:
+                debug.decrement_debug_indent()
+
+    if debug.DEBUG_PRINT_UNPACK:
+        if len(value) > 10:
+            value_repr = get_indented_array(value[:10]) if isinstance(value, np.ndarray) else repr(value[:10])
+            debug.debug_print(f"{Y}{hex(child_pointer_offset)}: {U}{value_repr}...{X} ({len(value)} elements)")
+        else:
+            debug.debug_print(f"{Y}{hex(child_pointer_offset)}: {U}{repr(value)}{X}")
+
+    return value
+
+
+def pack_simple_array(
+    simple_array_hk_type: tp.Type[SimpleArray_],
+    item: PackFileDataItem,
+    value: list[hk | str | int | float | bool] | np.ndarray,
+    existing_items: dict[hk, PackFileDataItem],
+    data_pack_queues: PackItemCreationQueues,
+):
+    """Functions the same as `pack_array()`, but has no capacity/flags.
+
+    Uses the same rules as real `hkArray` types for recursive item packing.
+    """
+    array_pointer_offset = item.writer.position
+    array_length = len(value)
+    if debug.DEBUG_PRINT_PACK:
+        debug.debug_print(
+            f"{Y}{item.hex}: {G}{simple_array_hk_type.get_data_type().__name__}{C if array_length > 0 else R}"
+            f"[{array_length}] {U if array_length > 0 else R}-> {'Child' if array_length > 0 else 'Null'}"
+        )
+    item.writer.pack("V", 0)  # where the fixup would go, if it was actually resolved
+    item.writer.pack("I", array_length)  # `hkInt32` member called `num{Member}`
+    # No flags/capacity.
+    data_hk_type = simple_array_hk_type.get_data_type()
+
+    if len(value) == 0:
+        return  # empty
+
+    def delayed_simple_array_pack(_data_pack_queues: PackItemCreationQueues):
+        """Delayed writing of array data until later in the same packfile item.
+
+        This is the most complex part of the packfile algorithm because of how nested pointers and arrays/strings are
+        handled. We use a 'depth first' approach for arrays/strings and a 'breadth-first' approach for pointers:
+            - Any new arrays or strings will be packed as soon as this array finishes packing (which may include
+            primitives, local `hk` classes, structs, etc. -- anything except pointers/arrays/strings).
+            - Any new pointers are passed back up to the higher queue, which will be processed after this array's
+            containing item is finished. *No items are written until the previous item finishes.*
+        """
+
+        sub_creation_queues = PackItemCreationQueues()
+        item.writer.pad_align(16)  # pre-align for array
+        item.all_child_pointers[array_pointer_offset] = item.writer.position  # fixup
+        array_start_offset = item.writer.position
+
+        if debug.DEBUG_PRINT_PACK:
+            debug.debug_print(
+                f"{Y}{item.hex}{X}: {C}SimpleArray {simple_array_hk_type.get_data_type().__name__}[{array_length}]{X}"
+            )
+
+        if not data_hk_type.try_pack_primitive_array(item.writer, value):
+            # Non-primitive; recur on data type `pack` method.
+            if debug.DEBUG_PRINT_PACK:
+                debug.increment_debug_indent()
+            for i, element in enumerate(value):
+                data_hk_type.pack_packfile(item, element, existing_items, sub_creation_queues)
+                try_pad_to_offset(
+                    item,
+                    array_start_offset + (i + 1) * data_hk_type.get_byte_size(item.long_varints),
+                    f"{item.get_class_name()} (SimpleArray) {data_hk_type.get_type_name()}[{i + 1}]",
+                )
+            if debug.DEBUG_PRINT_PACK:
+                debug.decrement_debug_indent()
+
+        # Immediately recur on any new array/string data queued up (i.e., depth-first for packing arrays and strings).
+        while sub_creation_queues.child_pointers:
+            if debug.DEBUG_PRINT_PACK:
+                debug.increment_debug_indent()
+            delayed_pack = sub_creation_queues.child_pointers.popleft()
+            delayed_pack(sub_creation_queues)
+            if debug.DEBUG_PRINT_PACK:
+                debug.decrement_debug_indent()
+        # Pass global item pointers to higher queue for later creation.
+        while sub_creation_queues.item_pointers:
+            delayed_item_creation = sub_creation_queues.item_pointers.popleft()
+            _data_pack_queues.item_pointers.append(delayed_item_creation)
+
+    data_pack_queues.child_pointers.append(delayed_simple_array_pack)
+
+
 def unpack_struct(
     data_hk_type: type[hk], item: PackFileDataItem, length: int
 ) -> tuple:
@@ -524,9 +657,10 @@ def unpack_string(item: PackFileDataItem) -> str:
         item.print_item_dump()
         raise ValueError(f"String data offset not found in item child pointers: {hex(pointer_offset)}")
     # We step into the offset so that we can monitor expected member offsets.
-    string = item.reader.unpack_string(offset=string_offset, reset_old_offset=True, encoding="shift_jis_2004")
+    string = item.reader.unpack_string(offset=string_offset, reset_old_offset=True, encoding=STRING_ENCODING)
     if debug.DEBUG_PRINT_UNPACK:
-        debug.debug_print(f"{Y}{hex(string_offset)}: {U}String = '{string}'{X}")
+        # Simple one-off indent.
+        debug.debug_print(f"    {Y}{hex(string_offset)}: {U}String = '{string}'{X}")
     return string
 
 
@@ -547,7 +681,7 @@ def pack_string(
         item.all_child_pointers[string_ptr_pos] = item.writer.position
         if debug.DEBUG_PRINT_PACK:
             debug.debug_print(f"{Y}{item.hex}{X}: {G}string {U}-> \"{value}\"{X}")
-        item.writer.append(value.encode("shift_jis_2004") + b"\0")
+        item.writer.append(value.encode(STRING_ENCODING) + b"\0")
         item.writer.pad_align(16)
 
     data_pack_queues.child_pointers.append(delayed_string_write)
@@ -555,8 +689,10 @@ def pack_string(
 
 def unpack_named_variant(hk_type: type[hk], item: PackFileDataItem, types_module: dict) -> hk:
     """Detects `variant` type dynamically from `className` member."""
-    if debug.DEBUG_PRINT_UNPACK:
-        debug.increment_debug_indent()
+
+    # TODO: Testing just `unpack_class()`. We don't actually need to read 'className' since the variant's type is
+    #  already known from the pointed item.
+    return unpack_class(hk_type, item)
 
     member_start_offset = item.reader.position
 
@@ -564,6 +700,7 @@ def unpack_named_variant(hk_type: type[hk], item: PackFileDataItem, types_module
         if debug.DEBUG_PRINT_UNPACK:
             offset_hex = hex(member_.offset)
             item_offset_hex = hex(member_start_offset + member_.offset)
+            # Simple one-off indent.
             debug.debug_print(
                 f"{Y}{item_offset_hex} ({offset_hex}){X}: {G}'{member_.name}' = {member_.type.__name__}{X}"
             )
@@ -585,7 +722,11 @@ def unpack_named_variant(hk_type: type[hk], item: PackFileDataItem, types_module
     kwargs[class_name_member.name] = variant_type_name
 
     variant_py_name = get_py_name(variant_type_name)
-    variant_type = types_module[variant_py_name]
+    try:
+        variant_type = types_module[variant_py_name]
+    except KeyError:
+        item.print_item_dump()
+        raise ValueError(f"Variant type '{variant_type_name}' not found in Python types module.")
     _debug_print(variant_member)
     item.reader.seek(member_start_offset + variant_member.offset)
     if debug.DEBUG_PRINT_UNPACK:
@@ -593,7 +734,7 @@ def unpack_named_variant(hk_type: type[hk], item: PackFileDataItem, types_module
     variant_instance = unpack_pointer(variant_type, item)
     if debug.DEBUG_PRINT_UNPACK:
         debug.debug_print(f"-> {variant_instance}")
-        debug.decrement_debug_indent()
+        # debug.decrement_debug_indent()
     kwargs[variant_member.name] = variant_instance
 
     # noinspection PyArgumentList

@@ -7,18 +7,20 @@ from ..core import *
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
-class hkxMaterialProperty(hk):
-    alignment = 8
+class hkxNodeAnnotationData(hk):
+    alignment = 4
     byte_size = 8
     tag_type_flags = TagDataType.Class
+    __real_name = "hkxNode::AnnotationData"
 
     __tag_format_flags = 41
+    __hsh = 1377735959
 
     local_members = (
-        Member(0, "key", hkUint32),
-        Member(4, "value", hkUint32),
+        Member(0, "time", hkReal),
+        Member(4, "description", hkStringPtr),
     )
     members = local_members
 
-    key: int
-    value: int
+    time: float
+    descriptiopn: str

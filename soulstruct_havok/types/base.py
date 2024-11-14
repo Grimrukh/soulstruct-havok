@@ -19,6 +19,7 @@ __all__ = [
     "hkViewPtr_",
     "hkRelArray_",
     "hkArray_",
+    "SimpleArray_",
     "hkEnum_",
     "hkStruct_",
     "hkFreeListArray_",
@@ -29,6 +30,7 @@ __all__ = [
     "hkRefPtr",
     "hkRefVariant",
     "hkArray",
+    "SimpleArray",
     "hkViewPtr",
     "hkRelArray",
     "hkEnum",
@@ -631,6 +633,85 @@ class hkArray_(hkBasePointer):
         return []
 
 
+class SimpleArray_(hkBasePointer):
+    """Pseudo-array type that represents a combination of a pointer and 32-bit length in item data.
+    
+    Not a real type and does not appear in any type data. Never seen in newer Havok versions or tagfiles.
+    
+    Example from `hkaSkeleton` in Havok 5.5.0 SDK (C++):
+        hkInt16* parentIndices;
+        hkInt32 numParentIndices;
+        hkBone** bones;
+        hkInt32 numBones;
+    
+    These members are represented in Python types as:
+        parentIndices: SimpleArray(hkInt16)  # creates a `SimpleArray_[hkInt16]` type
+        bones: SimpleArray(hkBone)  # creates a `SimpleArray_[hkBone]` type    
+    """
+    # TODO: Unclear what these would be in tagfile (probably will never come up).
+    alignment = 4
+    byte_size = 8
+
+    _data_type: type[hk]
+
+    @classmethod
+    def unpack_tagfile(
+        cls, reader: BinaryReader, offset: int, items: list[TagFileItem] = None
+    ) -> list:
+        raise NotImplementedError("Cannot unpack `SimpleArray_` types from tagfiles.")        
+
+    @classmethod
+    def unpack_packfile(cls, item: PackFileDataItem, offset: int = None):
+        if offset is not None:
+            item.reader.seek(offset)
+        value = packfile.unpack_simple_array(cls.get_data_type(), item)
+        if debug.REQUIRE_INPUT:
+            input("Continue?")
+        return value
+
+    @classmethod
+    def pack_tagfile(
+        cls,
+        item: TagFileItem,
+        value: list[hk] | list[int] | list[float] | list[str] | list[bool],
+        items: list[TagFileItem],
+        existing_items: dict[hk, TagFileItem],
+        item_creation_queues: TagItemCreationQueues = None,
+    ):
+        raise NotImplementedError("Cannot pack `SimpleArray_` types to tagfiles.")
+
+    @classmethod
+    def pack_packfile(
+        cls,
+        item: PackFileDataItem,
+        value: list[hk] | list[int] | list[float] | list[str] | list[bool],
+        existing_items: dict[hk, PackFileDataItem],
+        data_pack_queues: PackItemCreationQueues,
+    ):
+        """Simple array length can be variable, unlike `hkStruct`."""
+        packfile.pack_simple_array(cls, item, value, existing_items, data_pack_queues)
+        if debug.REQUIRE_INPUT:
+            input("Continue?")
+
+    @classmethod
+    def get_hsh(cls) -> None:
+        """Not a real type."""
+        return None
+
+    @classmethod
+    def get_type_info(cls, long_varints: bool) -> TypeInfo:
+        """Only called by `TypeInfoGenerator._add_type()`, which should not be called on this type."""
+        raise TypeError("`SimpleArray_` is not a real Havok type and has no `TypeInfo`. This should not be called.")
+
+    @classmethod
+    def get_type_hierarchy(cls) -> list[type[hk]]:
+        return []  # no hierarchy
+
+    @classmethod
+    def get_default_value(cls):
+        return []
+
+
 class hkEnum_(hk):
     """Base for simple wrapper types (generated with `hkEnum` function below) that combines a storage type with a
     data type (whose sizes may not match). The name of the enum class is given by the data type. The storage type is
@@ -827,27 +908,27 @@ class hkFlags_(hk):
 
 # region Type Factory Functions
 
-def Ptr(data_type: HK_TYPE | DefType, hsh: int = None) -> tp.Type[Ptr_]:
+def Ptr(data_type: HK_TYPE | DefType, hsh: int = None) -> type[Ptr_]:
     """Create a `_Ptr` subclass dynamically, pointing to a particular type."""
     data_type_name = data_type.get_type_name()
     # noinspection PyTypeChecker
-    ptr_type = type(f"Ptr[{data_type_name}]", (Ptr_,), {})  # type: tp.Type[Ptr_]
+    ptr_type = type(f"Ptr[{data_type_name}]", (Ptr_,), {})  # type: type[Ptr_]
     ptr_type.set_data_type(data_type)
     ptr_type.set_hsh(hsh)
     return ptr_type
 
 
-def hkRefPtr(data_type: HK_TYPE | DefType, hsh: int = None) -> tp.Type[hkRefPtr_]:
+def hkRefPtr(data_type: HK_TYPE | DefType, hsh: int = None) -> type[hkRefPtr_]:
     """Create a `_hkRefPtr` subclass dynamically, pointing to a particular type."""
     data_type_name = data_type.get_type_name()
     # noinspection PyTypeChecker
-    ptr_type = type(f"hkRefPtr[{data_type_name}]", (hkRefPtr_,), {})  # type: tp.Type[hkRefPtr_]
+    ptr_type = type(f"hkRefPtr[{data_type_name}]", (hkRefPtr_,), {})  # type: type[hkRefPtr_]
     ptr_type.set_data_type(data_type)
     ptr_type.set_hsh(hsh)
     return ptr_type
 
 
-def hkRefVariant(data_type: HK_TYPE | DefType, hsh: int = None) -> tp.Type[hkRefVariant_]:
+def hkRefVariant(data_type: HK_TYPE | DefType, hsh: int = None) -> type[hkRefVariant_]:
     """Create a `hkRefVariant_` subclass dynamically, pointing to a particular type.
 
     Note that the pointed type must always be "hkReferencedObject".
@@ -858,7 +939,7 @@ def hkRefVariant(data_type: HK_TYPE | DefType, hsh: int = None) -> tp.Type[hkRef
             f"`hkRefVariant` was defined with a data type other than `hkReferencedObject`: {data_type_name}"
         )
     # noinspection PyTypeChecker
-    ptr_type = type(f"hkRefVariant[{data_type_name}]", (hkRefVariant_,), {})  # type: tp.Type[hkRefVariant_]
+    ptr_type = type(f"hkRefVariant[{data_type_name}]", (hkRefVariant_,), {})  # type: type[hkRefVariant_]
     ptr_type.set_data_type(data_type)
     ptr_type.set_hsh(hsh)
     return ptr_type
@@ -869,7 +950,7 @@ def hkArray(
     hsh: int = None,
     flags: int = hkArray_.Flags.DONT_DEALLOCATE_FLAG,
     forced_capacity: int | None = None,
-) -> tp.Type[hkArray_]:
+) -> type[hkArray_]:
     """Generates Havok's version of a `std::vector`-like "EZ Array" class.
 
     These arrays support dynamic resizing and possess other flags regarding their usage. Of course, for our purposes in
@@ -882,7 +963,7 @@ def hkArray(
     """
     data_type_name = data_type.get_type_name()
     # noinspection PyTypeChecker
-    array_type = type(f"hkArray[{data_type_name}]", (hkArray_,), {})  # type: tp.Type[hkArray_]
+    array_type = type(f"hkArray[{data_type_name}]", (hkArray_,), {})  # type: type[hkArray_]
     array_type.flags = flags
     array_type.forced_capacity = forced_capacity
     array_type.set_data_type(data_type)
@@ -890,51 +971,62 @@ def hkArray(
     return array_type
 
 
-def SimpleArray(
-    data_type: HK_TYPE | hkRefPtr_ | hkViewPtr_ | DefType,
-    hsh: int = None,
-):
-    """Generic "simple" array that is just a pointer and a length. No usage/capacity flags like `hkArray`."""
+def SimpleArray(data_type: HK_TYPE) -> type[SimpleArray_]:
+    """Generic "simple" array that is just a pointer and a 32-bit length. No usage/capacity flags like `hkArray`.
+    
+    Used in early Havok SDKs (5.5.0), particularly in Animation classes, which have sequential member pairs such as:
+        hkInt16* parentIndices;
+        hkInt32 numParentIndices;
+        hkaBone** bones;
+        hkInt32 numBones;
+    
+    Here in Python, these pointer/length member pairs are represented with `SimpleArray_` types.
+    """
+    data_type_name = data_type.get_type_name()
+    # noinspection PyTypeChecker
+    simple_array_type = type(f"SimpleArray[{data_type_name}]", (SimpleArray_,), {})  # type: type[SimpleArray_]
+    simple_array_type.set_data_type(data_type)
+    return simple_array_type
 
 
-def hkViewPtr(data_type_name: str, hsh: int = None) -> tp.Type[hkViewPtr_]:
+def hkViewPtr(data_type_name: str, hsh: int = None) -> type[hkViewPtr_]:
     """Create a `_hkViewPtr` subclass dynamically.
 
     To avoid Python circular imports, it is necessary to retrieve the type dynamically here from the module set in `hk`
     using a `DefType`. Since that's forced, the user only needs to give the type name.
     """
     # noinspection PyTypeChecker
-    ptr_type = type(f"hkViewPtr[{data_type_name}]", (hkViewPtr_,), {})  # type: tp.Type[hkViewPtr_]
+    ptr_type = type(f"hkViewPtr[{data_type_name}]", (hkViewPtr_,), {})  # type: type[hkViewPtr_]
     ptr_type.set_data_type(DefType(data_type_name, lambda: hk.get_module_type(data_type_name)))
     ptr_type.set_hsh(hsh)
     return ptr_type
 
 
-def hkRelArray(data_type: HK_TYPE) -> tp.Type[hkRelArray_]:
+def hkRelArray(data_type: HK_TYPE) -> type[hkRelArray_]:
     """Create a `hkRelArray_` subclass dynamically."""
     data_type_name = data_type.type_name if isinstance(data_type, DefType) else data_type.__name__
     # noinspection PyTypeChecker
-    rel_array_type = type(f"hkRelArray[{data_type_name}]", (hkRelArray_,), {})  # type: tp.Type[hkRelArray_]
+    rel_array_type = type(f"hkRelArray[{data_type_name}]", (hkRelArray_,), {})  # type: type[hkRelArray_]
     rel_array_type.set_data_type(data_type)
     return rel_array_type
 
 
-def hkEnum(enum_type: HK_TYPE, storage_type: HK_TYPE) -> tp.Type[hkEnum_]:
+def hkEnum(enum_type: HK_TYPE, storage_type: HK_TYPE) -> type[hkEnum_]:
     """Generates a `_hkEnum` subclass dynamically."""
     # noinspection PyTypeChecker
-    wrapper_type = type(f"hkEnum[{enum_type.__name__}]", (hkEnum_,), {})  # type: tp.Type[hkEnum_]
+    wrapper_type = type(f"hkEnum[{enum_type.__name__}]", (hkEnum_,), {})  # type: type[hkEnum_]
     wrapper_type.enum_type = enum_type
     wrapper_type.storage_type = storage_type
     return wrapper_type
 
 
-def hkStruct(data_type: HK_TYPE, length: int) -> tp.Type[hkStruct_]:
+def hkStruct(data_type: HK_TYPE, length: int) -> type[hkStruct_]:
     """Generates a `hkStruct_` subclass dynamically.
 
     Needs all the basic `hk` information, unfortunately, as it can vary (except `tag_format_flags`, which is always 11).
     """
     # noinspection PyTypeChecker
-    struct_type = type(f"hkStruct[{data_type.__name__}, {length}]", (hkStruct_,), {})  # type: tp.Type[hkStruct_]
+    struct_type = type(f"hkStruct[{data_type.__name__}, {length}]", (hkStruct_,), {})  # type: type[hkStruct_]
     struct_type.is_generic = False
     struct_type.set_data_type(data_type)
     if length > 255:
@@ -944,13 +1036,13 @@ def hkStruct(data_type: HK_TYPE, length: int) -> tp.Type[hkStruct_]:
     return struct_type
 
 
-def hkGenericStruct(data_type: HK_TYPE, length: int) -> tp.Type[hkStruct_]:
+def hkGenericStruct(data_type: HK_TYPE, length: int) -> type[hkStruct_]:
     """Generates a `hkStruct_` subclass dynamically.
 
     Needs all the basic `hk` information, unfortunately, as it can vary (except `tag_format_flags`, which is always 11).
     """
     # noinspection PyTypeChecker
-    struct_type = type(f"hkStruct[{data_type.__name__}, {length}]", (hkStruct_,), {})  # type: tp.Type[hkStruct_]
+    struct_type = type(f"hkStruct[{data_type.__name__}, {length}]", (hkStruct_,), {})  # type: type[hkStruct_]
     struct_type.is_generic = True
     struct_type.set_data_type(data_type)
     if length > 255:
@@ -972,7 +1064,7 @@ def hkFreeListArray(
     elements_data_type: HK_TYPE,
     first_free_data_type: HK_TYPE,
     elements_hsh: int = None,
-) -> tp.Type[hkFreeListArray_]:
+) -> type[hkFreeListArray_]:
     if isinstance(elements_data_type, DefType):
         elements_data_type_name = elements_data_type.type_name
     else:
@@ -983,7 +1075,7 @@ def hkFreeListArray(
         f"hkFreeListArray[{elements_data_type_name}, {first_free_data_type_name}]",
         (hkFreeListArray_,),
         {},
-    )  # type: tp.Type[hkFreeListArray_]
+    )  # type: type[hkFreeListArray_]
     hk_free_list_array_type.local_members = (
         Member(0, "elements", hkArray(elements_data_type, hsh=elements_hsh), MemberFlags.Protected),
         Member(16, "firstFree", first_free_data_type, MemberFlags.Protected),
@@ -992,9 +1084,9 @@ def hkFreeListArray(
     return hk_free_list_array_type
 
 
-def hkFlags(storage_type: HK_TYPE, hsh: int = None) -> tp.Type[hkFlags_]:
+def hkFlags(storage_type: HK_TYPE, hsh: int = None) -> type[hkFlags_]:
     # noinspection PyTypeChecker
-    flags_type = type(f"hkFlags[{storage_type.__name__}]", (hkFlags_,), {})  # type: tp.Type[hkFlags_]
+    flags_type = type(f"hkFlags[{storage_type.__name__}]", (hkFlags_,), {})  # type: type[hkFlags_]
     flags_type.alignment = storage_type.alignment
     flags_type.byte_size = storage_type.byte_size
     flags_type.tag_type_flags = storage_type.tag_type_flags

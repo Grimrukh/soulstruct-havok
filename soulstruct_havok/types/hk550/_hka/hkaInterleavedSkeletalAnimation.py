@@ -9,16 +9,18 @@ from .hkaSkeletalAnimation import hkaSkeletalAnimation
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkaInterleavedSkeletalAnimation(hkaSkeletalAnimation):
-    alignment = 8
-    byte_size = 48
+    alignment = 4
+    byte_size = 52
     tag_type_flags = TagDataType.Class
 
-    __tag_format_flags = 45
-    __hsh = 3449291259  # TODO
+    __tag_format_flags = 41
+    __hsh = 1655713403
 
     local_members = (
-        Member(36, "transforms", hkArray(hkQsTransform), MemberFlags.Private),
+        Member(36, "transforms", SimpleArray(hkQsTransform)),
+        Member(44, "floats", SimpleArray(hkReal)),
     )
     members = hkaSkeletalAnimation.members + local_members
 
     transforms: list[hkQsTransform]
+    floats: list[float]

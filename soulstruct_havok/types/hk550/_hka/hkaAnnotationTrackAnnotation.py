@@ -13,6 +13,7 @@ class hkaAnnotationTrackAnnotation(hk):
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
+    __hsh = 1930987722
 
     local_members = (
         Member(0, "time", hkReal),

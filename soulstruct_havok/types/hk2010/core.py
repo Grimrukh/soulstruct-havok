@@ -31,6 +31,7 @@ __all__ = [
     "hkRefPtr",
     "hkRefVariant",
     "hkArray",
+    "SimpleArray",
     "hkViewPtr",
     "hkRelArray",
     "hkEnum",
@@ -537,7 +538,7 @@ class hkBaseObject(hk):
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkReferencedObject(hkBaseObject):
-    alignment = 8
+    alignment = 4
     byte_size = 8
     __tag_format_flags = 41
     tag_type_flags = 7

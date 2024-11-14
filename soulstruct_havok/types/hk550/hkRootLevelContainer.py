@@ -14,7 +14,7 @@ class hkRootLevelContainer(hk):
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
-    __hsh = 661831966
+    __hsh = 4120421198
 
     local_members = (
         Member(0, "namedVariants", hkArray(hkRootLevelContainerNamedVariant, flags=0, forced_capacity=0)),

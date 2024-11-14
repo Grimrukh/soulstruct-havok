@@ -13,7 +13,7 @@ from .hkaSkeletonMapperDataMappingType import hkaSkeletonMapperDataMappingType
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkaSkeletonMapperData(hk):
     alignment = 16
-    byte_size = 112
+    byte_size = 48
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
@@ -24,9 +24,7 @@ class hkaSkeletonMapperData(hk):
         Member(8, "simpleMappings", hkArray(hkaSkeletonMapperDataSimpleMapping)),
         Member(20, "chainMappings", hkArray(hkaSkeletonMapperDataChainMapping)),
         Member(32, "unmappedBones", hkArray(hkInt16)),
-        Member(48, "extractedMotionMapping", hkQsTransform),
-        Member(96, "keepUnmappedLocal", hkBool),
-        Member(100, "mappingType", hkEnum(hkaSkeletonMapperDataMappingType, hkInt32)),
+        Member(44, "keepUnmappedLocal", hkBool),
     )
     members = local_members
 
@@ -35,6 +33,4 @@ class hkaSkeletonMapperData(hk):
     simpleMappings: list[hkaSkeletonMapperDataSimpleMapping]
     chainMappings: list[hkaSkeletonMapperDataChainMapping]
     unmappedBones: list[int]
-    extractedMotionMapping: hkQsTransform
     keepUnmappedLocal: bool
-    mappingType: int

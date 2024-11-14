@@ -9,18 +9,19 @@ from .hkxMeshUserChannelInfo import hkxMeshUserChannelInfo
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
-class hkxMesh(hkReferencedObject):
-    alignment = 16
-    byte_size = 32
+class hkxMesh(hk):
+    alignment = 4
+    byte_size = 16
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
+    __hsh = 1927866441
 
     local_members = (
-        Member(8, "sections", hkArray(Ptr(hkxMeshSection))),
-        Member(20, "userChannelInfos", hkArray(Ptr(hkxMeshUserChannelInfo))),
+        Member(0, "sections", SimpleArray(Ptr(hkxMeshSection))),
+        Member(8, "userChannelInfos", SimpleArray(hkxMeshUserChannelInfo)),
     )
-    members = hkReferencedObject.members + local_members
+    members = local_members
 
     sections: list[hkxMeshSection]
     userChannelInfos: list[hkxMeshUserChannelInfo]

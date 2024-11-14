@@ -4,23 +4,25 @@ from dataclasses import dataclass
 
 from soulstruct_havok.enums import *
 from ..core import *
-from .hkxVertexBufferVertexData import hkxVertexBufferVertexData
-from .hkxVertexDescription import hkxVertexDescription
+from .hkxVertexFormat import hkxVertexFormat
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
-class hkxVertexBuffer(hkReferencedObject):
-    alignment = 16
-    byte_size = 104
+class hkxVertexBuffer(hk):
+    alignment = 4
+    byte_size = 16
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
+    __hsh = 1460016212
 
     local_members = (
-        Member(8, "data", hkxVertexBufferVertexData),
-        Member(92, "desc", hkxVertexDescription),
+        Member(0, "vertexDataClass", Ptr(hk)),
+        Member(4, "vertexData", SimpleArray(_void)),
+        Member(12, "format", Ptr(hkxVertexFormat)),
     )
-    members = hkReferencedObject.members + local_members
+    members = local_members
 
-    data: hkxVertexBufferVertexData
-    desc: hkxVertexDescription
+    vertexDataClass: hk
+    vertexData: list[_void]
+    format: hkxVertexFormat

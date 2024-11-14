@@ -31,6 +31,7 @@ __all__ = [
     "hkRefPtr",
     "hkRefVariant",
     "hkArray",
+    "SimpleArray",
     "hkViewPtr",
     "hkRelArray",
     "hkEnum",
@@ -534,6 +535,8 @@ class hkBaseObject(hk):
     tag_type_flags = 7
     local_members = ()
 
+    __hsh = 3765471744
+
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkReferencedObject(hkBaseObject):
@@ -541,6 +544,8 @@ class hkReferencedObject(hkBaseObject):
     byte_size = 8
     __tag_format_flags = 41
     tag_type_flags = 7
+
+    __hsh = 991695123
 
     local_members = (
         Member(4, "memSizeAndFlags", hkUint16, MemberFlags.NotSerializable | MemberFlags.Private),

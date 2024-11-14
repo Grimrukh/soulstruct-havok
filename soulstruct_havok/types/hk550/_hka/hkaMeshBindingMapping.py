@@ -13,6 +13,7 @@ class hkaMeshBindingMapping(hk):
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
+    __hsh = 1302767348
 
     local_members = (
         Member(0, "mapping", hkArray(hkInt16)),

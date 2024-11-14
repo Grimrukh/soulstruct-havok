@@ -14,6 +14,7 @@ class hkxIndexBuffer(hkReferencedObject):
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
+    __hsh = 478841911
 
     local_members = (
         Member(8, "indexType", hkEnum(hkxIndexBufferIndexType, hkInt8)),

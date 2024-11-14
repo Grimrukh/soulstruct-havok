@@ -125,7 +125,7 @@ class AnimationHKX(BaseAnimationHKX):
                 header_version=PackFileVersion.Version0x08,
                 pointer_size=4,
                 is_little_endian=True,
-                padding_option=0,
+                reuse_padding_optimization=0,
                 contents_version_string=b"hk_2010.2.0-r1",
                 flags=0,
                 header_extension=None,
