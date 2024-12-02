@@ -2,6 +2,7 @@ from __future__ import annotations
 
 __all__ = ["AnimationContainer"]
 
+import copy
 import logging
 import typing as tp
 from types import ModuleType
@@ -37,7 +38,7 @@ class AnimationContainer(tp.Generic[
 
     types_module: ModuleType | None
     # TODO: confusing to have the same name as this class. Change to `hkx_animation_container`?
-    animation_container: ANIMATION_CONTAINER_T
+    hkx_container: ANIMATION_CONTAINER_T
 
     # Loaded upon first use or explicit `load_spline_data()` call. Will be resaved on `pack()` if present, or with
     # explicit `save_spline_data()` call.
@@ -54,36 +55,41 @@ class AnimationContainer(tp.Generic[
     # ```
     interleaved_data: list[list[TRSTransform]] | None = None
 
-    def __init__(self, types_module: ModuleType, animation_container: ANIMATION_CONTAINER_T):
+    def __init__(self, types_module: ModuleType, hkx_animation_container: ANIMATION_CONTAINER_T):
         self.types_module = types_module
-        self.animation_container = animation_container
+        self.hkx_container = hkx_animation_container
         self.spline_data = None
         self.interleaved_data = None
 
         if self.is_interleaved:  # basic enough to do outomatically
             self.load_interleaved_data()
 
-    @property
-    def animation(self) -> ANIMATION_T:
-        return self.animation_container.animations[0]
+    def __deepcopy__(self, memo):
+        """Don't copy `types_module`."""
+        return self.__class__(self.types_module, copy.deepcopy(self.hkx_container, memo))
 
     @property
-    def animation_binding(self) -> ANIMATION_BINDING_T:
-        return self.animation_container.bindings[0]
+    def hkx_animation(self) -> ANIMATION_T:
+        return self.hkx_container.animations[0]
+
+    @property
+    def hkx_binding(self) -> ANIMATION_BINDING_T:
+        return self.hkx_container.bindings[0]
 
     def load_spline_data(self, reload=False):
+        """Spline-compressed data is not loaded automatically."""
         if self.is_spline:
             if self.spline_data is not None and not reload:
                 # Already exists. Do nothing.
                 return
             # Otherwise, regenerate spline data.
             self.spline_data = SplineCompressedAnimationData(
-                data=self.animation.data,
-                transform_track_count=self.animation.numberOfTransformTracks,
-                block_count=self.animation.numBlocks,
+                data=self.hkx_animation.data,
+                transform_track_count=self.hkx_animation.numberOfTransformTracks,
+                block_count=self.hkx_animation.numBlocks,
             )
         else:
-            raise TypeError(f"Animation type `{type(self.animation).__name__}` is not spline-compressed.")
+            raise TypeError(f"Animation type `{type(self.hkx_animation).__name__}` is not spline-compressed.")
 
     def save_spline_data(self):
         """NOTE: If any animation properties such as `duration` or `numFrames` change, they must be set separately.
@@ -98,24 +104,24 @@ class AnimationContainer(tp.Generic[
             if not self.spline_data:
                 raise ValueError("Spline data has not been loaded yet. Nothing to save.")
             data, block_count, track_count = self.spline_data.pack()
-            self.animation.data = data
-            self.animation.numBlocks = block_count
-            self.animation.floatBlockOffsets = [len(data) - 4]
-            self.animation.numberOfTransformTracks = track_count
+            self.hkx_animation.data = data
+            self.hkx_animation.numBlocks = block_count
+            self.hkx_animation.floatBlockOffsets = [len(data) - 4]
+            self.hkx_animation.numberOfTransformTracks = track_count
             _LOGGER.info("Saved spline data to animation.")
         else:
-            raise TypeError(f"Animation type `{type(self.animation).__name__}` is not spline-compressed.")
+            raise TypeError(f"Animation type `{type(self.hkx_animation).__name__}` is not spline-compressed.")
 
     def load_interleaved_data(self, reload=False):
         if not self.is_interleaved:
-            raise TypeError(f"Animation type `{type(self.animation).__name__}` is not interleaved.")
+            raise TypeError(f"Animation type `{type(self.hkx_animation).__name__}` is not interleaved.")
 
         if self.interleaved_data is not None and not reload:
             # Already exists. Do nothing.
             return
         # Otherwise, reorganize lists and convert transforms to `TRSTransform`.
-        track_count = self.animation.numberOfTransformTracks
-        transforms = self.animation.transforms
+        track_count = self.hkx_animation.numberOfTransformTracks
+        transforms = self.hkx_animation.transforms
         if len(transforms) % track_count > 0:
             raise ValueError(
                 f"Number of transforms in interleaved animation data ({len(transforms)}) is not a multiple of the "
@@ -129,7 +135,7 @@ class AnimationContainer(tp.Generic[
     def save_interleaved_data(self):
         """Convert exposed interleaved `TRSTransform` nested lists back to Havok types."""
         if not self.is_interleaved:
-            raise TypeError(f"Animation type `{type(self.animation).__name__}` is not interleaved.")
+            raise TypeError(f"Animation type `{type(self.hkx_animation).__name__}` is not interleaved.")
 
         if not self.interleaved_data:
             raise ValueError("Interleaved data has not been loaded yet. Nothing to save.")
@@ -145,8 +151,8 @@ class AnimationContainer(tp.Generic[
                     f"{track_count} vs {len(frame)}."
                 )
             transforms += [qs_transform_cls.from_trs_transform(t) for t in frame]
-        self.animation.transforms = transforms
-        self.animation.numberOfTransformTracks = track_count  # guaranteed to be set above
+        self.hkx_animation.transforms = transforms
+        self.hkx_animation.numberOfTransformTracks = track_count  # guaranteed to be set above
         _LOGGER.info("Saved interleaved data to animation.")
 
     def get_reference_frame_samples(self) -> np.ndarray:
@@ -154,10 +160,10 @@ class AnimationContainer(tp.Generic[
 
         The fourth column of the array is Y-axis rotation in radians.
         """
-        if not self.animation.extractedMotion:
+        if not self.hkx_animation.extractedMotion:
             raise ValueError("No `extractedMotion` reference frame exists for this animation.")
 
-        extracted_motion = self.animation.extractedMotion
+        extracted_motion = self.hkx_animation.extractedMotion
         if hasattr(extracted_motion, "referenceFrameSamples"):
             return extracted_motion.referenceFrameSamples
 
@@ -182,7 +188,7 @@ class AnimationContainer(tp.Generic[
 
         duration = (len(samples) - 1) / frame_rate
 
-        if not self.animation.extractedMotion:
+        if not self.hkx_animation.extractedMotion:
 
             default_animated_ref_frame_type = getattr(self.types_module, "hkaDefaultAnimatedReferenceFrame", None)
             if default_animated_ref_frame_type is None:
@@ -191,7 +197,7 @@ class AnimationContainer(tp.Generic[
                     "not create it."
                 )
 
-            self.animation.extracted_motion = default_animated_ref_frame_type(
+            self.hkx_animation.extracted_motion = default_animated_ref_frame_type(
                 up=Vector4((0.0, 1.0, 0.0, 0.0)),
                 forward=Vector4((0.0, 0.0, 1.0, 0.0)),
                 duration=duration,
@@ -201,7 +207,7 @@ class AnimationContainer(tp.Generic[
             _LOGGER.info("Created new `hkaDefaultAnimatedReferenceFrame` instance for animation root motion samples.")
             return
 
-        extracted_motion = self.animation.extractedMotion
+        extracted_motion = self.hkx_animation.extractedMotion
         if not hasattr(extracted_motion, "referenceFrameSamples"):
             cls_name = extracted_motion.__class__.__name__
             raise TypeError(
@@ -215,8 +221,8 @@ class AnimationContainer(tp.Generic[
 
     def set_animation_duration(self, duration: float):
         """Set `duration` in both the animation and (if applicable) the reference frame."""
-        self.animation.duration = duration
-        extracted_motion = self.animation.extractedMotion
+        self.hkx_animation.duration = duration
+        extracted_motion = self.hkx_animation.extractedMotion
         if hasattr(extracted_motion, "duration"):
             extracted_motion.duration = duration
 
@@ -224,21 +230,21 @@ class AnimationContainer(tp.Generic[
         """Annotations may not be present, which will make this list empty."""
         return [
             annotation_track.trackName
-            for annotation_track in self.animation.annotationTracks
+            for annotation_track in self.hkx_animation.annotationTracks
         ]
 
     def get_track_bone_indices(self) -> list[int]:
-        return self.animation_binding.transformTrackToBoneIndices
+        return self.hkx_binding.transformTrackToBoneIndices
 
     def get_track_index_of_bone(self, bone_index: int):
         try:
-            return self.animation_binding.transformTrackToBoneIndices.index(bone_index)
+            return self.hkx_binding.transformTrackToBoneIndices.index(bone_index)
         except IndexError:
             raise IndexError(f"Bone index {bone_index} has no corresponding track index.")
 
     def get_bone_index_of_track(self, track_index: int):
         try:
-            return self.animation_binding.transformTrackToBoneIndices[track_index]
+            return self.hkx_binding.transformTrackToBoneIndices[track_index]
         except IndexError:
             raise IndexError(f"There is no animation track with index {track_index}.")
 
@@ -262,7 +268,7 @@ class AnimationContainer(tp.Generic[
                     frame[track_index].translation = transform.transform_vector(frame[track_index].translation)
         else:
             raise TypeError(
-                f"Animation is not interleaved or spline-compressed: {type(self.animation)}. Cannot transform data."
+                f"Animation is not interleaved or spline-compressed: {type(self.hkx_animation)}. Cannot transform data."
             )
 
         self.try_transform_root_motion(transform)
@@ -289,7 +295,7 @@ class AnimationContainer(tp.Generic[
                 raise ValueError("Spline data has not been loaded yet. Nothing to reverse.")
             self.spline_data.reverse()
         elif self.is_interleaved:
-            self.animation.transforms = list(reversed(self.animation.transforms))
+            self.hkx_animation.transforms = list(reversed(self.hkx_animation.transforms))
             if self.interleaved_data:
                 # Reload interleaved data if it's already loaded.
                 self.load_interleaved_data(reload=True)
@@ -318,44 +324,6 @@ class AnimationContainer(tp.Generic[
         self.set_reference_frame_samples(reference_frame_samples)
         return True
 
-    def spline_to_interleaved(self):
-        """Change animation data type in-place from `hkaSplineCompressedAnimation` to
-        `hkaInterleavedUncompressedAnimation`.
-
-        Note that this is much more complicated to reverse: the entire Havok file must be downgraded to 2010,
-        converted with an executable compiled by Horkrux, and upgraded back to the desired version (which only Havok
-        2015 currently supports).
-        """
-        if not self.is_spline:
-            raise TypeError("Animation is not spline-compressed. Cannot convert to interleaved.")
-        if not self.spline_data:
-            self.load_spline_data()
-
-        try:
-            interleaved_cls = self.types_module.hkaInterleavedUncompressedAnimation  # type: INTERLEAVED_ANIMATION_T
-        except AttributeError:
-            raise TypeError("No `hkaInterleavedUncompressedAnimation` class exists for this Havok version.")
-
-        self.interleaved_data = self.spline_data.to_interleaved_transforms(
-            self.animation.numFrames,
-            self.animation.maxFramesPerBlock,
-        )
-
-        # Save interleaved data to concatenated list (for writing directly to new Havok instance).
-        qs_transform_cls = self.types_module.hkQsTransform
-        transforms = []
-        for frame in self.interleaved_data:
-            transforms += [qs_transform_cls.from_trs_transform(t) for t in frame]
-
-        # All `hkaInterleavedUncompressedAnimation` instances have this conversion class method.
-        interleaved_animation = interleaved_cls.from_spline_animation(self.animation, transforms)
-
-        # Set Havok instance and binding.
-        self.animation_container.animations = [interleaved_animation]
-        self.animation_binding.animation = interleaved_animation
-
-        self.spline_data = None
-
     def get_track_parent_indices(self, skeleton: Skeleton) -> list[int]:
         """Get a list of parent indices (-1 for root tracks) based on the parent bones of corresponding bones in
         `skeleton`.
@@ -365,7 +333,7 @@ class AnimationContainer(tp.Generic[
 
         TODO: Tracks may sometimes 'skip' a generation of bones. I should use the reference pose in this case.
         """
-        track_bone_indices = self.animation_binding.transformTrackToBoneIndices
+        track_bone_indices = self.hkx_binding.transformTrackToBoneIndices
         track_parent_indices = []  # type: list[int]
         for track_index, bone_index in enumerate(track_bone_indices):
             bone = skeleton.bones[bone_index]
@@ -384,7 +352,7 @@ class AnimationContainer(tp.Generic[
 
         TODO: Tracks may sometimes 'skip' a generation of bones. I should use the reference pose in this case.
         """
-        track_bone_indices = self.animation_binding.transformTrackToBoneIndices
+        track_bone_indices = self.hkx_binding.transformTrackToBoneIndices
         track_child_indices = []  # type: list[list[int]]
         for track_index, bone_index in enumerate(track_bone_indices):
             bone = skeleton.bones[bone_index]
@@ -398,7 +366,7 @@ class AnimationContainer(tp.Generic[
 
     def get_root_track_indices(self, skeleton: Skeleton) -> list[int]:
         """Get a list of track indices that correspond to root bones in `skeleton`."""
-        track_bone_indices = self.animation_binding.transformTrackToBoneIndices
+        track_bone_indices = self.hkx_binding.transformTrackToBoneIndices
         root_track_indices = []  # type: list[int]
         for track_index in range(len(track_bone_indices)):
             bone_index = track_bone_indices[track_index]  # will almost always be the same, but being safe
@@ -414,7 +382,7 @@ class AnimationContainer(tp.Generic[
         Does NOT modify this instance.
         """
         if not self.is_interleaved:
-            raise TypeError(f"Animation type `{type(self.animation).__name__}` is not interleaved.")
+            raise TypeError(f"Animation type `{type(self.hkx_animation).__name__}` is not interleaved.")
         if not self.interleaved_data:
             self.load_interleaved_data()
 
@@ -460,7 +428,7 @@ class AnimationContainer(tp.Generic[
         """Convert `frames` (list of lists of transforms in armature space) to local HKX bone space and set to
         interleaved data of this animation."""
         if not self.is_interleaved:
-            raise TypeError(f"Animation type `{type(self.animation).__name__}` is not interleaved.")
+            raise TypeError(f"Animation type `{type(self.hkx_animation).__name__}` is not interleaved.")
         if not self.interleaved_data:
             self.load_interleaved_data()
 
@@ -515,26 +483,79 @@ class AnimationContainer(tp.Generic[
         elif self.is_interleaved and self.interleaved_data:
             self.save_interleaved_data()
 
+    def to_interleaved_container(self) -> tp.Self:
+        """Get a (deep) copy of this animation that uses the interleaved (uncompressed) format.
+
+        These interleaved animations are not suitable for game use, as they are very large, but this is a far more
+        useful format for editing (e.g. with Soulstruct for Blender).
+
+        Re-compressing the animation (usually as spline, but as wavelet in Demon's Souls) is much more complicated and
+        is handled on a per-game basis with other methods. (It generally involves use of an external Havok executable.)
+        """
+        if self.is_interleaved:
+            raise ValueError("Animation is already interleaved. If you want a copy, do that explicitly.")
+
+        # This base method can only handle spline animations.
+        if not self.is_spline:
+            raise ValueError(
+                "This animation wrapper class can only convert spline-compressed animations to interleaved, not type: "
+                f"{type(self.hkx_animation).__name__}"
+            )
+        if not self.spline_data:
+            self.load_spline_data()
+
+        # NOTE: Old Demon's Souls `hkaInterleavedSkeletalAnimation` class checked in override of this method.
+        try:
+            interleaved_cls = self.types_module.hkaInterleavedUncompressedAnimation  # type: INTERLEAVED_ANIMATION_T
+        except AttributeError:
+            raise TypeError("No `hkaInterleavedUncompressedAnimation` class exists for this Havok version.")
+
+        interleaved_data = self.spline_data.to_interleaved_transforms(
+            self.hkx_animation.numFrames,
+            self.hkx_animation.maxFramesPerBlock,
+        )
+
+        # Save interleaved data to concatenated list (for writing directly to new Havok instance).
+        qs_transform_cls = self.types_module.hkQsTransform
+        transforms = []
+        for frame in self.interleaved_data:
+            transforms += [qs_transform_cls.from_trs_transform(t) for t in frame]
+
+        # All `hkaInterleavedUncompressedAnimation` instances have this conversion class method.
+        interleaved_animation = interleaved_cls.from_spline_animation(self.hkx_animation, transforms)
+
+        interleaved_self = copy.deepcopy(self)
+        interleaved_self.hkx_binding.animation = interleaved_animation
+        interleaved_self.hkx_container.animations = [interleaved_animation]
+        interleaved_self.spline_data = None
+        interleaved_self.interleaved_data = interleaved_data
+        interleaved_self.save_data()
+
+        return interleaved_self
+
     @property
     def is_spline(self) -> bool:
-        return type(self.animation).__name__.startswith("hkaSpline")
+        """We check type name rather than animation enum, which is not consistent in all games."""
+        return type(self.hkx_animation).__name__.startswith("hkaSpline")
 
     @property
     def is_interleaved(self) -> bool:
-        return type(self.animation).__name__.startswith("hkaInterleaved")
+        """We check type name rather than animation enum, which is not consistent in all games."""
+        return type(self.hkx_animation).__name__.startswith("hkaInterleaved")
 
     @property
     def is_wavelet(self) -> bool:
-        return type(self.animation).__name__.startswith("hkaWavelet")
+        """Only used in Demon's Souls."""
+        return type(self.hkx_animation).__name__.startswith("hkaWavelet")
 
     @property
     def track_count(self):
-        return self.animation.numberOfTransformTracks
+        return self.hkx_animation.numberOfTransformTracks
 
     @property
     def frame_count(self):
         if self.is_spline:
-            return self.animation.numFrames
+            return self.hkx_animation.numFrames
         elif self.is_interleaved:
-            return len(self.animation.transforms) // self.animation.numberOfTransformTracks
+            return len(self.hkx_animation.transforms) // self.hkx_animation.numberOfTransformTracks
         raise TypeError("Cannot infer animation frame count from non-spline, non-interleaved animation type.")

@@ -46,7 +46,7 @@ class AnimationHKX(BaseAnimationHKX):
         )
         return kwargs
 
-    def get_spline_hkx(self) -> AnimationHKX:
+    def to_spline_hkx(self) -> AnimationHKX:
         """Uses Horkrux's compiled converter to convert interleaved HKX to spline HKX.
 
         Returns an entire new instance of this class.

@@ -5,6 +5,7 @@ __all__ = [
 ]
 
 import abc
+import copy
 import logging
 import typing as tp
 from dataclasses import dataclass
@@ -304,16 +305,36 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
         )
         return cls(root=root, **cls.get_default_hkx_kwargs())
 
-    def get_spline_hkx(self) -> tp.Self:
+    def to_interleaved_hkx(self) -> tp.Self:
+        """Conversion to interleaved is implemented by the `AnimationContainer` wrapper."""
+        if self.animation_container.is_interleaved:
+            raise ValueError("Animation is already interleaved.")
+
+        interleaved_self = copy.deepcopy(self)
+        # This will complain if the current format is unsupported by this `AnimationContainer` class.
+        interleaved_container = self.animation_container.to_interleaved_container()
+        interleaved_self.animation_container = interleaved_container
+        return interleaved_self
+
+    def to_spline_hkx(self) -> tp.Self:
         """Get a spline-compressed version of this interleaved animation.
 
         Implemented per subclass and generally involves a round trip to hk2010.
         """
         raise TypeError(f"{self.__class__.__name__} cannot be spline-compressed by Soulstruct.")
 
+    def to_wavelet_hkx(self) -> tp.Self:
+        """Get a wavelet-compressed version of this interleaved animation.
+
+        Implemented only by hk550 for Demon's Souls.
+        """
+        raise TypeError(f"{self.__class__.__name__} cannot be wavelet-compressed by Soulstruct.")
+
     def __repr__(self):
         if self.animation_container.is_spline:
             return f"{self.__class__.__name__}(<SplineCompressed>)"
         if self.animation_container.is_interleaved:
             return f"{self.__class__.__name__}(<Interleaved>)"
+        if self.animation_container.is_wavelet:
+            return f"{self.__class__.__name__}(<WaveletCompressed>)"
         return f"{self.__class__.__name__}(<Unknown Type>)"

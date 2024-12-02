@@ -21,7 +21,7 @@ class ANIBND(BaseANIBND):
     # Type hint override for base method.
     get_animation_container: tp.ClassVar[tp.Callable[[int | None], AnimationContainerType]]
 
-    def convert_interleaved_to_spline_anim(self, anim_id: int = None):
+    def convert_to_wavelet(self, anim_id: int = None):
         """Convert to spline animation by a downgrade -> Horkrux SDK conversion -> upgrade process."""
         animation = self.animations_hkx[anim_id]
         spline_anim = animation.to_spline_hkx()

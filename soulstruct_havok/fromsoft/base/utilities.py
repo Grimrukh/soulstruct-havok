@@ -12,9 +12,8 @@ __all__ = [
 import logging
 import typing as tp
 
-from soulstruct_havok.utilities.maths import Matrix4, Vector3, Vector4
-
 from soulstruct_havok.types import hk2010, hk2014, hk2015, hk2016, hk2018
+from soulstruct_havok.utilities.maths import Matrix4, Vector3, Vector4
 
 _LOGGER = logging.getLogger("soulstruct_havok")
 

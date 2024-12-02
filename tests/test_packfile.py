@@ -86,11 +86,11 @@ def dsr_spline_conversion_test():
 
     SET_DEBUG_PRINT(unpack=False, pack=False)
 
-    anim = AnimationHKX.from_path("resources/DSR/c2240/a00_0000.hkx")
-    anim.animation_container.spline_to_interleaved()
-    spline = anim.get_spline_hkx()
-    spline.write("c2240_resplined_a00_0000.hkx")
-    re_spline = AnimationHKX.from_path("c2240_resplined_a00_0000.hkx")
+    anim_spline = AnimationHKX.from_path("resources/DSR/c2240/a00_0000.hkx")
+    anim_interleaved = anim_spline.to_interleaved_hkx()
+    anim_re_spline = anim_interleaved.to_spline_hkx()
+    anim_re_spline.write("c2240_resplined_a00_0000.hkx")
+    AnimationHKX.from_path("c2240_resplined_a00_0000.hkx")
 
 
 if __name__ == '__main__':

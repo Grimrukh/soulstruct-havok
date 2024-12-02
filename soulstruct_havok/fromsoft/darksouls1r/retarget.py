@@ -7,7 +7,6 @@ __all__ = [
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 
-from soulstruct_havok.utilities.maths import TRSTransform
 from soulstruct_havok.fromsoft.darksouls1r.core import AnimationHKX, SkeletonHKX
 from soulstruct_havok.fromsoft.darksouls1r.anibnd import ANIBND
 
@@ -26,9 +25,9 @@ def retarget_animation(
 
     # 1. PREPROCESSING.
 
-    animation = animation_hkx.animation_container
-    if animation.is_spline:
-        animation.spline_to_interleaved()
+    container = animation_hkx.animation_container
+    if container.is_spline:
+        container = container.to_interleaved_container()
 
     # Get names and local (hierarchical) reference poses of skeleton bones.
     skeleton_a_ref_pose = skeleton_a_hkx.skeleton.get_reference_poses()
@@ -54,7 +53,7 @@ def retarget_animation(
     skeleton_b_arma_ref_pose = skeleton_b_hkx.skeleton.get_arma_space_reference_poses()
 
     # Get armature-space frames. Outer list is frames, inner list is bones.
-    arma_space_frames = animation.get_interleaved_data_in_armature_space(skeleton_a_hkx.skeleton)
+    arma_space_frames = container.get_interleaved_data_in_armature_space(skeleton_a_hkx.skeleton)
 
     # Convert to NumPy (frames x bones x 10).
     anim_data = np.array([
@@ -141,6 +140,8 @@ def retarget_animation(
             anim_data_b[:, idx_b, :3] = t
             anim_data_b[:, idx_b, 3:7] = r
             anim_data_b[:, idx_b, 7:] = s
+
+    # TODO: Finish...
 
 
 if __name__ == '__main__':

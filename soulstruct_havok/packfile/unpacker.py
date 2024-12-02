@@ -2,6 +2,7 @@ from __future__ import annotations
 
 __all__ = ["PackFileUnpacker"]
 
+import copy
 import logging
 import typing as tp
 from dataclasses import dataclass, field
@@ -64,6 +65,22 @@ class PackFileUnpacker:
     class_hashes: dict[str, int] = field(default_factory=dict)  # maps class names to hashes
     data_items: list[PackFileDataItem] = field(default_factory=list)
     root: ROOT_TYPING = None
+
+    def __deepcopy__(self, memo):
+        new_instance = self.__class__(
+            hk_types_module=self.hk_types_module,
+            byte_order=copy.deepcopy(self.byte_order),
+            hk_version=copy.deepcopy(self.hk_version),
+            header=copy.deepcopy(self.header),
+            header_extension=copy.deepcopy(self.header_extension),
+            type_items=copy.deepcopy(self.type_items),
+            hk_type_infos=copy.deepcopy(self.hk_type_infos),
+            class_names=copy.deepcopy(self.class_names),
+            class_hashes=copy.deepcopy(self.class_hashes),
+            data_items=copy.deepcopy(self.data_items),
+            root=copy.deepcopy(self.root),
+        )
+        return new_instance
 
     def unpack(self, reader: BinaryReader, types_only=False):
 

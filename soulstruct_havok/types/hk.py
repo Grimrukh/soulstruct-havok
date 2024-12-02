@@ -10,7 +10,6 @@ __all__ = [
     "DefType",
 ]
 
-import copy
 import inspect
 import re
 import typing as tp
@@ -130,17 +129,6 @@ class hk:
     __interfaces: tp.ClassVar[tuple[TemplateValue | TemplateType, ...]] = ()
     
     # No instance variables in this base class. All defined by subclasses.
-
-    def copy(self):
-        """Make a deep copy of this `hk` instance by calling `copy()` on `hk`-type members and built-in `deepcopy()` on
-        primitive-type members."""
-        self_copy = self.__class__()
-        for member_name in self.get_member_names():
-            member_value = getattr(self, member_name)
-            if isinstance(member_value, hk):  # recur on member data `hk.copy()`
-                setattr(self_copy, member_name, member_value.copy())
-            else:  # primitive Python type
-                setattr(self_copy, member_name, copy.deepcopy(member_value))
 
     @classmethod
     def get_default_value(cls):
@@ -560,9 +548,9 @@ class hk:
 
     def __getitem__(self, member_name: str):
         if not self.members:
-            raise TypeError(f"Havok type {self.__class__.__name__} has no members.")
+            raise TypeError(f"Havok type {self.cls_name} has no members.")
         if member_name not in self.get_member_names():
-            raise AttributeError(f"Havok type {self.__class__.__name__} has no member called '{member_name}'.")
+            raise AttributeError(f"Havok type {self.cls_name} has no member called '{member_name}'.")
         if member_name[0].isdigit():
             member_name = f"_{member_name}"
         return getattr(self, member_name)
@@ -653,7 +641,7 @@ class hk:
         if instances_repeated is None:
             instances_repeated = set()
 
-        lines = [f"{self.__class__.__name__}("]
+        lines = [f"{self.cls_name}("]
         for member in self.members:
             member_value = getattr(self, member.py_name)
             if (
@@ -824,6 +812,10 @@ class hk:
 
     def __repr__(self):
         return f"{type(self).__name__}()"
+
+    @property
+    def cls_name(self) -> str:
+        return self.__class__.__name__
 
     def get_full_repr(self, indent=0):
         ind = " " * indent

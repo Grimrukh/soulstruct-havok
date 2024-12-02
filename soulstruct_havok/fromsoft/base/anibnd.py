@@ -127,14 +127,32 @@ class BaseANIBND(Binder, abc.ABC):
             anim_id = self.default_anim_id
         return self.animations_hkx[anim_id].animation_container
 
+    def set_animation_container(self, anim_id: int, animation_container: AnimationContainer):
+        """Replace the animation container for `anim_id`. The `AnimationHKX` must already exist."""
+        if anim_id is None:
+            if self.default_anim_id is None:
+                raise ValueError("Default animation ID has not been set.")
+            anim_id = self.default_anim_id
+        self.animations_hkx[anim_id].animation_container = animation_container
+
     def __getitem__(self, anim_id: int) -> AnimationContainer:
+        """Get the managed `AnimationContainer` for the given `anim_id`."""
         return self.get_animation_container(anim_id)
+
+    def __setitem__(self, anim_id: int, animation_container: AnimationContainer):
+        """Set the managed `AnimationContainer` for the given `anim_id`."""
+        self.set_animation_container(anim_id, animation_container)
 
     def copy_animation(self, anim_id: int, new_anim_id: int, overwrite=False):
         """Make a deep copy of an `AnimationHKX` file instance (corresponding to a new or overwritten Binder entry)."""
         if new_anim_id in self.animations_hkx and not overwrite:
             raise ValueError(f"Animation ID {new_anim_id} already exists, and `overwrite=False`.")
         self.animations_hkx[new_anim_id] = self.animations_hkx[anim_id].copy()
+
+    def convert_to_interleaved(self, anim_id: int = None):
+        """Convert the animation at `anim_id` to interleaved format in-place by replacing the `AnimationContainer`."""
+        container = self.get_animation_container(anim_id)
+        self.animations_hkx[anim_id].animation_container = container.to_interleaved_container()
 
     def rotate_bone_track(
         self,
@@ -172,7 +190,7 @@ class BaseANIBND(Binder, abc.ABC):
                 for bone_tf, child_tf in zip(bone_tfs, child_tfs):
                     root_child_tf = copy.deepcopy(child_tf)
                     root_child_tf.translation = bone_tf.transform_vector(child_tf.translation)
-                    root_child_tf.rotation = bone_tf.rotation * child_tf.rotation
+                    root_child_tf.rotation = bone_tf.rotation @ child_tf.rotation
                     # We don't care about storing the child's scale (this function will never affect it).
                     child_world_tfs.append(root_child_tf)
 
@@ -197,7 +215,7 @@ class BaseANIBND(Binder, abc.ABC):
                     initial_root_trans = initial_root_child_tf.translation
                     child_tf.translation = bone_tf.inverse_transform_vector(initial_root_trans)
                     initial_root_rot = initial_root_child_tf.rotation
-                    child_tf.rotation = bone_tf.rotation.inverse() * initial_root_rot
+                    child_tf.rotation = bone_tf.rotation.inverse() @ initial_root_rot
 
     def swivel_bone_track(
         self,
@@ -332,7 +350,7 @@ class BaseANIBND(Binder, abc.ABC):
                 for parent_tf, bone_tf, child_tf in zip(parent_tfs, bone_tfs, child_tfs):
                     root_child_tf = copy.deepcopy(child_tf)
                     root_child_tf.translation = (parent_tf @ bone_tf).transform_vector(child_tf.translation)
-                    root_child_tf.rotation = (parent_tf @ bone_tf).rotation * child_tf.rotation
+                    root_child_tf.rotation = (parent_tf @ bone_tf).rotation @ child_tf.rotation
                     # We don't care about storing the child's scale (this function will never affect it).
                     root_child_tfs.append(root_child_tf)
 
@@ -390,7 +408,7 @@ class BaseANIBND(Binder, abc.ABC):
                     initial_root_trans = initial_root_child_tf.translation
                     child_tf.translation = (parent_tf @ bone_tf).inverse_transform_vector(initial_root_trans)
                     initial_root_rot = initial_root_child_tf.rotation
-                    child_tf.rotation = (parent_tf.rotation * bone_tf.rotation).inverse() * initial_root_rot
+                    child_tf.rotation = (parent_tf.rotation @ bone_tf.rotation).inverse() @ initial_root_rot
 
     # TODO: "Hand realignment" method.
     """    
@@ -619,7 +637,7 @@ class BaseANIBND(Binder, abc.ABC):
         if not animation.is_spline:
             raise TypeError("Can only get bone animation tracks for spline-compressed animation.")
         animation.load_spline_data()
-        mapping = animation.animation_binding.transformTrackToBoneIndices
+        mapping = animation.hkx_binding.transformTrackToBoneIndices
         track_index = mapping.index(bone.index)
         return animation.spline_data.blocks[0][track_index]
 
@@ -631,7 +649,7 @@ class BaseANIBND(Binder, abc.ABC):
         if not animation.is_spline:
             raise TypeError("Can only get bone animation tracks for spline-compressed animation.")
         animation.load_spline_data()
-        mapping = animation.animation_binding.transformTrackToBoneIndices
+        mapping = animation.hkx_binding.transformTrackToBoneIndices
         child_track_indices = [mapping.index(child_bone.index) for child_bone in parent_bone.children]
         block = animation.spline_data.blocks[0]
         return [(i, block[i]) for i in child_track_indices]
@@ -644,7 +662,7 @@ class BaseANIBND(Binder, abc.ABC):
         if not animation.is_interleaved:
             raise TypeError("Can only get bone animation tracks for interleaved animation.")
         animation.load_interleaved_data()
-        mapping = animation.animation_binding.transformTrackToBoneIndices
+        mapping = animation.hkx_binding.transformTrackToBoneIndices
         track_index = mapping.index(bone.index)
         transforms = [frame[track_index] for frame in animation.interleaved_data]
 
@@ -676,7 +694,7 @@ class BaseANIBND(Binder, abc.ABC):
 
         frame_local_transforms = animation.interleaved_data[frame_index]
         # NOTE: `world_transforms` is ordered by TRACK.
-        bone_track_indices = {v: i for i, v in enumerate(animation.animation_binding.transformTrackToBoneIndices)}
+        bone_track_indices = {v: i for i, v in enumerate(animation.hkx_binding.transformTrackToBoneIndices)}
         track_world_transforms = [TRSTransform.identity() for _ in range(len(bone_track_indices))]
 
         def bone_local_to_world(bone: Bone, world_transform: TRSTransform):
@@ -705,7 +723,7 @@ class BaseANIBND(Binder, abc.ABC):
         if not animation.is_interleaved:
             raise TypeError("Can only get bone animation tracks for interleaved animation.")
         animation.load_interleaved_data()
-        mapping = animation.animation_binding.transformTrackToBoneIndices
+        mapping = animation.hkx_binding.transformTrackToBoneIndices
         child_bones_and_transforms = []
         for child_bone in parent_bone.children:
             child_track_index = mapping.index(child_bone.index)

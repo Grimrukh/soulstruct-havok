@@ -2,6 +2,7 @@ from __future__ import annotations
 
 __all__ = ["PackFileTypeUnpacker"]
 
+import copy
 import typing as tp
 from dataclasses import dataclass, field
 from types import ModuleType
@@ -73,6 +74,16 @@ class PackFileTypeUnpacker:
         else:
             raise ValueError(f"Invalid pointer size: {pointer_size}. Must be 4 or 8.")
         self.hk_types_module = hk_types_module
+
+    def __deepcopy__(self, memo):
+        new_instance = PackFileTypeUnpacker(
+            type_items=copy.deepcopy(self.type_items, memo),
+            type_hashes=copy.deepcopy(self.type_hashes, memo),
+            pointer_size=self.pointer_size,
+            hk_types_module=self.hk_types_module,
+        )
+        new_instance.long_varints = self.long_varints
+        return new_instance
 
     def get_type_infos(self) -> list[None | TypeInfo]:
 

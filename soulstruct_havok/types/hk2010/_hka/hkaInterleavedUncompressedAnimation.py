@@ -28,7 +28,7 @@ class hkaInterleavedUncompressedAnimation(hkaAnimation):
 
     @classmethod
     def from_spline_animation(cls, spline_animation: hkaSplineCompressedAnimation, transforms: list[hkQsTransform]):
-        """Converts a spline animation to an uncompressed animation."""
+        """Converts a spline animation to an uncompressed animation (fields only, NOT `data`)."""
         return cls(
             memSizeAndFlags=0,
             referenceCount=0,

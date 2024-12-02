@@ -35,7 +35,7 @@ class Quaternion:
     THREECOMP40_STEP: tp.ClassVar[float] = math.sqrt(2) / 4094  # 0.000345435652753565 (2047 => 0.0, 4094 => sqrt(2)/2)
 
     rotation: Rotation = field(default_factory=Rotation.identity)
-    _data: np.ndarray = None
+    _data: np.ndarray | tp.Sequence[float] = None  # `Sequence[float]` just to aid type hinting
 
     def __init__(self, xyzw: np.ndarray | list | tuple | Vector4 | Quaternion | Rotation):
         if isinstance(xyzw, Rotation):
@@ -55,7 +55,7 @@ class Quaternion:
         return cls([wxyz[1], wxyz[2], wxyz[3], wxyz[0]])
 
     @property
-    def data(self) -> np.ndarray:
+    def data(self) -> np.ndarray | tp.Sequence[float]:
         """Returns the quaternion as a 4-float array. Cached on first access."""
         if self._data is None:
             object.__setattr__(self, "_data", self.rotation.as_quat())

@@ -124,7 +124,7 @@ class RemoCut:
             if map_part_name.startswith("c"):
                 # Character or Unused Character
                 msb_characters = msb_parts_by_name.setdefault(
-                    "characters", {c.name: c for c in msb.characters} | {c.name: c for c in msb.unused_characters}
+                    "characters", {c.name: c for c in msb.characters} | {c.name: c for c in msb.dummy_characters}
                 )
                 if map_part_name in msb_characters:
                     character = msb_characters[map_part_name]
@@ -146,7 +146,7 @@ class RemoCut:
                     self.map_pieces.append(remo_part)
             elif map_part_name.startswith("o"):
                 msb_objects = msb_parts_by_name.setdefault(
-                    "objects", {o.name: o for o in msb.objects} | {o.name: o for o in msb.unused_objects}
+                    "objects", {o.name: o for o in msb.objects} | {o.name: o for o in msb.dummy_objects}
                 )
                 if map_part_name in msb_objects:
                     obj = msb_objects[map_part_name]
@@ -220,7 +220,7 @@ class RemoCut:
         # NOTE: Some bones may not be referenced in cutscene animation data.
         arma_frames = []  # type: list[dict[str, TRSTransform]]
         bone_track_indices = {
-            v: i for i, v in enumerate(self.animation.animation_container.animation_binding.transformTrackToBoneIndices)
+            v: i for i, v in enumerate(self.animation.animation_container.hkx_binding.transformTrackToBoneIndices)
         }
 
         for frame_index in range(len(self.animation.animation_container.interleaved_data)):
@@ -290,7 +290,7 @@ class RemoBND(Binder):
                     raise ValueError(f"Could not find SIBCAM file corresponding to cut HKX entry: {entry.name}")
                 sibcam = sibcam_entry.to_binary_file(SIBCAM)
                 animation = entry.to_binary_file(RemoAnimationHKX)
-                animation.animation_container.spline_to_interleaved()
+                animation.animation_container = animation.animation_container.to_interleaved_container()
                 cut = RemoCut(cut_name, animation, sibcam)
                 print(f"Loaded Remo cut: {cut_name}")
                 self.cuts.append(cut)
@@ -324,7 +324,7 @@ class RemoBND(Binder):
             game_map = self.GET_MAP(self.get_map_area_block())
         except ValueError as ex:
             raise ValueError(f"Could not find MSB stem for cutscene: {self.cutscene_name}. Error: {ex}")
-        return game_map.msb_stem
+        return game_map.msb_file_stem
 
     def get_map_area_block(self) -> tuple[int, int]:
         return int(self.cutscene_name[3:5]), int(self.cutscene_name[5:7])

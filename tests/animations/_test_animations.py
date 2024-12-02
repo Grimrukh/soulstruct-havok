@@ -2,7 +2,6 @@ import time
 
 from soulstruct import Path, ELDEN_RING_PATH
 from soulstruct.eldenring.containers import DivBinder
-from soulstruct_havok.core import HKX
 from soulstruct_havok.types.debug import SET_DEBUG_PRINT
 from soulstruct_havok.fromsoft import darksouls1ptde, darksouls1r, bloodborne, sekiro, eldenring
 
@@ -13,8 +12,8 @@ def test_ptde():
     hkx = darksouls1ptde.AnimationHKX.from_path(path)
     s1 = hkx.get_root_tree_string(max_primitive_sequence_size=10)
 
-    hkx.animation_container.spline_to_interleaved()
-    spline_hkx = hkx.get_spline_hkx()
+    hkx_interleaved = hkx.to_interleaved_hkx()
+    spline_hkx = hkx_interleaved.to_spline_hkx()
 
     s2 = spline_hkx.get_root_tree_string(max_primitive_sequence_size=10)
 
@@ -35,9 +34,6 @@ def test_dsr():
     # SET_DEBUG_PRINT(True, dump_items=("hkaSplineCompressedAnimation",))
     hkx = darksouls1r.AnimationHKX.from_path(path)
 
-    p = time.perf_counter()
-    # hkx.animation_container.spline_to_interleaved()
-    # print(f"Spline to interleaved conversion time: {time.perf_counter() - p:.4f}")
     hkx.animation_container.load_spline_data()
     s1 = hkx.get_root_tree_string(max_primitive_sequence_size=10)
     print(s1)
@@ -48,7 +44,7 @@ def test_dsr():
         frame_count=hkx.animation_container.frame_count,
         transform_track_bone_indices=hkx.animation_container.get_track_bone_indices(),
         root_motion_array=hkx.animation_container.get_reference_frame_samples(),
-        original_skeleton_name=hkx.animation_container.animation_binding.originalSkeletonName,
+        original_skeleton_name=hkx.animation_container.hkx_binding.originalSkeletonName,
         frame_rate=30.0,
         track_names=hkx.animation_container.get_track_annotation_names(),
     )
@@ -77,9 +73,9 @@ def test_bb():
     hkx = bloodborne.AnimationHKX.from_path(path)
     s1 = hkx.get_root_tree_string(max_primitive_sequence_size=10)
 
-    hkx.animation_container.spline_to_interleaved()
+    hkx_interleaved = hkx.to_interleaved_hkx()
+    spline_hkx = hkx_interleaved.to_spline_hkx()
 
-    spline_hkx = hkx.get_spline_hkx()
     s2 = spline_hkx.get_root_tree_string(max_primitive_sequence_size=10)
 
     print(f"Equal? {s1 == s2}")
@@ -116,16 +112,14 @@ def test_er():
             print(bone.name)
     return
     print(hkx.animation_container.get_track_annotation_names())
-    hkx.animation_container.spline_to_interleaved()
-    arma_frames = hkx.animation_container.get_interleaved_data_in_armature_space(hkx_skeleton.skeleton)
+    hkx_interleaved = hkx.to_interleaved_hkx()
+    arma_frames = hkx_interleaved.animation_container.get_interleaved_data_in_armature_space(hkx_skeleton.skeleton)
     # s1 = hkx.get_root_tree_string(max_primitive_sequence_size=10)
     print(len(arma_frames))
     print(len(arma_frames[0]))
     return
 
-    hkx.animation_container.spline_to_interleaved()
-
-    spline_hkx = hkx.get_spline_hkx()
+    spline_hkx = hkx_interleaved.to_spline_hkx()
     s2 = spline_hkx.get_root_tree_string(max_primitive_sequence_size=10)
 
     print(f"Equal? {s1 == s2}")

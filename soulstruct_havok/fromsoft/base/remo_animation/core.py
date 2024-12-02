@@ -91,7 +91,7 @@ class BaseRemoAnimationHKX(BaseWrappedHKX, abc.ABC):
         frame_local_transforms = self.animation_container.interleaved_data[frame_index]
         bone_world_transforms = {bone.name: TRSTransform.identity() for bone in part_bones.values()}
         bone_track_indices = {
-            v: i for i, v in enumerate(self.animation_container.animation_binding.transformTrackToBoneIndices)
+            v: i for i, v in enumerate(self.animation_container.hkx_binding.transformTrackToBoneIndices)
         }
 
         def bone_local_to_world(bone: Bone, world_transform: TRSTransform):

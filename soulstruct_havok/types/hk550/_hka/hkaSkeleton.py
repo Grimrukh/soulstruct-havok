@@ -5,26 +5,25 @@ from dataclasses import dataclass
 from soulstruct_havok.enums import *
 from ..core import *
 from .hkaBone import hkaBone
-from .hkaSkeletonLocalFrameOnBone import hkaSkeletonLocalFrameOnBone
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
-class hkaSkeleton(hkReferencedObject):
-    alignment = 16
-    byte_size = 44
+class hkaSkeleton(hk):
+    alignment = 8
+    byte_size = 36
     tag_type_flags = TagDataType.Class
 
     __tag_format_flags = 41
     __hsh = 860733036
 
     local_members = (
-        Member(8, "name", hkStringPtr),
-        Member(12, "parentIndices", SimpleArray(hkInt16)),
-        Member(20, "bones", SimpleArray(hkaBone)),
-        Member(28, "referencePose", SimpleArray(hkQsTransform)),
-        Member(36, "floatSlots", SimpleArray(hkStringPtr)),
+        Member(0, "name", hkStringPtr),
+        Member(4, "parentIndices", SimpleArray(hkInt16)),
+        Member(12, "bones", SimpleArray(Ptr(hkaBone))),
+        Member(20, "referencePose", SimpleArray(hkQsTransform)),
+        Member(28, "floatSlots", SimpleArray(hkStringPtr)),
     )
-    members = hkReferencedObject.members + local_members
+    members = local_members
 
     name: str
     parentIndices: list[int]

@@ -18,7 +18,6 @@ import subprocess as sp
 import typing as tp
 from dataclasses import dataclass
 
-import numpy as np
 from soulstruct.dcx import DCXType
 
 from soulstruct_havok.core import HavokFileFormat
@@ -27,7 +26,6 @@ from soulstruct_havok.types import hk2010, hk2016
 from soulstruct_havok.types.hk2016 import *
 from soulstruct_havok.utilities.files import HAVOK_PACKAGE_PATH
 from soulstruct_havok.utilities.hk_conversion import convert_hk
-from soulstruct_havok.utilities.maths import TRSTransform
 from soulstruct_havok.fromsoft.base import *
 from soulstruct_havok.fromsoft.darksouls1ptde import AnimationHKX as AnimationHKX2010
 
@@ -48,7 +46,7 @@ class AnimationHKX(BaseAnimationHKX):
     root: hkRootLevelContainer = None
     animation_container: AnimationContainerType = None
 
-    def get_spline_hkx(self) -> AnimationHKX:
+    def to_spline_hkx(self) -> AnimationHKX:
         """Uses Horkrux's compiled converter to convert interleaved HKX to spline HKX.
 
         Returns an entire new instance of this class.
@@ -89,8 +87,8 @@ class AnimationHKX(BaseAnimationHKX):
 
         # Clean-up: restore hash overrides, change binding to refer to same animation, and change animation type.
         anim_2015.hsh_overrides = self.hsh_overrides.copy()
-        for i, anim in enumerate(anim_2015.animation_container.animation_container.animations):
-            anim_2015.animation_container.animation_container.bindings[i].animation = anim
+        for i, anim in enumerate(anim_2015.animation_container.hkx_container.animations):
+            anim_2015.animation_container.hkx_container.bindings[i].animation = anim
             anim.type = 3  # spline-compressed in Havok 2015 (was 5 in Havok 2010)
 
         _LOGGER.info("Successfully converted interleaved animation to hk2016 spline animation.")
@@ -167,56 +165,6 @@ class AnimationHKX(BaseAnimationHKX):
             hk_format=HavokFileFormat.Tagfile,
             hk_version="20160200",
         )
-
-    @classmethod
-    def from_dsr_interleaved_template(
-        cls,
-        skeleton_hkx: SkeletonHKX,
-        interleaved_data: list[list[TRSTransform]],
-        transform_track_to_bone_indices: list[int] = None,
-        root_motion: np.ndarray | None = None,
-        is_armature_space=False,
-    ) -> AnimationHKX:
-        """Open bundled template HKX for Dark Souls Remastered (c2240, Capra Demon, animation 200).
-
-        Arguments reflect the minimal data required to create a new animation from the template.
-        """
-        template_path = HAVOK_PACKAGE_PATH("resources/AnimationTemplate2015.hkx")
-        hkx = cls.from_path(template_path)
-        container = hkx.animation_container
-
-        container.spline_to_interleaved()
-
-        container.animation.duration = (len(interleaved_data) - 1) / 30.0  # TODO: assumes 30 FPS (always valid?)
-
-        container.animation_binding.originalSkeletonName = skeleton_hkx.skeleton.skeleton.name
-        if transform_track_to_bone_indices is None:
-            # Default: same as bone order.
-            transform_track_to_bone_indices = list(range(len(skeleton_hkx.skeleton.bones)))
-        container.animation_binding.transformTrackToBoneIndices = transform_track_to_bone_indices
-        container.animation.numberOfTransformTracks = len(transform_track_to_bone_indices)
-        container.animation.annotationTracks = [
-            hkaAnnotationTrack(
-                trackName=skeleton_hkx.skeleton.bones[bone_index].name,
-                annotations=[],
-            )
-            for bone_index in transform_track_to_bone_indices
-        ]
-
-        if is_armature_space:
-            # NOTE: Must be called AFTER setting new transform track -> bone mapping above.
-            container.set_interleaved_data_from_armature_space(skeleton_hkx.skeleton, interleaved_data)
-        else:
-            container.interleaved_data = interleaved_data
-        container.save_interleaved_data()
-        container.animation.floats = []
-
-        if root_motion is None:
-            hkx.animation_container.animation.extractedMotion = None
-        else:  # template has some reference frame samples already
-            hkx.animation_container.set_reference_frame_samples(root_motion)
-
-        return hkx.get_spline_hkx()
 
 
 @dataclass(slots=True)

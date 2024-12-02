@@ -21,12 +21,6 @@ class ANIBND(BaseANIBND):
     # Type hint override for base method.
     get_animation_container: tp.ClassVar[tp.Callable[[int | None], AnimationContainerType]]
 
-    def convert_interleaved_to_spline_anim(self, anim_id: int = None):
-        """Convert to spline animation by a downgrade -> Horkrux SDK conversion -> upgrade process."""
-        animation = self.animations_hkx[anim_id]
-        spline_anim = animation.get_spline_hkx()
-        self.animations_hkx[anim_id] = spline_anim
-
     @staticmethod
     def animation_id_to_entry_basename(animation_id: int) -> str:
         if animation_id >= 999999:

@@ -29,9 +29,9 @@ def do_erdtree_retarget_and_adjustment(erdtree_source_id, asylum_dest_id):
     asylum_anibnd[asylum_dest_id].save_spline_data()
 
     print("Converting 2015 spline to interleaved...")
-    asylum_anibnd[asylum_dest_id].spline_to_interleaved()
+    asylum_anibnd.convert_to_interleaved(asylum_dest_id)
     print("Converting 2018 spline to interleaved...")
-    erdtree_anibnd[erdtree_source_id].spline_to_interleaved()
+    erdtree_anibnd.convert_to_interleaved(erdtree_source_id)
 
     print("Retargeting Erdtree animation...")
     asylum_anibnd.auto_retarget_interleaved_animation(
