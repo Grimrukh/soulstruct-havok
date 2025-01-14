@@ -11,7 +11,7 @@ import logging
 import typing as tp
 
 from soulstruct_havok.core import HKX, HavokFileFormat
-from soulstruct_havok.enums import PyHavokModule
+from soulstruct_havok.enums import HavokModule
 from soulstruct_havok.types import hk
 
 _LOGGER = logging.getLogger("soulstruct_havok")
@@ -23,7 +23,7 @@ HK_T = tp.TypeVar("HK_T", bound=hk)
 class BaseWrappedHKX(HKX, abc.ABC):
 
     # Assigned for version-specific subclasses.
-    HAVOK_MODULE: tp.ClassVar[PyHavokModule]
+    HAVOK_MODULE: tp.ClassVar[HavokModule]
 
     def get_variant(self, variant_index: int, *valid_types: type[HK_T]) -> HK_T:
         """Get variant at `variant_index`, check that it is one of the given `valid_types`, and return its type."""

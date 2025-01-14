@@ -25,7 +25,7 @@ if tp.TYPE_CHECKING:
     TYPE_VAR_T = tp.TypeVar("TYPE_VAR_T", bound=tp.TypeVar)
 
 
-class PyHavokModule(IntEnum):
+class HavokModule(IntEnum):
     """Supported Havok versions in `soulstruct-havok`, with a method for dynamic submodule retrieval.
 
     Numeric values are used to indicate the order in which the games were released, which is useful for defining points

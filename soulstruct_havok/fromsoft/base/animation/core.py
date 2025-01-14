@@ -9,7 +9,7 @@ import copy
 import logging
 import typing as tp
 
-from soulstruct_havok.enums import PyHavokModule
+from soulstruct_havok.enums import HavokModule
 from soulstruct_havok.exceptions import TypeNotDefinedError
 from soulstruct_havok.fromsoft.base.core import BaseWrappedHKX
 from soulstruct_havok.fromsoft.base.type_vars import *
@@ -218,7 +218,7 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
         Track names are optional and will be written to track annotations if given. Length of names must match track
         count in this case.
         """
-        if cls.HAVOK_MODULE == PyHavokModule.hk550:
+        if cls.HAVOK_MODULE == HavokModule.hk550:
             raise ValueError("Spline-compressed animations not supported by Havok version 5.5.0 (Demon's Souls).")
         try:
             spline_animation_type = cls.HAVOK_MODULE.get_type_from_var(SPLINE_ANIMATION_T)
@@ -292,9 +292,9 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
 
         binding_type = cls.HAVOK_MODULE.get_type_from_var(ANIMATION_BINDING_T)
         extra_binding_kwargs = {}
-        if cls.HAVOK_MODULE >= PyHavokModule.hk2010:
+        if cls.HAVOK_MODULE >= HavokModule.hk2010:
             extra_binding_kwargs["originalSkeletonName"] = original_skeleton_name
-        if cls.HAVOK_MODULE >= PyHavokModule.hk2014:
+        if cls.HAVOK_MODULE >= HavokModule.hk2014:
             extra_binding_kwargs["partitionIndices"] = []
         binding = binding_type(
             animation=animation,

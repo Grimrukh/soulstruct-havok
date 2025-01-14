@@ -11,7 +11,7 @@ from pathlib import Path
 import colorama
 from soulstruct.utilities.binary import *
 
-from soulstruct_havok.enums import TagFormatFlags, PyHavokModule
+from soulstruct_havok.enums import TagFormatFlags, HavokModule
 from soulstruct_havok.exceptions import HavokTypeError, VersionModuleError, TypeNotDefinedError, TypeMatchError
 from soulstruct_havok.types.hk import hk
 from soulstruct_havok.types.info import *
@@ -45,7 +45,7 @@ class MissingCompendiumError(Exception):
 @dataclass(slots=True)
 class TagFileUnpacker:
     
-    havok_module: PyHavokModule = None
+    havok_module: HavokModule = None
     # Havok versions before `hk2015` do not use the tagfile format.
     root: None | hk2015.hkRootLevelContainer | hk2016.hkRootLevelContainer | hk2018.hkRootLevelContainer = None
     hk_type_infos: list[TypeInfo] = field(default_factory=list)
@@ -69,11 +69,11 @@ class TagFileUnpacker:
                     self.hk_version = reader.unpack_string(length=8, encoding="utf-8")
                     if not types_only:
                         if self.hk_version.startswith("2015"):
-                            self.havok_module = PyHavokModule.hk2015
+                            self.havok_module = HavokModule.hk2015
                         elif self.hk_version.startswith("2016"):
-                            self.havok_module = PyHavokModule.hk2016
+                            self.havok_module = HavokModule.hk2016
                         elif self.hk_version.startswith("2018"):
-                            self.havok_module = PyHavokModule.hk2018
+                            self.havok_module = HavokModule.hk2018
                         else:
                             raise VersionModuleError(f"No Havok type module for version: {self.hk_version}")
 

@@ -8,7 +8,7 @@ import typing as tp
 
 import numpy as np
 
-from soulstruct_havok.enums import PyHavokModule
+from soulstruct_havok.enums import HavokModule
 from soulstruct_havok.exceptions import TypeNotDefinedError
 from soulstruct_havok.spline_compression import SplineCompressedAnimationData
 from soulstruct_havok.utilities.maths import TRSTransform, Vector3, Vector4
@@ -38,7 +38,7 @@ class AnimationContainer(tp.Generic[
     NOTE: Does not manage `hkaSkeleton` inside container. See `fromsoft.base.skeleton.Skeleton` for that.
     """
 
-    havok_module: PyHavokModule
+    havok_module: HavokModule
     hkx_container: ANIMATION_CONTAINER_T
 
     # Loaded upon first use or explicit `load_spline_data()` call. Will be resaved on `pack()` if present, or with
@@ -56,7 +56,7 @@ class AnimationContainer(tp.Generic[
     # ```
     interleaved_data: list[list[TRSTransform]] | None = None
 
-    def __init__(self, havok_module: PyHavokModule, hkx_animation_container: ANIMATION_CONTAINER_T):
+    def __init__(self, havok_module: HavokModule, hkx_animation_container: ANIMATION_CONTAINER_T):
         self.havok_module = havok_module
         self.hkx_container = hkx_animation_container
         self.spline_data = None

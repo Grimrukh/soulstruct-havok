@@ -15,7 +15,7 @@ from soulstruct.containers import Binder, BinderEntry, EntryNotFoundError
 from soulstruct.dcx import DCXType, decompress, is_dcx
 from soulstruct.utilities.binary import *
 
-from soulstruct_havok.enums import PyHavokModule
+from soulstruct_havok.enums import HavokModule
 from soulstruct_havok.packfile.packer import PackFilePacker
 from soulstruct_havok.packfile.structs import PackfileHeaderInfo
 from soulstruct_havok.packfile.unpacker import PackFileUnpacker
@@ -64,7 +64,7 @@ class HKX(GameFile):
     EXT: tp.ClassVar[str] = ".hkx"
 
     # Can be defined by subclasses with utility methods for specific versions of Havok.
-    HAVOK_MODULE: tp.ClassVar[PyHavokModule] = None
+    HAVOK_MODULE: tp.ClassVar[HavokModule] = None
 
     root: HKX_ROOT_TYPING = None
     hk_format: HavokFileFormat = None
@@ -266,16 +266,16 @@ class HKX(GameFile):
         raise ValueError(f"Invalid `hk_format`: {self.hk_format}. Should be 'packfile' or 'tagfile'.")
 
     @property
-    def havok_module(self) -> PyHavokModule:
+    def havok_module(self) -> HavokModule:
         """Currently only have one Havok types module per release year.
 
         Trivially retrieved from tagfile version strings. For packfile version strings, the first four digits before the
         first '-' are used (so '-r1' suffix is ignored).
 
-        This is the only place where the `PyHavokModule` is inferred as a property rather than set as a true field.
+        This is the only place where the `HavokModule` is inferred as a property rather than set as a true field.
         """
         if self.hk_format == HavokFileFormat.Tagfile:
-            return PyHavokModule[f"hk{self.hk_version[:4]}"]
+            return HavokModule[f"hk{self.hk_version[:4]}"]
 
         prefix = self.hk_version.removeprefix("Havok-").removeprefix("hk_").split("-")[0]
         digits = re.findall(r"\d+", prefix)
@@ -288,7 +288,7 @@ class HKX(GameFile):
         if first_four == "510":
             first_four = "550"
 
-        return PyHavokModule[f"hk{first_four}"]
+        return HavokModule[f"hk{first_four}"]
 
     def get_root_tree_string(
         self,

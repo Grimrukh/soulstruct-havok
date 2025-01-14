@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 
 from soulstruct_havok.enums import (
     ClassMemberType, TagFormatFlags, TagDataType, MemberFlags, PackMemberFlags,
-    PyHavokModule,
+    HavokModule,
 )
 from soulstruct_havok.types.info import TypeInfo, MemberInfo, get_py_name
 
@@ -48,7 +48,7 @@ class EnumValues(dict[str, int]):
 class PackFileTypeUnpacker:
     """Unpacks type entries into `TypeInfo` instances and assigns `py_class` to them."""
 
-    havok_module: PyHavokModule
+    havok_module: HavokModule
     type_items: list[None | PackFileTypeItem]
     type_hashes: dict[str, int]
     pointer_size: int
@@ -60,7 +60,7 @@ class PackFileTypeUnpacker:
 
     def __init__(
         self,
-        havok_module: PyHavokModule,
+        havok_module: HavokModule,
         type_items: list[None | PackFileTypeItem],
         type_hashes: dict[str, int],
         pointer_size: int,

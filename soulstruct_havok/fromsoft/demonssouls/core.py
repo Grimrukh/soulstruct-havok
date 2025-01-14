@@ -9,7 +9,7 @@ import typing as tp
 from pathlib import Path
 
 import numpy as np
-from soulstruct_havok.enums import PyHavokModule
+from soulstruct_havok.enums import HavokModule
 from soulstruct_havok.fromsoft.base import *
 from soulstruct_havok.packfile.structs import PackfileHeaderInfo, PackFileVersion
 from soulstruct_havok.types.hk550 import *
@@ -44,7 +44,7 @@ def call_havok_wavelet_anim(input_path: Path | str, output_path: Path | str, to_
 class AnimationHKX(BaseAnimationHKX):
     """NOTE: Demon's Souls animations are wavelet-compressed, which is an annoying old format to deal with."""
 
-    HAVOK_MODULE: tp.ClassVar[PyHavokModule] = PyHavokModule.hk550
+    HAVOK_MODULE: tp.ClassVar[HavokModule] = HavokModule.hk550
     root: hkRootLevelContainer = None
     animation_container: AnimationContainerType = None
 
@@ -225,25 +225,25 @@ class AnimationHKX(BaseAnimationHKX):
 
 
 class SkeletonHKX(BaseSkeletonHKX):
-    HAVOK_MODULE: tp.ClassVar[PyHavokModule] = PyHavokModule.hk550
+    HAVOK_MODULE: tp.ClassVar[HavokModule] = HavokModule.hk550
     root: hkRootLevelContainer = None
     skeleton: SkeletonType = None
 
 
 class CollisionHKX(BaseCollisionHKX):
-    HAVOK_MODULE: tp.ClassVar[PyHavokModule] = PyHavokModule.hk550
+    HAVOK_MODULE: tp.ClassVar[HavokModule] = HavokModule.hk550
     root: hkRootLevelContainer = None
     physics_data: PhysicsDataType = None
 
 
 class ClothHKX(BaseClothHKX):
-    HAVOK_MODULE: tp.ClassVar[PyHavokModule] = PyHavokModule.hk550
+    HAVOK_MODULE: tp.ClassVar[HavokModule] = HavokModule.hk550
     root: hkRootLevelContainer = None
     cloth_physics_data: ClothPhysicsData[hkpPhysicsData, hkpPhysicsSystem] = None
 
 
 class RagdollHKX(BaseRagdollHKX):
-    HAVOK_MODULE: tp.ClassVar[PyHavokModule] = PyHavokModule.hk550
+    HAVOK_MODULE: tp.ClassVar[HavokModule] = HavokModule.hk550
     root: hkRootLevelContainer = None
     animation_skeleton: SkeletonType = None
     ragdoll_skeleton: SkeletonType = None

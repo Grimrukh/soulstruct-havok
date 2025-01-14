@@ -30,7 +30,7 @@ import colorama
 import numpy as np
 from soulstruct_havok.types.debug import get_indented_array
 
-from soulstruct_havok.enums import TagDataType, PyHavokModule
+from soulstruct_havok.enums import TagDataType, HavokModule
 from soulstruct_havok.packfile.structs import PackItemCreationQueues, PackFileDataItem, PackFileTypeItem
 from .info import get_py_name
 
@@ -698,7 +698,7 @@ def pack_string(
     data_pack_queues.child_pointers.append(delayed_string_write)
 
 
-def unpack_named_variant(hk_type: type[hk], item: PackFileDataItem, havok_module: PyHavokModule) -> hk:
+def unpack_named_variant(hk_type: type[hk], item: PackFileDataItem, havok_module: HavokModule) -> hk:
     """Detects `variant` type dynamically from `className` member."""
 
     # TODO: Testing just `unpack_class()`. We don't actually need to read 'className' since the variant's type is

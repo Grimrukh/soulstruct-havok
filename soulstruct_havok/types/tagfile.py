@@ -29,7 +29,7 @@ import numpy as np
 
 from soulstruct.utilities.binary import BinaryReader, BinaryWriter
 
-from soulstruct_havok.enums import TagDataType, PyHavokModule
+from soulstruct_havok.enums import TagDataType, HavokModule
 from soulstruct_havok.exceptions import TypeNotDefinedError
 from soulstruct_havok.tagfile.structs import TagItemCreationQueues, TagFileItem
 from .info import get_py_name
@@ -463,7 +463,7 @@ def pack_string(
 
 
 def unpack_named_variant(
-    hk_type: type[hk], reader: BinaryReader, items: list[TagFileItem], havok_module: PyHavokModule
+    hk_type: type[hk], reader: BinaryReader, items: list[TagFileItem], havok_module: HavokModule
 ) -> hk:
     """Detects `variant` type dynamically from `className` member."""
     kwargs = {}

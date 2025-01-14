@@ -20,7 +20,7 @@ import numpy as np
 
 from soulstruct.utilities.binary import BinaryReader, BinaryWriter
 
-from soulstruct_havok.enums import TagDataType, MemberFlags, PyHavokModule
+from soulstruct_havok.enums import TagDataType, MemberFlags, HavokModule
 from soulstruct_havok.packfile.structs import PackItemCreationQueues
 from soulstruct_havok.tagfile.structs import TagItemCreationQueues, TagFileItem
 from soulstruct_havok.types.info import *
@@ -100,7 +100,7 @@ class hk:
 
     # Set before unpacking root and removed afterward, as `hkRootLevelContainerNamedVariant` objects need to dynamically
     # retrieve type names from our Python modules.
-    _HAVOK_MODULE: tp.ClassVar[PyHavokModule | None] = None
+    _HAVOK_MODULE: tp.ClassVar[HavokModule | None] = None
 
     alignment: tp.ClassVar[int] = 0
     byte_size: tp.ClassVar[int] = 0
@@ -210,7 +210,7 @@ class hk:
 
     @staticmethod
     @contextmanager
-    def set_havok_module(havok_module: PyHavokModule):
+    def set_havok_module(havok_module: HavokModule):
         """Assign `soulstruct_havok.types.hkXXXX` submodule to `hk` so that dynamic type names can be resolved (e.g.,
         `hkRootLevelContainerNamedVariant`, `hkViewPtr`).
 

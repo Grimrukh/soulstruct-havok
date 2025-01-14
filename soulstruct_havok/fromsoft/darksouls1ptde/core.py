@@ -6,7 +6,7 @@ import logging
 import subprocess as sp
 import typing as tp
 
-from soulstruct_havok.enums import PyHavokModule
+from soulstruct_havok.enums import HavokModule
 from soulstruct_havok.packfile.structs import PackfileHeaderInfo, PackFileVersion
 from soulstruct_havok.types.hk2010 import *
 from soulstruct_havok.fromsoft.base import *
@@ -24,7 +24,7 @@ _LOGGER = logging.getLogger("soulstruct_havok")
 
 
 class AnimationHKX(BaseAnimationHKX):
-    HAVOK_MODULE: tp.ClassVar[PyHavokModule] = PyHavokModule.hk2010
+    HAVOK_MODULE: tp.ClassVar[HavokModule] = HavokModule.hk2010
     root: hkRootLevelContainer = None
     animation_container: AnimationContainerType = None
 
@@ -85,25 +85,25 @@ class AnimationHKX(BaseAnimationHKX):
 
 
 class SkeletonHKX(BaseSkeletonHKX):
-    HAVOK_MODULE: tp.ClassVar[PyHavokModule] = PyHavokModule.hk2010
+    HAVOK_MODULE: tp.ClassVar[HavokModule] = HavokModule.hk2010
     root: hkRootLevelContainer = None
     skeleton: SkeletonType = None
 
 
 class CollisionHKX(BaseCollisionHKX):
-    HAVOK_MODULE: tp.ClassVar[PyHavokModule] = PyHavokModule.hk2010
+    HAVOK_MODULE: tp.ClassVar[HavokModule] = HavokModule.hk2010
     root: hkRootLevelContainer = None
     physics_data: PhysicsDataType = None
 
 
 class ClothHKX(BaseClothHKX):
-    HAVOK_MODULE: tp.ClassVar[PyHavokModule] = PyHavokModule.hk2010
+    HAVOK_MODULE: tp.ClassVar[HavokModule] = HavokModule.hk2010
     root: hkRootLevelContainer = None
     cloth_physics_data: ClothPhysicsData[hkpPhysicsData, hkpPhysicsSystem] = None
 
 
 class RagdollHKX(BaseRagdollHKX):
-    HAVOK_MODULE: tp.ClassVar[PyHavokModule] = PyHavokModule.hk2010
+    HAVOK_MODULE: tp.ClassVar[HavokModule] = HavokModule.hk2010
     root: hkRootLevelContainer = None
     animation_skeleton: SkeletonType = None
     ragdoll_skeleton: SkeletonType = None

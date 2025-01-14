@@ -10,7 +10,7 @@ import colorama
 
 from soulstruct.utilities.binary import BinaryReader, ByteOrder
 
-from soulstruct_havok.enums import PyHavokModule
+from soulstruct_havok.enums import HavokModule
 from soulstruct_havok.exceptions import VersionModuleError, TypeNotDefinedError
 from soulstruct_havok.types import hk550, hk2010, hk2014, hk2015, hk2016, hk2018
 from soulstruct_havok.types.hk import hk
@@ -52,7 +52,7 @@ class PackFileUnpacker:
     Not all packfiles contain type information, so the unpacker will attempt to use existing type information for them.
     """
 
-    havok_module: PyHavokModule | None = None
+    havok_module: HavokModule | None = None
     byte_order: ByteOrder = ByteOrder.LittleEndian
     hk_version: str = ""
     header: PackFileHeader | None = None
@@ -133,23 +133,23 @@ class PackFileUnpacker:
             return
 
         if self.hk_version.startswith("Havok-5.1.0"):  # TODO: testing simple redirect for ancient DeS files
-            self.havok_module = PyHavokModule.hk550
+            self.havok_module = HavokModule.hk550
         elif self.hk_version.startswith("Havok-5.5.0"):
-            self.havok_module = PyHavokModule.hk550
+            self.havok_module = HavokModule.hk550
         elif self.hk_version.startswith("hk_2010"):
-            self.havok_module = PyHavokModule.hk2010
+            self.havok_module = HavokModule.hk2010
         elif self.hk_version.startswith("hk_2014"):
-            self.havok_module = PyHavokModule.hk2014
+            self.havok_module = HavokModule.hk2014
         # NOTE: Versions below typically use tagfiles, not packfiles.
         elif self.hk_version.startswith("2015"):
             _LOGGER.warning("Havok version 2015 is not officially supported for packfile read, but may work.")
-            self.havok_module = PyHavokModule.hk2015
+            self.havok_module = HavokModule.hk2015
         elif self.hk_version.startswith("2016"):
             _LOGGER.warning("Havok version 2016 is not officially supported for packfile read, but may work.")
-            self.havok_module = PyHavokModule.hk2016
+            self.havok_module = HavokModule.hk2016
         elif self.hk_version.startswith("2018"):
             _LOGGER.warning("Havok version 2018 is not officially supported for packfile read, but may work.")
-            self.havok_module = PyHavokModule.hk2018
+            self.havok_module = HavokModule.hk2018
         else:
             raise VersionModuleError(f"No Havok type module for version: {self.hk_version}")
 

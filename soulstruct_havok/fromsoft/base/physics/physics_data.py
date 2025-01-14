@@ -6,7 +6,7 @@ import typing as tp
 
 from soulstruct.utilities.maths import Vector3, Vector4
 
-from soulstruct_havok.enums import PyHavokModule
+from soulstruct_havok.enums import HavokModule
 from soulstruct_havok.fromsoft.base.type_vars import PHYSICS_DATA_T, PHYSICS_SYSTEM_T
 from soulstruct_havok.fromsoft.base.utilities import scale_shape, scale_motion_state
 
@@ -14,10 +14,10 @@ from soulstruct_havok.fromsoft.base.utilities import scale_shape, scale_motion_s
 class PhysicsData(tp.Generic[PHYSICS_DATA_T, PHYSICS_SYSTEM_T]):
     """Loads HKX objects that just have collision physics, such as those in OBJBND binders or map collisions."""
 
-    havok_module: PyHavokModule
+    havok_module: HavokModule
     physics_data: PHYSICS_DATA_T
 
-    def __init__(self, havok_module: PyHavokModule, physics_data: PHYSICS_DATA_T):
+    def __init__(self, havok_module: HavokModule, physics_data: PHYSICS_DATA_T):
         self.havok_module = havok_module
         self.physics_data = physics_data
 

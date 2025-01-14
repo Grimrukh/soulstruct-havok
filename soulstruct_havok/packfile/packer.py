@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from soulstruct.utilities.binary import BinaryWriter, ByteOrder, RESERVED
 
-from soulstruct_havok.enums import PyHavokModule
+from soulstruct_havok.enums import HavokModule
 from soulstruct_havok.types.hk import hk
 from soulstruct_havok.types.base import Ptr_
 from soulstruct_havok.types.info import get_py_name
@@ -23,7 +23,7 @@ class PackFilePacker:
     """Handles a single `HKX` packfile packing operation."""
 
     hkx: HKX
-    havok_module: PyHavokModule
+    havok_module: HavokModule
 
     # Header for packfile.
     header: PackFileHeader
@@ -35,7 +35,7 @@ class PackFilePacker:
     def __init__(self, hkx: HKX):
         self.hkx = hkx
         self.havok_module = hkx.havok_module
-        if hkx.havok_module not in {PyHavokModule.hk550, PyHavokModule.hk2010, PyHavokModule.hk2014}:
+        if hkx.havok_module not in {HavokModule.hk550, HavokModule.hk2010, HavokModule.hk2014}:
             raise ValueError(
                 f"Only Havok SDK versions 550, 2010, and 2014 are currently supported for packfile format "
                 f"packing, not version '{hkx.havok_module.get_version_string()}'."

@@ -21,7 +21,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from enum import IntEnum
 
-from soulstruct_havok.enums import PyHavokModule
+from soulstruct_havok.enums import HavokModule
 
 from soulstruct.utilities.binary import *
 from soulstruct.utilities.inspection import get_hex_repr
@@ -391,7 +391,7 @@ class ItemSpecStruct(BinaryStruct):
 # Hashes for Havok types (typically generic types) that do not have a hash in the known database XML.
 TYPE_NAME_HASHES = {
     # TODO: Most of these can go in their Python types.
-    PyHavokModule.hk550: {
+    HavokModule.hk550: {
         "hkClass": 2384426808,  # TODO: 947330958 in animation HKX
         "hkClassMember": 1460610213,  # TODO: 2770603863 in animation HKX
         "hkClassEnum": 3473487498,  # TODO: 2318797263 in animation HKX
@@ -455,7 +455,7 @@ TYPE_NAME_HASHES = {
         "hkMotionState": 3833351686,
         "hkpConstraintAtom": 70097133,
     },
-    PyHavokModule.hk2010: {
+    HavokModule.hk2010: {
         "hkClass": 1968725750,
         "hkClassMember": 1551803586,
         "hkClassEnum": 2318797263,
@@ -474,7 +474,7 @@ TYPE_NAME_HASHES = {
         "CustomMeshParameter": 1015991529,
 
     },
-    PyHavokModule.hk2014: {
+    HavokModule.hk2014: {
         "hkClass": 869540739,
         "hkClassMember": 2968495897,
         "hkClassEnum": 2318797263,

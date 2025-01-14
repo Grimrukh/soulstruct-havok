@@ -11,7 +11,7 @@ from contextlib import contextmanager
 
 from soulstruct.utilities.binary import *
 
-from soulstruct_havok.enums import TagFormatFlags, PyHavokModule
+from soulstruct_havok.enums import TagFormatFlags, HavokModule
 from soulstruct_havok.types.base import hkArray_
 from soulstruct_havok.types.hk import hk
 from soulstruct_havok.types.info import TypeInfo
@@ -46,7 +46,7 @@ class TagFilePacker:
         processed and the `TagFileItem` created.
         """
 
-    havok_module: PyHavokModule
+    havok_module: HavokModule
     hkx: HKX
     items: list[None | TagFileItem]
     type_info_dict: dict[str, TypeInfo]

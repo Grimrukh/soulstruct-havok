@@ -10,7 +10,7 @@ import typing as tp
 
 from soulstruct.dcx import DCXType
 
-from soulstruct_havok.enums import PyHavokModule
+from soulstruct_havok.enums import HavokModule
 from soulstruct_havok.packfile.structs import PackFileVersion, PackfileHeaderInfo, PackFileHeaderExtension
 from soulstruct_havok.types import hk2010, hk2014
 from soulstruct_havok.types.hk2014 import *
@@ -32,7 +32,7 @@ SkeletonMapperType = SkeletonMapper[hkaSkeletonMapper]
 
 
 class AnimationHKX(BaseAnimationHKX):
-    HAVOK_MODULE: tp.ClassVar[PyHavokModule] = PyHavokModule.hk2014
+    HAVOK_MODULE: tp.ClassVar[HavokModule] = HavokModule.hk2014
     root: hkRootLevelContainer = None
     animation_container: AnimationContainerType = None
 
@@ -164,6 +164,6 @@ class AnimationHKX(BaseAnimationHKX):
 
 
 class SkeletonHKX(BaseSkeletonHKX):
-    HAVOK_MODULE: tp.ClassVar[PyHavokModule] = PyHavokModule.hk2014
+    HAVOK_MODULE: tp.ClassVar[HavokModule] = HavokModule.hk2014
     root: hkRootLevelContainer = None
     skeleton: SkeletonType = None

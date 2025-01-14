@@ -24,7 +24,7 @@ from soulstruct.base.game_file import GameFile
 from soulstruct.utilities.binary import BinaryReader, BinaryWriter
 
 from soulstruct_havok.core import HKX
-from soulstruct_havok.enums import PyHavokModule
+from soulstruct_havok.enums import HavokModule
 from soulstruct_havok.types import hk550, hk2010, hk2015
 from soulstruct_havok.types.protocols.physics import *
 from soulstruct_havok.utilities.files import HAVOK_PACKAGE_PATH
@@ -129,14 +129,14 @@ class MapCollisionModel(GameFile):
     # Each collision submesh is a tuple of `(vertices_array, faces_array, material_index)`.
     meshes: list[MapCollisionModelMesh] = field(default_factory=list)
     # Havok version of the model, which determines the HKX export format. Set on HKX import and can be changed.
-    havok_module: PyHavokModule = field(default=PyHavokModule.hk2015)
+    havok_module: HavokModule = field(default=HavokModule.hk2015)
     # Indicates if this model will be exported as big-endian.
     is_big_endian: bool = False
 
-    SUPPORTED_MODULES: tp.ClassVar[set[PyHavokModule]] = {
-        PyHavokModule.hk550,
-        PyHavokModule.hk2010,
-        PyHavokModule.hk2015,
+    SUPPORTED_MODULES: tp.ClassVar[set[HavokModule]] = {
+        HavokModule.hk550,
+        HavokModule.hk2010,
+        HavokModule.hk2015,
     }
 
     @classmethod
@@ -256,13 +256,13 @@ class MapCollisionModel(GameFile):
 
         # Template is the easiest way to set up the full HKX structure. (These are the only three games that use MOPP.)
         match self.havok_module:
-            case PyHavokModule.hk550:
+            case HavokModule.hk550:
                 template_path = HAVOK_PACKAGE_PATH("resources/MapCollisionTemplate_DES.hkx")
                 hkx = HKX.from_path(template_path)
-            case PyHavokModule.hk2010:
+            case HavokModule.hk2010:
                 template_path = HAVOK_PACKAGE_PATH("resources/MapCollisionTemplate_PTDE.hkx")
                 hkx = HKX.from_path(template_path)
-            case PyHavokModule.hk2015:
+            case HavokModule.hk2015:
                 template_path = HAVOK_PACKAGE_PATH("resources/MapCollisionTemplate_DSR.hkx")
                 hkx = HKX.from_path(template_path)
             case _:
@@ -301,13 +301,13 @@ class MapCollisionModel(GameFile):
             )
             # Remaining `CustomMeshParameter` kwargs are module-specific.
             match self.havok_module:
-                case PyHavokModule.hk550:
+                case HavokModule.hk550:
                     kwargs |= {"zero0": 0, "zero1": 0, "zero2": 0, "zero3": 0, "zero4": 0}
                     material = hk550.CustomMeshParameter(**kwargs)
-                case PyHavokModule.hk2010:
+                case HavokModule.hk2010:
                     kwargs |= {"zero0": 0, "zero1": 0, "zero2": 0, "zero3": 0, "zero4": 0}
                     material = hk2010.CustomMeshParameter(**kwargs)
-                case PyHavokModule.hk2015:
+                case HavokModule.hk2015:
                     kwargs |= {"vertexDataStride": 1, "primitiveDataBuffer": []}
                     material = hk2015.CustomMeshParameter(**kwargs)
                 case _:  # unreachable
@@ -474,7 +474,7 @@ class MapCollisionModel(GameFile):
             materialIndices16=[],
         )
 
-        if self.havok_module == PyHavokModule.hk550:
+        if self.havok_module == HavokModule.hk550:
             if mesh.vertex_index_bit_size == 8:
                 raise ValueError("Havok 550 does not support 8-bit mesh vertex indices.")
             kwargs[f"indices{mesh.vertex_index_bit_size}"] = vertex_indices
@@ -487,9 +487,9 @@ class MapCollisionModel(GameFile):
         kwargs[f"indices{mesh.vertex_index_bit_size}"] = vertex_indices
 
         match self.havok_module:
-            case PyHavokModule.hk2010:
+            case HavokModule.hk2010:
                 return hk2010.hkpStorageExtendedMeshShapeMeshSubpartStorage(**kwargs)
-            case PyHavokModule.hk2015:
+            case HavokModule.hk2015:
                 return hk2015.hkpStorageExtendedMeshShapeMeshSubpartStorage(**kwargs)
 
         raise ValueError(f"Cannot export `MapCollisionModel` to HKX for Havok version: {self.havok_module}")
@@ -512,7 +512,7 @@ class MapCollisionModel(GameFile):
         )
         # Remaining fields are module-specific.
         match self.havok_module:
-            case PyHavokModule.hk550:
+            case HavokModule.hk550:
                 kwargs |= dict(
                     type=0,
                     materialIndexStridingType=1,
@@ -520,7 +520,7 @@ class MapCollisionModel(GameFile):
                     numMaterials=1,  # TODO: always 1?
                 )
                 return hk550.hkpExtendedMeshShapeTrianglesSubpart(**kwargs)
-            case PyHavokModule.hk2010:
+            case HavokModule.hk2010:
                 kwargs |= dict(
                     typeAndFlags=2,
                     shapeInfo=0,
@@ -529,7 +529,7 @@ class MapCollisionModel(GameFile):
                     transform=hk2010.hkQsTransform(),
                 )
                 return hk2010.hkpExtendedMeshShapeTrianglesSubpart(**kwargs)
-            case PyHavokModule.hk2015:
+            case HavokModule.hk2015:
                 kwargs |= dict(
                     typeAndFlags=2,
                     shapeInfo=0,
@@ -548,7 +548,7 @@ class MapCollisionModel(GameFile):
         material_indices: tuple[int] = (),
         hkx_name: str = "",
         invert_x=True,
-        havok_module=PyHavokModule.hk2015,
+        havok_module=HavokModule.hk2015,
     ) -> tp.Self:
         """Read meshes from an OBJ file, with manually supplied material indices of the same length as the meshes.
 
