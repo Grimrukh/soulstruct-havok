@@ -129,7 +129,7 @@ class MapCollisionModel(GameFile):
     # Each collision submesh is a tuple of `(vertices_array, faces_array, material_index)`.
     meshes: list[MapCollisionModelMesh] = field(default_factory=list)
     # Havok version of the model, which determines the HKX export format. Set on HKX import and can be changed.
-    py_havok_module: PyHavokModule = field(default=PyHavokModule.hk2015)
+    havok_module: PyHavokModule = field(default=PyHavokModule.hk2015)
     # Indicates if this model will be exported as big-endian.
     is_big_endian: bool = False
 
@@ -242,7 +242,7 @@ class MapCollisionModel(GameFile):
             # Shouldn't be reachable.
             raise ValueError(f"Unknown shape type: {shape_type}")
 
-        return cls(name=name, meshes=meshes, py_havok_module=hkx.havok_module, is_big_endian=hkx.is_big_endian)
+        return cls(name=name, meshes=meshes, havok_module=hkx.havok_module, is_big_endian=hkx.is_big_endian)
 
     def to_writer(self) -> BinaryWriter:
         """Just wraps `HKX` class."""
@@ -255,7 +255,7 @@ class MapCollisionModel(GameFile):
             raise ValueError("Map collision has no `meshes`. Cannot convert to collision HKX.")
 
         # Template is the easiest way to set up the full HKX structure. (These are the only three games that use MOPP.)
-        match self.py_havok_module:
+        match self.havok_module:
             case PyHavokModule.hk550:
                 template_path = HAVOK_PACKAGE_PATH("resources/MapCollisionTemplate_DES.hkx")
                 hkx = HKX.from_path(template_path)
@@ -266,7 +266,7 @@ class MapCollisionModel(GameFile):
                 template_path = HAVOK_PACKAGE_PATH("resources/MapCollisionTemplate_DSR.hkx")
                 hkx = HKX.from_path(template_path)
             case _:
-                raise ValueError(f"Cannot export `MapCollisionModel` to HKX for Havok version: {self.py_havok_module}")
+                raise ValueError(f"Cannot export `MapCollisionModel` to HKX for Havok version: {self.havok_module}")
 
         physics_data, physics_system = self.get_hkx_physics(hkx)
 
@@ -300,7 +300,7 @@ class MapCollisionModel(GameFile):
                 materialNameData=mesh.material_index,
             )
             # Remaining `CustomMeshParameter` kwargs are module-specific.
-            match self.py_havok_module:
+            match self.havok_module:
                 case PyHavokModule.hk550:
                     kwargs |= {"zero0": 0, "zero1": 0, "zero2": 0, "zero3": 0, "zero4": 0}
                     material = hk550.CustomMeshParameter(**kwargs)
@@ -312,7 +312,7 @@ class MapCollisionModel(GameFile):
                     material = hk2015.CustomMeshParameter(**kwargs)
                 case _:  # unreachable
                     raise ValueError(
-                        f"Cannot export `MapCollisionModel` to HKX for Havok version: {self.py_havok_module}"
+                        f"Cannot export `MapCollisionModel` to HKX for Havok version: {self.havok_module}"
                     )
 
             child_shape.materialArray.append(material)
@@ -474,7 +474,7 @@ class MapCollisionModel(GameFile):
             materialIndices16=[],
         )
 
-        if self.py_havok_module == PyHavokModule.hk550:
+        if self.havok_module == PyHavokModule.hk550:
             if mesh.vertex_index_bit_size == 8:
                 raise ValueError("Havok 550 does not support 8-bit mesh vertex indices.")
             kwargs[f"indices{mesh.vertex_index_bit_size}"] = vertex_indices
@@ -486,13 +486,13 @@ class MapCollisionModel(GameFile):
         )
         kwargs[f"indices{mesh.vertex_index_bit_size}"] = vertex_indices
 
-        match self.py_havok_module:
+        match self.havok_module:
             case PyHavokModule.hk2010:
                 return hk2010.hkpStorageExtendedMeshShapeMeshSubpartStorage(**kwargs)
             case PyHavokModule.hk2015:
                 return hk2015.hkpStorageExtendedMeshShapeMeshSubpartStorage(**kwargs)
 
-        raise ValueError(f"Cannot export `MapCollisionModel` to HKX for Havok version: {self.py_havok_module}")
+        raise ValueError(f"Cannot export `MapCollisionModel` to HKX for Havok version: {self.havok_module}")
 
     def new_triangles_subpart(self, mesh: MapCollisionModelMesh) -> ExtendedMeshShapeTrianglesSubpart:
         """Returns a new `hkpExtendedMeshShapeTrianglesSubpart` with the given number of vertices and faces.
@@ -511,7 +511,7 @@ class MapCollisionModel(GameFile):
             triangleOffset=-1,  # hard-coded offset in HKX files, but not needed
         )
         # Remaining fields are module-specific.
-        match self.py_havok_module:
+        match self.havok_module:
             case PyHavokModule.hk550:
                 kwargs |= dict(
                     type=0,
@@ -539,7 +539,7 @@ class MapCollisionModel(GameFile):
                 )
                 return hk2015.hkpExtendedMeshShapeTrianglesSubpart(**kwargs)
 
-        raise ValueError(f"Cannot export `MapCollisionModel` to HKX for Havok version: {self.py_havok_module}")
+        raise ValueError(f"Cannot export `MapCollisionModel` to HKX for Havok version: {self.havok_module}")
 
     @classmethod
     def from_obj_path(
@@ -548,7 +548,7 @@ class MapCollisionModel(GameFile):
         material_indices: tuple[int] = (),
         hkx_name: str = "",
         invert_x=True,
-        py_havok_module=PyHavokModule.hk2015,
+        havok_module=PyHavokModule.hk2015,
     ) -> tp.Self:
         """Read meshes from an OBJ file, with manually supplied material indices of the same length as the meshes.
 
@@ -590,7 +590,7 @@ class MapCollisionModel(GameFile):
         return cls(
             name=hkx_name,
             meshes=meshes,
-            py_havok_module=py_havok_module,
+            havok_module=havok_module,
         )
 
     def to_obj(self, invert_x=True) -> str:
@@ -625,7 +625,7 @@ class MapCollisionModel(GameFile):
         lines = [
             "MapCollisionModel(",
             f"    name=\"{self.name}\",",
-            f"    py_havok_module={repr(self.py_havok_module)},",
+            f"    havok_module={repr(self.havok_module)},",
             f"    meshes=[",
         ]
         for mesh in self.meshes:
