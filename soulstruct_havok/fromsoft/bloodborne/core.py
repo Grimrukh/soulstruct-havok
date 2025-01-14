@@ -7,16 +7,16 @@ __all__ = ["AnimationHKX", "SkeletonHKX"]
 import logging
 import subprocess as sp
 import typing as tp
-from dataclasses import dataclass
 
 from soulstruct.dcx import DCXType
 
-from soulstruct_havok.utilities.hk_conversion import convert_hk
+from soulstruct_havok.enums import PyHavokModule
 from soulstruct_havok.packfile.structs import PackFileVersion, PackfileHeaderInfo, PackFileHeaderExtension
 from soulstruct_havok.types import hk2010, hk2014
 from soulstruct_havok.types.hk2014 import *
 from soulstruct_havok.fromsoft.base import *
 from soulstruct_havok.fromsoft.darksouls1ptde import AnimationHKX as AnimationHKX_PTDE
+from soulstruct_havok.utilities.hk_conversion import convert_hk
 from soulstruct_havok.utilities.files import HAVOK_PACKAGE_PATH
 
 _LOGGER = logging.getLogger("soulstruct_havok")
@@ -31,9 +31,8 @@ SkeletonType = Skeleton[hkaSkeleton, hkaBone]
 SkeletonMapperType = SkeletonMapper[hkaSkeletonMapper]
 
 
-@dataclass(slots=True, repr=False)
 class AnimationHKX(BaseAnimationHKX):
-    TYPES_MODULE = hk2014
+    HAVOK_MODULE: tp.ClassVar[PyHavokModule] = PyHavokModule.hk2014
     root: hkRootLevelContainer = None
     animation_container: AnimationContainerType = None
 
@@ -46,7 +45,7 @@ class AnimationHKX(BaseAnimationHKX):
                 pointer_size=8,
                 is_little_endian=True,
                 reuse_padding_optimization=1,
-                contents_version_string=b"hk_2014.1.0-r1",
+                contents_version_string=VERSION,
                 flags=0,
                 header_extension=PackFileHeaderExtension(
                     unk_x3c=21,
@@ -101,8 +100,8 @@ class AnimationHKX(BaseAnimationHKX):
 
         # Clean-up: restore hash overrides, change binding to refer to same animation, and change animation type.
         anim_2014.hsh_overrides = self.hsh_overrides.copy()
-        for i, anim in enumerate(anim_2014.animation_container.animation_container.animations):
-            anim_2014.animation_container.animation_container.bindings[i].animation = anim
+        for i, anim in enumerate(anim_2014.animation_container.hkx_container.animations):
+            anim_2014.animation_container.hkx_container.bindings[i].animation = anim
             anim.type = 3  # spline-compressed in Havok 2014
 
         _LOGGER.info("Successfully converted interleaved animation to hk2014 spline animation.")
@@ -164,8 +163,7 @@ class AnimationHKX(BaseAnimationHKX):
         return cls(dcx_type=dcx_type, root=root2014, **cls.get_default_hkx_kwargs())
 
 
-@dataclass(slots=True, repr=False)
 class SkeletonHKX(BaseSkeletonHKX):
-    TYPES_MODULE = hk2014
+    HAVOK_MODULE: tp.ClassVar[PyHavokModule] = PyHavokModule.hk2014
     root: hkRootLevelContainer = None
     skeleton: SkeletonType = None

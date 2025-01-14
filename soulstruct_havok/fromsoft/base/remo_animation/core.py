@@ -20,7 +20,6 @@ from ..type_vars import *
 _LOGGER = logging.getLogger("soulstruct_havok")
 
 
-@dataclass(slots=True)
 class BaseRemoAnimationHKX(BaseWrappedHKX, abc.ABC):
     """HKX file that contains a skeleton AND animation data for a single continuous camera cut in a cutscene.
 
@@ -33,8 +32,8 @@ class BaseRemoAnimationHKX(BaseWrappedHKX, abc.ABC):
 
     def __post_init__(self):
         hka_animation_container = self.get_variant(0, *ANIMATION_CONTAINER_T.__constraints__)
-        self.animation_container = AnimationContainer(self.TYPES_MODULE, hka_animation_container)
-        self.skeleton = Skeleton(self.TYPES_MODULE, hka_animation_container.skeletons[0])
+        self.animation_container = AnimationContainer(self.HAVOK_MODULE, hka_animation_container)
+        self.skeleton = Skeleton(self.HAVOK_MODULE, hka_animation_container.skeletons[0])
 
     # TODO: What does the top-level name of this skeleton mean? Seems to just be first bone, but that's also usually a
     #  collision, so it could be used...?

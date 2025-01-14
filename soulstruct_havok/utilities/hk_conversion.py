@@ -45,7 +45,7 @@ def convert_hk(
 
     This operates by iterating over the members of the class and calling this function again when another `hk` instance
     is found as a member value, passing in the `hk` type detected in that member's information in `dest_object_type`.
-    Non-`hk` members (primitive Python types or arrays) are copied directly.
+    Non-`hk` members (primitive Python types or arrays) are deep-copied directly.
 
     If a member name in `source_object` is not found in `dest_object_type`, an error will be raised and the converter
     will attempt to handle it automatically: the `source_object`, the member name, the member value, and the in-progress

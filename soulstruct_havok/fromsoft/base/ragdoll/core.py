@@ -18,7 +18,6 @@ from ..type_vars import *
 from .skeleton_mapper import SkeletonMapper
 
 
-@dataclass(slots=True)
 class BaseRagdollHKX(BaseWrappedHKX, abc.ABC):
     """Ragdoll HKX file inside a `.chrbnd` Binder (with model name)."""
 
@@ -32,17 +31,17 @@ class BaseRagdollHKX(BaseWrappedHKX, abc.ABC):
 
     def __post_init__(self):
         hka_animation_container = self.get_variant(0, *ANIMATION_CONTAINER_T.__constraints__)
-        self.animation_skeleton = Skeleton(self.TYPES_MODULE, hka_animation_container.skeletons[0])
-        self.ragdoll_skeleton = Skeleton(self.TYPES_MODULE, hka_animation_container.skeletons[1])
-        self.physics_data = PhysicsData(self.TYPES_MODULE, self.get_variant(1, *PHYSICS_DATA_T.__constraints__))
+        self.animation_skeleton = Skeleton(self.HAVOK_MODULE, hka_animation_container.skeletons[0])
+        self.ragdoll_skeleton = Skeleton(self.HAVOK_MODULE, hka_animation_container.skeletons[1])
+        self.physics_data = PhysicsData(self.HAVOK_MODULE, self.get_variant(1, *PHYSICS_DATA_T.__constraints__))
 
         # NOTE: Ragdoll instance is not needed. It just references physics/skeletons that we already have.
         # ragdoll_instance = variant_property(2, "hkaRagdollInstance")
 
         self.animation_to_ragdoll_skeleton_mapper = SkeletonMapper(
-            self.TYPES_MODULE, self.get_variant(3, *SKELETON_MAPPER_T.__constraints__))
+            self.HAVOK_MODULE, self.get_variant(3, *SKELETON_MAPPER_T.__constraints__))
         self.ragdoll_to_animation_skeleton_mapper = SkeletonMapper(
-            self.TYPES_MODULE, self.get_variant(4, *SKELETON_MAPPER_T.__constraints__))
+            self.HAVOK_MODULE, self.get_variant(4, *SKELETON_MAPPER_T.__constraints__))
 
     def scale_all_translations(self, scale_factor: float | Vector3 | Vector4):
         """Scale all translation information, including:

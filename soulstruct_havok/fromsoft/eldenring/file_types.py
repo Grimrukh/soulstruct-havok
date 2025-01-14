@@ -12,13 +12,13 @@ __all__ = [
 import logging
 import subprocess as sp
 import typing as tp
-from dataclasses import dataclass
 
 import numpy as np
 
 from soulstruct.dcx import DCXType
 
 from soulstruct_havok.core import HavokFileFormat
+from soulstruct_havok.enums import PyHavokModule
 from soulstruct_havok.packfile.structs import PackFileVersion, PackfileHeaderInfo
 from soulstruct_havok.types import hk2010, hk2018
 from soulstruct_havok.types.hk2018 import *
@@ -38,9 +38,8 @@ SkeletonType = Skeleton[hkaSkeleton, hkaBone]
 SkeletonMapperType = SkeletonMapper[hkaSkeletonMapper]
 
 
-@dataclass(slots=True, repr=False)
 class AnimationHKX(BaseAnimationHKX):
-    TYPES_MODULE: tp.ClassVar = hk2018
+    HAVOK_MODULE: tp.ClassVar[PyHavokModule] = PyHavokModule.hk2018
     root: hkRootLevelContainer = None
     animation_container: AnimationContainerType = None
 
@@ -85,8 +84,8 @@ class AnimationHKX(BaseAnimationHKX):
 
         # Clean-up: restore hash overrides, change binding to refer to same animation, and change animation type.
         anim_2018.hsh_overrides = self.hsh_overrides.copy()
-        for i, anim in enumerate(anim_2018.animation_container.animation_container.animations):
-            anim_2018.animation_container.animation_container.bindings[i].animation = anim
+        for i, anim in enumerate(anim_2018.animation_container.hkx_container.animations):
+            anim_2018.animation_container.hkx_container.bindings[i].animation = anim
             anim.type = 3  # spline-compressed in Havok 2018 (was 5 in Havok 2010)
 
         _LOGGER.info("Successfully converted interleaved animation to hk2018 spline animation.")
@@ -126,7 +125,7 @@ class AnimationHKX(BaseAnimationHKX):
                 pointer_size=4,
                 is_little_endian=True,
                 reuse_padding_optimization=0,
-                contents_version_string=b"hk_2010.2.0-r1",
+                contents_version_string=VERSION,
                 flags=0,
                 header_extension=None,
             ),
@@ -167,19 +166,17 @@ class AnimationHKX(BaseAnimationHKX):
         )
 
 
-@dataclass(slots=True)
 class SkeletonHKX(BaseSkeletonHKX):
-    TYPES_MODULE: tp.ClassVar = hk2018
+    HAVOK_MODULE: tp.ClassVar[PyHavokModule] = PyHavokModule.hk2018
     root: hkRootLevelContainer = None
     skeleton: SkeletonType = None
 
 
-@dataclass(slots=True)
 class NavmeshHKX(BaseWrappedHKX):
     # TODO: Generic version in `base`.
-    TYPES_MODULE: tp.ClassVar = hk2018
+    HAVOK_MODULE: tp.ClassVar[PyHavokModule] = PyHavokModule.hk2018
 
-    root: hkRootLevelContainer
+    root: hkRootLevelContainer = None
 
     def get_simple_mesh(self, merge_dist: float = 0) -> Mesh:
         """Return an Nx3 vertex array and a list of faces' vertex indices, of varying length, into that array.

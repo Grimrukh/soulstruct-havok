@@ -8,25 +8,24 @@ import abc
 import copy
 import logging
 import typing as tp
-from dataclasses import dataclass
 
-from soulstruct_havok.types import hk, hk550
+from soulstruct_havok.enums import PyHavokModule
+from soulstruct_havok.exceptions import TypeNotDefinedError
+from soulstruct_havok.fromsoft.base.core import BaseWrappedHKX
+from soulstruct_havok.fromsoft.base.type_vars import *
+from soulstruct_havok.types import hk
 from soulstruct_havok.utilities.maths import TRSTransform, Vector4, float32
-
-from ..core import BaseWrappedHKX
-from ..type_vars import *
 from .animation_container import AnimationContainer
 
 if tp.TYPE_CHECKING:
     import numpy as np
     from soulstruct_havok.spline_compression import SplineCompressedAnimationData
-    from ..skeleton import BaseSkeletonHKX
+    from soulstruct_havok.fromsoft.base.skeleton import BaseSkeletonHKX
 
 
 _LOGGER = logging.getLogger("soulstruct_havok")
 
 
-@dataclass(slots=True)
 class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
     """Animation HKX file inside a `.anibnd` Binder (with animation ID).
 
@@ -37,7 +36,7 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
 
     def __post_init__(self):
         self.animation_container = AnimationContainer(
-            self.TYPES_MODULE, self.get_variant(0, *ANIMATION_CONTAINER_T.__constraints__))
+            self.HAVOK_MODULE, self.get_variant(0, *ANIMATION_CONTAINER_T.__constraints__))
 
     @classmethod
     def get_default_hkx_kwargs(cls) -> dict[str, tp.Any]:
@@ -55,7 +54,7 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
 
         duration = (root_motion_array.shape[0] - 1) / frame_rate
 
-        ref_frame_class = cls.TYPES_MODULE.hkaDefaultAnimatedReferenceFrame  # type: type[hk]
+        ref_frame_class = cls.HAVOK_MODULE.get_type("hkaDefaultAnimatedReferenceFrame")
         ref_frame_kwargs = dict(
             up=Vector4((0.0, 1.0, 0.0, 0.0)),
             forward=Vector4((0.0, 0.0, 1.0, 0.0)),
@@ -112,6 +111,8 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
                 raise ValueError(f"Frame {i} has {len(frame)} tracks, but all frames must have {track_count} tracks.")
         duration = (len(frame_transforms) - 1) / frame_rate  # seconds between first and last frame
 
+        # noinspection PyTypeChecker
+        qs_transform_type = cls.HAVOK_MODULE.get_type("hkQsTransform")  # type: QS_TRANSFORM_T
         qs_transforms = []
         if skeleton_for_armature_to_local:
             # First, compute 'track hierarchy' (track parent indices).
@@ -127,11 +128,11 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
                 frame_transforms, track_parent_indices
             )
             for frame in local_frame_transforms:
-                qs_transforms += [cls.TYPES_MODULE.hkQsTransform.from_trs_transform(transform) for transform in frame]
+                qs_transforms += [qs_transform_type.from_trs_transform(transform) for transform in frame]
         else:
             # We can just use the frame transforms as they are. Otherwise, they will be handled later.
             for frame in frame_transforms:
-                qs_transforms += [cls.TYPES_MODULE.hkQsTransform.from_trs_transform(transform) for transform in frame]
+                qs_transforms += [qs_transform_type.from_trs_transform(transform) for transform in frame]
 
         if root_motion_array is not None:
             extracted_motion = cls.get_default_animated_reference_frame(root_motion_array, frame_rate)
@@ -139,8 +140,10 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
             extracted_motion = None
 
         if track_names:
+            # noinspection PyTypeChecker
+            annotation_track_type = cls.HAVOK_MODULE.get_type_from_var(ANNOTATION_TRACK_T)
             annotation_tracks = [
-                cls.TYPES_MODULE.hkaAnnotationTrack(
+                annotation_track_type(
                     trackName=track_name,
                     annotations=[],
                 ) for track_name in track_names
@@ -148,7 +151,8 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
         else:
             annotation_tracks = []
 
-        animation = cls.TYPES_MODULE.hkaInterleavedUncompressedAnimation(
+        interleaved_animation_type = cls.HAVOK_MODULE.get_type_from_var(INTERLEAVED_ANIMATION_T)
+        animation = interleaved_animation_type(
             # hkaAnimation:
             type=1,  # correct for all Havok versions
             duration=float32(duration),
@@ -161,12 +165,13 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
             floats=[],  # never used
         )
 
-        if not cls.get_version_string().startswith(("Havok_", "hk_2010")):
-            extra_binding_kwargs = {"partitionIndices": []}
-        else:
-            extra_binding_kwargs = {}
-        binding = cls.TYPES_MODULE.hkaAnimationBinding(
-            originalSkeletonName=original_skeleton_name,
+        binding_type = cls.HAVOK_MODULE.get_type_from_var(ANIMATION_BINDING_T)
+        extra_binding_kwargs = {}
+        if int(cls.HAVOK_MODULE.value) >= 2010:
+            extra_binding_kwargs["originalSkeletonName"] = original_skeleton_name
+        if int(cls.HAVOK_MODULE.value) >= 2014:
+            extra_binding_kwargs["partitionIndices"] = []
+        binding = binding_type(
             animation=animation,
             transformTrackToBoneIndices=transform_track_bone_indices,
             floatTrackToFloatSlotIndices=[],
@@ -174,12 +179,15 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
             **extra_binding_kwargs,
         )
 
-        root = cls.TYPES_MODULE.hkRootLevelContainer(
+        root_type = cls.HAVOK_MODULE.get_type_from_var(ROOT_LEVEL_CONTAINER_T)
+        named_variant_type = cls.HAVOK_MODULE.get_type_from_var(ROOT_LEVEL_CONTAINER_NAMED_VARIANT_T)
+        animation_container_type = cls.HAVOK_MODULE.get_type_from_var(ANIMATION_CONTAINER_T)
+        root = root_type(
             namedVariants=[
-                cls.TYPES_MODULE.hkRootLevelContainerNamedVariant(
+                named_variant_type(
                     name="Merged Animation Container",
                     className="hkaAnimationContainer",
-                    variant=cls.TYPES_MODULE.hkaAnimationContainer(
+                    variant=animation_container_type(
                         skeletons=[],
                         animations=[animation],
                         bindings=[binding],
@@ -210,10 +218,12 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
         Track names are optional and will be written to track annotations if given. Length of names must match track
         count in this case.
         """
-        if cls.TYPES_MODULE == hk550:
+        if cls.HAVOK_MODULE == PyHavokModule.hk550:
             raise ValueError("Spline-compressed animations not supported by Havok version 5.5.0 (Demon's Souls).")
-        if not hasattr(cls.TYPES_MODULE, "hkaSplineCompressedAnimation"):
-            raise ValueError(
+        try:
+            spline_animation_type = cls.HAVOK_MODULE.get_type_from_var(SPLINE_ANIMATION_T)
+        except TypeNotDefinedError:
+            raise TypeNotDefinedError(
                 f"Spline-compressed animation class not known for this Havok version ({cls.get_version_string()})."
             )
 
@@ -246,8 +256,9 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
         animation_type = 5 if cls.get_version_string().startswith("hk_2010") else 3  # spline
 
         if track_names:
+            annotation_track_type = cls.HAVOK_MODULE.get_type_from_var(ANNOTATION_TRACK_T)
             annotation_tracks = [
-                cls.TYPES_MODULE.hkaAnnotationTrack(
+                annotation_track_type(
                     trackName=track_name,
                     annotations=[],
                 ) for track_name in track_names
@@ -255,7 +266,7 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
         else:
             annotation_tracks = []
 
-        animation = cls.TYPES_MODULE.hkaSplineCompressedAnimation(
+        animation = spline_animation_type(
             # hkaAnimation:
             type=animation_type,
             duration=float32(duration),
@@ -279,21 +290,29 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
             endian=0,  # little-endian
         )
 
-        binding = cls.TYPES_MODULE.hkaAnimationBinding(
-            originalSkeletonName=original_skeleton_name,
+        binding_type = cls.HAVOK_MODULE.get_type_from_var(ANIMATION_BINDING_T)
+        extra_binding_kwargs = {}
+        if cls.HAVOK_MODULE >= PyHavokModule.hk2010:
+            extra_binding_kwargs["originalSkeletonName"] = original_skeleton_name
+        if cls.HAVOK_MODULE >= PyHavokModule.hk2014:
+            extra_binding_kwargs["partitionIndices"] = []
+        binding = binding_type(
             animation=animation,
             transformTrackToBoneIndices=transform_track_bone_indices,
             floatTrackToFloatSlotIndices=[],
-            partitionIndices=[],
             blendHint=0,
+            **extra_binding_kwargs,
         )
 
-        root = cls.TYPES_MODULE.hkRootLevelContainer(
+        root_type = cls.HAVOK_MODULE.get_type_from_var(ROOT_LEVEL_CONTAINER_T)
+        named_variant_type = cls.HAVOK_MODULE.get_type_from_var(ROOT_LEVEL_CONTAINER_NAMED_VARIANT_T)
+        animation_container_type = cls.HAVOK_MODULE.get_type_from_var(ANIMATION_CONTAINER_T)
+        root = root_type(
             namedVariants=[
-                cls.TYPES_MODULE.hkRootLevelContainerNamedVariant(
+                named_variant_type(
                     name="Merged Animation Container",
                     className="hkaAnimationContainer",
-                    variant=cls.TYPES_MODULE.hkaAnimationContainer(
+                    variant=animation_container_type(
                         skeletons=[],
                         animations=[animation],
                         bindings=[binding],

@@ -10,7 +10,6 @@ __all__ = [
     "DefType",
 ]
 
-import inspect
 import re
 import typing as tp
 from contextlib import contextmanager
@@ -21,7 +20,7 @@ import numpy as np
 
 from soulstruct.utilities.binary import BinaryReader, BinaryWriter
 
-from soulstruct_havok.enums import TagDataType, MemberFlags
+from soulstruct_havok.enums import TagDataType, MemberFlags, PyHavokModule
 from soulstruct_havok.packfile.structs import PackItemCreationQueues
 from soulstruct_havok.tagfile.structs import TagItemCreationQueues, TagFileItem
 from soulstruct_havok.types.info import *
@@ -100,8 +99,8 @@ class hk:
     """Absolute base of every Havok type."""
 
     # Set before unpacking root and removed afterward, as `hkRootLevelContainerNamedVariant` objects need to dynamically
-    # retrieve all type names.
-    _TYPES_DICT: tp.ClassVar[dict[str, type[hk]] | None] = None
+    # retrieve type names from our Python modules.
+    _HAVOK_MODULE: tp.ClassVar[PyHavokModule | None] = None
 
     alignment: tp.ClassVar[int] = 0
     byte_size: tp.ClassVar[int] = 0
@@ -211,27 +210,24 @@ class hk:
 
     @staticmethod
     @contextmanager
-    def set_types_dict(module):
+    def set_havok_module(havok_module: PyHavokModule):
         """Assign `soulstruct_havok.types.hkXXXX` submodule to `hk` so that dynamic type names can be resolved (e.g.,
         `hkRootLevelContainerNamedVariant`, `hkViewPtr`).
 
         Should be used via `with` context to ensure the dictionary is unassigned when unpacking is finished. Not
         required for packing because the types are already assigned.
         """
-        hk._TYPES_DICT = {
-            name: hk_type
-            for name, hk_type in inspect.getmembers(module, lambda x: inspect.isclass(x) and issubclass(x, hk))
-        }
+        hk._HAVOK_MODULE = havok_module
         try:
             yield
         finally:
-            hk._TYPES_DICT = None
+            hk._HAVOK_MODULE = None
 
     @classmethod
     def get_module_type(cls, type_name: str) -> type[hk]:
-        if cls._TYPES_DICT is None:
-            raise AttributeError(f"`hk.set_types_dict()` has not been called. Cannot retrieve type `{type_name}`.")
-        return cls._TYPES_DICT[type_name]
+        if cls._HAVOK_MODULE is None:
+            raise ValueError(f"`hk.set_havok_module()` has not been called. Cannot retrieve type `{type_name}`.")
+        return cls._HAVOK_MODULE.get_type(type_name)
 
     @classmethod
     def get_empty_instance(cls) -> tp.Self:
@@ -256,11 +252,12 @@ class hk:
 
         if cls.__name__ == "hkRootLevelContainerNamedVariant":
             # Retrieve other classes from subclass's module, as they will be dynamically attached to the root container.
-            if hk._TYPES_DICT is None:
+            if hk._HAVOK_MODULE is None:
                 raise AttributeError(
-                    "Cannot unpack `hkRootLevelContainerNamedVariant` without using types context manager."
+                    "Cannot unpack `hkRootLevelContainerNamedVariant` without wrapping unpack call with "
+                    "`hk.set_havok_module()` context manager."
                 )
-            return tagfile.unpack_named_variant(cls, reader, items, hk._TYPES_DICT)
+            return tagfile.unpack_named_variant(cls, reader, items, hk._HAVOK_MODULE)
 
         tag_data_type = cls.get_tag_data_type()
         if tag_data_type == TagDataType.Invalid:
@@ -304,11 +301,12 @@ class hk:
 
         if cls.__name__ == "hkRootLevelContainerNamedVariant":
             # Retrieve other classes from subclass's module, as they will be dynamically attached to the root container.
-            if hk._TYPES_DICT is None:
+            if hk._HAVOK_MODULE is None:
                 raise AttributeError(
-                    "Cannot unpack `hkRootLevelContainerNamedVariant` without using types context manager."
+                    "Cannot unpack `hkRootLevelContainerNamedVariant` without wrapping unpack call with "
+                    "`hk.set_havok_module()` context manager."
                 )
-            return packfile.unpack_named_variant(cls, item, hk._TYPES_DICT)
+            return packfile.unpack_named_variant(cls, item, hk._HAVOK_MODULE)
 
         tag_data_type = cls.get_tag_data_type()
         if tag_data_type == TagDataType.Invalid:
@@ -796,9 +794,9 @@ class hk:
                     reference_index += 1
                 else:
                     replacements[f"  # <{shown_id}>"] = ""
-
-            pattern = re.compile("|".join(re.escape(k) for k in replacements))
-            tree_str = pattern.sub(lambda m: replacements[m.group(0)], tree_str)
+            if replacements:
+                pattern = re.compile("|".join(re.escape(k) for k in replacements))
+                tree_str = pattern.sub(lambda m: replacements[m.group(0)], tree_str)
 
         return tree_str
 

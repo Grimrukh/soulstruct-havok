@@ -6,13 +6,12 @@ import abc
 import logging
 import typing as tp
 from dataclasses import dataclass
-from types import ModuleType
 
 import numpy as np
 
+from soulstruct_havok.enums import PyHavokModule
 from soulstruct_havok.utilities.maths import Vector3, Vector4
-
-from ..type_vars import SKELETON_MAPPER_T
+from soulstruct_havok.fromsoft.base.type_vars import SKELETON_MAPPER_T
 
 _LOGGER = logging.getLogger("soulstruct_havok")
 
@@ -25,7 +24,7 @@ class SkeletonMapper(tp.Generic[SKELETON_MAPPER_T], abc.ABC):
     This allows animations to also animate the ragdoll skeleton and its collision contents.
     """
 
-    types_module: ModuleType
+    havok_module: PyHavokModule
     skeleton_mapper: SKELETON_MAPPER_T
 
     def get_mapper_dict(self) -> dict[str, dict[str, dict]]:

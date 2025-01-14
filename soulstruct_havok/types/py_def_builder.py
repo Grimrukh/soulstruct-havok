@@ -6,7 +6,7 @@ import re
 import typing as tp
 
 from soulstruct_havok.enums import TagDataType, MemberFlags
-from .exceptions import HavokTypeError, TypeNotDefinedError
+from soulstruct_havok.exceptions import HavokTypeError, TypeNotDefinedError
 
 if tp.TYPE_CHECKING:
     from .info import TypeInfo

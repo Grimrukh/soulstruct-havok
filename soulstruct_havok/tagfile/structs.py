@@ -14,7 +14,6 @@ from soulstruct_havok.enums import TagDataType
 if tp.TYPE_CHECKING:
     import numpy as np
     from soulstruct_havok.types.hk import hk, HK_TYPE
-    from soulstruct_havok.types.base import Ptr_, hkArray_
 
 
 _LOGGER = logging.getLogger("soulstruct_havok")
@@ -60,16 +59,18 @@ class TagFileItem:
         self.data = bytes(self.writer)
         self.writer = None  # ensure we don't accidentally try to write more
 
-    def get_item_hk_type(self, hk_types_module) -> HK_TYPE:
+    def get_item_hk_data_type(self) -> HK_TYPE:
         """Get actual data type of item (string, array, pointer, or `hkRootLevelContainer`)."""
+        if self.hk_type is None:
+            raise ValueError("Tried to get item type before setting it.")
         tag_data_type = self.hk_type.get_tag_data_type()
         if tag_data_type == TagDataType.CharArray:
-            return getattr(hk_types_module, "_char")
-        elif tag_data_type == TagDataType.Array:
-            self.hk_type: type[hkArray_]
+            # noinspection PyUnresolvedReferences
             return self.hk_type.get_data_type()
-        elif tag_data_type == TagDataType.Pointer:
-            self.hk_type: type[Ptr_]
+        elif tag_data_type == TagDataType.Array:  # hkArray_
+            # noinspection PyUnresolvedReferences
+            return self.hk_type.get_data_type()
+        elif tag_data_type == TagDataType.Pointer:  # Ptr_
             return type(self.value)
         elif self.hk_type.__name__ == "hkRootLevelContainer":
             return self.hk_type

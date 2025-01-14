@@ -253,7 +253,6 @@ class RemoCut:
         remo_part.cut_arma_frames[self.name] = arma_frames
 
 
-@dataclass(slots=True)
 class RemoBND(Binder):
     """Manages HKX files inside a `remobnd[.dcx]` binder and allows easy access to animation data for the corresponding
     MSB parts used in the cutscene.

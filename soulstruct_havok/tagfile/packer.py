@@ -11,7 +11,7 @@ from contextlib import contextmanager
 
 from soulstruct.utilities.binary import *
 
-from soulstruct_havok.enums import TagFormatFlags
+from soulstruct_havok.enums import TagFormatFlags, PyHavokModule
 from soulstruct_havok.types.base import hkArray_
 from soulstruct_havok.types.hk import hk
 from soulstruct_havok.types.info import TypeInfo
@@ -46,25 +46,25 @@ class TagFilePacker:
         processed and the `TagFileItem` created.
         """
 
-    type_info_dict: dict[str, TypeInfo]
+    havok_module: PyHavokModule
+    hkx: HKX
     items: list[None | TagFileItem]
+    type_info_dict: dict[str, TypeInfo]
+
+    # Maps base type names to absolute offsets of items using them.
+    _patches: dict[str, list[int]]
 
     def __init__(self, hkx: HKX):
-
-        from soulstruct_havok.types import hk2015
-        self.hk_types_module = hk2015
-
+        self.havok_module = hkx.havok_module
         self.hkx = hkx
         self.items = [None]  # type: list[None | TagFileItem]  # first entry is always `None` for 1-indexing
         self.type_info_dict = {}
-        self._patches = {}  # type: dict[str, list[int]]  # maps base type names to absolute item offsets using them
-
-    def get_py_type(self, type_name: str) -> type[hk]:
-        return getattr(self.hk_types_module, type_name)
+        self._patches = {}  # type: dict[str, list[int]]
 
     def build_type_info_dict(self, long_varints: bool):
         """Collects all `TypeInfo`s for types used by this file."""
-        self.type_info_dict = TypeInfoGenerator(self.items[1:], self.hk_types_module, long_varints).type_infos
+        type_info_gen = TypeInfoGenerator(self.havok_module.get_submodule(), long_varints)
+        self.type_info_dict = type_info_gen.generate_type_info_dict(self.items[1:])
         type_py_names = [""] + list(self.type_info_dict.keys())
         for type_info in self.type_info_dict.values():
             type_info.indexify(type_py_names)
@@ -100,7 +100,7 @@ class TagFilePacker:
 
             with self.pack_section(writer, "DATA"):
 
-                with hk.set_types_dict(self.hk_types_module):
+                with hk.set_havok_module(self.havok_module):
                     data_start_offset = self.pack_data_section(writer)
                     self.build_type_info_dict(long_varints)
 
@@ -126,7 +126,7 @@ class TagFilePacker:
 
         def write_item_data(item_):
             """Align master writer, set item's offset within it, append item data, and collect patch offsets."""
-            item_hk_data_type = item_.get_item_hk_type(self.hk_types_module)
+            item_hk_data_type = item_.get_item_hk_data_type()
             if issubclass(item_.hk_type, hkArray_) and item_hk_data_type.__name__ != "hkRootLevelContainerNamedVariant":
                 alignment = 16
             else:
@@ -141,7 +141,7 @@ class TagFilePacker:
                 self._patches.setdefault(type_name, []).extend(data_patch_offsets)
 
         while ref_queue:
-            ref_subqueues = TagItemCreationQueues(writer.default_byte_order)
+            ref_subqueues = TagItemCreationQueues(writer.byte_order)
             ref_item = ref_queue.popleft()
             items_to_write = deque([ref_item])
 
@@ -363,7 +363,7 @@ class TagFilePacker:
                 writer.pad(12)
 
                 for i, item in enumerate(self.items[1:]):  # skip null item
-                    type_index = type_names.index(item.get_item_hk_type(self.hk_types_module).__name__)
+                    type_index = type_names.index(item.get_item_hk_data_type().__name__)
                     type_index_with_ptr = type_index | (0x10000000 if item.is_ptr else 0x20000000)
                     item_relative_offset = item.absolute_offset - data_start_offset
                     item_length = item.length

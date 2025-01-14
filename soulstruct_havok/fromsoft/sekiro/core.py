@@ -16,11 +16,11 @@ __all__ = [
 import logging
 import subprocess as sp
 import typing as tp
-from dataclasses import dataclass
 
 from soulstruct.dcx import DCXType
 
 from soulstruct_havok.core import HavokFileFormat
+from soulstruct_havok.enums import PyHavokModule
 from soulstruct_havok.packfile.structs import PackFileVersion, PackfileHeaderInfo
 from soulstruct_havok.types import hk2010, hk2016
 from soulstruct_havok.types.hk2016 import *
@@ -40,9 +40,8 @@ SkeletonMapperType = SkeletonMapper[hkaSkeletonMapper]
 PhysicsDataType = PhysicsData[hkpPhysicsData, hkpPhysicsSystem]
 
 
-@dataclass(slots=True, repr=False)
 class AnimationHKX(BaseAnimationHKX):
-    TYPES_MODULE: tp.ClassVar = hk2016
+    HAVOK_MODULE: tp.ClassVar[PyHavokModule] = PyHavokModule.hk2016
     root: hkRootLevelContainer = None
     animation_container: AnimationContainerType = None
 
@@ -127,7 +126,7 @@ class AnimationHKX(BaseAnimationHKX):
                 pointer_size=4,
                 is_little_endian=True,
                 reuse_padding_optimization=0,
-                contents_version_string=b"hk_2010.2.0-r1",
+                contents_version_string=VERSION,
                 flags=0,
                 header_extension=None,
             ),
@@ -167,30 +166,26 @@ class AnimationHKX(BaseAnimationHKX):
         )
 
 
-@dataclass(slots=True)
 class SkeletonHKX(BaseSkeletonHKX):
-    TYPES_MODULE: tp.ClassVar = hk2016
+    HAVOK_MODULE: tp.ClassVar[PyHavokModule] = PyHavokModule.hk2016
     root: hkRootLevelContainer = None
     skeleton: SkeletonType = None
 
 
-@dataclass(slots=True)
 class CollisionHKX(BaseCollisionHKX):
-    TYPES_MODULE: tp.ClassVar = hk2016
+    HAVOK_MODULE: tp.ClassVar[PyHavokModule] = PyHavokModule.hk2016
     root: hkRootLevelContainer = None
     physics_data: PhysicsDataType = None
 
 
-@dataclass(slots=True)
 class ClothHKX(BaseClothHKX):
-    TYPES_MODULE: tp.ClassVar = hk2016
+    HAVOK_MODULE: tp.ClassVar[PyHavokModule] = PyHavokModule.hk2016
     root: hkRootLevelContainer = None
     cloth_physics_data: ClothPhysicsData[hkpPhysicsData, hkpPhysicsSystem] = None
 
 
-@dataclass(slots=True)
 class RagdollHKX(BaseRagdollHKX):
-    TYPES_MODULE: tp.ClassVar = hk2016
+    HAVOK_MODULE: tp.ClassVar[PyHavokModule] = PyHavokModule.hk2016
     root: hkRootLevelContainer = None
     standard_skeleton: SkeletonType = None
     ragdoll_skeleton: SkeletonType = None
@@ -199,9 +194,8 @@ class RagdollHKX(BaseRagdollHKX):
     ragdoll_to_animation_skeleton_mapper: SkeletonMapperType = None
 
 
-@dataclass(slots=True)
 class RemoAnimationHKX(BaseRemoAnimationHKX):
-    TYPES_MODULE: tp.ClassVar = hk2016
+    HAVOK_MODULE: tp.ClassVar[PyHavokModule] = PyHavokModule.hk2016
     root: hkRootLevelContainer = None
     animation_container: AnimationContainerType = None
     skeleton: SkeletonType = None

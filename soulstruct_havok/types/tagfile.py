@@ -29,7 +29,8 @@ import numpy as np
 
 from soulstruct.utilities.binary import BinaryReader, BinaryWriter
 
-from soulstruct_havok.enums import TagDataType
+from soulstruct_havok.enums import TagDataType, PyHavokModule
+from soulstruct_havok.exceptions import TypeNotDefinedError
 from soulstruct_havok.tagfile.structs import TagItemCreationQueues, TagFileItem
 from .info import get_py_name
 
@@ -462,7 +463,7 @@ def pack_string(
 
 
 def unpack_named_variant(
-    hk_type: type[hk], reader: BinaryReader, items: list[TagFileItem], types_module: dict
+    hk_type: type[hk], reader: BinaryReader, items: list[TagFileItem], havok_module: PyHavokModule
 ) -> hk:
     """Detects `variant` type dynamically from `className` member."""
     kwargs = {}
@@ -478,7 +479,13 @@ def unpack_named_variant(
     )
     kwargs[class_name_member.name] = variant_type_name
     variant_py_name = get_py_name(variant_type_name)
-    variant_type = types_module[variant_py_name]
+    try:
+        variant_type = havok_module.get_type(variant_py_name)
+    except TypeNotDefinedError:
+        raise TypeNotDefinedError(
+            f"Named variant type not defined in Havok module {havok_module.get_version_string()}: "
+            f"{variant_py_name} (from {variant_type_name})"
+        )
     reader.seek(member_start_offset + variant_member.offset)
     if debug.DEBUG_PRINT_UNPACK:
         debug.debug_print(f"Unpacking named variant: {hk_type.__name__}... <{reader.position_hex}>")

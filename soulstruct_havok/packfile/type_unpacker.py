@@ -2,17 +2,20 @@ from __future__ import annotations
 
 __all__ = ["PackFileTypeUnpacker"]
 
-import copy
+import logging
 import typing as tp
 from dataclasses import dataclass, field
-from types import ModuleType
 
-from soulstruct_havok.enums import ClassMemberType, TagFormatFlags, TagDataType, MemberFlags, PackMemberFlags
+from soulstruct_havok.enums import (
+    ClassMemberType, TagFormatFlags, TagDataType, MemberFlags, PackMemberFlags,
+    PyHavokModule,
+)
 from soulstruct_havok.types.info import TypeInfo, MemberInfo, get_py_name
 
 if tp.TYPE_CHECKING:
     from .unpacker import PackFileTypeItem
 
+_LOGGER = logging.getLogger("soulstruct_havok")
 
 _DEBUG_MSG = False
 _DEBUG_ENUMS = False
@@ -45,12 +48,11 @@ class EnumValues(dict[str, int]):
 class PackFileTypeUnpacker:
     """Unpacks type entries into `TypeInfo` instances and assigns `py_class` to them."""
 
+    havok_module: PyHavokModule
     type_items: list[None | PackFileTypeItem]
     type_hashes: dict[str, int]
-    long_varints: bool
     pointer_size: int
 
-    hk_types_module: ModuleType | None = None
     # Maps Python parent names to lists of Python child names.
     parent_children: dict[str, list[str]] = field(default_factory=dict)
     enum_dicts: dict[str, EnumValues] = field(default_factory=dict)
@@ -58,36 +60,24 @@ class PackFileTypeUnpacker:
 
     def __init__(
         self,
+        havok_module: PyHavokModule,
         type_items: list[None | PackFileTypeItem],
         type_hashes: dict[str, int],
         pointer_size: int,
-        hk_types_module=None,
     ):
+        self.havok_module = havok_module
         self.type_items = [None] + type_items  # for one-indexing
         self.type_hashes = type_hashes
         if pointer_size == 8:
-            self.long_varints = True
             self.pointer_size = 8
         elif pointer_size == 4:
-            self.long_varints = False
             self.pointer_size = 4
         else:
             raise ValueError(f"Invalid pointer size: {pointer_size}. Must be 4 or 8.")
-        self.hk_types_module = hk_types_module
-
-    def __deepcopy__(self, memo):
-        new_instance = PackFileTypeUnpacker(
-            type_items=copy.deepcopy(self.type_items, memo),
-            type_hashes=copy.deepcopy(self.type_hashes, memo),
-            pointer_size=self.pointer_size,
-            hk_types_module=self.hk_types_module,
-        )
-        new_instance.long_varints = self.long_varints
-        return new_instance
 
     def get_type_infos(self) -> list[None | TypeInfo]:
 
-        print(f"Running `PackFileTypeUnpacker` with `long_varints = {self.long_varints}`.")
+        _LOGGER.info(f"Running `PackFileTypeUnpacker` with `pointer_size = {self.pointer_size}`.")
 
         self.parent_children = {}
         self.enum_dicts = {}  # type: dict[str, EnumValues]
@@ -99,18 +89,23 @@ class PackFileTypeUnpacker:
             # TODO: What about other types? Just generic?
             if item.class_name == "hkClass":
                 item.start_reader()
-                type_infos.append(self.unpack_type_item(item))
+                type_info = self.unpack_type_item(item)
+                type_infos.append(type_info)
 
         # Assign `TypeInfo` to members and parents. (Pointer types always zero, as these are only classes.)
         for type_info in type_infos[1:]:
             if type_info.parent_type_py_name:
-                type_info.parent_type_info = next(
-                    t for t in type_infos[1:] if t.py_name == type_info.parent_type_py_name
-                )
+                try:
+                    type_info.parent_type_info = next(
+                        t for t in type_infos[1:] if t.py_name == type_info.parent_type_py_name
+                    )
+                except StopIteration:
+                    raise ValueError(f"Parent type of {type_info.name} not found: {type_info.parent_type_py_name}")
             for member in type_info.members:
                 try:
                     member.type_info = [t for t in type_infos[1:] if t.py_name == member.type_py_name][0]
                 except IndexError:
+                    # Some super-basic Havok types don't appear in file type entries (e.g. `hkReal`, `hkArray`, ...).
                     if not ClassMemberType.is_builtin_type(member.type_py_name):
                         print([t.name for t in type_infos[1:]])
                         print(f"Cannot find member type: {member.type_py_name}")
@@ -138,19 +133,19 @@ class PackFileTypeUnpacker:
 
         return type_infos
 
-    def unpack_type_item(self, entry: PackFileTypeItem):
-        if self.long_varints:
-            type_item_header = entry.TYPE_STRUCT_64.from_bytes(entry.reader)
+    def unpack_type_item(self, item: PackFileTypeItem):
+        if self.pointer_size == 8:
+            type_item_header = item.TYPE_STRUCT_64.from_bytes(item.reader)
         else:
-            type_item_header = entry.TYPE_STRUCT_32.from_bytes(entry.reader)
+            type_item_header = item.TYPE_STRUCT_32.from_bytes(item.reader)
 
-        name = entry.reader.unpack_string(offset=entry.child_pointers[0], encoding="utf-8")
+        name = item.reader.unpack_string(offset=item.all_child_pointers[0], encoding="utf-8")
         py_name = get_py_name(name)
         type_info = TypeInfo(name)
 
         _DEBUG(f"Unpacking type: {name}")
 
-        parent_type_entry = entry.get_referenced_type_item(0 + self.pointer_size)  # skip name pointer
+        parent_type_entry = item.get_referenced_type_item(0 + self.pointer_size)  # skip name pointer
         type_info.parent_type_index = self.type_items.index(parent_type_entry)  # could be `None` (-> 0)
         if type_info.parent_type_index > 0:
             type_info.parent_type_py_name = get_py_name(parent_type_entry.get_type_name())
@@ -160,28 +155,28 @@ class PackFileTypeUnpacker:
         # think it's necessary for the file to be valid, though.
         class_enums = {}  # type: dict[str, EnumValues]
         if type_item_header.enums_count:
-            enums_offset = entry.child_pointers[24 if self.long_varints else 16]
-            with entry.reader.temp_offset(enums_offset):
-                enum_dict = self.unpack_enum_type(entry, align_before_name=False, enum_offset=enums_offset)
+            enums_offset = item.all_child_pointers[24 if self.pointer_size == 8 else 16]
+            with item.reader.temp_offset(enums_offset):
+                enum_dict = self.unpack_enum_type(item, align_before_name=False, enum_offset=enums_offset)
                 if enum_dict.name in class_enums:
                     raise AssertionError(f"Enum {enum_dict.name} was defined more than once in class {name}.")
                 class_enums[enum_dict.name] = enum_dict  # for member use
                 self.enum_dicts[f"{name}::{enum_dict.name}"] = enum_dict
 
         type_info.members = []
-        member_data_offset = entry.child_pointers.get(40 if self.long_varints else 24)
+        member_data_offset = item.all_child_pointers.get(40 if self.pointer_size == 8 else 24)
         if member_data_offset is not None:
-            with entry.reader.temp_offset(member_data_offset):
+            with item.reader.temp_offset(member_data_offset):
                 for _ in range(type_item_header.member_count):
-                    member_offset = entry.reader.position
-                    member = entry.MEMBER_TYPE_STRUCT.from_bytes(entry.reader, long_varints=self.long_varints)
-                    member_name_offset = entry.child_pointers[member_offset]
-                    member_name = entry.reader.unpack_string(offset=member_name_offset, encoding="utf-8")
+                    member_offset = item.reader.position
+                    member = item.MEMBER_TYPE_STRUCT.from_bytes(item.reader, long_varints=self.pointer_size == 8)
+                    member_name_offset = item.all_child_pointers[member_offset]
+                    member_name = item.reader.unpack_string(offset=member_name_offset, encoding="utf-8")
                     _DEBUG(f"    Member \"{member_name}\" ({member_offset} | {hex(member_offset)}) ({member.flags})")
                     member_type = ClassMemberType(member.member_type)
                     member_subtype = ClassMemberType(member.member_subtype)
                     _DEBUG(f"      {member_type.name} | {member_subtype.name}")
-                    member_type_item = entry.get_referenced_type_item(member_offset + self.pointer_size)
+                    member_type_item = item.get_referenced_type_item(member_offset + self.pointer_size)
 
                     if member_type == ClassMemberType.TYPE_ARRAY:
                         if member_subtype == ClassMemberType.TYPE_STRUCT:
@@ -219,6 +214,22 @@ class PackFileTypeUnpacker:
                         else:
                             type_py_name = f"hkArray[{member_subtype.get_py_type_name()}]"
                             member_py_name = f"hkArray({member_subtype.get_py_type_name()})"
+                            type_hint = f"list[{member_subtype.get_true_py_type_name()}]"
+                            required_types = [member_subtype.get_py_type_name()]
+
+                    elif member_type in {ClassMemberType.TYPE_SIMPLEARRAY, ClassMemberType.TYPE_HOMOGENOUSARRAY}:
+                        # TODO: Python classes still use `SimpleArray()` for `TYPE_HOMOGENOUSARRAY` members.
+                        if member_subtype == ClassMemberType.TYPE_STRUCT:
+                            # Simple array of class instances (pointer, size).
+                            class_name = get_py_name(member_type_item.get_type_name())
+                            type_py_name = f"SimpleArray[{class_name}]"
+                            member_py_name = f"SimpleArray({class_name})"
+                            type_hint = f"list[{class_name}]"
+                            required_types = [class_name]
+                        else:
+                            # Simple array of primitives (pointer, size).
+                            type_py_name = f"SimpleArray[{member_subtype.get_py_type_name()}]"
+                            member_py_name = f"SimpleArray({member_subtype.get_py_type_name()})"
                             type_hint = f"list[{member_subtype.get_true_py_type_name()}]"
                             required_types = [member_subtype.get_py_type_name()]
 
@@ -275,8 +286,8 @@ class PackFileTypeUnpacker:
                             raise AssertionError(f"Invalid data type for Ptr: {member_subtype.name}")
 
                     elif member_type == ClassMemberType.TYPE_ENUM:
-                        enum_offset = member_offset + (16 if self.long_varints else 8)
-                        enum_type_item = entry.get_referenced_type_item(enum_offset)
+                        enum_offset = member_offset + (16 if self.pointer_size == 8 else 8)
+                        enum_type_item = item.get_referenced_type_item(enum_offset)
                         storage_type_name = member_subtype.get_py_type_name()
                         if enum_type_item:
                             full_enum_name = f"{name}::{enum_type_item.get_type_name()}"
@@ -309,7 +320,8 @@ class PackFileTypeUnpacker:
                     else:  # primitive (subtype must be `TYPE_VOID`)
                         if member_subtype != ClassMemberType.TYPE_VOID:
                             raise AssertionError(
-                                f"Non-void subtype for primitive member {member_name}: {member_subtype}"
+                                f"Non-void subtype for primitive member "
+                                f"{member_name}: {ClassMemberType(member_subtype).name} ({member_subtype})"
                             )
                         type_py_name = member_py_name = member_type.get_py_type_name()  # primitive
                         type_hint = member_type.get_true_py_type_name()
@@ -364,21 +376,21 @@ class PackFileTypeUnpacker:
         """
 
         enum_type_struct = enum_type_item.ENUM_TYPE_STRUCT.from_bytes(
-            enum_type_item.reader, long_varints=self.long_varints
+            enum_type_item.reader, long_varints=self.pointer_size == 8
         )
         if align_before_name:
             enum_type_item.reader.align(16)
         name = enum_type_item.reader.unpack_string(
-            offset=enum_type_item.child_pointers[enum_offset + 0], encoding="utf-8"
+            offset=enum_type_item.all_child_pointers[enum_offset + 0], encoding="utf-8"
         )
         items = []
         enum_str = f"class {name}(IntEnum):\n"
-        with enum_type_item.reader.temp_offset(enum_type_item.child_pointers[enum_offset + self.pointer_size]):
+        with enum_type_item.reader.temp_offset(enum_type_item.all_child_pointers[enum_offset + self.pointer_size]):
             for _ in range(enum_type_struct.items_count):
-                item_value = enum_type_item.reader.unpack_value("<Q" if self.long_varints else "<I")
-                item_name_offset = enum_type_item.child_pointers[enum_type_item.reader.position]
+                item_value = enum_type_item.reader.unpack_value("<Q" if self.pointer_size == 8 else "<I")
+                item_name_offset = enum_type_item.all_child_pointers[enum_type_item.reader.position]
                 item_name = enum_type_item.reader.unpack_string(offset=item_name_offset, encoding="utf-8")
-                enum_type_item.reader.unpack_value("<Q" if self.long_varints else "<I", asserted=0)
+                enum_type_item.reader.unpack_value("<Q" if self.pointer_size == 8 else "<I", asserted=0)
                 enum_str += f"    {item_name} = {item_value}\n"
                 items.append((item_name, item_value))
 

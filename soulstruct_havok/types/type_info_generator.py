@@ -14,6 +14,7 @@ __all__ = ["TypeInfoGenerator"]
 from collections import deque
 
 import colorama
+from types import ModuleType
 
 from soulstruct_havok.tagfile.structs import TagFileItem
 
@@ -33,11 +34,16 @@ class TypeInfoGenerator:
 
     _DEBUG_PRINT = False
 
-    def __init__(self, items: list[TagFileItem], hk_types_module, long_varints=True):
+    def __init__(self, hk_types_module: ModuleType, long_varints=True):
         self.type_infos = {}  # type: dict[str, TypeInfo]
         self._module = hk_types_module
         self._scanned_type_names = set()
         self._long_varints = long_varints
+        self._done = False
+
+    def generate_type_info_dict(self, items: list[TagFileItem]) -> dict[str, TypeInfo]:
+        if self._done:
+            raise RuntimeError("Type information has already been generated.")
 
         for item in items:
             if isinstance(item.value, hk):
@@ -49,6 +55,10 @@ class TypeInfoGenerator:
             self._scan_hk_type_queue(deque([item_type]), indent=0)
             if item_type.__name__ == "hkRootLevelContainer":
                 self._add_type(getattr(self._module, "_char"))
+
+        self._done = True
+
+        return self.type_infos
 
     def _add_type(self, hk_type: type[hk], indent=0):
         if hk_type.__name__ in self.type_infos:

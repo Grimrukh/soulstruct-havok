@@ -9,10 +9,9 @@ __all__ = ["BaseWrappedHKX"]
 import abc
 import logging
 import typing as tp
-from dataclasses import dataclass
-from types import ModuleType
 
 from soulstruct_havok.core import HKX, HavokFileFormat
+from soulstruct_havok.enums import PyHavokModule
 from soulstruct_havok.types import hk
 
 _LOGGER = logging.getLogger("soulstruct_havok")
@@ -21,18 +20,12 @@ _LOGGER = logging.getLogger("soulstruct_havok")
 HK_T = tp.TypeVar("HK_T", bound=hk)
 
 
-@dataclass(slots=True)
 class BaseWrappedHKX(HKX, abc.ABC):
 
     # Assigned for version-specific subclasses.
-    TYPES_MODULE: tp.ClassVar[ModuleType]
+    HAVOK_MODULE: tp.ClassVar[PyHavokModule]
 
-    @classmethod
-    def _type(cls, name: str) -> type[hk]:
-        """Shortcut for getting a type from the dynamically-attached `soulstruct_havok.types` submodule."""
-        return getattr(cls.TYPES_MODULE, name)
-
-    def get_variant(self, variant_index: int, *valid_types: tp.Type[HK_T]) -> HK_T:
+    def get_variant(self, variant_index: int, *valid_types: type[HK_T]) -> HK_T:
         """Get variant at `variant_index`, check that it is one of the given `valid_types`, and return its type."""
         variant = self.root.namedVariants[variant_index].variant
         valid_type_names_modules = [f"{t.__name__} ({t.__module__})" for t in valid_types]
@@ -46,10 +39,10 @@ class BaseWrappedHKX(HKX, abc.ABC):
 
     @classmethod
     def get_version_string(cls) -> str:
-        return cls.TYPES_MODULE.VERSION
+        return cls.HAVOK_MODULE.get_version_string()
 
     @classmethod
     def get_default_hk_format(cls) -> HavokFileFormat:
-        if cls.TYPES_MODULE.VERSION.startswith("20"):
+        if cls.HAVOK_MODULE.get_version_string().startswith("20"):
             return HavokFileFormat.Tagfile
         return HavokFileFormat.Packfile

@@ -6,7 +6,7 @@ from pathlib import Path
 from soulstruct.utilities.binary import BinaryReader
 
 from soulstruct_havok.enums import TagDataType
-from soulstruct_havok.types.exceptions import HavokTypeError, TypeNotDefinedError, VersionModuleError
+from soulstruct_havok.exceptions import HavokTypeError, TypeNotDefinedError, VersionModuleError
 from soulstruct_havok.types.info import TypeInfo, HAVOK_TYPE_PREFIXES
 
 

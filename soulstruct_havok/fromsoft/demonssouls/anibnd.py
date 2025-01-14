@@ -9,7 +9,6 @@ from soulstruct_havok.fromsoft.base.anibnd import BaseANIBND
 from .core import AnimationHKX, SkeletonHKX, AnimationContainerType
 
 
-@dataclass(slots=True)
 class ANIBND(BaseANIBND):
 
     ANIMATION_HKX: tp.ClassVar = AnimationHKX

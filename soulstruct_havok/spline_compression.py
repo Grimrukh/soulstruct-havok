@@ -787,7 +787,7 @@ class SplineCompressedAnimationData:
         self.raw_data = data
         self.big_endian = big_endian
         self.blocks = []
-        reader = BinaryReader(bytearray(self.raw_data), default_byte_order=ByteOrder.big_endian_bool(big_endian))
+        reader = BinaryReader(bytearray(self.raw_data), byte_order=ByteOrder.big_endian_bool(big_endian))
         self.unpack(reader, block_count, transform_track_count)
 
     def unpack(self, reader: BinaryReader, block_count: int, transform_track_count: int):

@@ -5,7 +5,6 @@ __all__ = ["PackFilePacker"]
 import typing as tp
 from collections import deque
 from dataclasses import dataclass
-from types import ModuleType
 
 from soulstruct.utilities.binary import BinaryWriter, ByteOrder, RESERVED
 
@@ -24,7 +23,7 @@ class PackFilePacker:
     """Handles a single `HKX` packfile packing operation."""
 
     hkx: HKX
-    hk_types_module: ModuleType
+    havok_module: PyHavokModule
 
     # Header for packfile.
     header: PackFileHeader
@@ -35,24 +34,12 @@ class PackFilePacker:
 
     def __init__(self, hkx: HKX):
         self.hkx = hkx
-
-        py_havok_module = hkx.py_havok_module
-
-        match py_havok_module:
-            case PyHavokModule.hk550:
-                from soulstruct_havok.types import hk550
-                self.hk_types_module = hk550
-            case PyHavokModule.hk2010:
-                from soulstruct_havok.types import hk2010
-                self.hk_types_module = hk2010
-            case PyHavokModule.hk2014:
-                from soulstruct_havok.types import hk2014
-                self.hk_types_module = hk2014
-            case _:
-                raise ValueError(
-                    f"Only Havok SDK versions from years '2010' and '2014' are currently supported for packfile "
-                    f"packing, not '{hkx.hk_version}'."
-                )
+        self.havok_module = hkx.havok_module
+        if hkx.havok_module not in {PyHavokModule.hk550, PyHavokModule.hk2010, PyHavokModule.hk2014}:
+            raise ValueError(
+                f"Only Havok SDK versions 550, 2010, and 2014 are currently supported for packfile format "
+                f"packing, not version '{hkx.havok_module.get_version_string()}'."
+            )
 
     def to_writer(self, header_info: PackfileHeaderInfo) -> BinaryWriter:
         byte_order = ByteOrder.LittleEndian if header_info.is_little_endian else ByteOrder.BigEndian
@@ -102,7 +89,7 @@ class PackFilePacker:
         self.collect_class_names_from_members(self.hkx.root, class_names)
         class_section_absolute_data_start = writer.position
         class_name_offsets = {}  # type: dict[str, int]
-        module_hashes = TYPE_NAME_HASHES[self.hkx.py_havok_module]
+        module_hashes = TYPE_NAME_HASHES[self.hkx.havok_module]
 
         for class_name in class_names:
 
@@ -114,7 +101,7 @@ class PackFilePacker:
             except KeyError:
                 # Get hash from Python type.
                 try:
-                    py_type = getattr(self.hk_types_module, get_py_name(class_name))  # type: type[hk]
+                    py_type = self.havok_module.get_type(get_py_name(class_name))
                 except AttributeError:
                     raise KeyError(f"Unknown Havok {self.hkx.hk_version} class: {class_name}")
                 hsh = py_type.get_hsh()
@@ -170,7 +157,7 @@ class PackFilePacker:
         # first' as we write previous items. That means that if `hk` instance `a` points to `hk` instances `b` and `c`,'
         # and `b` points to another `hk` instance `d`, then the packed item order will be `(a, b, d, c)`, since item `d`
         # was pointed to during packing of `b`.
-        with hk.set_types_dict(self.hk_types_module):
+        with hk.set_havok_module(self.havok_module):
             self.process_item_creation_queue(deque([delayed_root_item_pack]))
 
         for item in self.packed_items:
@@ -194,7 +181,7 @@ class PackFilePacker:
 
         item_specs_offset = writer.position - data_start_offset
         for item in self.packed_items:
-            writer.pack("III", item.local_data_offset, 0, class_name_offsets[item.get_class_name()])
+            writer.pack("III", item.local_data_offset, 0, class_name_offsets[item.get_type_name()])
         writer.pad_align(16, b"\xFF")
 
         end_offset = writer.position - data_start_offset

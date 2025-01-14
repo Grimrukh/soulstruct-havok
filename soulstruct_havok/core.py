@@ -4,11 +4,11 @@ __all__ = ["HKX", "HKX_ROOT_TYPING", "HavokFileFormat"]
 
 import logging
 import re
+import traceback
 import typing as tp
-from dataclasses import dataclass, field
+from dataclasses import field
 from enum import StrEnum
 from pathlib import Path
-from types import ModuleType
 
 from soulstruct.base.game_file import GameFile
 from soulstruct.containers import Binder, BinderEntry, EntryNotFoundError
@@ -42,7 +42,6 @@ class HavokFileFormat(StrEnum):
     Tagfile = "tagfile"
 
 
-@dataclass(slots=True)
 class HKX(GameFile):
     """Havok data used in FromSoft games to hold model skeletons, animations, ragdoll physics, collisions, etc.
 
@@ -65,7 +64,7 @@ class HKX(GameFile):
     EXT: tp.ClassVar[str] = ".hkx"
 
     # Can be defined by subclasses with utility methods for specific versions of Havok.
-    TYPES_MODULE: tp.ClassVar[ModuleType | None] = None
+    HAVOK_MODULE: tp.ClassVar[PyHavokModule] = None
 
     root: HKX_ROOT_TYPING = None
     hk_format: HavokFileFormat = None
@@ -122,6 +121,7 @@ class HKX(GameFile):
             binary_file = cls.from_reader(reader, hk_format, compendium)
             binary_file.dcx_type = dcx_type
         except Exception:
+            traceback.print_exc()
             _LOGGER.error(f"Error occurred while reading `{cls.__name__}` from binary data. See traceback.")
             raise
         finally:
@@ -134,6 +134,7 @@ class HKX(GameFile):
         try:
             game_file = cls.from_bytes(BinaryReader(path), hk_format, compendium)
         except Exception:
+            # Traceback already printed.
             _LOGGER.error(f"Error occurred while reading `{cls.__name__}` with path '{path}'. See traceback.")
             raise
         game_file.path = path
@@ -265,14 +266,17 @@ class HKX(GameFile):
         raise ValueError(f"Invalid `hk_format`: {self.hk_format}. Should be 'packfile' or 'tagfile'.")
 
     @property
-    def py_havok_module(self) -> PyHavokModule:
+    def havok_module(self) -> PyHavokModule:
         """Currently only have one Havok types module per release year.
 
         Trivially retrieved from tagfile version strings. For packfile version strings, the first four digits before the
         first '-' are used (so '-r1' suffix is ignored).
+
+        This is the only place where the `PyHavokModule` is inferred as a property rather than set as a true field.
         """
         if self.hk_format == HavokFileFormat.Tagfile:
-            return PyHavokModule(self.hk_version[:4])
+            return PyHavokModule[f"hk{self.hk_version[:4]}"]
+
         prefix = self.hk_version.removeprefix("Havok-").removeprefix("hk_").split("-")[0]
         digits = re.findall(r"\d+", prefix)
         first_four = "".join(digits)[:4]  # e.g. '2010' or '550'
@@ -284,7 +288,7 @@ class HKX(GameFile):
         if first_four == "510":
             first_four = "550"
 
-        return PyHavokModule(first_four)
+        return PyHavokModule[f"hk{first_four}"]
 
     def get_root_tree_string(
         self,

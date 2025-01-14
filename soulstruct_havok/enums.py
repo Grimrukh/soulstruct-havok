@@ -10,23 +10,62 @@ __all__ = [
     "MemberFlags",
 ]
 
-from enum import IntEnum, StrEnum
+import importlib
+import typing as tp
+from enum import IntEnum
 from pathlib import Path
+from types import ModuleType
 
 from soulstruct.utilities.binary import BinaryReader
+from .exceptions import TypeNotDefinedError
+
+if tp.TYPE_CHECKING:
+    from soulstruct_havok.types.hk import hk
+    HK_T = tp.TypeVar("HK_T", bound=hk)
+    TYPE_VAR_T = tp.TypeVar("TYPE_VAR_T", bound=tp.TypeVar)
 
 
-class PyHavokModule(StrEnum):
-    """Supported Havok versions in `soulstruct-havok`.
+class PyHavokModule(IntEnum):
+    """Supported Havok versions in `soulstruct-havok`, with a method for dynamic submodule retrieval.
 
-    Ordered by release date so that comparison operators can be used to declare added/removed feature support.
+    Numeric values are used to indicate the order in which the games were released, which is useful for defining points
+    when types/members were added/removed.
     """
-    hk550 = "550"    # Demon's Souls
-    hk2010 = "2010"  # Dark Souls (PTDE)
-    hk2014 = "2014"  # Bloodborne / DS3
-    hk2015 = "2015"  # Dark Souls (Remastered)
-    hk2016 = "2016"  # Sekiro
-    hk2018 = "2018"  # Elden Ring
+    hk550 = 550    # Demon's Souls
+    hk2010 = 2010  # Dark Souls (PTDE)
+    hk2014 = 2014  # Bloodborne / DS3
+    hk2015 = 2015  # Dark Souls (Remastered)
+    hk2016 = 2016  # Sekiro
+    hk2018 = 2018  # Elden Ring
+
+    def get_submodule(self) -> ModuleType:
+        return importlib.import_module(f"soulstruct_havok.types.{self.name}")
+
+    def get_version_string(self) -> str:
+        return self.get_submodule().VERSION
+
+    def get_type(self, type_name: str) -> type[hk]:
+        havok_type = getattr(self.get_submodule(), type_name, None)
+        if havok_type is None:
+            raise TypeNotDefinedError(f"Type {type_name} is not defined in Havok module {self.name}.")
+        return havok_type
+
+    def get_type_from_var(self, type_var: TYPE_VAR_T) -> type[TYPE_VAR_T]:
+        # noinspection PyArgumentList
+        return self.get_type_from_constraints(*type_var.__constraints__)
+
+    def get_type_from_constraints(self, *constraints: type[HK_T]) -> type[HK_T]:
+        for constraint in constraints:
+            havok_type = getattr(self.get_submodule(), constraint.__name__, None)
+            if havok_type is not None:
+                return havok_type
+        constraint_names = ", ".join(sorted({constraint.__name__ for constraint in constraints}))
+        raise TypeNotDefinedError(
+            f"No types in ({constraint_names}) are defined in Havok module {self.name}."
+        )
+
+    def get_all_type_names(self) -> tp.List[str]:
+        return [name for name in dir(self.get_submodule()) if not name.startswith("_") and name]
 
 
 class ClassMemberType(IntEnum):
@@ -64,9 +103,9 @@ class ClassMemberType(IntEnum):
     TYPE_ENUM = 24  # hkEnum[ENUM, STORAGE], always has a `hkClassEnum` entry pointer, enum size in second byte
     TYPE_STRUCT = 25  # hkClass, always has a `hkClass` entry pointer, no subtype
     TYPE_SIMPLEARRAY = 26  # [void* ptr, int size] pair (simple array of homogenous types)
-    TYPE_HOMOGENOUSARRAY = 27  # TODO: Not observed.
-    TYPE_VARIANT = 28  # TODO: Not observed? Apparently it's the type for `hkVariant` strings.
-    TYPE_CSTRING = 29  # TODO: Not observed.
+    TYPE_HOMOGENOUSARRAY = 27  # TODO: hk550 only. Treating like TYPE_SIMPLEARRAY for now.
+    TYPE_VARIANT = 28  # TODO: hk550 only. Treating like TYPE_POINTER for now.
+    TYPE_CSTRING = 29  # TODO: hk550 only. Treating like TYPE_STRINGPTR for now.
     TYPE_ULONG = 30  # hkUlong, distinct from `hkUInt64` and "guaranteed to be the same size as a pointer" (rare)
     TYPE_FLAGS = 31  # hkFlags[SOTRAGE]  # TODO: storage size in second byte?
     TYPE_HALF = 32  # hkHalf16
@@ -121,10 +160,10 @@ PACK_MEMBER_TYPE_PY_TYPE_NAMES = {
     # ClassMemberType.TYPE_INPLACEARRAY: "",
     ClassMemberType.TYPE_ENUM: "hkEnum",
     # ClassMemberType.TYPE_STRUCT: "hkClass",
-    # ClassMemberType.TYPE_SIMPLEARRAY: "",
-    # ClassMemberType.TYPE_HOMOGENOUSARRAY: "",
-    # ClassMemberType.TYPE_VARIANT: "",
-    # ClassMemberType.TYPE_CSTRING: "",
+    ClassMemberType.TYPE_SIMPLEARRAY: "SimpleArray",
+    ClassMemberType.TYPE_HOMOGENOUSARRAY: "SimpleArray",
+    ClassMemberType.TYPE_VARIANT: "Ptr",  # TODO: trying
+    ClassMemberType.TYPE_CSTRING: "hkStringPtr",  # TODO: trying
     ClassMemberType.TYPE_ULONG: "hkUlong",
     ClassMemberType.TYPE_FLAGS: "hkFlags",
     ClassMemberType.TYPE_HALF: "hkHalf16",

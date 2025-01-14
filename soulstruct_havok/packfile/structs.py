@@ -79,7 +79,7 @@ class PackFileBaseItem(abc.ABC):
         """Create raw data reader. Raises `ValueError` if the reader was already created."""
         if self.reader is not None:
             raise ValueError(f"`{self.__class__.__name__}` reader was already created.")
-        self.reader = BinaryReader(self.raw_data, default_byte_order=self.byte_order, long_varints=self.long_varints)
+        self.reader = BinaryReader(self.raw_data, byte_order=self.byte_order, long_varints=self.long_varints)
 
     def start_writer(self):
         if self.writer is not None:
@@ -106,7 +106,6 @@ class PackFileBaseItem(abc.ABC):
 @dataclass(slots=True)
 class PackFileTypeItem(PackFileBaseItem):
 
-    @dataclass(slots=True)
     class TYPE_STRUCT_32(BinaryStruct):
         type_name_pointer: uint = field(init=False, **Binary(asserted=0))  # child pointer
         parent_type_pointer: uint = field(init=False, **Binary(asserted=0))  # item pointer
@@ -120,7 +119,6 @@ class PackFileTypeItem(PackFileBaseItem):
         flags: uint  # always zero so far in packfiles (could be padding!)
         version: uint  # always zero so far in packfiles (could be padding!)
 
-    @dataclass(slots=True)
     class TYPE_STRUCT_64(BinaryStruct):
         """NOTE: Differences are not entirely just `varint` size."""
         type_name_pointer: ulong = field(init=False, **Binary(asserted=0))  # child pointer
@@ -137,7 +135,6 @@ class PackFileTypeItem(PackFileBaseItem):
         _pad2: bytes = field(init=False, **BinaryPad(16))  # TODO: padding could be earlier (but after member count)
         version: uint  # always zero in 2010
 
-    @dataclass(slots=True)
     class ENUM_TYPE_STRUCT(BinaryStruct):
         name_pointer: varuint = field(init=False, **Binary(asserted=0))  # child pointer
         items_pointer: varuint = field(init=False, **Binary(asserted=0))  # child pointer
@@ -146,7 +143,6 @@ class PackFileTypeItem(PackFileBaseItem):
         flags: uint
         # 12 bytes of padding here in actual type entries (16 align), but no padding in "embedded" enums inside types.
 
-    @dataclass(slots=True)
     class MEMBER_TYPE_STRUCT(BinaryStruct):
         name_pointer: varuint = field(init=False, **Binary(asserted=0))  # child pointer
         type_pointer: varuint = field(init=False, **Binary(asserted=0))  # item pointer
@@ -162,21 +158,21 @@ class PackFileTypeItem(PackFileBaseItem):
 
     class_name: str = ""
     # Type override.
-    item_pointers: dict[int, tuple[PackFileTypeItem, int]] = field(default_factory=dict)
+    all_item_pointers: dict[int, tuple[PackFileTypeItem, int]] = field(default_factory=dict)
 
     def get_type_name(self) -> str | None:
         """Quickly look up type name from raw data. Returns `None` if `child_pointers` is undefined/empty."""
         if not self.all_child_pointers:
             return None
-        return BinaryReader(self.raw_data).unpack_string(self.all_child_pointers[0], encoding="utf-8")
+        return BinaryReader(self.raw_data).unpack_string(offset=self.all_child_pointers[0], encoding="utf-8")
 
     def get_byte_size(self) -> int:
         return BinaryReader(self.raw_data).unpack_value("I", offset=8)
 
     def get_referenced_type_item(self, offset: int) -> PackFileTypeItem | None:
         """Look for `self.item_pointers[offset]` and recover the pointed `PackFileTypeItem`."""
-        if offset in self.item_pointers:
-            type_item, zero = self.item_pointers[offset]
+        if offset in self.all_item_pointers:
+            type_item, zero = self.all_item_pointers[offset]
             if zero != 0:
                 raise AssertionError(f"Found type item pointer placeholder other than zero: {zero}")
             return type_item
@@ -200,7 +196,7 @@ class PackFileDataItem(PackFileBaseItem):
     remaining_child_pointers: dict[int, int] = field(default_factory=dict)
     remaining_item_pointers: dict[int, tuple[PackFileDataItem, int]] = field(default_factory=dict)
 
-    def get_class_name(self):
+    def get_type_name(self):
         """Get (real) Havok class name for packfile class name section."""
         if self.hk_type.__name__ == "hkRootLevelContainer":
             return "hkRootLevelContainer"
@@ -208,9 +204,8 @@ class PackFileDataItem(PackFileBaseItem):
         try:
             return type(self.value).get_real_name()
         except AttributeError:
-            raise ValueError(
-                f"Packfile item type is not `hkRootLevelContainer` or a pointer: {type(self.value).__name__}"
-            )
+            # Value has not been assigned. We use the specified type (could be a parent of assigned value).
+            return self.hk_type.__name__
 
     def prepare_pointers(self):
         self.remaining_child_pointers = self.all_child_pointers.copy()
@@ -240,7 +235,6 @@ class PackFileVersion(IntEnum):
         return self == self.Version0x0B
 
 
-@dataclass(slots=True)
 class PackFileHeader(BinaryStruct):
     """Packfile header structure.
 
@@ -291,10 +285,10 @@ class PackFileHeader(BinaryStruct):
     data_section_base_offset: int = field(init=False, **Binary(asserted=0))  # just the start of data section
     classnames_section_index: int = field(**Binary(asserted=[0, 1, 2]))  # usually 0
     classnames_section_root_offset: int  # relative offset of string 'hkRootLevelContainer' in classnames (often 0x4b)
-    contents_version_string: bytes = field(**BinaryString(14))  # e.g. "hk_2010.2.0-r1"
+    contents_version_string: str = field(**BinaryString(14, encoding="ascii"))  # e.g. "hk_2010.2.0-r1"
     _pad1: bytes = field(init=False, **BinaryPad(1))
     _minus_one: byte = field(init=False, **Binary(asserted=0xFF))
-    flags: int  # usually 0
+    flags: int  # usually -1 or 0
 
     def get_section_order(self) -> dict[str, int]:
         """Infer section order from `data_section_index` and `classnames_section_index`.
@@ -308,7 +302,6 @@ class PackFileHeader(BinaryStruct):
         }
 
 
-@dataclass(slots=True)
 class PackFileHeaderExtension(BinaryStruct):
     unk_x3c: short
     section_offset: short
@@ -318,7 +311,6 @@ class PackFileHeaderExtension(BinaryStruct):
     unk_x4c: uint
 
 
-@dataclass(slots=True)
 class PackFileSectionHeader(BinaryStruct):
     """Packfile section header structure."""
     section_tag: bytes = field(**BinaryString(19))  # e.g. b"__classnames__" (type section)
@@ -365,7 +357,7 @@ class PackfileHeaderInfo:
     pointer_size: int
     is_little_endian: bool
     reuse_padding_optimization: int
-    contents_version_string: bytes
+    contents_version_string: str
     flags: int
     header_extension: None | PackFileHeaderExtension = None  # optional (only in version 0x0B: Bloodborne)
 
@@ -379,20 +371,17 @@ class PackfileHeaderInfo:
             raise ValueError(f"Invalid pointer size: {self.pointer_size}")
 
 
-@dataclass(slots=True)
 class ChildPointerStruct(BinaryStruct):
     source_offset: uint
     dest_offset: uint
 
 
-@dataclass(slots=True)
 class ItemPointerStruct(BinaryStruct):
     source_offset: uint
     dest_section_index: uint  # usually 2 (__data__)
     dest_offset: uint  # usually zero
 
 
-@dataclass(slots=True)
 class ItemSpecStruct(BinaryStruct):
     local_data_offset: uint  # relative offset into "__data__" section
     type_section_index: uint = field(init=False, **Binary(asserted=0))  # always references type section

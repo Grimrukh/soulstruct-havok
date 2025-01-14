@@ -5,14 +5,16 @@ __all__ = ["AnimationContainer"]
 import copy
 import logging
 import typing as tp
-from types import ModuleType
 
 import numpy as np
 
+from soulstruct_havok.enums import PyHavokModule
+from soulstruct_havok.exceptions import TypeNotDefinedError
 from soulstruct_havok.spline_compression import SplineCompressedAnimationData
 from soulstruct_havok.utilities.maths import TRSTransform, Vector3, Vector4
 
 from soulstruct_havok.fromsoft.base.type_vars import (
+    QS_TRANSFORM_T,
     ANIMATION_CONTAINER_T,
     ANIMATION_T,
     ANIMATION_BINDING_T,
@@ -33,11 +35,10 @@ class AnimationContainer(tp.Generic[
 ]):
     """Manages/manipulates a Havok animation container containing a single animation and a single binding.
 
-    NOTE: Does not manage `hkaSkeleton` inside container. See `wrappers.base.skeleton.Skeleton` for that.
+    NOTE: Does not manage `hkaSkeleton` inside container. See `fromsoft.base.skeleton.Skeleton` for that.
     """
 
-    types_module: ModuleType | None
-    # TODO: confusing to have the same name as this class. Change to `hkx_animation_container`?
+    havok_module: PyHavokModule
     hkx_container: ANIMATION_CONTAINER_T
 
     # Loaded upon first use or explicit `load_spline_data()` call. Will be resaved on `pack()` if present, or with
@@ -55,21 +56,19 @@ class AnimationContainer(tp.Generic[
     # ```
     interleaved_data: list[list[TRSTransform]] | None = None
 
-    def __init__(self, types_module: ModuleType, hkx_animation_container: ANIMATION_CONTAINER_T):
-        self.types_module = types_module
+    def __init__(self, havok_module: PyHavokModule, hkx_animation_container: ANIMATION_CONTAINER_T):
+        self.havok_module = havok_module
         self.hkx_container = hkx_animation_container
         self.spline_data = None
         self.interleaved_data = None
 
-        if self.is_interleaved:  # basic enough to do outomatically
+        if hkx_animation_container.animations and self.is_interleaved:  # basic enough to do outomatically
             self.load_interleaved_data()
-
-    def __deepcopy__(self, memo):
-        """Don't copy `types_module`."""
-        return self.__class__(self.types_module, copy.deepcopy(self.hkx_container, memo))
 
     @property
     def hkx_animation(self) -> ANIMATION_T:
+        if not self.hkx_container.animations:
+            raise ValueError("No animation in container. Cannot use `hkx_animation` shortcut property or its wrappers.")
         return self.hkx_container.animations[0]
 
     @property
@@ -139,7 +138,7 @@ class AnimationContainer(tp.Generic[
 
         if not self.interleaved_data:
             raise ValueError("Interleaved data has not been loaded yet. Nothing to save.")
-        qs_transform_cls = self.types_module.hkQsTransform
+        qs_transform_type = self.havok_module.get_type_from_var(QS_TRANSFORM_T)
         transforms = []
         track_count = None
         for frame in self.interleaved_data:
@@ -150,7 +149,7 @@ class AnimationContainer(tp.Generic[
                     f"Interleaved animation data has inconsistent track counts between frames: "
                     f"{track_count} vs {len(frame)}."
                 )
-            transforms += [qs_transform_cls.from_trs_transform(t) for t in frame]
+            transforms += [qs_transform_type.from_trs_transform(t) for t in frame]
         self.hkx_animation.transforms = transforms
         self.hkx_animation.numberOfTransformTracks = track_count  # guaranteed to be set above
         _LOGGER.info("Saved interleaved data to animation.")
@@ -189,21 +188,20 @@ class AnimationContainer(tp.Generic[
         duration = (len(samples) - 1) / frame_rate
 
         if not self.hkx_animation.extractedMotion:
-
-            default_animated_ref_frame_type = getattr(self.types_module, "hkaDefaultAnimatedReferenceFrame", None)
-            if default_animated_ref_frame_type is None:
+            try:
+                ref_frame_type = self.havok_module.get_type_from_var(DEFAULT_ANIMATED_REFERENCE_FRAME_T)
+            except TypeNotDefinedError:
                 raise ValueError(
-                    "No `extractedMotion` animated reference frame ('root motion') exists for this animation and could "
-                    "not create it."
+                    "No `extractedMotion` animated reference frame ('root motion') exists for this animation and its "
+                    f"Havok version ({self.havok_module.get_version_string()}) has no "
+                    f"`hkaDefaultAnimatedReferenceFrame` type to store root motion."
                 )
-
-            self.hkx_animation.extracted_motion = default_animated_ref_frame_type(
+            self.hkx_animation.extracted_motion = ref_frame_type(
                 up=Vector4((0.0, 1.0, 0.0, 0.0)),
                 forward=Vector4((0.0, 0.0, 1.0, 0.0)),
                 duration=duration,
                 referenceFrameSamples=samples,
             )
-
             _LOGGER.info("Created new `hkaDefaultAnimatedReferenceFrame` instance for animation root motion samples.")
             return
 
@@ -504,11 +502,13 @@ class AnimationContainer(tp.Generic[
         if not self.spline_data:
             self.load_spline_data()
 
-        # NOTE: Old Demon's Souls `hkaInterleavedSkeletalAnimation` class checked in override of this method.
         try:
-            interleaved_cls = self.types_module.hkaInterleavedUncompressedAnimation  # type: INTERLEAVED_ANIMATION_T
-        except AttributeError:
-            raise TypeError("No `hkaInterleavedUncompressedAnimation` class exists for this Havok version.")
+            interleaved_anim_type = self.havok_module.get_type_from_var(INTERLEAVED_ANIMATION_T)
+        except TypeNotDefinedError:
+            raise TypeNotDefinedError(
+                f"No `hkaInterleavedUncompressedAnimation` class exists for "
+                f"Havok version {self.havok_module.get_version_string()}."
+            )
 
         interleaved_data = self.spline_data.to_interleaved_transforms(
             self.hkx_animation.numFrames,
@@ -516,13 +516,13 @@ class AnimationContainer(tp.Generic[
         )
 
         # Save interleaved data to concatenated list (for writing directly to new Havok instance).
-        qs_transform_cls = self.types_module.hkQsTransform
+        qs_transform_type = self.havok_module.get_type_from_var(QS_TRANSFORM_T)
         transforms = []
-        for frame in self.interleaved_data:
-            transforms += [qs_transform_cls.from_trs_transform(t) for t in frame]
+        for frame in interleaved_data:
+            transforms += [qs_transform_type.from_trs_transform(t) for t in frame]
 
         # All `hkaInterleavedUncompressedAnimation` instances have this conversion class method.
-        interleaved_animation = interleaved_cls.from_spline_animation(self.hkx_animation, transforms)
+        interleaved_animation = interleaved_anim_type.from_spline_animation(self.hkx_animation, transforms)
 
         interleaved_self = copy.deepcopy(self)
         interleaved_self.hkx_binding.animation = interleaved_animation

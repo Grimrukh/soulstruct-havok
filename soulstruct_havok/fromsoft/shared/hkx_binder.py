@@ -19,7 +19,6 @@ from soulstruct.dcx import DCXType
 from .map_collision import MapCollisionModel
 
 
-@dataclass(slots=True)
 class HKXBHD(Binder):
     """Wraps a single HKXBHD, either hi-res or lo-res. Only loads `MapCollisionModel` instances as they are requested by
     the `get_hkx()` method.

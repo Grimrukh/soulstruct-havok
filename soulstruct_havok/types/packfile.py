@@ -30,8 +30,8 @@ import colorama
 import numpy as np
 from soulstruct_havok.types.debug import get_indented_array
 
-from soulstruct_havok.enums import TagDataType
-from soulstruct_havok.packfile.structs import PackItemCreationQueues, PackFileDataItem
+from soulstruct_havok.enums import TagDataType, PyHavokModule
+from soulstruct_havok.packfile.structs import PackItemCreationQueues, PackFileDataItem, PackFileTypeItem
 from .info import get_py_name
 
 from . import debug
@@ -250,9 +250,20 @@ def unpack_pointer(data_hk_type: type[hk], item: PackFileDataItem) -> hk | None:
     if item_data_offset != 0:
         # Global item pointers always point to the start of the other item!
         print(f"{item.hk_type.__name__} item pointers:")
-        for offset, pointed_item in item.all_item_pointers.items():
+        for offset, (pointed_item, zero) in item.all_item_pointers.items():
             print(f"    {R if offset == source_offset else X}{hex(offset)} -> {pointed_item}{X}")
         raise AssertionError(f"Data item pointer (global ref dest) was not zero: {item_data_offset}.")
+
+    if isinstance(pointed_item, PackFileTypeItem):
+        # Occurs in Havok 5.5.0 packfiles with type data (variant type).
+        if debug.DEBUG_PRINT_UNPACK:
+            debug.debug_print(
+                f"{Y}{item.hex}: {G}{data_hk_type.get_type_name()}{U} -> TYPE[{pointed_item.get_type_name()}{X}]"
+            )
+        # Nothing to actually unpack and we don't bother assigning the type info.
+        # TODO: When (if ever) exporting with type data, add these item pointers automatically.
+        return None
+
     if not issubclass(pointed_item.hk_type, data_hk_type):
         item.print_item_dump()
         raise ValueError(
@@ -276,7 +287,7 @@ def unpack_pointer(data_hk_type: type[hk], item: PackFileDataItem) -> hk | None:
 
     else:
         if debug.DEBUG_PRINT_UNPACK:
-            debug.debug_print(f"{M}Pointer to existing item: {pointed_item.get_class_name()}{X}")
+            debug.debug_print(f"{M}Pointer to existing item: {pointed_item.get_type_name()}{X}")
     return pointed_item.value
 
 
@@ -300,7 +311,7 @@ def pack_pointer(
         # Item has already been unpacked and previously referenced.
         item.all_item_pointers[item.writer.position] = (existing_items[value], 0)
         if debug.DEBUG_PRINT_PACK:
-            existing_type_name = existing_items[value].get_class_name()  # may be subclass of `ptr_hk_type`
+            existing_type_name = existing_items[value].get_type_name()  # may be subclass of `ptr_hk_type`
             debug.debug_print(f"{Y}{item.hex}: {G}{ptr_hk_type.__name__}{U} -> existing {existing_type_name}{X}")
         item.writer.pack("V", 0)  # dummy pointer
         return
@@ -314,14 +325,14 @@ def pack_pointer(
         )
         item.all_item_pointers[item.writer.position] = (new_item, 0)
         if debug.DEBUG_PRINT_PACK:
-            debug.debug_print(f"{Y}{item.hex}: {G}{new_item.get_class_name()}{U} -> new {new_item.get_class_name()}{X}")
+            debug.debug_print(f"{Y}{item.hex}: {G}{new_item.get_type_name()}{U} -> new {new_item.get_type_name()}{X}")
         item.writer.pack("V", 0)  # dummy pointer
 
     def delayed_item_creation(_data_pack_queues: PackItemCreationQueues) -> PackFileDataItem:
         new_item.start_writer()
         if debug.DEBUG_PRINT_PACK:
             # Will have no indentation, as only the root packer loop calls this.
-            debug.debug_print(f"{C}Starting item pack: {new_item.get_class_name()}{X}")
+            debug.debug_print(f"{C}Starting item pack: {new_item.get_type_name()}{X}")
         value.pack_packfile(new_item, value, existing_items, _data_pack_queues)
         return new_item
 
@@ -432,7 +443,7 @@ def pack_array(
                 try_pad_to_offset(
                     item,
                     array_start_offset + (i + 1) * data_hk_type.get_byte_size(item.long_varints),
-                    f"{item.get_class_name()} (Array) {data_hk_type.get_type_name()}[{i + 1}]",
+                    f"{item.get_type_name()} (Array) {data_hk_type.get_type_name()}[{i + 1}]",
                 )
             if debug.DEBUG_PRINT_PACK:
                 debug.decrement_debug_indent()
@@ -558,7 +569,7 @@ def pack_simple_array(
                 try_pad_to_offset(
                     item,
                     array_start_offset + (i + 1) * data_hk_type.get_byte_size(item.long_varints),
-                    f"{item.get_class_name()} (SimpleArray) {data_hk_type.get_type_name()}[{i + 1}]",
+                    f"{item.get_type_name()} (SimpleArray) {data_hk_type.get_type_name()}[{i + 1}]",
                 )
             if debug.DEBUG_PRINT_PACK:
                 debug.decrement_debug_indent()
@@ -635,7 +646,7 @@ def pack_struct(
             try_pad_to_offset(
                 item,
                 struct_start_offset + i * byte_size,
-                f"{item.get_class_name()} (Struct) {data_hk_type.get_type_name()}[{i}]",
+                f"{item.get_type_name()} (Struct) {data_hk_type.get_type_name()}[{i}]",
             )
             data_hk_type.pack_packfile(item, element, existing_items, data_pack_queues)
 
@@ -687,7 +698,7 @@ def pack_string(
     data_pack_queues.child_pointers.append(delayed_string_write)
 
 
-def unpack_named_variant(hk_type: type[hk], item: PackFileDataItem, types_module: dict) -> hk:
+def unpack_named_variant(hk_type: type[hk], item: PackFileDataItem, havok_module: PyHavokModule) -> hk:
     """Detects `variant` type dynamically from `className` member."""
 
     # TODO: Testing just `unpack_class()`. We don't actually need to read 'className' since the variant's type is

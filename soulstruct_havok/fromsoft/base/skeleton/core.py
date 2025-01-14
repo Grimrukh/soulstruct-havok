@@ -10,7 +10,6 @@ from ..type_vars import ANIMATION_CONTAINER_T
 from .skeleton import Skeleton
 
 
-@dataclass(slots=True)
 class BaseSkeletonHKX(BaseWrappedHKX, abc.ABC):
     """Skeleton HKX file, usually inside a `.chrbnd` Binder."""
 
@@ -18,4 +17,4 @@ class BaseSkeletonHKX(BaseWrappedHKX, abc.ABC):
 
     def __post_init__(self):
         hka_animation_container = self.get_variant(0, *ANIMATION_CONTAINER_T.__constraints__)
-        self.skeleton = Skeleton(self.TYPES_MODULE, hka_animation_container.skeletons[0])
+        self.skeleton = Skeleton(self.HAVOK_MODULE, hka_animation_container.skeletons[0])

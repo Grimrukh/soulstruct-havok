@@ -15,7 +15,7 @@ __all__ = [
 import io
 import logging
 import typing as tp
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import IntEnum
 from pathlib import Path
 
@@ -106,7 +106,6 @@ class MapCollisionModelMesh:
         return self.faces.dtype.itemsize * 8
 
 
-@dataclass(slots=True)
 class MapCollisionModel(GameFile):
     """
     Reduced representation of the simple meshes and material indices inside a map collision HKX file, while discarding
@@ -126,11 +125,11 @@ class MapCollisionModel(GameFile):
     """
 
     # Name of collision model, e.g. 'h1000B1', which appears internally inside the HKX (probably no in-game effect).
-    name: str
+    name: str = "h0000B0"
     # Each collision submesh is a tuple of `(vertices_array, faces_array, material_index)`.
-    meshes: list[MapCollisionModelMesh]
+    meshes: list[MapCollisionModelMesh] = field(default_factory=list)
     # Havok version of the model, which determines the HKX export format. Set on HKX import and can be changed.
-    py_havok_module: PyHavokModule
+    py_havok_module: PyHavokModule = field(default=PyHavokModule.hk2015)
     # Indicates if this model will be exported as big-endian.
     is_big_endian: bool = False
 
@@ -149,7 +148,7 @@ class MapCollisionModel(GameFile):
     @classmethod
     def from_hkx(cls, hkx: HKX) -> tp.Self:
         """Extract mesh vertices, faces, and material indices from HKX."""
-        if hkx.py_havok_module not in cls.SUPPORTED_MODULES:
+        if hkx.havok_module not in cls.SUPPORTED_MODULES:
             raise ValueError(f"Cannot import `MapCollisionModel` from HKX with Havok version: {repr(hkx.hk_version)}")
 
         physics_data, physics_system = cls.get_hkx_physics(hkx)
@@ -243,7 +242,7 @@ class MapCollisionModel(GameFile):
             # Shouldn't be reachable.
             raise ValueError(f"Unknown shape type: {shape_type}")
 
-        return cls(name=name, meshes=meshes, py_havok_module=hkx.py_havok_module, is_big_endian=hkx.is_big_endian)
+        return cls(name=name, meshes=meshes, py_havok_module=hkx.havok_module, is_big_endian=hkx.is_big_endian)
 
     def to_writer(self) -> BinaryWriter:
         """Just wraps `HKX` class."""
@@ -390,7 +389,7 @@ class MapCollisionModel(GameFile):
         """
         shape = physics_system.rigidBodies[0].collidable.shape  # type: MoppBvTreeShape
         if shape.get_type_name() != "hkpMoppBvTreeShape":
-            raise TypeError("Expected collision shape to be `hkpMoppBvTreeShape`.")
+            raise TypeError(f"Expected collision shape to be `hkpMoppBvTreeShape`, not: {shape.get_type_name()}.")
         child_shape = shape.child.childShape  # type: FSCustomParamStorageExtendedMeshShape
         if child_shape.get_type_name() != "CustomParamStorageExtendedMeshShape":
             if child_shape.get_type_name() == "hkpStorageExtendedMeshShape":
@@ -400,8 +399,8 @@ class MapCollisionModel(GameFile):
                 # Pre-custom, non-extended class is supported, will just have no material data.
                 return child_shape, "STORAGE"
             raise TypeError(
-                f"Expected collision child shape to be `CustomParamStorageExtendedMeshShape`. "
-                f"Found: {child_shape.get_type_name()}"
+                f"Expected collision child shape to be `CustomParamStorageExtendedMeshShape`, not: "
+                f"{child_shape.get_type_name()}"
             )
         return child_shape, "CUSTOM"
 

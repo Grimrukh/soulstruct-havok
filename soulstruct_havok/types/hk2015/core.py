@@ -153,6 +153,10 @@ class _const_charSTAR(hk):
     __real_name = "const char*"
     local_members = ()
 
+    @classmethod
+    def get_data_type(cls):
+        return _char
+
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class _unsigned_short(hk):
@@ -281,7 +285,7 @@ class hkVector4f(hkStruct(_float, 4)):
     def unpack_primitive_array(cls, reader: BinaryReader, length: int, offset: int = None) -> np.ndarray:
         """Unpack an array of vectors with `numpy`."""
         data = reader.read(length * 4 * cls.length, offset=offset)
-        dtype = np.dtype(f"{reader.default_byte_order}f4")
+        dtype = np.dtype(f"{reader.byte_order}f4")
         return np.frombuffer(data, dtype=dtype).reshape((length, cls.length))
 
 
@@ -631,6 +635,10 @@ class hkStringPtr(hk):
     members = local_members
 
     stringAndFlag: str
+
+    @classmethod
+    def get_data_type(cls):
+        return _char
 
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)

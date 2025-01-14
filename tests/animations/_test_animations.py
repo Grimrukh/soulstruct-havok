@@ -1,9 +1,84 @@
 import time
 
-from soulstruct import Path, ELDEN_RING_PATH
+from soulstruct import Path, Binder
 from soulstruct.eldenring.containers import DivBinder
 from soulstruct_havok.types.debug import SET_DEBUG_PRINT
-from soulstruct_havok.fromsoft import darksouls1ptde, darksouls1r, bloodborne, sekiro, eldenring
+from soulstruct_havok.fromsoft import demonssouls, darksouls1ptde, darksouls1r, bloodborne, eldenring
+
+
+def check_bl_dsr():
+    bl_anim_hkx_path = Path(
+        r"C:\Users\Scott\AppData\Roaming\Blender Foundation\Blender\4.2\scripts\addons\io_soulstruct_lib\soulstruct_havok\__temp_interleaved__.hkx"
+    )
+
+    print(bl_anim_hkx_path.read_bytes()[:100])
+
+    bl_anim_hkx = darksouls1r.AnimationHKX.from_path(bl_anim_hkx_path)
+    print(bl_anim_hkx.packfile_header_info)
+    tree1 = bl_anim_hkx.get_root_tree_string(10, 10)
+
+    bl_anim_hkx.animation_container.hkx_animation.annotationTracks = []
+
+    bl_anim_hkx.to_spline_hkx()  # todo: silent ERROR
+    return
+
+    anibnd_path = Path("../resources/DES/c5020.anibnd")
+    anibnd = Binder.from_path(anibnd_path)
+    hkx = demonssouls.AnimationHKX.from_binder(anibnd, 3000)
+
+    # wavelet = hkx.get_root_tree_string(10, 10)
+    hkx_interleaved = hkx.to_interleaved_hkx()
+    print(bytes(hkx_interleaved)[:100])
+    print(hkx_interleaved.packfile_header_info)
+    tree2 = hkx_interleaved.get_root_tree_string(10, 10)
+
+    print(f"Trees equal? {tree1 == tree2}")
+    # Print differences in strings, line by line.
+    lines1 = tree1.split("\n")
+    lines2 = tree2.split("\n")
+    for i, (line1, line2) in enumerate(zip(lines1, lines2)):
+        if line1 != line2:
+            print(f"Line {i}:")
+            print(f"  {line1}")
+            print(f"  {line2}")
+            print()
+
+
+def test_des():
+    anibnd_path = Path("../resources/DES/c5020.anibnd")
+    anibnd = Binder.from_path(anibnd_path)
+
+    # SET_DEBUG_PRINT(True, dump_items=("hkaSplineCompressedAnimation",))
+
+    hkx = demonssouls.AnimationHKX.from_binder(anibnd, 3000)
+    wavelet1 = hkx.get_root_tree_string(10, 10)
+    # print(wavelet1)
+
+    # Test first animation AND skeleton.
+    # skeleton_hkx = demonssouls.SkeletonHKX.from_binder(anibnd, "skeleton.hkx")
+
+    # print(wavelet1)
+
+    hkx.write("_des_test.hkx")
+
+    hkx_interleaved = hkx.to_interleaved_hkx()
+
+    print(hkx_interleaved.get_root_tree_string(10, 10))
+
+    wavelet_hkx = hkx_interleaved.to_wavelet_hkx()
+
+    wavelet2 = wavelet_hkx.get_root_tree_string(max_primitive_sequence_size=10)
+
+    print(f"Wavelet files equal? {wavelet1 == wavelet2}")
+    # Print differences in strings, line by line.
+    lines1 = wavelet1.split("\n")
+    lines2 = wavelet2.split("\n")
+    for i, (line1, line2) in enumerate(zip(lines1, lines2)):
+        if line1 != line2:
+            print(f"Line {i}:")
+            print(f"  {line1}")
+            print(f"  {line2}")
+            print()
 
 
 def test_ptde():
@@ -17,7 +92,7 @@ def test_ptde():
 
     s2 = spline_hkx.get_root_tree_string(max_primitive_sequence_size=10)
 
-    print(f"Equal? {s1 == s2}")
+    print(f"Spline files equal? {s1 == s2}")
     # Print differences in strings, line by line.
     lines1 = s1.split("\n")
     lines2 = s2.split("\n")
@@ -38,6 +113,8 @@ def test_dsr():
     s1 = hkx.get_root_tree_string(max_primitive_sequence_size=10)
     print(s1)
 
+    hkx.write("_test_dsr.hkx")
+
     p = time.perf_counter()
     hkx_scratch = darksouls1r.AnimationHKX.from_minimal_data_spline(
         spline_data=hkx.animation_container.spline_data,
@@ -54,7 +131,7 @@ def test_dsr():
     s2 = hkx_scratch.get_root_tree_string(max_primitive_sequence_size=10)
     print(f"Scratch string time: {time.perf_counter() - p:.4f}")
 
-    print(f"Equal? {s1 == s2}")
+    print(f"Spline files equal? {s1 == s2}")
 
     # Print differences in strings, line by line.
     lines1 = s1.split("\n")
@@ -78,7 +155,7 @@ def test_bb():
 
     s2 = spline_hkx.get_root_tree_string(max_primitive_sequence_size=10)
 
-    print(f"Equal? {s1 == s2}")
+    print(f"Spline files equal? {s1 == s2}")
 
     # Print differences in strings, line by line.
     lines1 = s1.split("\n")
@@ -93,11 +170,6 @@ def test_bb():
 
 def test_er():
 
-    chrbnd_path = Path(ELDEN_RING_PATH, "../../ELDEN RING (Modding 1.12)/Game/chr/c3251.chrbnd.dcx")
-    from soulstruct import FLVER
-    flver = FLVER.from_binder_path(chrbnd_path, "c3251.flver")
-    flver_bone_names = [bone.name for bone in flver.bones]
-
     div_path = Path("../resources/ER/c3251.anibnd.dcx")
     div_binder = DivBinder.from_path(div_path)
     # SET_DEBUG_PRINT(True, dump_items=("hkaSplineCompressedAnimation",))
@@ -107,22 +179,17 @@ def test_er():
     hkx_skeleton = eldenring.SkeletonHKX.from_binder(
         div_binder, entry_spec="skeleton.hkx", compendium_name="c3251_div00.compendium"
     )
-    for bone in hkx_skeleton.skeleton.bones:
-        if bone.name not in flver_bone_names:
-            print(bone.name)
-    return
-    print(hkx.animation_container.get_track_annotation_names())
+
+    print("Track annotation names:", hkx.animation_container.get_track_annotation_names())
     hkx_interleaved = hkx.to_interleaved_hkx()
     arma_frames = hkx_interleaved.animation_container.get_interleaved_data_in_armature_space(hkx_skeleton.skeleton)
-    # s1 = hkx.get_root_tree_string(max_primitive_sequence_size=10)
-    print(len(arma_frames))
-    print(len(arma_frames[0]))
-    return
+    s1 = hkx.get_root_tree_string(max_primitive_sequence_size=10)
+    print("Frames x Transforms:", len(arma_frames), "x", len(arma_frames[0]))
 
     spline_hkx = hkx_interleaved.to_spline_hkx()
     s2 = spline_hkx.get_root_tree_string(max_primitive_sequence_size=10)
 
-    print(f"Equal? {s1 == s2}")
+    print(f"Spline anims equal? {s1 == s2}")
 
     # Print differences in strings, line by line.
     lines1 = s1.split("\n")
@@ -136,7 +203,10 @@ def test_er():
 
 
 if __name__ == '__main__':
+    check_bl_dsr()
+
+    # test_des()
     # test_ptde()
     # test_dsr()
     # test_bb()
-    test_er()
+    # test_er()

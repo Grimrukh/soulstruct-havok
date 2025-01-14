@@ -8,6 +8,7 @@ from .core import *
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkRootLevelContainerNamedVariant(hk):
+    """NOTE: If type data is present in packfile, this will contain references to all variant types in that section."""
     alignment = 16
     byte_size = 16
     tag_type_flags = TagDataType.Class

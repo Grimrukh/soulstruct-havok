@@ -7,15 +7,14 @@ import typing as tp
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from types import ModuleType
 
 import colorama
 from soulstruct.utilities.binary import *
 
+from soulstruct_havok.enums import TagFormatFlags, PyHavokModule
+from soulstruct_havok.exceptions import HavokTypeError, VersionModuleError, TypeNotDefinedError, TypeMatchError
 from soulstruct_havok.types.hk import hk
-from soulstruct_havok.types.exceptions import HavokTypeError, VersionModuleError, TypeNotDefinedError, TypeMatchError
 from soulstruct_havok.types.info import *
-from soulstruct_havok.enums import TagFormatFlags
 from .structs import *
 
 if tp.TYPE_CHECKING:
@@ -46,8 +45,9 @@ class MissingCompendiumError(Exception):
 @dataclass(slots=True)
 class TagFileUnpacker:
     
-    hk_types_module: None | ModuleType = None
-    root: None | hk2015.hkRootLevelContainer | hk2018.hkRootLevelContainer = None
+    havok_module: PyHavokModule = None
+    # Havok versions before `hk2015` do not use the tagfile format.
+    root: None | hk2015.hkRootLevelContainer | hk2016.hkRootLevelContainer | hk2018.hkRootLevelContainer = None
     hk_type_infos: list[TypeInfo] = field(default_factory=list)
     items: list[TagFileItem] = field(default_factory=list)
     byte_order: ByteOrder = ByteOrder.LittleEndian
@@ -69,14 +69,11 @@ class TagFileUnpacker:
                     self.hk_version = reader.unpack_string(length=8, encoding="utf-8")
                     if not types_only:
                         if self.hk_version.startswith("2015"):
-                            from soulstruct_havok.types import hk2015
-                            self.hk_types_module = hk2015
+                            self.havok_module = PyHavokModule.hk2015
                         elif self.hk_version.startswith("2016"):
-                            from soulstruct_havok.types import hk2016
-                            self.hk_types_module = hk2016
+                            self.havok_module = PyHavokModule.hk2016
                         elif self.hk_version.startswith("2018"):
-                            from soulstruct_havok.types import hk2018
-                            self.hk_types_module = hk2018
+                            self.havok_module = PyHavokModule.hk2018
                         else:
                             raise VersionModuleError(f"No Havok type module for version: {self.hk_version}")
 
@@ -93,30 +90,30 @@ class TagFileUnpacker:
                     modules_to_create = []  # type: list[tuple[TypeInfo, str, str]]
                     clashing_modules = []  # type: list[tuple[Exception, TypeInfo, str]]
 
-                    module_core = self.hk_types_module.core
+                    module_core = self.havok_module.get_submodule().core
                     module_names = list(vars(module_core))  # key names of typed `core` module
 
                     for type_info in self.hk_type_infos[1:]:
                         if type_info.name in type_info.GENERIC_TYPE_NAMES:
                             continue
                         try:
-                            py_class = getattr(self.hk_types_module, type_info.py_name)  # type: type[hk]
+                            havok_py_type = self.havok_module.get_type(type_info.py_name)  # type: type[hk]
                         except AttributeError:
                             # Missing Python definition. Create a (possibly rough) Python definition to print.
                             type_module_def, init_import = type_info.get_new_type_module_and_import(module_names)
                             modules_to_create.append((type_info, type_module_def, init_import))
                         else:
                             try:
-                                type_info.check_py_class_match(py_class)
+                                type_info.check_py_class_match(havok_py_type)
                             except TypeMatchError as ex:
                                 type_module_def, _ = type_info.get_new_type_module_and_import(module_names)
                                 clashing_modules.append((ex, type_info, type_module_def))
                             else:
-                                type_info.py_class = py_class
+                                type_info.py_class = havok_py_type
                                 full_py_name = type_info.get_full_py_name()
                                 if full_py_name in self.hsh_overrides:
                                     # We do not store the hash if it matches our Python default.
-                                    if py_class.get_hsh() == self.hsh_overrides[full_py_name]:
+                                    if havok_py_type.get_hsh() == self.hsh_overrides[full_py_name]:
                                         self.hsh_overrides.pop(full_py_name)
 
                     if modules_to_create:
@@ -174,7 +171,7 @@ class TagFileUnpacker:
             if root_item.length != 1:
                 raise ValueError(f"HKX root item has a length other than 1: {root_item.length}")
 
-            with hk.set_types_dict(self.hk_types_module):
+            with hk.set_havok_module(self.havok_module):
                 # This call will recursively unpack all items.
                 self.root = root_item.hk_type.unpack_tagfile(reader, root_item.absolute_offset, self.items)
             root_item.value = self.root
@@ -192,7 +189,7 @@ class TagFileUnpacker:
             if type_magic == "TCRF":
                 # Load types from compendium and return.
                 if compendium is None:
-                    raise MissingCompendiumError("Cannot parse TCRF-type HKX without `compendium` HKX.")
+                    raise MissingCompendiumError("Cannot parse `TCRF` HKX tagfile without `compendium` HKX.")
                 compendium_id = reader.read(8)
                 if compendium_id not in compendium.compendium_ids:
                     raise ValueError(f"Could not find compendium ID {repr(compendium_id)} in `compendium`.")
@@ -200,7 +197,7 @@ class TagFileUnpacker:
 
             # "TYPE" HKX (does not need compendium)
             if compendium is not None:
-                _LOGGER.warning("Compendium HKX was passed to TYPE-type HKX and will be ignored.")
+                _LOGGER.warning("Compendium HKX was passed to `TYPE` HKX tagfile and will be ignored.")
 
             if self.peek_section(reader, "TPTR"):
                 with self.unpack_section(reader, "TPTR"):

@@ -2,19 +2,18 @@ from __future__ import annotations
 
 __all__ = ["PackFileUnpacker"]
 
-import copy
 import logging
 import typing as tp
 from dataclasses import dataclass, field
-from types import ModuleType
 
 import colorama
 
 from soulstruct.utilities.binary import BinaryReader, ByteOrder
 
+from soulstruct_havok.enums import PyHavokModule
+from soulstruct_havok.exceptions import VersionModuleError, TypeNotDefinedError
 from soulstruct_havok.types import hk550, hk2010, hk2014, hk2015, hk2016, hk2018
 from soulstruct_havok.types.hk import hk
-from soulstruct_havok.types.exceptions import VersionModuleError, TypeNotDefinedError
 from soulstruct_havok.types.info import TypeInfo, get_py_name
 
 from .structs import *
@@ -53,7 +52,7 @@ class PackFileUnpacker:
     Not all packfiles contain type information, so the unpacker will attempt to use existing type information for them.
     """
 
-    hk_types_module: ModuleType | None = None
+    havok_module: PyHavokModule | None = None
     byte_order: ByteOrder = ByteOrder.LittleEndian
     hk_version: str = ""
     header: PackFileHeader | None = None
@@ -66,30 +65,14 @@ class PackFileUnpacker:
     data_items: list[PackFileDataItem] = field(default_factory=list)
     root: ROOT_TYPING = None
 
-    def __deepcopy__(self, memo):
-        new_instance = self.__class__(
-            hk_types_module=self.hk_types_module,
-            byte_order=copy.deepcopy(self.byte_order),
-            hk_version=copy.deepcopy(self.hk_version),
-            header=copy.deepcopy(self.header),
-            header_extension=copy.deepcopy(self.header_extension),
-            type_items=copy.deepcopy(self.type_items),
-            hk_type_infos=copy.deepcopy(self.hk_type_infos),
-            class_names=copy.deepcopy(self.class_names),
-            class_hashes=copy.deepcopy(self.class_hashes),
-            data_items=copy.deepcopy(self.data_items),
-            root=copy.deepcopy(self.root),
-        )
-        return new_instance
-
     def unpack(self, reader: BinaryReader, types_only=False):
 
-        self.byte_order = reader.default_byte_order = ByteOrder.big_endian_bool(
+        self.byte_order = reader.byte_order = ByteOrder.big_endian_bool(
             not reader.unpack_value("?", offset=0x11)
         )
         self.header = PackFileHeader.from_bytes(reader)
 
-        self.hk_version = self.header.contents_version_string.decode()
+        self.hk_version = self.header.contents_version_string
         _LOGGER.info(
             f"Unpacking packfile with hk version: {self.hk_version} "
             f"({self.byte_order.name}, pointer size = {self.header.pointer_size})")
@@ -124,12 +107,13 @@ class PackFileUnpacker:
                 raise AssertionError("'types' section has an item pointer with destination section index != -1.")
 
         self.type_items = self.unpack_type_items(
-            BinaryReader(type_section_info.raw_data, default_byte_order=self.byte_order),
+            BinaryReader(type_section_info.raw_data, byte_order=self.byte_order),
             item_specs=type_section_info.item_specs,
             section_end_offset=type_section_info.end_offset
         )
         self.localize_pointers(
-            self.type_items,
+            {section_order["types"]: self.type_items},
+            section_order["types"],
             type_section_info.child_pointers,
             type_section_info.item_pointers,
         )
@@ -138,40 +122,45 @@ class PackFileUnpacker:
             _LOGGER.info("Found type items in packfile (rare).")
             # Types defined inside file, minus some primitive types that are supplied manually.
             type_unpacker = PackFileTypeUnpacker(
-                self.type_items, self.class_hashes, self.header.pointer_size, self.hk_types_module
+                self.havok_module, self.type_items, self.class_hashes, self.header.pointer_size,
             )
             self.hk_type_infos = type_unpacker.get_type_infos()
         else:
             self.hk_type_infos = []
-            _LOGGER.info("No type entries in packfile (as usual).")
+            _LOGGER.info("No type entries in packfile (this is standard).")
 
         if types_only:
             return
 
-        if self.hk_version.startswith("Havok-5.1.0"):  # TODO: testing simple redirect
-            self.hk_types_module = hk550
+        if self.hk_version.startswith("Havok-5.1.0"):  # TODO: testing simple redirect for ancient DeS files
+            self.havok_module = PyHavokModule.hk550
         elif self.hk_version.startswith("Havok-5.5.0"):
-            self.hk_types_module = hk550
+            self.havok_module = PyHavokModule.hk550
         elif self.hk_version.startswith("hk_2010"):
-            self.hk_types_module = hk2010
+            self.havok_module = PyHavokModule.hk2010
         elif self.hk_version.startswith("hk_2014"):
-            self.hk_types_module = hk2014
-        elif self.hk_version.startswith("hk_2015"):
-            self.hk_types_module = hk2015
-        elif self.hk_version.startswith("hk_2016"):
-            self.hk_types_module = hk2016
-        elif self.hk_version.startswith("hk_2018"):
-            self.hk_types_module = hk2018
+            self.havok_module = PyHavokModule.hk2014
+        # NOTE: Versions below typically use tagfiles, not packfiles.
+        elif self.hk_version.startswith("2015"):
+            _LOGGER.warning("Havok version 2015 is not officially supported for packfile read, but may work.")
+            self.havok_module = PyHavokModule.hk2015
+        elif self.hk_version.startswith("2016"):
+            _LOGGER.warning("Havok version 2016 is not officially supported for packfile read, but may work.")
+            self.havok_module = PyHavokModule.hk2016
+        elif self.hk_version.startswith("2018"):
+            _LOGGER.warning("Havok version 2018 is not officially supported for packfile read, but may work.")
+            self.havok_module = PyHavokModule.hk2018
         else:
             raise VersionModuleError(f"No Havok type module for version: {self.hk_version}")
 
         self.data_items = self.unpack_data_items(
-            BinaryReader(data_section_info.raw_data, default_byte_order=self.byte_order),
+            BinaryReader(data_section_info.raw_data, byte_order=self.byte_order),
             item_specs=data_section_info.item_specs,
             section_end_offset=data_section_info.end_offset,
         )
         self.localize_pointers(
-            self.data_items,
+            {section_order["types"]: self.type_items, section_order["data"]: self.data_items},
+            section_order["data"],
             data_section_info.child_pointers,
             data_section_info.item_pointers,
         )
@@ -181,54 +170,64 @@ class PackFileUnpacker:
             item.prepare_pointers()
 
         root_item = self.data_items[0]
-        if root_item.hk_type != self.hk_types_module.hkRootLevelContainer:
-            raise TypeError(f"First data item in HKX was not `hkRootLevelContainer`: {root_item.get_class_name()}")
+        root_type = self.havok_module.get_type("hkRootLevelContainer")
+        if root_item.hk_type is not root_type:
+            raise TypeError(f"First data item in HKX was not `hkRootLevelContainer`: {root_item.get_type_name()}")
         root_item.start_reader()
-        with hk.set_types_dict(self.hk_types_module):
-            self.root = self.hk_types_module.hkRootLevelContainer.unpack_packfile(root_item)
+        with hk.set_havok_module(self.havok_module):
+            self.root = root_type.unpack_packfile(root_item)
 
         # Check for unused pointers.
         for item in self.data_items:
             if item.remaining_child_pointers:
                 item.print_item_dump()
-                print(f"Remaining child pointers for item `{item.get_class_name()}`:")
+                print(f"Remaining child pointers for item `{item.get_type_name()}`:")
                 for k, v in item.all_child_pointers.items():
                     print(f"    {R if k in item.remaining_child_pointers else X}{hex(k)} -> {hex(v)}{X}")
-                raise ValueError(f"Item `{item.get_class_name()}` has remaining child pointers. See red in printout.")
+                raise ValueError(f"Item `{item.get_type_name()}` has remaining child pointers. See red in printout.")
             if item.remaining_item_pointers:
                 item.print_item_dump()
-                print(f"Remaining item pointers for item `{item.get_class_name()}`:")
+                print(f"Remaining item pointers for item `{item.get_type_name()}`:")
                 for k, v in item.all_item_pointers.items():
                     print(f"    {R if k in item.remaining_item_pointers else X}{hex(k)} -> {v}{X}")
-                raise ValueError(f"Item `{item.get_class_name()}` has remaining item pointers. See red in printout.")
+                raise ValueError(f"Item `{item.get_type_name()}` has remaining item pointers. See red in printout.")
 
     @staticmethod
     def localize_pointers(
-        items: list[PackFileTypeItem] | list[PackFileDataItem],
+        all_section_items: dict[int, list[PackFileTypeItem] | list[PackFileDataItem]],
+        this_section_index: int,
         child_pointers: list[ChildPointerStruct],
         item_pointers: list[ItemPointerStruct],
     ):
-        """Resolve pointers and attach them to their source items."""
+        """Resolve pointers to item indices, and attach them to their source items.
+
+        Items can sometimes point to items in another section. In practice, in FromSoft games, this only occurs in
+        Havok 5.5.0 when type data is present and root named variants point to their type info. In later Havok versions,
+        this does not happen, even when type data is present. The name alone is used to identify the type.
+        """
         for child_pointer in child_pointers:
             # Find source item and offset local to its data.
-            for item in items:
+            for item in all_section_items[this_section_index]:
                 if (item_source_offset := item.get_offset_in_item(child_pointer.source_offset)) != -1:
                     # Check that source object is also dest object.
                     if (item_dest_offset := item.get_offset_in_item(child_pointer.dest_offset)) == -1:
-                        raise ValueError("Child pointer source object must be destination object.")
+                        raise ValueError("Child pointer source item must also be destination item.")
                     item.all_child_pointers[item_source_offset] = item_dest_offset
                     break
             else:
                 raise ValueError(f"Could not find source/dest items of child pointer: {child_pointer}.")
 
         for item_pointer in item_pointers:
-            for item in items:
+            # Find source item.
+            for item in all_section_items[this_section_index]:
                 if (item_source_offset := item.get_offset_in_item(item_pointer.source_offset)) != -1:
                     source_item = item
                     break
             else:
                 raise ValueError(f"Could not find source item of item pointer: {item_pointer}.")
-            for item in items:
+
+            # Find dest item.
+            for item in all_section_items[item_pointer.dest_section_index]:
                 if (item_dest_offset := item.get_offset_in_item(item_pointer.dest_offset)) != -1:
                     source_item.all_item_pointers[item_source_offset] = (item, item_dest_offset)
                     break
@@ -281,7 +280,7 @@ class PackFileUnpacker:
         self.class_names = {}
         self.class_hashes = {}
 
-        class_name_reader = BinaryReader(class_name_data, default_byte_order=self.byte_order)
+        class_name_reader = BinaryReader(class_name_data, byte_order=self.byte_order)
         class_name_data_length = len(class_name_data)
 
         # Continue unpacking class names until end of reader or '\xFF' padding begins.
@@ -341,8 +340,9 @@ class PackFileUnpacker:
             type_name = self.class_names[item_spec.type_name_offset]
             type_py_name = get_py_name(type_name)
             try:
-                hk_type = getattr(self.hk_types_module, type_py_name)
+                hk_type = self.havok_module.get_type(type_py_name)
             except AttributeError:
+                havok_submodule = self.havok_module.get_submodule()
                 if type_py_name not in missing_type_infos:
                     # Missing type. Print `TypeInfo` below.
                     type_info_matches = [t for t in self.hk_type_infos[1:] if t.name == type_name]
@@ -357,16 +357,14 @@ class PackFileUnpacker:
                         while members_to_check:
                             member_info = members_to_check.pop(0)
                             member_type_py_name = get_py_name(member_info.type_py_name)
-                            if (
-                                member_info.type_info
-                                and member_type_py_name not in self.hk_types_module.__dict__
-                                and member_type_py_name not in missing_type_infos
-                            ):
-                                missing_type_infos[member_type_py_name] = (
-                                    member_info.type_info.name, member_info.type_info
-                                )
-                                for member_member_info in member_info.type_info.members:
-                                    members_to_check.append(member_member_info)
+                            if member_info.type_info and member_type_py_name not in missing_type_infos:
+                                py_type = getattr(havok_submodule, member_type_py_name, None)
+                                if py_type is None:
+                                    missing_type_infos[member_type_py_name] = (
+                                        member_info.type_info.name, member_info.type_info
+                                    )
+                                    for member_member_info in member_info.type_info.members:
+                                        members_to_check.append(member_member_info)
 
                 continue  # error will be raised below; skip data loading
 

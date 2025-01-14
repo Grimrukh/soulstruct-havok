@@ -6,8 +6,8 @@ import abc
 import logging
 import typing as tp
 from dataclasses import dataclass, field
-from types import ModuleType
 
+from soulstruct_havok.enums import PyHavokModule
 from soulstruct_havok.utilities.maths import Vector3, Vector4, TRSTransform
 
 from ..type_vars import SKELETON_T, BONE_T
@@ -20,7 +20,7 @@ _LOGGER = logging.getLogger("soulstruct_havok")
 class Skeleton(tp.Generic[SKELETON_T, BONE_T], abc.ABC):
     """Loads HKX objects that are found in a "Skeleton" HKX file (inside `anibnd` binder, usually `Skeleton.HKX`)."""
 
-    types_module: ModuleType
+    havok_module: PyHavokModule
     skeleton: SKELETON_T
 
     bones: list[Bone] = field(init=False)

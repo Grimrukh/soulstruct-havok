@@ -14,8 +14,8 @@ import typing as tp
 from dataclasses import dataclass, field
 
 from soulstruct_havok.enums import TagDataType, TagFormatFlags, MemberFlags
+from soulstruct_havok.exceptions import TypeMatchError
 
-from .exceptions import TypeMatchError
 from .py_def_builder import PyDefBuilder
 
 if tp.TYPE_CHECKING:

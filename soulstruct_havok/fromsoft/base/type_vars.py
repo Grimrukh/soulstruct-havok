@@ -1,10 +1,13 @@
 import typing as tp
 
 __all__ = [
-    "QS_TRANSFORM",
+    "ROOT_LEVEL_CONTAINER_T",
+    "ROOT_LEVEL_CONTAINER_NAMED_VARIANT_T",
+    "QS_TRANSFORM_T",
     "ANIMATION_CONTAINER_T",
     "ANIMATION_T",
     "ANIMATION_BINDING_T",
+    "ANNOTATION_TRACK_T",
     "INTERLEAVED_ANIMATION_T",
     "SPLINE_ANIMATION_T",
     "DEFAULT_ANIMATED_REFERENCE_FRAME_T",
@@ -20,8 +23,26 @@ from soulstruct_havok.types import hk550, hk2010, hk2014, hk2015, hk2016, hk2018
 
 
 # region Basic
-QS_TRANSFORM = tp.TypeVar(
-    "QS_TRANSFORM",
+ROOT_LEVEL_CONTAINER_T = tp.TypeVar(
+    "ROOT_LEVEL_CONTAINER_T",
+    hk550.hkRootLevelContainer,
+    hk2010.hkRootLevelContainer,
+    hk2014.hkRootLevelContainer,
+    hk2015.hkRootLevelContainer,
+    hk2016.hkRootLevelContainer,
+    hk2018.hkRootLevelContainer,
+)
+ROOT_LEVEL_CONTAINER_NAMED_VARIANT_T = tp.TypeVar(
+    "ROOT_LEVEL_CONTAINER_NAMED_VARIANT_T",
+    hk550.hkRootLevelContainerNamedVariant,
+    hk2010.hkRootLevelContainerNamedVariant,
+    hk2014.hkRootLevelContainerNamedVariant,
+    hk2015.hkRootLevelContainerNamedVariant,
+    hk2016.hkRootLevelContainerNamedVariant,
+    hk2018.hkRootLevelContainerNamedVariant,
+)
+QS_TRANSFORM_T = tp.TypeVar(
+    "QS_TRANSFORM_T",
     hk550.hkQsTransform,
     hk2010.hkQsTransform,
     hk2014.hkQsTransform,
@@ -59,6 +80,15 @@ ANIMATION_BINDING_T = tp.TypeVar(
     hk2015.hkaAnimationBinding,
     hk2016.hkaAnimationBinding,
     hk2018.hkaAnimationBinding,
+)
+ANNOTATION_TRACK_T = tp.TypeVar(
+    "ANNOTATION_TRACK_T",
+    hk550.hkaAnnotationTrack,
+    hk2010.hkaAnnotationTrack,
+    hk2014.hkaAnnotationTrack,
+    hk2015.hkaAnnotationTrack,
+    hk2016.hkaAnnotationTrack,
+    hk2018.hkaAnnotationTrack,
 )
 INTERLEAVED_ANIMATION_T = tp.TypeVar(
     "INTERLEAVED_ANIMATION_T",

@@ -38,7 +38,6 @@ except ImportError:
 _LOGGER = logging.getLogger("soulstruct_havok")
 
 
-@dataclass(slots=True)
 class BaseANIBND(Binder, abc.ABC):
 
     ANIMATION_HKX: tp.ClassVar[tp.Type[BaseAnimationHKX]]

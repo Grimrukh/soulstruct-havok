@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from soulstruct_havok.enums import *
 from ..core import *
@@ -44,13 +44,14 @@ class hkxScene(hk):
     modeller: str
     asset: str
     sceneLength: float
-    rootNode: hkxNode
-    selectionSets: list[hkxNodeSelectionSet]
-    cameras: list[hkxCamera]
-    lights: list[hkxLight]
-    meshes: list[hkxMesh]
-    materials: list[hkxMaterial]
-    inplaceTextures: list[hkxTextureInplace]
-    externalTextures: list[hkxTextureFile]
-    skinBindings: list[hkxSkinBinding]
-    appliedTransform: hkMatrix3
+    rootNode: hkxNode | None = None
+    selectionSets: list[hkxNodeSelectionSet] = field(default_factory=list)
+    cameras: list[hkxCamera] = field(default_factory=list)
+    lights: list[hkxLight] = field(default_factory=list)
+    meshes: list[hkxMesh] = field(default_factory=list)
+    materials: list[hkxMaterial] = field(default_factory=list)
+    inplaceTextures: list[hkxTextureInplace] = field(default_factory=list)
+    externalTextures: list[hkxTextureFile] = field(default_factory=list)
+    skinBindings: list[hkxSkinBinding] = field(default_factory=list)
+    # NOTE: Default transform swaps Y and Z axes, which likely indicates From's export settings from 3DS Max.
+    appliedTransform: tuple[float, ...] = (1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
