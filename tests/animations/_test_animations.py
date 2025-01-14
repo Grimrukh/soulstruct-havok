@@ -6,44 +6,6 @@ from soulstruct_havok.types.debug import SET_DEBUG_PRINT
 from soulstruct_havok.fromsoft import demonssouls, darksouls1ptde, darksouls1r, bloodborne, eldenring
 
 
-def check_bl_dsr():
-    bl_anim_hkx_path = Path(
-        r"C:\Users\Scott\AppData\Roaming\Blender Foundation\Blender\4.2\scripts\addons\io_soulstruct_lib\soulstruct_havok\__temp_interleaved__.hkx"
-    )
-
-    print(bl_anim_hkx_path.read_bytes()[:100])
-
-    bl_anim_hkx = darksouls1r.AnimationHKX.from_path(bl_anim_hkx_path)
-    print(bl_anim_hkx.packfile_header_info)
-    tree1 = bl_anim_hkx.get_root_tree_string(10, 10)
-
-    bl_anim_hkx.animation_container.hkx_animation.annotationTracks = []
-
-    bl_anim_hkx.to_spline_hkx()  # todo: silent ERROR
-    return
-
-    anibnd_path = Path("../resources/DES/c5020.anibnd")
-    anibnd = Binder.from_path(anibnd_path)
-    hkx = demonssouls.AnimationHKX.from_binder(anibnd, 3000)
-
-    # wavelet = hkx.get_root_tree_string(10, 10)
-    hkx_interleaved = hkx.to_interleaved_hkx()
-    print(bytes(hkx_interleaved)[:100])
-    print(hkx_interleaved.packfile_header_info)
-    tree2 = hkx_interleaved.get_root_tree_string(10, 10)
-
-    print(f"Trees equal? {tree1 == tree2}")
-    # Print differences in strings, line by line.
-    lines1 = tree1.split("\n")
-    lines2 = tree2.split("\n")
-    for i, (line1, line2) in enumerate(zip(lines1, lines2)):
-        if line1 != line2:
-            print(f"Line {i}:")
-            print(f"  {line1}")
-            print(f"  {line2}")
-            print()
-
-
 def test_des():
     anibnd_path = Path("../resources/DES/c5020.anibnd")
     anibnd = Binder.from_path(anibnd_path)
@@ -203,10 +165,9 @@ def test_er():
 
 
 if __name__ == '__main__':
-    check_bl_dsr()
-
     # test_des()
     # test_ptde()
-    # test_dsr()
+    test_dsr()
     # test_bb()
     # test_er()
+    pass
