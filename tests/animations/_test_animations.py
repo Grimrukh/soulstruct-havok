@@ -6,6 +6,15 @@ from soulstruct_havok.types.debug import SET_DEBUG_PRINT
 from soulstruct_havok.fromsoft import demonssouls, darksouls1ptde, darksouls1r, bloodborne, eldenring
 
 
+def test_des_c9900():
+    from soulstruct import DES_PATH
+    anibnd_path = Path(DES_PATH, "chr/c9900/c9900.anibnd.dcx")
+    anibnd = Binder.from_path(anibnd_path)
+
+    hkx = demonssouls.AnimationHKX.from_binder(anibnd, 0)
+    print(hkx.get_root_tree_string(10, 10))
+
+
 def test_des():
     anibnd_path = Path("../resources/DES/c5020.anibnd")
     anibnd = Binder.from_path(anibnd_path)
@@ -165,6 +174,7 @@ def test_er():
 
 
 if __name__ == '__main__':
+    test_des_c9900()
     # test_des()
     # test_ptde()
     test_dsr()

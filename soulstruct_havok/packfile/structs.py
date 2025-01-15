@@ -225,6 +225,7 @@ class PackFileDataItem(PackFileBaseItem):
 
 
 class PackFileVersion(IntEnum):
+    Version0x04 = 0x04  # Demon's Souls (very old, e.g. c9900 animations - unsupported)
     Version0x05 = 0x05  # Demon's Souls
     Version0x08 = 0x08  # DS1:PTDE
     Version0x09 = 0x09  # DS1:PTDE (rare)

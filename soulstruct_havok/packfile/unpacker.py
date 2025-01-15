@@ -72,6 +72,9 @@ class PackFileUnpacker:
         )
         self.header = PackFileHeader.from_bytes(reader)
 
+        if self.header.version == PackFileVersion.Version0x04:
+            _LOGGER.warning("Packfile version 0x04 is not officially supported for packfile read, but may work.")
+
         self.hk_version = self.header.contents_version_string
         _LOGGER.info(
             f"Unpacking packfile with hk version: {self.hk_version} "
@@ -95,16 +98,19 @@ class PackFileUnpacker:
         data_section_info = section_infos[section_order["data"]]
 
         if classnames_section_info.child_pointers:
-            raise AssertionError("'classnames' section has child pointers. Not expected!")
+            raise ValueError("'classnames' section has child pointers. Not expected!")
         if classnames_section_info.item_pointers:
-            raise AssertionError("'classnames' section has item pointers. Not expected!")
+            raise ValueError("'classnames' section has item pointers. Not expected!")
         if classnames_section_info.item_specs:
-            raise AssertionError("'classnames' section has items. Not expected!")
+            raise ValueError("'classnames' section has items. Not expected!")
         self.unpack_class_names(classnames_section_info.raw_data)
 
         for type_section_item_pointer in type_section_info.item_pointers:
             if type_section_item_pointer.dest_section_index != 1:
-                raise AssertionError("'types' section has an item pointer with destination section index != -1.")
+                raise ValueError(
+                    f"'types' section has an item pointer with destination section index != -1: "
+                    f"{type_section_item_pointer.dest_section_index}"
+                )
 
         self.type_items = self.unpack_type_items(
             BinaryReader(type_section_info.raw_data, byte_order=self.byte_order),
@@ -132,7 +138,12 @@ class PackFileUnpacker:
         if types_only:
             return
 
-        if self.hk_version.startswith("Havok-5.1.0"):  # TODO: testing simple redirect for ancient DeS files
+        if self.hk_version.startswith("Havok-4.5.0"):
+            # TODO: testing simple redirect for ancient DeS files (e.g. c9900 animations).
+            #  These old animations use `hkDeltaCompressedSkeletalAnimation` (and have no `hka` type prefixes).
+            self.havok_module = HavokModule.hk550
+        elif self.hk_version.startswith("Havok-5.1.0"):
+            # TODO: testing simple redirect for ancient DeS files (e.g. m07_01_00_00 collisions)
             self.havok_module = HavokModule.hk550
         elif self.hk_version.startswith("Havok-5.5.0"):
             self.havok_module = HavokModule.hk550
