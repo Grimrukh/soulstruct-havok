@@ -52,6 +52,7 @@ class MapCollisionMaterial(IntEnum):
     Wood = 4  # e.g. logs
     LoResGround = 5  # unknown purpose; seems to randomly replace other ground types in lo-res
     # TODO: 6 appears in unused/prototype/corrupted h1000B2A10 (Firelink).
+    Snow = 7
     Metal = 9  # e.g. grilles
 
     # rough

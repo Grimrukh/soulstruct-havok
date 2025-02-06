@@ -20,7 +20,7 @@ def mopper(input_lines: list[str], mode: str) -> dict:
     mopp_output = Path("~/AppData/Local/Temp/mopp.json").expanduser()
     with mopper_input.open("w") as f:
         f.write(input_text)
-    _LOGGER.info("Running mopper...")
+    _LOGGER.debug("Running mopper...")
     try:
         sp.run([str(_MOPPER_PATH), mode, str(mopper_input)], cwd=str(mopper_input.parent), stdout=sp.PIPE, check=True)
     except sp.CalledProcessError as ex:
