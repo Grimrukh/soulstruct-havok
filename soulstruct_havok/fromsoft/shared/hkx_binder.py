@@ -45,6 +45,8 @@ class HKXBHD(Binder):
 
     def set_hkx(self, hkx_stem: str, hkx: MapCollisionModel):
         """Explicitly set the `MapCollisionModel` instance for the given stem, e.g. to replace whatever is loaded."""
+        if not isinstance(hkx_stem, str):
+            raise TypeError(f"`hkx_stem` key must be a string, not: {hkx_stem}")
         self.hkxs[hkx_stem] = hkx
 
     def load_all(self, overwrite=False):
