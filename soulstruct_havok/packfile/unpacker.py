@@ -76,7 +76,7 @@ class PackFileUnpacker:
             _LOGGER.warning("Packfile version 0x04 is not officially supported for packfile read, but may work.")
 
         self.hk_version = self.header.contents_version_string
-        _LOGGER.info(
+        _LOGGER.debug(
             f"Unpacking packfile with hk version: {self.hk_version} "
             f"({self.byte_order.name}, pointer size = {self.header.pointer_size})")
 
@@ -133,7 +133,7 @@ class PackFileUnpacker:
             self.hk_type_infos = type_unpacker.get_type_infos()
         else:
             self.hk_type_infos = []
-            _LOGGER.info("No type entries in packfile (this is standard).")
+            _LOGGER.debug("No type entries in packfile (this is standard).")
 
         if types_only:
             return
