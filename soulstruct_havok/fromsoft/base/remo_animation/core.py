@@ -35,31 +35,30 @@ class BaseRemoAnimationHKX(BaseWrappedHKX, abc.ABC):
         self.animation_container = AnimationContainer(self.HAVOK_MODULE, hka_animation_container)
         self.skeleton = Skeleton(self.HAVOK_MODULE, hka_animation_container.skeletons[0])
 
-    # TODO: What does the top-level name of this skeleton mean? Seems to just be first bone, but that's also usually a
-    #  collision, so it could be used...?
-
     def get_root_bones_by_name(self) -> dict[str, Bone]:
         """Returns a dictionary mapping each root bone part name to its root bone, for easy access from FLVER."""
         return {bone.name: bone for bone in self.skeleton.get_root_bones()}
 
-    def get_part_bones(self, part_name: str, root_bone_name="master", bone_prefix="") -> dict[str, Bone]:
+    def get_root_and_part_bones(self, remo_part_name: str, bone_prefix="") -> tuple[Bone, dict[str, Bone]]:
         """Returns a dictionary mapping standard bone names to the name-prefixed bones in this HKX (if one exists).
 
         `bone_prefix` will default to `part_name` if left empty (but that may have a 'AXXBXX_' prefix).
         """
-        part_root_bones = self.get_root_bones_by_name()
-        if part_name not in part_root_bones:
+        bone_prefix = bone_prefix or remo_part_name + "_"
+        all_root_bones = self.get_root_bones_by_name()
+        try:
+            part_root_bone = all_root_bones[remo_part_name]
+        except KeyError:
             raise ValueError(
-                f"Part name '{part_name}' has no root bone in this `RemoAnimationHKX`. Bones: {part_root_bones}"
+                f"`RemoPart` name '{remo_part_name}' has no root bone in this `RemoAnimationHKX`. "
+                f"Root bones: {all_root_bones}"
             )
-        part_bones = {root_bone_name: part_root_bones[part_name]}
-        if not bone_prefix:
-            bone_prefix = part_name + "_"
-        part_bones |= {
+
+        # Strips the Part's name prefix from each key in this dictionary.
+        return part_root_bone, {
             bone.name.removeprefix(bone_prefix): bone
-            for bone in part_root_bones[part_name].get_all_children()
+            for bone in part_root_bone.get_all_children()
         }
-        return part_bones
 
     def get_all_part_arma_space_transforms_in_frame(
         self, frame_index: int, part_bones: dict[str, Bone] = None, part_name="", root_bone_name="master"
