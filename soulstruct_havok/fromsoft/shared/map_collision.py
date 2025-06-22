@@ -45,20 +45,39 @@ class MapCollisionMaterial(IntEnum):
 
     TODO: Not confirmed for Demon's Souls (Havok 5.5.0) but looks good so far.
     """
-    Default = 0  # unknown usage
-    Rock = 1  # actual rocks, bricks
-    Stone = 2  # e.g. walls
-    Grass = 3  # e.g. forest ground
+    Dummy = 0  # unknown usage
+    OutdoorStone = 1  # actual rocks, bricks
+    IndoorStone = 2  # e.g. walls
+    Soil = 3  # e.g. dirt, light grass
     Wood = 4  # e.g. logs
-    LoResGround = 5  # unknown purpose; seems to randomly replace other ground types in lo-res
-    # TODO: 6 appears in unused/prototype/corrupted h1000B2A10 (Firelink).
+    Grass = 5  # used for heavy grass/foliage
+    Gravel = 6
     Snow = 7
+    Ice = 8  # Used for crystals in Crystal Caves
     Metal = 9  # e.g. grilles
-
-    # rough
+    Sand = 10
+    Bone = 11
+    Ash = 12
+    # no params for 13
+    RottenWood = 14  # Used for the roof you fight Bell Gargoyles on.
+    BigTree = 15  # Some wood in the Great Hollow
+    # no params for 16
+    SnowNoFootprint = 17
+    # no params for 18
+    WaterSlide = 19
     ShallowWater = 20
     DeepWater = 21
-    Killplane = 29  # also deathcam trigger, or lethal fall, etc.
+    Mucus = 22  # e.g. slime in The Depths
+    PoisonSwamp = 23
+    Mud = 24
+    CoalTar = 25  # Used for the area at the bottom of Sen's Fortress with the Titanite Demons
+    ChimeraSwamp = 26
+    Lava = 27
+    Carpet = 28
+    Empty = 29  # Used for anything that is not meant to have a visual (killplane, deathcam, invisible wall, etc.)
+    # No params for 30-33
+    Wood2 = 34  # Identical param name to Wood, slightly different particles?
+    # No params for 35-36
     Trigger = 40  # other triggers?
 
 
