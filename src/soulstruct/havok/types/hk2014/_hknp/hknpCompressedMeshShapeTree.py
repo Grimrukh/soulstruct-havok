@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from soulstruct.havok.enums import *
 from ..core import *
-from .._hkcd.hkcdStaticMeshTreehkcdStaticMeshTreeCommonConfigunsignedintunsignedlonglong1121hknpCompressedMeshShapeTreeDataRun import (
+from .._hkcd.hkcdStaticMesh__hknpCompressedMeshShapeTreeDataRun import (
     hkcdStaticMeshTreehkcdStaticMeshTreeCommonConfigunsignedintunsignedlonglong1121hknpCompressedMeshShapeTreeDataRun
 )
 
