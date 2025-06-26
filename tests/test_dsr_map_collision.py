@@ -1,4 +1,4 @@
-from soulstruct_havok.core import HKX
+from soulstruct.havok.core import HKX
 
 
 def main():

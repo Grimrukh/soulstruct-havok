@@ -1,5 +1,0 @@
-soulstruct
-colorama
-numpy
-matplotlib
-scipy

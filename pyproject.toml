@@ -1,0 +1,28 @@
+[project]
+name = "soulstruct-havok"
+description = "Havok tools extension for `soulstruct`."
+readme = "README.md"
+version = "1.1.0"
+license = "GPL-3.0-or-later"
+requires-python = ">=3.11"  # maximum allowed for Blender 4.4 support
+keywords = ["modding", "Havok", "FromSoftware", "Dark Souls", "Bloodborne", "Elden Ring", "Sekiro", "Demon's Souls"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+authors = [
+    { name = "Scott Mooney (Grimrukh)", email = "grimrukh@gmail.com" }
+]
+
+dependencies = [
+    "soulstruct",
+    "constrata",    # required for binary read/write (my package)
+    "numpy",        # required for math classes/operations
+    "rich>=13",     # required for nice printing/logging
+    "scipy",        # required for additional math classes/operations (e.g. quaternions)
+    "typer",        # required for CLI
+]
+
+[project.urls]
+homepage    = "https://github.com/Grimrukh/soulstruct-havok"
+repository  = "https://github.com/Grimrukh/soulstruct-havok"
+"Issues"    = "https://github.com/Grimrukh/soulstruct-havok/issues"

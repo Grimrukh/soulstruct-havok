@@ -3,10 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from soulstruct.config import DSR_PATH
-from soulstruct_havok.utilities.maths import *
+from soulstruct.havok.utilities.maths import *
 
-from soulstruct_havok.fromsoft.darksouls1r.anibnd import ANIBND as ANIBND_DSR
-from soulstruct_havok.fromsoft.eldenring.anibnd import ANIBND as ANIBND_ER
+from soulstruct.havok.fromsoft.darksouls1r.anibnd import ANIBND as ANIBND_DSR
+from soulstruct.havok.fromsoft.eldenring.anibnd import ANIBND as ANIBND_ER
 
 GAME_CHR_PATH = DSR_PATH + "/chr"
 

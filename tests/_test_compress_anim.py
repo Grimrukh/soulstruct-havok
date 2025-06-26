@@ -1,6 +1,8 @@
-from soulstruct import Path, DSR_PATH
-from soulstruct_havok import HKX
-from soulstruct_havok.fromsoft.darksouls1r import AnimationHKX
+from pathlib import Path
+
+from soulstruct.config import DSR_PATH
+from soulstruct.havok import HKX
+from soulstruct.havok.fromsoft.darksouls1r import AnimationHKX
 
 
 def main():

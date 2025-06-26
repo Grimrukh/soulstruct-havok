@@ -1,13 +1,14 @@
 import time
+from pathlib import Path
 
-from soulstruct import Path, Binder
+from soulstruct.containers import Binder
 from soulstruct.eldenring.containers import DivBinder
-from soulstruct_havok.types.debug import SET_DEBUG_PRINT
-from soulstruct_havok.fromsoft import demonssouls, darksouls1ptde, darksouls1r, bloodborne, eldenring
+from soulstruct.havok.types.debug import SET_DEBUG_PRINT
+from soulstruct.havok.fromsoft import demonssouls, darksouls1ptde, darksouls1r, bloodborne, eldenring
 
 
 def test_des_c9900():
-    from soulstruct import DES_PATH
+    from soulstruct.config import DES_PATH
     anibnd_path = Path(DES_PATH, "chr/c9900/c9900.anibnd.dcx")
     anibnd = Binder.from_path(anibnd_path)
 

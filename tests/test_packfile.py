@@ -1,7 +1,7 @@
 from soulstruct.utilities.inspection import compare_binary_data, compare_binary_files
 
-from soulstruct_havok.core import HKX
-from soulstruct_havok.types.debug import SET_DEBUG_PRINT
+from soulstruct.havok.core import HKX
+from soulstruct.havok.types.debug import SET_DEBUG_PRINT
 
 
 def bb_packfile_test():
@@ -82,7 +82,7 @@ def ptde_packfile_test():
 
 def dsr_spline_conversion_test():
     """Test conversion of 2015 spline animations to 2010 interleaved, and vice versa, with Hork's tool."""
-    from soulstruct_havok.fromsoft.darksouls1r import AnimationHKX
+    from soulstruct.havok.fromsoft.darksouls1r import AnimationHKX
 
     SET_DEBUG_PRINT(unpack=False, pack=False)
 

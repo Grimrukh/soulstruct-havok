@@ -1,7 +1,7 @@
 from soulstruct.utilities.inspection import compare_binary_files
 
-from soulstruct_havok.core import HKX
-from soulstruct_havok.types.debug import SET_DEBUG_PRINT
+from soulstruct.havok.core import HKX
+from soulstruct.havok.types.debug import SET_DEBUG_PRINT
 
 
 def dsr_tagfile_test():
