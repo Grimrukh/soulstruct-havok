@@ -80,6 +80,11 @@ class MapCollisionMaterial(IntEnum):
     # No params for 35-36
     Trigger = 40  # other triggers?
 
+    # Legacy names:
+    Default = 0
+    Rock = 1
+    Stone = 2
+
 
 class DemonsSoulsFaceFlags(IntEnum):
     """Values attached to specifix mesh faces in Demon's Souls collisions (uint16)."""

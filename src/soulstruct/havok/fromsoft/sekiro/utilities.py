@@ -13,7 +13,7 @@ import logging
 from pathlib import Path
 
 from soulstruct.containers import Binder, EntryNotFoundError
-from soulstruct.base.models.flver import FLVER
+from soulstruct.flver import FLVER
 from soulstruct.utilities.maths import Vector3
 
 from soulstruct.havok.core import HavokFileFormat
