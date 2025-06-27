@@ -170,7 +170,7 @@ class Quaternion:
         return Matrix4.from_rotation_matrix3(matrix3)
 
     @classmethod
-    def from_axis_angle(cls, axis: Vector3, angle: float, radians=False) -> Quaternion:
+    def from_axis_angle(cls, axis: Vector3 | np.ndarray, angle: float, radians=False) -> Quaternion:
         if not radians:
             angle = math.radians(angle)
         return cls(Rotation.from_rotvec((angle * axis).data))

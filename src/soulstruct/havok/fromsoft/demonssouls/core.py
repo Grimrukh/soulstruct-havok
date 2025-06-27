@@ -9,11 +9,14 @@ import typing as tp
 from pathlib import Path
 
 import numpy as np
+
+from soulstruct.utilities.files import SOULSTRUCT_USER_DATA_PATH
+
 from soulstruct.havok.enums import HavokModule
 from soulstruct.havok.fromsoft.base import *
 from soulstruct.havok.packfile.structs import PackfileHeaderInfo, PackFileVersion
 from soulstruct.havok.types.hk550 import *
-from soulstruct.havok.utilities.files import HAVOK_PACKAGE_PATH
+from soulstruct.havok.utilities.files import SOULSTRUCT_HAVOK_PATH
 from soulstruct.havok.utilities.maths import TRSTransform
 
 AnimationContainerType = AnimationContainer[
@@ -28,7 +31,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def call_havok_wavelet_anim(input_path: Path | str, output_path: Path | str, to_wavelet: bool):
-    exe_path = HAVOK_PACKAGE_PATH("resources/HavokWaveletAnim.exe")
+    exe_path = SOULSTRUCT_HAVOK_PATH("havok/resources/HavokWaveletAnim.exe")
     args = [str(exe_path), str(input_path), str(output_path), "-towavelet" if to_wavelet else "-fromwavelet"]
     try:
         sp.check_output(args, stderr=sp.STDOUT)
@@ -88,8 +91,8 @@ class AnimationHKX(BaseAnimationHKX):
                 "Can only convert spline-compressed or wavelet-compressed animations to interleaved animations."
             )
 
-        temp_wavelet_path = HAVOK_PACKAGE_PATH("__temp_wavelet__.hkx")
-        temp_interleaved_path = HAVOK_PACKAGE_PATH("__temp_interleaved__.hkx")
+        temp_wavelet_path = SOULSTRUCT_USER_DATA_PATH("__temp_wavelet__.hkx")
+        temp_interleaved_path = SOULSTRUCT_USER_DATA_PATH("__temp_interleaved__.hkx")
 
         # C++ converter requires LE, but we save the current value to restore it later to the interleaved HKX.
         old_is_big_endian = self.is_big_endian
@@ -140,8 +143,8 @@ class AnimationHKX(BaseAnimationHKX):
         if not self.animation_container.is_interleaved:
             raise ValueError("Can only convert interleaved animations to wavelet-compressed animations.")
 
-        temp_interleaved_path = HAVOK_PACKAGE_PATH("__temp_interleaved__.hkx")
-        temp_wavelet_path = HAVOK_PACKAGE_PATH("__temp_wavelet__.hkx")
+        temp_interleaved_path = SOULSTRUCT_USER_DATA_PATH("__temp_interleaved__.hkx")
+        temp_wavelet_path = SOULSTRUCT_USER_DATA_PATH("__temp_wavelet__.hkx")
 
         # C++ converter requires LE, but we save the current value to restore it later to the interleaved HKX.
         old_is_big_endian = self.is_big_endian

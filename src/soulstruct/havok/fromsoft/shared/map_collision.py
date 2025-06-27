@@ -27,7 +27,7 @@ from soulstruct.havok.core import HKX
 from soulstruct.havok.enums import HavokModule
 from soulstruct.havok.types import hk550, hk2010, hk2015
 from soulstruct.havok.types.protocols.physics import *
-from soulstruct.havok.utilities.files import HAVOK_PACKAGE_PATH
+from soulstruct.havok.utilities.files import SOULSTRUCT_HAVOK_PATH
 from soulstruct.havok.utilities.maths import Vector4
 from soulstruct.havok.utilities.mopper import mopper
 from soulstruct.havok.utilities.wavefront import read_obj
@@ -282,13 +282,13 @@ class MapCollisionModel(GameFile):
         # Template is the easiest way to set up the full HKX structure. (These are the only three games that use MOPP.)
         match self.havok_module:
             case HavokModule.hk550:
-                template_path = HAVOK_PACKAGE_PATH("resources/MapCollisionTemplate_DES.hkx")
+                template_path = SOULSTRUCT_HAVOK_PATH("havok/resources/MapCollisionTemplate_DES.hkx")
                 hkx = HKX.from_path(template_path)
             case HavokModule.hk2010:
-                template_path = HAVOK_PACKAGE_PATH("resources/MapCollisionTemplate_PTDE.hkx")
+                template_path = SOULSTRUCT_HAVOK_PATH("havok/resources/MapCollisionTemplate_PTDE.hkx")
                 hkx = HKX.from_path(template_path)
             case HavokModule.hk2015:
-                template_path = HAVOK_PACKAGE_PATH("resources/MapCollisionTemplate_DSR.hkx")
+                template_path = SOULSTRUCT_HAVOK_PATH("havok/resources/MapCollisionTemplate_DSR.hkx")
                 hkx = HKX.from_path(template_path)
             case _:
                 raise ValueError(f"Cannot export `MapCollisionModel` to HKX for Havok version: {self.havok_module}")

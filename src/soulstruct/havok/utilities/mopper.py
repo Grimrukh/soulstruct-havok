@@ -5,10 +5,10 @@ from pathlib import Path
 
 from soulstruct.utilities.files import read_json
 
-from soulstruct.havok.utilities.files import HAVOK_PACKAGE_PATH
+from soulstruct.havok.utilities.files import SOULSTRUCT_HAVOK_PATH
 
 _LOGGER = logging.getLogger(__name__)
-_MOPPER_PATH = HAVOK_PACKAGE_PATH("resources/mopper.exe")
+_MOPPER_PATH = SOULSTRUCT_HAVOK_PATH("havok/resources/mopper.exe")
 
 
 def mopper(input_lines: list[str], mode: str) -> dict:

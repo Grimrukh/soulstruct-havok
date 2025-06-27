@@ -22,7 +22,7 @@ from soulstruct.havok.enums import HavokModule
 from soulstruct.havok.packfile.structs import PackFileVersion, PackfileHeaderInfo
 from soulstruct.havok.types import hk2010, hk2018
 from soulstruct.havok.types.hk2018 import *
-from soulstruct.havok.utilities.files import HAVOK_PACKAGE_PATH
+from soulstruct.havok.utilities.files import SOULSTRUCT_HAVOK_PATH
 from soulstruct.havok.utilities.hk_conversion import convert_hk
 from soulstruct.havok.utilities.mesh import Mesh
 from soulstruct.havok.fromsoft.base import *
@@ -51,8 +51,8 @@ class AnimationHKX(BaseAnimationHKX):
         if not self.animation_container.is_interleaved:
             raise TypeError("Can only convert interleaved animations to spline animations.")
 
-        temp_interleaved_path = HAVOK_PACKAGE_PATH("__temp_interleaved__.hkx")
-        temp_spline_path = HAVOK_PACKAGE_PATH("__temp_spline__.hkx")
+        temp_interleaved_path = SOULSTRUCT_USER_DATA_PATH("__temp_interleaved__.hkx")
+        temp_spline_path = SOULSTRUCT_USER_DATA_PATH("__temp_spline__.hkx")
 
         dcx_type = self.dcx_type
         _LOGGER.debug("Downgrading to 2010...")
@@ -61,7 +61,7 @@ class AnimationHKX(BaseAnimationHKX):
             _LOGGER.debug("Writing 2010 file...")
             hkx2010.write(temp_interleaved_path)
             _LOGGER.debug("Calling `CompressAnim`...")
-            compress_anim_path = str(HAVOK_PACKAGE_PATH("resources/CompressAnim.exe"))
+            compress_anim_path = str(SOULSTRUCT_HAVOK_PATH("havok/resources/CompressAnim.exe"))
             try:
                 sp.check_output(
                     [compress_anim_path, str(temp_interleaved_path), str(temp_spline_path), "1", "0.001"],
