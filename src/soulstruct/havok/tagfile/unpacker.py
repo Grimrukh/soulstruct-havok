@@ -33,7 +33,7 @@ _DEBUG_TYPES = False  # Type order has been confirmed as valid several times!
 _DEBUG_HASH = False
 
 
-def _DEBUG_TYPE_PRINT(*args, **kwargs):
+def _debug_type_print(*args, **kwargs):
     if _DEBUG_TYPES:
         print(*args, **kwargs)
 
@@ -213,7 +213,7 @@ class TagFileUnpacker:
                 # More data is added below in the "TBOD" section, and cross-references are resolved at the end.
                 # Note that we don't look for the Python class until the body is defined, so we can present more
                 # detailed information in the event that we can't find a type and have to raise an exception.
-                file_hk_types = [None]  # padded to preserve one-indexing
+                file_hk_types = [None]  # type: list[None | TypeInfo]  # padded to preserve one-indexing
                 for _ in range(file_type_count - 1):
                     type_name_index = self.unpack_var_int(reader)
                     template_count = self.unpack_var_int(reader)
@@ -240,24 +240,24 @@ class TagFileUnpacker:
                 body_section_end = reader.position + body_section_size
                 while reader.position < body_section_end:
 
-                    _DEBUG_TYPE_PRINT("TYPE:")
+                    _debug_type_print("TYPE:")
                     type_index = self.unpack_var_int(reader)
-                    _DEBUG_TYPE_PRINT(f"    Type index: {type_index}")
+                    _debug_type_print(f"    Type index: {type_index}")
 
                     if type_index == 0:
                         continue  # null type
                     type_info = file_hk_types[type_index]
 
-                    _DEBUG_TYPE_PRINT(f"        --> Real name: `{type_info.name}`")
+                    _debug_type_print(f"        --> Real name: `{type_info.name}`")
                     parent_type_index = self.unpack_var_int(reader)
                     if parent_type_index > 0:
-                        _DEBUG_TYPE_PRINT(
+                        _debug_type_print(
                             f"    Parent type: {parent_type_index} ({file_hk_types[parent_type_index].name})"
                         )
                     else:
-                        _DEBUG_TYPE_PRINT("    Parent type: None")
+                        _debug_type_print("    Parent type: None")
                     tag_format_flags = self.unpack_var_int(reader)
-                    _DEBUG_TYPE_PRINT(f"    Tag format flags: {tag_format_flags}")
+                    _debug_type_print(f"    Tag format flags: {tag_format_flags}")
 
                     if parent_type_index > 0:
                         type_info.parent_type_info = file_hk_types[parent_type_index]
@@ -265,50 +265,50 @@ class TagFileUnpacker:
 
                     if tag_format_flags & TagFormatFlags.SubType:
                         type_info.tag_type_flags = tag_type_flags = self.unpack_var_int(reader)
-                        _DEBUG_TYPE_PRINT(f"    Tag type flags: {tag_type_flags}")
+                        _debug_type_print(f"    Tag type flags: {tag_type_flags}")
 
                     if tag_format_flags & TagFormatFlags.Pointer and tag_type_flags & 0b0000_1111 >= 6:
                         type_info.pointer_type_index = self.unpack_var_int(reader)
                         if type_info.pointer_type_index > 0:
-                            _DEBUG_TYPE_PRINT(
+                            _debug_type_print(
                                 f"    Pointer type: {type_info.pointer_type_index} "
                                 f"({file_hk_types[type_info.pointer_type_index].name})"
                             )
                         else:
-                            _DEBUG_TYPE_PRINT("    Pointer type: None")
+                            _debug_type_print("    Pointer type: None")
                         type_info.pointer_type_info = file_hk_types[type_info.pointer_type_index]
 
                     if tag_format_flags & TagFormatFlags.Version:
                         type_info.version = self.unpack_var_int(reader)
-                        _DEBUG_TYPE_PRINT(f"    Version: {type_info.version}")
+                        _debug_type_print(f"    Version: {type_info.version}")
 
                     if tag_format_flags & TagFormatFlags.ByteSize:
                         type_info.byte_size = self.unpack_var_int(reader)
-                        _DEBUG_TYPE_PRINT(f"    Byte size: {type_info.byte_size}")
+                        _debug_type_print(f"    Byte size: {type_info.byte_size}")
                         type_info.alignment = self.unpack_var_int(reader)
-                        _DEBUG_TYPE_PRINT(f"    Alignment: {type_info.alignment}")
+                        _debug_type_print(f"    Alignment: {type_info.alignment}")
 
                     if tag_format_flags & TagFormatFlags.AbstractValue:
                         type_info.abstract_value = self.unpack_var_int(reader)
-                        _DEBUG_TYPE_PRINT(f"    Abstract value: {type_info.abstract_value}")
+                        _debug_type_print(f"    Abstract value: {type_info.abstract_value}")
 
                     if tag_format_flags & TagFormatFlags.Members:
                         type_info.members = []
                         member_count = self.unpack_var_int(reader)
-                        _DEBUG_TYPE_PRINT(f"    Member count: {member_count}")
+                        _debug_type_print(f"    Member count: {member_count}")
                         for _ in range(member_count):
                             member_name_index = self.unpack_var_int(reader)
                             member_name = member_names[member_name_index]
-                            _DEBUG_TYPE_PRINT(f"      Member name index: {member_name_index} ({member_name})")
+                            _debug_type_print(f"      Member name index: {member_name_index} ({member_name})")
                             member_flags = self.unpack_var_int(reader)
-                            _DEBUG_TYPE_PRINT(f"        Flags: {member_flags}")
+                            _debug_type_print(f"        Flags: {member_flags}")
                             if member_flags < 32:
                                 raise ValueError(f"Member flags were less than 32, which isn't possible.")
                             member_offset = self.unpack_var_int(reader)
-                            _DEBUG_TYPE_PRINT(f"        Offset: {member_offset}")
+                            _debug_type_print(f"        Offset: {member_offset}")
                             member_type_index = self.unpack_var_int(reader)
                             member_type_info = file_hk_types[member_type_index]
-                            _DEBUG_TYPE_PRINT(f"        Type index: {member_type_index} ({member_type_info.name})")
+                            _debug_type_print(f"        Type index: {member_type_index} ({member_type_info.name})")
                             type_info.members.append(
                                 MemberInfo(
                                     name=member_name,
@@ -321,7 +321,7 @@ class TagFileUnpacker:
 
                     if tag_format_flags & TagFormatFlags.Interfaces:
                         interface_count = self.unpack_var_int(reader)
-                        _DEBUG_TYPE_PRINT(f"Interface count: {interface_count}")
+                        _debug_type_print(f"Interface count: {interface_count}")
                         type_info.interfaces = [
                             InterfaceInfo(
                                 type_index=(interface_type_index := self.unpack_var_int(reader)),
@@ -442,7 +442,7 @@ class TagFileUnpacker:
 
     @staticmethod
     @contextmanager
-    def unpack_section(reader: BinaryReader, *assert_magic) -> tuple[int, str]:
+    def unpack_section(reader: BinaryReader, *assert_magic) -> tp.Generator[tuple[int, str], tp.Any, None]:
         # Mask out 2 most significant bits and subtract header size.
         data_size = (reader.unpack_value(">I") & 0x3FFFFFFF) - 8
         magic = reader.unpack_string(length=4, encoding="utf-8")

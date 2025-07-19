@@ -11,9 +11,10 @@ from soulstruct.havok.enums import (
     HavokModule,
 )
 from soulstruct.havok.types.info import TypeInfo, MemberInfo, get_py_name
+from soulstruct.havok.utilities.maths import next_power_of_two
 
 if tp.TYPE_CHECKING:
-    from .unpacker import PackFileTypeItem
+    from .structs import PackFileTypeItem
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -21,12 +22,12 @@ _DEBUG_MSG = False
 _DEBUG_ENUMS = False
 
 
-def _DEBUG(*args, **kwargs):
+def _debug_print(*args, **kwargs):
     if _DEBUG_MSG:
         print(*args, **kwargs)
 
 
-def _DEBUG_ENUM(enum_str: str):
+def _debug_print_enum(enum_str: str):
     if _DEBUG_ENUMS:
         print(enum_str)
 
@@ -143,7 +144,7 @@ class PackFileTypeUnpacker:
         py_name = get_py_name(name)
         type_info = TypeInfo(name)
 
-        _DEBUG(f"Unpacking type: {name}")
+        _debug_print(f"Unpacking type: {name}")
 
         parent_type_entry = item.get_referenced_type_item(0 + self.pointer_size)  # skip name pointer
         type_info.parent_type_index = self.type_items.index(parent_type_entry)  # could be `None` (-> 0)
@@ -172,10 +173,10 @@ class PackFileTypeUnpacker:
                     member = item.MEMBER_TYPE_STRUCT.from_bytes(item.reader, long_varints=self.pointer_size == 8)
                     member_name_offset = item.all_child_pointers[member_offset]
                     member_name = item.reader.unpack_string(offset=member_name_offset, encoding="utf-8")
-                    _DEBUG(f"    Member \"{member_name}\" ({member_offset} | {hex(member_offset)}) ({member.flags})")
+                    _debug_print(f"    Member \"{member_name}\" ({member_offset} | {hex(member_offset)}) ({member.flags})")
                     member_type = ClassMemberType(member.member_type)
                     member_subtype = ClassMemberType(member.member_subtype)
-                    _DEBUG(f"      {member_type.name} | {member_subtype.name}")
+                    _debug_print(f"      {member_type.name} | {member_subtype.name}")
                     member_type_item = item.get_referenced_type_item(member_offset + self.pointer_size)
 
                     if member_type == ClassMemberType.TYPE_ARRAY:
@@ -346,7 +347,7 @@ class PackFileTypeUnpacker:
                     member_info.type_hint = type_hint
                     member_info.required_types = required_types
                     type_info.members.append(member_info)
-                    _DEBUG(f"      -> {type_py_name}")
+                    _debug_print(f"      -> {type_py_name}")
                     # TODO: Should only be checking module for non-generic names. And should only WARN, not error out.
                     # try:
                     #     getattr(self.hk_types_module, py_type_name)
@@ -394,19 +395,6 @@ class PackFileTypeUnpacker:
                 enum_str += f"    {item_name} = {item_value}\n"
                 items.append((item_name, item_value))
 
-        _DEBUG_ENUM(enum_str)
+        _debug_print_enum(enum_str)
 
         return EnumValues(name, items)
-
-
-def next_power_of_two(n) -> int:
-    if n == 1:
-        return 2
-    n -= 1
-    n |= n >> 1
-    n |= n >> 2
-    n |= n >> 4
-    n |= n >> 8
-    n |= n >> 16
-    n += 1
-    return n
