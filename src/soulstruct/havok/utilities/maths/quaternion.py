@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from scipy.spatial.transform import Rotation, Slerp
 
-from soulstruct.utilities.maths import Vector3, Vector4, Matrix3, Matrix4
+from soulstruct.utilities.maths import EulerDeg, EulerRad, Vector3, Vector4, Matrix3, Matrix4
 from soulstruct.utilities.conversion import floatify
 
 _LOGGER = logging.getLogger(__name__)
@@ -43,6 +43,7 @@ class Quaternion:
             object.__setattr__(self, "_data", None)  # will be generated on first access
         else:
             object.__setattr__(self, "_data", np.array(xyzw))  # could be zero-norm
+            self._data.flags.writeable = False
             try:
                 object.__setattr__(self, "rotation", Rotation.from_quat(xyzw))
             except ValueError:
@@ -59,6 +60,7 @@ class Quaternion:
         """Returns the quaternion as a 4-float array. Cached on first access."""
         if self._data is None:
             object.__setattr__(self, "_data", self.rotation.as_quat())
+            self._data.flags.writeable = False
         return self._data
 
     def get_real(self) -> float:
@@ -85,7 +87,7 @@ class Quaternion:
 
     def rotate_vector(self, vector: np.ndarray | Vector3 | Vector4) -> np.ndarray | Vector3 | Vector4:
         if isinstance(vector, Vector3):
-            return Vector3(self.rotation.apply(vector.data))
+            return Vector3(self.rotation.apply(vector))
         elif isinstance(vector, Vector4):
             return Vector4(self.rotation.apply(vector.data))
         elif isinstance(vector, np.ndarray):
@@ -186,15 +188,26 @@ class Quaternion:
         return cls.from_axis_angle(Vector3(xyz), angle, radians)
 
     @classmethod
-    def from_euler_angles(cls, euler_xyz: Vector3, radians=False, order="xzy") -> Quaternion:
-        return cls.from_matrix3(Matrix3.from_euler_angles(euler_xyz, radians=radians, order=order))
+    def from_euler_angles_rad(cls, euler_xyz: EulerRad, order="xzy") -> Quaternion:
+        return cls.from_matrix3(Matrix3.from_euler_angles_rad(euler_xyz, order=order))
 
-    def to_euler_angles(self, radians=False, order="xzy") -> Vector3:
+    @classmethod
+    def from_euler_angles_deg(cls, euler_xyz: EulerDeg, order="xzy") -> Quaternion:
+        return cls.from_matrix3(Matrix3.from_euler_angles_deg(euler_xyz, order=order))
+
+    def to_euler_angles_rad(self, order="xzy") -> EulerRad:
         """Decompose Quaternion (via Matrix3 representation) into Euler angles.
 
         NOTE: Can only decompose in 'xzy' order right now and will raise an error if the order is not 'xzy'.
         """
-        return self.to_matrix3().to_euler_angles(radians=radians, order=order)
+        return self.to_matrix3().to_euler_angles_rad(order=order)
+
+    def to_euler_angles_deg(self, order="xzy") -> EulerDeg:
+        """Decompose Quaternion (via Matrix3 representation) into Euler angles.
+
+        NOTE: Can only decompose in 'xzy' order right now and will raise an error if the order is not 'xzy'.
+        """
+        return self.to_matrix3().to_euler_angles_deg(order=order)
 
     # endregion
 

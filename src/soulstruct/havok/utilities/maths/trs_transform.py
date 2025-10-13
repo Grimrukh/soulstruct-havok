@@ -40,7 +40,7 @@ class TRSTransform:
         """Apply this transform to `vector`. Returned vector will have the same length as input (3 or 4), with the
         fourth `w` element untouched for `Vector4`."""
         if isinstance(vector, Vector3):
-            transformed = self.translation.data + self.rotation.rotate_vector(self.scale.data * vector.data)
+            transformed = self.translation + self.rotation.rotate_vector(self.scale * vector)
             return Vector3(transformed)
         elif isinstance(vector, Vector4):
             transformed = self.translation.data + self.rotation.rotate_vector(self.scale.data * vector.data[:3])
