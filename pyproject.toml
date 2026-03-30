@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "soulstruct-havok"
 description = "Havok tools extension for `soulstruct`."
@@ -15,12 +19,15 @@ authors = [
 
 dependencies = [
     "soulstruct",
-    "constrata",     # required for binary read/write (my package)
-    "numpy",         # required for math classes/operations
-    "rich>=13",      # required for nice printing/logging
-    "scipy==1.16.3", # required for additional math classes/operations (e.g. quaternions)
-    "typer",         # required for CLI
+    "constrata>=1.3.1",     # required for binary read/write (my package)
+    "numpy",                # required for math classes/operations
+    "rich>=13",             # required for nice printing/logging
+    "scipy==1.16.3",        # required for additional math classes/operations (e.g. quaternions)
+    "typer",                # required for CLI
 ]
+
+[tool.setuptools.package-data]
+"*" = ["*.dll", "*.exe"]  # include embedded DLLs and EXEs in all subpackages
 
 [project.urls]
 homepage    = "https://github.com/Grimrukh/soulstruct-havok"
