@@ -321,7 +321,7 @@ class RemoBND(Binder):
 
     def __post_init__(self):
         try:
-            self.tae_entry = self.find_entry_matching_name(r".*\.tae")
+            self.tae_entry = self.find_entry_by_name_regex(r".*\.tae")
         except EntryNotFoundError:
             raise ValueError("Could not find TAE file in `RemoBND` binder.")
         # Cutscene name can be detected from the binder's TAE file stem.
@@ -332,7 +332,7 @@ class RemoBND(Binder):
             if match := CUT_HKX_RE.match(entry.name):
                 cut_name = "cut" + match.group(1)
                 try:
-                    sibcam_entry = self.find_entry_path(f"\\{cut_name}\\camera_win32.sibcam")
+                    sibcam_entry = self.find_entry_by_path(f"\\{cut_name}\\camera_win32.sibcam")
                 except EntryNotFoundError:
                     raise ValueError(f"Could not find SIBCAM file corresponding to cut HKX entry: {entry.name}")
                 sibcam = sibcam_entry.to_binary_file(SIBCAM)

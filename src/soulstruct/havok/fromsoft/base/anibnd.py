@@ -73,14 +73,14 @@ class BaseANIBND(Binder, abc.ABC):
 
         compendium, compendium_name = self.ANIMATION_HKX.get_compendium_from_binder(self)
         try:
-            skeleton_entry = self.find_entry_matching_name(r"[Ss]keleton\.[Hh][Kk][Xx]")
+            skeleton_entry = self.find_entry_by_name_regex(r"[Ss]keleton\.[Hh][Kk][Xx]")
             self.skeleton_hkx = self.SKELETON_HKX.from_bytes(skeleton_entry, compendium=compendium)
 
             if not self.animation_ids_to_load:
                 # Load ALL animations.
                 self.animations_hkx = {}
-                for anim_entry in self.find_entries_matching_name(r"a[\d_]+\.[Hh][Kk][Xx]"):
-                    anim_id = int(anim_entry.minimal_stem[1:])
+                for anim_entry in self.find_entries_by_name_regex(r"a[\d_]+\.[Hh][Kk][Xx]"):
+                    anim_id = int(anim_entry.stem[1:])
                     self.animations_hkx[anim_id] = self.ANIMATION_HKX.from_bytes(anim_entry, compendium=compendium)
             else:
                 # Load selected (also asserted) animation IDs only.
@@ -88,7 +88,7 @@ class BaseANIBND(Binder, abc.ABC):
                 for anim_id in self.animation_ids_to_load:
                     entry_name = self.animation_id_to_entry_basename(anim_id)
                     try:
-                        anim_entry = self.find_entry_name(entry_name)
+                        anim_entry = self.find_entry_by_name(entry_name)
                     except KeyError:
                         raise ValueError(f"Could not find animation entry '{entry_name}' for animation ID {anim_id}.")
                     self.animations_hkx[anim_id] = self.ANIMATION_HKX.from_bytes(anim_entry, compendium=compendium)
@@ -116,7 +116,7 @@ class BaseANIBND(Binder, abc.ABC):
         return self.skeleton.bones
 
     @property
-    def bones_by_name(self) -> dict[str, Bone]:
+    def bones_by_name(self) -> dict[str, Bone] | None:
         return self.skeleton.bones_by_name
 
     def get_animation_container(self, anim_id: int = None) -> AnimationContainer:
@@ -148,7 +148,7 @@ class BaseANIBND(Binder, abc.ABC):
             raise ValueError(f"Animation ID {new_anim_id} already exists, and `overwrite=False`.")
         self.animations_hkx[new_anim_id] = self.animations_hkx[anim_id].copy()
 
-    def convert_to_interleaved(self, anim_id: int = None):
+    def convert_to_interleaved(self, anim_id: int):
         """Convert the animation at `anim_id` to interleaved format in-place by replacing the `AnimationContainer`."""
         container = self.get_animation_container(anim_id)
         self.animations_hkx[anim_id].animation_container = container.to_interleaved_container()
@@ -757,7 +757,7 @@ class BaseANIBND(Binder, abc.ABC):
         """Open an existing `.anibnd` Binder, write the opened skeleton and ALL opened animations into it, and write it
         back to disk at `write_path` (or back to `anibnd_path` by default)."""
         anibnd = Binder.from_bak(anibnd_path) if from_bak else Binder.from_path(anibnd_path)
-        anibnd.find_entry_matching_name(r"[Ss]keleton\.[HKX|hkx]").set_from_binary_file(self.skeleton_hkx)
+        anibnd.find_entry_by_name_regex(r"[Ss]keleton\.[HKX|hkx]").set_from_binary_file(self.skeleton_hkx)
         for anim_id, animation_hkx in self.animations_hkx.items():
             anibnd[self.animation_id_to_entry_basename(anim_id)].set_from_binary_file(animation_hkx)
         anibnd.write(file_path=write_path)  # will default to same path

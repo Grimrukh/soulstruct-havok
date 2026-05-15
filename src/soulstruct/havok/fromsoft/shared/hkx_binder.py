@@ -40,7 +40,7 @@ class HKXBHD(Binder):
         hkx_stem = hkx_stem.removesuffix(".dcx").removesuffix(".hkx")  # clean up suffixes
         return self.hkxs.setdefault(
             hkx_stem,
-            self.find_entry_name(f"{hkx_stem}.hkx.dcx").to_binary_file(MapCollisionModel)
+            self.find_entry_by_name(f"{hkx_stem}.hkx.dcx").to_binary_file(MapCollisionModel)
         )
 
     def set_hkx(self, hkx_stem: str, hkx: MapCollisionModel):

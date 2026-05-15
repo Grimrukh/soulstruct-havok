@@ -25,7 +25,7 @@ _LOGGER = logging.getLogger(__name__)
 
 def scale_chrbnd(chrbnd: Binder, scale_factor: float | Vector3):
     """Scale FLVER, ragdoll, and (if present) cloth in CHRBND in-place."""
-    flver_entry = chrbnd.find_entry_matching_name(r".*\.flver")
+    flver_entry = chrbnd.find_entry_by_name_regex(r".*\.flver")
     if flver_entry.entry_id != 200:
         _LOGGER.warning(f"FLVER entry ID is {flver_entry.entry_id}, not 200.")
     model = flver_entry.to_binary_file(FLVER)
@@ -44,7 +44,7 @@ def scale_chrbnd(chrbnd: Binder, scale_factor: float | Vector3):
     _LOGGER.info(f"{ragdoll_entry.name} ragdoll physics scaled by {scale_factor}.")
 
     try:
-        cloth_entry = chrbnd.find_entry_matching_name(rf"{model_name}_c\.hkx")
+        cloth_entry = chrbnd.find_entry_by_name_regex(rf"{model_name}_c\.hkx")
     except ValueError:
         # No cloth data.
         _LOGGER.info("No cloth HKX found.")
@@ -165,7 +165,7 @@ def reverse_animation_in_anibnd_file(
     anibnd_path = Path(anibnd_path)
     anibnd = Binder.from_bak(anibnd_path) if prefer_bak else Binder.from_path(anibnd_path)
     try:
-        animation_entry = anibnd.find_entry_id(source_animation_id)
+        animation_entry = anibnd.find_entry_by_id(source_animation_id)
     except EntryNotFoundError:
         raise KeyError(f"Could not find animation ID {source_animation_id} in '{anibnd_path.name}'.")
     animation = animation_entry.to_binary_file(AnimationHKX)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 __all__ = ["HKX", "HKX_ROOT_TYPING", "HavokFileFormat"]
 
+import io
 import logging
 import re
 import traceback
@@ -9,7 +10,7 @@ import typing as tp
 from dataclasses import field
 from pathlib import Path
 
-from soulstruct.base.game_file import GameFile
+from soulstruct.base.game_file import GameFile, BaseBinaryFile
 from soulstruct.containers import Binder, BinderEntry, EntryNotFoundError
 from soulstruct.dcx import DCXType, decompress, is_dcx
 from soulstruct.utilities.binary import *
@@ -70,7 +71,7 @@ class HKX(GameFile):
     is_compendium: bool = False
     compendium_ids: list[bytes] = field(default_factory=list)
     # Maps `hk` type names to non-standard hash values found in file.
-    hsh_overrides: dict[str, int] = field(default_factory=dict)
+    hsh_overrides: dict[str, int | None] = field(default_factory=dict)
 
     # Extra information retained from the packfile header, if loaded from a packfile.
     packfile_header_info: None | PackfileHeaderInfo = None
@@ -95,7 +96,7 @@ class HKX(GameFile):
     @classmethod
     def from_bytes(
         cls,
-        data: bytes | bytearray | tp.BinaryIO | BinaryReader | BinderEntry,
+        data: bytes | bytearray | io.BufferedIOBase | BinaryReader,
         hk_format: HavokFileFormat = None,
         compendium: HKX = None,
     ) -> tp.Self:
@@ -178,7 +179,7 @@ class HKX(GameFile):
         return hkx
 
     @staticmethod
-    def get_compendium_from_binder(binder: Binder, compendium_name="") -> tuple[HKX, str]:
+    def get_compendium_from_binder(binder: Binder, compendium_name="") -> tuple[HKX | None, str]:
         """Search for '.compendium' HKX type file in `binder`. Name may be given, or the extension alone may be sought.
 
         Returns the compendium found (may be `None`) and its name.
@@ -204,7 +205,7 @@ class HKX(GameFile):
                 compendium = None
         else:
             try:
-                compendium_entry = binder.find_entry_name(compendium_name)
+                compendium_entry = binder.find_entry_by_name(compendium_name)
             except EntryNotFoundError:
                 raise MissingCompendiumError(f"Compendium file '{compendium_name}' not present in given binder.")
             compendium = compendium_entry.to_binary_file(HKX)  # always base `HKX` class
