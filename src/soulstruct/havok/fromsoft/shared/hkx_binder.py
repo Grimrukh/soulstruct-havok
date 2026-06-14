@@ -114,26 +114,29 @@ class BothResHKXBHD:
     def get_lo_hkx(self, hkx_stem: str) -> MapCollisionModel:
         return self.lo_res.get_hkx(hkx_stem)
 
-    def get_both_hkx(
-        self, hkx_stem: str, allow_missing_hi=False, allow_missing_lo=False
-    ) -> tuple[MapCollisionModel | None, MapCollisionModel | None]:
-        """Get both HKX, with the option to permit either or both (not recommended) to be missing."""
+    def get_both_hkx(self, hkx_stem: str) -> tuple[MapCollisionModel, MapCollisionModel]:
+        """Get both HKX. Raises an `EntryNotFoundError` if either is missing."""
+        if hkx_stem.startswith(("h", "l")):
+            hkx_stem = hkx_stem[1:]
+        hi_res = self.get_hi_hkx(f"h{hkx_stem}")
+        lo_res = self.get_lo_hkx(f"l{hkx_stem}")
+        return hi_res, lo_res
+
+    def get_both_hkx_allow_missing(self, hkx_stem: str) -> tuple[MapCollisionModel | None, MapCollisionModel | None]:
+        """Get both HKX, with the option to permit either or both to be missing.
+
+        This should generally only be used when dealing with file collections that are known to be incomplete.
+        """
         if hkx_stem.startswith(("h", "l")):
             hkx_stem = hkx_stem[1:]
         try:
             hi_res = self.get_hi_hkx(f"h{hkx_stem}")
         except EntryNotFoundError:
-            if allow_missing_hi:
-                hi_res = None
-            else:
-                raise
+            hi_res = None
         try:
             lo_res = self.get_lo_hkx(f"l{hkx_stem}")
         except EntryNotFoundError:
-            if allow_missing_lo:
-                lo_res = None
-            else:
-                raise
+            lo_res = None
 
         return hi_res, lo_res
 
