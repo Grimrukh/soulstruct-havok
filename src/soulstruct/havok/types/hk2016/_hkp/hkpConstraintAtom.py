@@ -9,7 +9,7 @@ from .hkpConstraintAtomAtomType import hkpConstraintAtomAtomType
 
 @dataclass(slots=True, eq=False, repr=False, kw_only=True)
 class hkpConstraintAtom(hk):
-    alignment = 61456
+    alignment = 4
     byte_size = 16
     tag_type_flags = TagDataType.Class
 
