@@ -1,4 +1,4 @@
-"""Havok 2010 core types."""
+"""Havok 5.5.0 core types."""
 from __future__ import annotations
 
 __all__ = [
@@ -41,7 +41,7 @@ __all__ = [
     "hkFreeListArray",
     "hkFlags",
 
-    # hk2010
+    # hk550
     "Vector4",
     "hkReflectDetailOpaque",
     "_int",
