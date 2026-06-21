@@ -456,7 +456,7 @@ class MapCollisionModel(GameFile):
 
             # Format array of vertices as "x y z" lines (lines already joined).
             v = io.StringIO()
-            np.savetxt(v, mesh.vertices[:, :3], fmt="%r")
+            np.savetxt(v, mesh.vertices[:, :3], fmt="%.6f")
             mopper_input.append(v.getvalue())
             mopper_input.append("")  # blank line
 
