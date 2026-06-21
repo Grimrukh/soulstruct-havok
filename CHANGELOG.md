@@ -5,17 +5,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Unreleased
 
----
-
-## [1.3.0] - 2026-06-15
-
 ### Added
 - CHANGELOG.md added. Previous history very sparse.
 
 ### Changed
 - `soulstruct` updated to 2.4.0.
 - API for `Binder` changed for new `soulstruct` (`Firelink` compatibility).
-- `BothResHKXBHD.get_both_hkx()` split off into `BothResHKXBHD.get_both_hkx_allow_missing()`
+- Defined `BothResHKXBHD.get_both_hkx()` vs. `BothResHKXBHD.get_both_hkx_allow_missing()`.
+- Added comment on bizarre `hkpConstraintAtom.alignment` post-2015.
+
+### Fixed
+- Numpy float formatting for mopper input fixed.
+- Mopper call uses proper tempfile.
+
+---
 
 ## [1.2.2] - 2026-03-30
 
