@@ -63,7 +63,7 @@ def scale_chrbnd(chrbnd: Binder, scale_factor: float | Vector3):
 def scale_anibnd(anibnd: Binder, scale_factor: float | Vector3):
     """Scale skeleton (if present) and all animations in ANIBND in-place."""
 
-    skeleton_entries = anibnd.find_entries_matching_name(r"[Ss]keleton.*\.(HKX|hkx)")
+    skeleton_entries = anibnd.find_entries_by_name_regex(r"[Ss]keleton.*\.(HKX|hkx)")
     for i, entry in enumerate(skeleton_entries):
         if entry.entry_id != 1000000 + i:
             _LOGGER.warning(f"Skeleton entry ID is {entry.entry_id}, not 1000000.")
@@ -73,7 +73,7 @@ def scale_anibnd(anibnd: Binder, scale_factor: float | Vector3):
         entry.set_from_binary_file(skeleton_hkx)
         _LOGGER.info(f"{entry.name} skeleton scaled by {scale_factor}.")
 
-    animation_entries = anibnd.find_entries_matching_name(r"a.*\.hkx")
+    animation_entries = anibnd.find_entries_by_name_regex(r"a.*\.hkx")
     for entry in animation_entries:
         _LOGGER.info(f"  Scaling animation {entry.entry_id} by {scale_factor}...")
         animation_hkx = entry.to_binary_file(AnimationHKX)  # "aXX_XXXX.hkx"
@@ -91,7 +91,7 @@ def scale_objbnd(objbnd: Binder, scale_factor: float | Vector3):
 
     NOTE: Objects can have multiple FLVER models and/or multiple HKX collisions.
     """
-    flver_entries = objbnd.find_entries_matching_name(r".*\.flver")
+    flver_entries = objbnd.find_entries_by_name_regex(r".*\.flver")
     if not flver_entries:  # e.g. fog walls
         _LOGGER.info("No FLVER model found in OBJBND.")
     else:
@@ -103,7 +103,7 @@ def scale_objbnd(objbnd: Binder, scale_factor: float | Vector3):
             flver_entry.set_from_binary_file(model)
             _LOGGER.info(f"{flver_entry.name} model scaled by {scale_factor}.")
 
-    anibnd_hkx_entries = objbnd.find_entries_matching_name(r".*\.anibnd")
+    anibnd_hkx_entries = objbnd.find_entries_by_name_regex(r".*\.anibnd")
     if not anibnd_hkx_entries:  # many objects do not have animations
         _LOGGER.info("No ANIBND animation binder found in OBJBND.")
     else:
@@ -113,7 +113,7 @@ def scale_objbnd(objbnd: Binder, scale_factor: float | Vector3):
             _LOGGER.info(f"{anibnd_hkx_entry.name} scaled by {scale_factor}.")
             anibnd_hkx_entry.set_from_binary_file(anibnd)
 
-    collision_hkx_entries = objbnd.find_entries_matching_name(r".*\.hkx")
+    collision_hkx_entries = objbnd.find_entries_by_name_regex(r".*\.hkx")
     if not collision_hkx_entries:  # many objects do not have collision
         _LOGGER.info("No HKX collision found in OBJBND.")
     else:

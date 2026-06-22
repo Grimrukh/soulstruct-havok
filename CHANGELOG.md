@@ -13,6 +13,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - API for `Binder` changed for new `soulstruct` (`Firelink` compatibility).
 - Defined `BothResHKXBHD.get_both_hkx()` vs. `BothResHKXBHD.get_both_hkx_allow_missing()`.
 - Added comment on bizarre `hkpConstraintAtom.alignment` post-2015.
+- `BaseANIBND` does not load skeleton if already set on instance.
+- `RemoPart` stores a list of standard bone names used as roots, to find world-space boundary.
 
 ### Fixed
 - Numpy float formatting for mopper input fixed.

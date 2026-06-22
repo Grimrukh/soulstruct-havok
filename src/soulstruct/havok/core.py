@@ -186,7 +186,7 @@ class HKX(GameFile):
         """
         if compendium_name == "":
             # Search for '*.compendium' binder entry.
-            compendium_entries = binder.find_entries_matching_name(r".*\.compendium")
+            compendium_entries = binder.find_entries_by_name_regex(r".*\.compendium")
             if len(compendium_entries) == 1:
                 compendium = HKX.from_bytes(compendium_entries[0])
                 compendium_name = compendium_entries[0].name

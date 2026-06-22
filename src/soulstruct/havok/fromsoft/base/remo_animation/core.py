@@ -39,8 +39,11 @@ class BaseRemoAnimationHKX(BaseWrappedHKX, abc.ABC):
         """Returns a dictionary mapping each root bone part name to its root bone, for easy access from FLVER."""
         return {bone.name: bone for bone in self.skeleton.get_root_bones()}
 
-    def get_root_and_part_bones(self, remo_part_name: str, bone_prefix="") -> tuple[Bone, dict[str, Bone]]:
-        """Returns a dictionary mapping standard bone names to the name-prefixed bones in this HKX (if one exists).
+    def get_root_and_part_bones(
+        self, remo_part_name: str, bone_prefix=""
+    ) -> tuple[Bone, dict[str, Bone]]:
+        """Returns the root cutscene bone and a dictionary mapping standard
+        bone names to the name-prefixed bones in this HKX (if one exists).
 
         `bone_prefix` will default to `part_name` if left empty (but that may have a 'AXXBXX_' prefix).
         """
