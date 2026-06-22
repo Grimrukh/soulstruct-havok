@@ -64,6 +64,8 @@ class RemoPart:
 
     # Maps cut names to animation data for this part in that cut.
     cut_arma_frames: dict[str, list[RemoPartAnimationFrame]]
+    # Part's standard bone names that are top-level in the cutscene data (may skip some of the FLVER hierarchy).
+    part_cutscene_root_bone_names: list[str] = field(default_factory=list)
 
     def __repr__(self) -> str:
         part_repr = f"{self.part.cls_name}(\"{self.part.name}\")" if self.part else "None"
@@ -248,9 +250,14 @@ class RemoCut:
         # a prefix for every child bone name, with root motion stored under the root Part bone.
         # TODO: Is the other-map prefix included in every bone prefix as well? Or just the root bone?
         #  This call suggests the latter... but that would permit object name clashes between maps?
+        bone_prefix = remo_part.map_part_name + "_"
         remo_part_root_bone, part_bones = self.animation.get_root_and_part_bones(
-            remo_part.name, bone_prefix=remo_part.map_part_name + "_"
+            remo_part.name, bone_prefix=bone_prefix
         )
+        # Store immediate children of RemoPart root bone.
+        remo_part.part_cutscene_root_bone_names = [
+            bone.name.removeprefix(bone_prefix) for bone in remo_part_root_bone.children
+        ]
 
         if not self.animation.animation_container.is_interleaved:
             self.animation.animation_container = self.animation.animation_container.to_interleaved_container()
@@ -265,8 +272,9 @@ class RemoCut:
         }
         remo_part_root_track_index = bone_track_indices[remo_part_root_bone.index]
 
-        if remo_part.name == "o1303":
-            pass
+        # TODO: What's with this hack?
+        # if remo_part.name == "o1303":
+        #     pass
 
         for frame_local_transforms in self.animation.animation_container.interleaved_data:
 
@@ -285,9 +293,16 @@ class RemoCut:
                 for child_bone in bone.children:
                     bone_local_to_world(child_bone, bone_world_transforms[bone.name])
 
+            part_cutscene_root_bones = []
             for part_root_bone in remo_part_root_bone.children:
                 # Immediate children of `remo_part_root_bone` are the true root bones of the Part.
+                # The `remo_part_root_bone` is like a standard MSB world-space transform applied on top.
+                # Note that these immediate children may NOT be root bones in the FLVER skeleton. Any
+                # FLVER parents they have are entirely ignored by cutscene FK. When applied to real
+                # skeletons, 'skipped' parent bones will need to have their rest bone transforms cancelled
+                # out exactly by inverse animated poses.
                 bone_local_to_world(part_root_bone, TRSTransform.identity())
+                part_cutscene_root_bones.append(part_root_bone)
 
             # Remap prefixed cutscene bone names to real part bone names (used in actual part model).
             frame = {
