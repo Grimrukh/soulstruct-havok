@@ -73,8 +73,9 @@ class BaseANIBND(Binder, abc.ABC):
 
         compendium, compendium_name = self.ANIMATION_HKX.get_compendium_from_binder(self)
         try:
-            skeleton_entry = self.find_entry_by_name_regex(r"[Ss]keleton\.[Hh][Kk][Xx]")
-            self.skeleton_hkx = self.SKELETON_HKX.from_bytes(skeleton_entry, compendium=compendium)
+            if not self.skeleton_hkx:
+                skeleton_entry = self.find_entry_by_name_regex(r"[Ss]keleton\.[Hh][Kk][Xx]")
+                self.skeleton_hkx = self.SKELETON_HKX.from_bytes(skeleton_entry, compendium=compendium)
 
             if not self.animation_ids_to_load:
                 # Load ALL animations.
