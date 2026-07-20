@@ -10,9 +10,9 @@ import abc
 import logging
 from dataclasses import dataclass
 
+from soulstruct.havok.fromsoft.base import BaseAnimationHKX, BaseSkeletonHKX
 from soulstruct.havok.utilities.maths import TRSTransform
 
-from ..core import BaseWrappedHKX
 from ..animation import AnimationContainer
 from ..skeleton import Skeleton, Bone
 from ..type_vars import *
@@ -20,19 +20,25 @@ from ..type_vars import *
 _LOGGER = logging.getLogger(__name__)
 
 
-class BaseRemoAnimationHKX(BaseWrappedHKX, abc.ABC):
-    """HKX file that contains a skeleton AND animation data for a single continuous camera cut in a cutscene.
+class BaseRemoAnimationHKX(BaseAnimationHKX, abc.ABC):
+    """HKX animation file that animates multiple MSB Parts in a single continuous camera cut in a cutscene.
 
-    Here, each root bone is the name of an `MSBPart` model manipulated in this camera cut of the REMO cutscene (each
-    with child bones corresponding to the actual bones of that model, if applicable).
+    Always contains a multi-Part HKX skeleton. Here, each root bone is the name of an `MSBPart` model manipulated in
+    this camera cut of the REMO cutscene (each with child bones corresponding to the actual bones of that model, if
+    applicable).
+
+    NOTE: If any bone in an MSBPart is NOT animated by the cutscene (e.g. the top-level "Master" bone of a character),
+    the rest pose of that bone will be ignored. This is important when computing pose basis matrices in Blender. (This
+    is actually true for HKX animations in general; animation transforms are local to the parent's animation transform
+    and do not care about the rest pose. The rest pose is only relevant for how bound meshes are deformed. It is only
+    extra relevant here because top-level bones are generally never skipped in standard HKX animations.)
     """
 
-    animation_container: AnimationContainer = None
     skeleton: Skeleton = None
 
     def __post_init__(self):
+        super().__post_init__()  # set `self.animation_container`
         hka_animation_container = self.get_variant(0, *ANIMATION_CONTAINER_T.__constraints__)
-        self.animation_container = AnimationContainer(self.HAVOK_MODULE, hka_animation_container)
         self.skeleton = Skeleton(self.HAVOK_MODULE, hka_animation_container.skeletons[0])
 
     def get_root_bones_by_name(self) -> dict[str, Bone]:
