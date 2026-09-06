@@ -100,18 +100,23 @@ class Quaternion:
     def __len__(self):
         return 4
 
-    def __eq__(self, other: Quaternion):
+    def __eq__(self, other: object):
+        """Compares exact component values.
+
+        NOTE: `scipy` `Rotation` does not implement value-based `__eq__` (only object identity), so this must
+        compare `data` arrays directly rather than delegating to `self.rotation == other.rotation`.
+        """
         if isinstance(other, Quaternion):
-            return self.rotation == other.rotation
+            return bool(np.array_equal(self.data, other.data))
         raise TypeError("Can only compare equality for `Quaternion` with another `Quaternion`.")
 
     def to_wxyz(self) -> tuple[float, float, float, float]:
         return self.w, self.x, self.y, self.z
 
     def is_identity(self) -> bool:
-        return np.equal(self._data, [0.0, 0.0, 0.0, 1.0]).all()
+        return np.equal(self.data, [0.0, 0.0, 0.0, 1.0]).all()
 
-    def is_same_rotation(self, other: Quaternion, ignore_direction=False, atol=1e6):
+    def is_same_rotation(self, other: Quaternion, ignore_direction=False, atol=1e-6):
         """If `ignore_direction=True`, x, y, and z are all allowed to be negated simultaneously."""
         if not isinstance(other, Quaternion):
             raise TypeError("Can only use `Quaternion.is_same_rotation()` with another `Quaternion`.")
@@ -144,10 +149,14 @@ class Quaternion:
         return Quaternion(self.rotation.inv())
 
     def get_angle_diff(self, other: Quaternion, radians=False) -> float:
-        """Get angle between this rotation and `other`."""
+        """Get angle between this rotation and `other`.
+
+        NOTE: For unit quaternions, `dot(q1, q2) == cos(theta / 2)`, where `theta` is the rotation angle between
+        them, so the raw `acos` result must be doubled to recover the actual rotation angle.
+        """
         dot_norm = self.dot(other) / (self.norm() * other.norm())
         dot_norm = min(1.0, max(dot_norm, -1.0))  # clamp to [-1, 1] to avoid `acos` range error
-        rad = math.acos(dot_norm)
+        rad = 2.0 * math.acos(dot_norm)
         return rad if radians else math.degrees(rad)
 
     # TODO: conjugate? Not needed yet.
@@ -180,6 +189,9 @@ class Quaternion:
     def to_axis_angle(self, radians=False) -> tuple[Vector3, float]:
         rotvec = self.rotation.as_rotvec()
         magnitude = math.sqrt(sum(x ** 2 for x in rotvec))
+        if magnitude == 0.0:
+            # Identity rotation: angle is zero and axis is arbitrary; default to +X.
+            return Vector3((1.0, 0.0, 0.0)), 0.0
         return Vector3((rotvec / magnitude)), (magnitude if radians else math.degrees(magnitude))
 
     @classmethod
@@ -226,17 +238,32 @@ class Quaternion:
 
     def __add__(self, other: Quaternion | float) -> Quaternion:
         """Simple element-wise addition."""
-        return Quaternion([self.data[i] + other.data[i] for i in range(4)])
+        if isinstance(other, Quaternion):
+            return Quaternion([self.data[i] + other.data[i] for i in range(4)])
+        if isinstance(other, (int, float, np.floating, np.integer)):
+            return Quaternion([v + other for v in self.data])
+        return NotImplemented
 
     __radd__ = __add__  # commutative
 
-    def __mul__(self, other: float):
-        """Scalar multiplication."""
-        return Quaternion([v * other for v in self.data])
-    
-    # NOTE: There is no method that does element-wise multiplication.
+    def __mul__(self, other: Quaternion | float) -> Quaternion:
+        """Scalar multiplication, or Hamilton product if `other` is another `Quaternion`."""
+        if isinstance(other, Quaternion):
+            x1, y1, z1, w1 = self.data
+            x2, y2, z2, w2 = other.data
+            return Quaternion([
+                w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+                w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
+                w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
+                w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
+            ])
+        if isinstance(other, (int, float, np.floating, np.integer)):
+            return Quaternion([v * other for v in self.data])
+        return NotImplemented
 
-    __rmul__ = __mul__  # commutative
+    def __rmul__(self, other: float) -> Quaternion:
+        """Only reached for scalar * Quaternion (commutative); Quaternion * Quaternion always uses `__mul__`."""
+        return self.__mul__(other)
 
     def __matmul__(self, other: Quaternion) -> Quaternion:
         """Equivalent to composing the rotation matrices."""
