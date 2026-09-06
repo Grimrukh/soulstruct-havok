@@ -272,10 +272,6 @@ class RemoCut:
         }
         remo_part_root_track_index = bone_track_indices[remo_part_root_bone.index]
 
-        # TODO: What's with this hack?
-        # if remo_part.name == "o1303":
-        #     pass
-
         for frame_local_transforms in self.animation.animation_container.interleaved_data:
 
             # Only bones with tracks have keys.
@@ -299,8 +295,8 @@ class RemoCut:
                 # The `remo_part_root_bone` is like a standard MSB world-space transform applied on top.
                 # Note that these immediate children may NOT be root bones in the FLVER skeleton. Any
                 # FLVER parents they have are entirely ignored by cutscene FK. When applied to real
-                # skeletons, 'skipped' parent bones will need to have their rest bone transforms cancelled
-                # out exactly by inverse animated poses.
+                # skeletons, 'skipped' parent bones should NOT have their rest (bind) pose considered
+                # when resolving local pose transforms for animation.
                 bone_local_to_world(part_root_bone, TRSTransform.identity())
                 part_cutscene_root_bones.append(part_root_bone)
 
@@ -322,6 +318,8 @@ class RemoBND(Binder):
 
     Each 'cutXXXX' subfolder in the binder contains HKX and SIBCAM animation data for a single continuous camera cut
     within the cutscene, held here in `RemoCut` instances.
+
+    One TAE file is used across all cuts.
     """
 
     tae_entry: BinderEntry = None
