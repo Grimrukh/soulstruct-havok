@@ -8,7 +8,7 @@ description = "Havok tools extension for `soulstruct`."
 readme = "README.md"
 version = "1.2.5"
 license = "GPL-3.0-or-later"
-requires-python = ">=3.11"  # maximum allowed for Blender 4.5-5.0 support
+requires-python = ">=3.13"  # Blender >=5.1
 keywords = ["modding", "Havok", "FromSoftware", "Dark Souls", "Bloodborne", "Elden Ring", "Sekiro", "Demon's Souls"]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -26,8 +26,34 @@ dependencies = [
     "typer",                # required for CLI
 ]
 
+[tool.setuptools.packages.find]
+where = ["src"]
+namespaces = true
+
 [tool.setuptools.package-data]
-"*" = ["*.dll", "*.exe"]  # include embedded DLLs and EXEs in all subpackages
+soulstruct-havok = [
+    "**/*.json",
+    "**/*.txt",
+    "**/*.xml",
+    "**/*.dcx",
+    "**/*.dll",
+    "**/*.exe",
+    "**/*.pdb",
+    "**/*.hkx",  # template Havok files
+]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+# `importmode=importlib` + `consider_namespace_packages` keep collection working with the
+# `soulstruct` namespace package and allow same-named test modules in different game folders.
+addopts = "-ra --import-mode=importlib"
+consider_namespace_packages = true
+markers = [
+    "game_data: test requires an unpacked vanilla game directory",
+    "slow: test reads a whole game directory and is slow",
+]
+filterwarnings = ["default"]
 
 [project.urls]
 homepage    = "https://github.com/Grimrukh/soulstruct-havok"
