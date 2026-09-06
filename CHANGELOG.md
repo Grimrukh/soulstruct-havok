@@ -3,7 +3,19 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## Unreleased
+## [1.2.4] - 2026-09-06
+
+### Added
+- Added Quaternion unit tests.
+
+### Changed
+- Updated `scipy` version to `>=1.18.0` (scipy immutable Rotation bug fixed).
+- Updated `constrata` version to `>=1.3.3`.
+
+### Fixed
+- Fixed some Quaternion bugs.
+
+## [1.2.3] - 2026-09-06
 
 ### Added
 - CHANGELOG.md added. Previous history very sparse.
