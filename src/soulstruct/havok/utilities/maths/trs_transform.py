@@ -76,15 +76,23 @@ class TRSTransform:
         return self.inverse().transform_vector(vector)
 
     def inverse(self) -> TRSTransform:
-        """Get the inverse transform.
+        """Get the inverse transform, i.e. the transform `I` such that `I @ self` is the identity transform.
 
-        Even if scale is non-uniform, this will always produce a `TRSTransform` that is the inverse of the `compose`
-        function that defines `TRSTransform` multiplication. This inversion operation does NOT correspond to affine
-        matrix inversion if scale is non-uniform!
+        The composition performed by `__matmul__` (and `compose(scale_translation=True)`) applies this transform's
+        scale to the other transform's translation BEFORE rotating it:
+            T' = T1 + R1 * (S1 * T2)
+        So the inverse translation must likewise be divided by this transform's scale before being rotated by the
+        inverse rotation, otherwise `I @ self` leaves a residual translation of `R^-1 * (T - T / S)` whenever the
+        scale is not 1. That residual is small per-bone but accumulates down a skeleton hierarchy, so it must not be
+        omitted.
+
+        `I @ self` is the exact identity for any scale. Note that the reverse, `self @ I`, is only the identity for
+        UNIFORM scale, because rotation and non-uniform scaling do not commute. This inversion operation does NOT
+        correspond to affine matrix inversion if scale is non-uniform!
         """
-        inv_translation = -self.rotation.inverse().rotate_vector(self.translation)
         inv_rotation = self.rotation.inverse()
         inv_scale = 1.0 / self.scale
+        inv_translation = -inv_rotation.rotate_vector(Vector3(self.translation.data * inv_scale.data))
         return TRSTransform(inv_translation, inv_rotation, inv_scale)
 
     def copy(self) -> TRSTransform:
