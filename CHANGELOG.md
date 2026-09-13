@@ -7,10 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 - Added `TRSTransform` unit tests.
+- Added `TRSTransform.left_divide()` for proper left division of transforms.
+  - `TRSTransform.inverse()` is a one-sided inverse, which is now documented, as rotation and non-uniform scale
+  are not commutative. `TRSTransform.left_divide()` is a proper left division that accounts for scale and rotation.
 
 ### Fixed
-- Fixed `TRSTransform.inverse()` ignoring scale when inverting translation, which corrupted armature-space to
-  local-space conversion (e.g. on animation export) for any animation with non-unit scale.
+- Fixed `TRSTransform.inverse()` ignoring scale when inverting translation.
+- Fixed spline compression block size detection (divide by 255, not 256 - last and first frames have same timestamp).
 
 ## [1.2.5] - 2026-09-07
 

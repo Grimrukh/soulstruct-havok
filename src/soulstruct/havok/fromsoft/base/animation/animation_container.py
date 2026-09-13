@@ -448,19 +448,19 @@ class AnimationContainer(tp.Generic[
             local_space_track_transforms = []
 
             # Converting back from complete armature space to local space is easy and requires no recursion, as we
-            # only need to pre-multiply by the inverse of the parent's armature space transform (already known).
-            parent_inverse_matrices = {}  # type: dict[int, TRSTransform]
+            # only need to solve against the parent's armature space transform (already known).
             for track_index, armature_transform in enumerate(frame_armature_transforms):
                 if track_parent_indices[track_index] == -1:
                     # Root track, so local space is armature space.
                     local_space_track_transforms.append(armature_transform)
                 else:
-                    # Non-root track, so local space is parent's local space.
+                    # Non-root track, so local space is parent's local space. `TRSTransform.left_divide()` (NOT
+                    # `parent.inverse() @ child`) is required here: the latter only recovers the correct result
+                    # when the parent's scale is uniform, since `inverse()` is a one-sided inverse (see its
+                    # docstring) and composing with it applies the unscale before un-rotating instead of after.
                     parent_index = track_parent_indices[track_index]
-                    if track_parent_indices[track_index] not in parent_inverse_matrices:
-                        parent_inverse_matrices[parent_index] = frame_armature_transforms[parent_index].inverse()
-                    inv_parent_armature_transform = parent_inverse_matrices[parent_index]
-                    local_space_transform = inv_parent_armature_transform @ armature_transform
+                    parent_armature_transform = frame_armature_transforms[parent_index]
+                    local_space_transform = parent_armature_transform.left_divide(armature_transform)
                     local_space_track_transforms.append(local_space_transform)
 
             local_space_frames.append(local_space_track_transforms)

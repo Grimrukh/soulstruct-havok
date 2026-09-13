@@ -95,6 +95,32 @@ class TRSTransform:
         inv_translation = -inv_rotation.rotate_vector(Vector3(self.translation.data * inv_scale.data))
         return TRSTransform(inv_translation, inv_rotation, inv_scale)
 
+    def left_divide(self, other: TRSTransform, scale_translation=True) -> TRSTransform:
+        """Solve `self.compose(X, scale_translation=scale_translation) == other` for `X`.
+
+        IMPORTANT: this is NOT the same as `self.inverse().compose(other, scale_translation=scale_translation)`.
+        As `inverse()` documents, it is only a *one-sided* inverse: `inverse(A) @ A == identity` holds for any scale,
+        but `A @ inverse(A)` does not, because rotation and non-uniform scaling do not commute. Composing `other`
+        with that one-sided inverse would apply the unscale to `other`'s translation *before* un-rotating it,
+        instead of after, silently corrupting the result whenever `self.scale` is non-uniform. This method solves
+        the composition equation directly (unscale happens after un-rotating), which is exact for any scale.
+
+        Typically used to convert an armature-space transform to its parent-local equivalent: if `self` is the
+        parent's armature-space transform and `other` is the child's, `self.left_divide(other)` is the child's
+        local (parent-relative) transform -- the exact inverse of `self.compose(local, scale_translation=True)`.
+        """
+        inv_rotation = self.rotation.inverse()
+        if scale_translation:
+            inv_scale = 1.0 / self.scale
+            rotated_delta = inv_rotation.rotate_vector(other.translation.data - self.translation.data)
+            new_translation = Vector3(rotated_delta * inv_scale.data)
+            new_scale = Vector3(other.scale.data * inv_scale.data)
+        else:
+            new_translation = Vector3(inv_rotation.rotate_vector(other.translation.data - self.translation.data))
+            new_scale = other.scale
+        new_rotation = inv_rotation @ other.rotation
+        return TRSTransform(new_translation, new_rotation, new_scale)
+
     def copy(self) -> TRSTransform:
         return TRSTransform(self.translation, self.rotation, self.scale)
 

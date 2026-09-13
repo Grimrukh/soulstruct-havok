@@ -885,8 +885,7 @@ class SplineCompressedAnimationData:
         frame_transforms = [[] for _ in range(frame_count)]  # type: list[list[TRSTransform]]
 
         for frame_index in range(frame_count):
-            block_index, frame = divmod(frame_index, max_frames_per_block)
-            frame = float(frame)
+            block_index, frame = get_block_index_and_frame(frame_index, max_frames_per_block, len(self.blocks))
 
             block = self.blocks[block_index]
 
@@ -978,11 +977,35 @@ class SplineCompressedAnimationData:
         return s
 
 
+def get_block_index_and_frame(frame_index: int, max_frames_per_block: int, block_count: int) -> tuple[int, float]:
+    """Map a global animation frame index to `(block_index, frame_within_block)` for spline-compressed data.
+
+    Havok blocks are NOT simple non-overlapping chunks of `maxFramesPerBlock` frames: adjacent blocks SHARE their
+    boundary frame, so each block only advances the timeline by `maxFramesPerBlock - 1` frames. This is why
+    `hkaSplineCompressedAnimation.blockDuration == (maxFramesPerBlock - 1) * frameDuration` (e.g. 8.5 s, not
+    8.5333 s, for 256 frames per block at 30 FPS), and Havok's own `getBlockAndTimeInBlock()` picks the block as
+    `floor(time * blockInverseDuration)`. Vanilla files and `CompressAnim.exe` both follow this convention.
+
+    Dividing by `maxFramesPerBlock` instead decodes frame 256 as a duplicate of frame 255 and every later frame
+    one frame late -- a visible hitch in any animation longer than one block, and a shift that was then baked into
+    re-exported animations.
+
+    The final frame of an animation whose length is an exact multiple of `maxFramesPerBlock - 1` lands on a block
+    boundary that no following block exists for, so the block index is clamped (that frame is the last frame of
+    the final block).
+    """
+    frames_per_block = max_frames_per_block - 1
+    block_index, frame = divmod(frame_index, frames_per_block)
+    if block_index >= block_count:
+        block_index = block_count - 1
+        frame = frame_index - block_index * frames_per_block
+    return block_index, float(frame)
+
+
 def compute_frame_transforms(frame_count, frame_indices, blocks, max_frames_per_block, transform_track_count):
     frame_transforms = []
     for frame_index in frame_indices:
-        frame = float((frame_index % frame_count) % max_frames_per_block)
-        block_index = int((frame_index % frame_count) / max_frames_per_block)
+        block_index, frame = get_block_index_and_frame(frame_index % frame_count, max_frames_per_block, len(blocks))
         block = blocks[block_index]
 
         frame_transform = []
