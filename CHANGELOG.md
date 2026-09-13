@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+---
+
+## [1.2.6] - 2026-09-13
+
 ### Added
 - Added `TRSTransform` unit tests.
 - Added `TRSTransform.left_divide()` for proper left division of transforms.
