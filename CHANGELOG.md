@@ -11,6 +11,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - `TRSTransform.inverse()` is a one-sided inverse, which is now documented, as rotation and non-uniform scale
   are not commutative. `TRSTransform.left_divide()` is a proper left division that accounts for scale and rotation.
 
+### Changed
+- `soulstruct 2.4.5` required (`GameType` enum, `Vector.__eq__` breaking change).
+
 ### Fixed
 - Fixed `TRSTransform.inverse()` ignoring scale when inverting translation.
 - Fixed spline compression block size detection (divide by 255, not 256 - last and first frames have same timestamp).
