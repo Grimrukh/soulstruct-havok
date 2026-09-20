@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- Fixed `hk550` `hkaSkeletalAnimation.annotationTracks` (SimpleArray of pointers).
+
 ---
 
 ## [1.3.2] - 2026-09-13

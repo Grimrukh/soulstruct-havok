@@ -24,7 +24,7 @@ class hkaSkeletalAnimation(hkReferencedObject):
         Member(16, "numberOfTransformTracks", _int),
         Member(20, "numberOfFloatTracks", _int),
         Member(24, "extractedMotion", Ptr(hkaAnimatedReferenceFrame)),
-        Member(28, "annotationTracks", SimpleArray(hkaAnnotationTrack)),
+        Member(28, "annotationTracks", SimpleArray(Ptr(hkaAnnotationTrack))),
     )
     members = hkReferencedObject.members + local_members
 
