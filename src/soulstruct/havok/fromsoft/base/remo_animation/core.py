@@ -4,11 +4,12 @@ Must be overridden by each Havok version to provide the correct `hk` types modul
 """
 from __future__ import annotations
 
-__all__ = ["BaseRemoAnimationHKX",]
+__all__ = ["BaseRemoAnimationHKX", "RemoPartTracks"]
 
 import abc
 import logging
-from dataclasses import dataclass
+import typing as tp
+from dataclasses import dataclass, field
 
 from soulstruct.havok.fromsoft.base import BaseAnimationHKX, BaseSkeletonHKX
 from soulstruct.havok.utilities.maths import TRSTransform
@@ -18,6 +19,63 @@ from ..skeleton import Skeleton, Bone
 from ..type_vars import *
 
 _LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(slots=True)
+class RemoPartTracks:
+    """Everything needed to build one MSB Part's bones and tracks of a cutscene cut animation from scratch.
+
+    The cutscene skeleton gives each part a root bone named after the part (`name`, e.g. 'c5350_0001', 'm2510B1',
+    'd0000_0010' or 'A10B02_m2350B2A10' for a part of another map) whose track holds the part's world-space transform
+    per frame (`root_frames`). Beneath it sit the part's own bones (`bone_names`, un-prefixed; they are written with
+    `bone_prefix` prepended, e.g. 'c5350_0001_Pelvis'), in depth-first order with `bone_parent_indices` into
+    `bone_names` (-1 = immediate child of the part root). In vanilla files these are the part's ANIBND skeleton bones
+    minus its top-level 'Master'/model-name bone, whose children become the part's cutscene root bones.
+
+    `bone_frames[frame][bone]` are the bones' LOCAL (parent-relative) transforms in the cutscene skeleton, where the
+    cutscene root bones (parent -1) are relative to identity (NOT to the part root, which the game applies separately
+    as root motion). This is exactly what `RemoCut._add_cut_arma_frames()` reads back. Parts without bones (Map Pieces,
+    Collisions, Dummies) leave `bone_names` empty.
+    """
+    name: str
+    root_frames: list[TRSTransform]
+    bone_prefix: str = ""
+    bone_names: list[str] = field(default_factory=list)
+    bone_parent_indices: list[int] = field(default_factory=list)
+    bone_frames: list[list[TRSTransform]] = field(default_factory=list)
+
+    def __post_init__(self):
+        if len(self.bone_parent_indices) != len(self.bone_names):
+            raise ValueError(
+                f"RemoPartTracks '{self.name}' has {len(self.bone_names)} bone names but "
+                f"{len(self.bone_parent_indices)} parent indices."
+            )
+        for i, parent_index in enumerate(self.bone_parent_indices):
+            if not -1 <= parent_index < i:
+                raise ValueError(
+                    f"RemoPartTracks '{self.name}' bone {i} ('{self.bone_names[i]}') has invalid parent index "
+                    f"{parent_index}: parents must precede children (depth-first order) and -1 marks part root bones."
+                )
+        if self.bone_names:
+            if len(self.bone_frames) != len(self.root_frames):
+                raise ValueError(
+                    f"RemoPartTracks '{self.name}' has {len(self.root_frames)} root frames but "
+                    f"{len(self.bone_frames)} bone frames."
+                )
+            for frame_index, frame in enumerate(self.bone_frames):
+                if len(frame) != len(self.bone_names):
+                    raise ValueError(
+                        f"RemoPartTracks '{self.name}' bone frame {frame_index} has {len(frame)} transforms, not "
+                        f"{len(self.bone_names)}."
+                    )
+
+    @property
+    def frame_count(self) -> int:
+        return len(self.root_frames)
+
+    @property
+    def prefixed_bone_names(self) -> list[str]:
+        return [self.bone_prefix + bone_name for bone_name in self.bone_names]
 
 
 class BaseRemoAnimationHKX(BaseAnimationHKX, abc.ABC):
@@ -40,6 +98,86 @@ class BaseRemoAnimationHKX(BaseAnimationHKX, abc.ABC):
         super().__post_init__()  # set `self.animation_container`
         hka_animation_container = self.get_variant(0, *ANIMATION_CONTAINER_T.__constraints__)
         self.skeleton = Skeleton(self.HAVOK_MODULE, hka_animation_container.skeletons[0])
+
+    @classmethod
+    def from_remo_part_tracks(
+        cls,
+        parts: tp.Sequence[RemoPartTracks],
+        frame_rate: float = 30.0,
+        skeleton_name: str = "",
+    ) -> tp.Self:
+        """Build an interleaved cutscene cut animation (skeleton + animation + binding) from scratch.
+
+        Bones are laid out part by part: each part's root bone followed by its bones (see `RemoPartTracks`), so the
+        skeleton is in depth-first order like vanilla files. Every bone gets a track (also as in vanilla), annotated
+        with its name. The reference pose is the first frame of every track (the most common vanilla convention; the
+        game animates every bone, so the reference pose is not used for posing). `skeleton_name` defaults to the first
+        part's root bone name, which is what vanilla files use (and is also written as the binding's
+        `originalSkeletonName`).
+
+        The result is uncompressed; convert it with the spline-compression splice used by cutscene export (build a
+        plain `AnimationHKX` from the same local frames, `to_spline_hkx()` it, then replace this file's animation and
+        binding), as `to_spline_hkx()` is not defined for cutscene animations.
+        """
+        if not parts:
+            raise ValueError("At least one `RemoPartTracks` is required to build a cutscene animation.")
+        frame_count = parts[0].frame_count
+        if frame_count < 2:
+            raise ValueError("Cutscene animations must have at least two frames.")
+        for part in parts:
+            if part.frame_count != frame_count:
+                raise ValueError(
+                    f"All parts must have the same frame count: part '{part.name}' has {part.frame_count} frames, "
+                    f"but part '{parts[0].name}' has {frame_count}."
+                )
+
+        bone_names = []  # type: list[str]
+        parent_indices = []  # type: list[int]
+        frame_transforms = [[] for _ in range(frame_count)]  # type: list[list[TRSTransform]]
+        for part in parts:
+            if part.name in bone_names:
+                raise ValueError(f"Duplicate cutscene part root bone name: '{part.name}'.")
+            root_index = len(bone_names)
+            bone_names.append(part.name)
+            parent_indices.append(-1)
+            for frame_index in range(frame_count):
+                frame_transforms[frame_index].append(part.root_frames[frame_index].copy())
+            for bone_index, bone_name in enumerate(part.prefixed_bone_names):
+                if bone_name in bone_names:
+                    raise ValueError(f"Duplicate cutscene bone name: '{bone_name}' (part '{part.name}').")
+                bone_names.append(bone_name)
+                parent_index = part.bone_parent_indices[bone_index]
+                parent_indices.append(root_index if parent_index == -1 else root_index + 1 + parent_index)
+                for frame_index in range(frame_count):
+                    frame_transforms[frame_index].append(part.bone_frames[frame_index][bone_index].copy())
+
+        skeleton_name = skeleton_name or parts[0].name
+        bone_type = cls.HAVOK_MODULE.get_type("hkaBone")
+        qs_transform_type = cls.HAVOK_MODULE.get_type("hkQsTransform")
+        skeleton_type = cls.HAVOK_MODULE.get_type("hkaSkeleton")
+        # noinspection PyArgumentList
+        skeleton = skeleton_type(
+            name=skeleton_name,
+            parentIndices=parent_indices,
+            bones=[bone_type(name=bone_name, lockTranslation=False) for bone_name in bone_names],
+            referencePose=[qs_transform_type.from_trs_transform(transform) for transform in frame_transforms[0]],
+            referenceFloats=[],
+            floatSlots=[],
+            localFrames=[],
+            partitions=[],
+        )
+
+        root = cls.build_interleaved_root(
+            frame_transforms,
+            transform_track_bone_indices=list(range(len(bone_names))),
+            root_motion_array=None,
+            original_skeleton_name=skeleton_name,
+            frame_rate=frame_rate,
+            skeleton_for_armature_to_local=None,  # already local
+            track_names=bone_names,
+            skeletons=[skeleton],
+        )
+        return cls(root=root, **cls.get_default_hkx_kwargs())
 
     def get_root_bones_by_name(self) -> dict[str, Bone]:
         """Returns a dictionary mapping each root bone part name to its root bone, for easy access from FLVER."""

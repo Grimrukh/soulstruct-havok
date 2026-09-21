@@ -95,6 +95,32 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
         Track names are optional and will be written to track annotations if given. Length of names must match track
         count in this case.
         """
+        root = cls.build_interleaved_root(
+            frame_transforms,
+            transform_track_bone_indices,
+            root_motion_array=root_motion_array,
+            original_skeleton_name=original_skeleton_name,
+            frame_rate=frame_rate,
+            skeleton_for_armature_to_local=skeleton_for_armature_to_local,
+            track_names=track_names,
+        )
+        return cls(root=root, **cls.get_default_hkx_kwargs())
+
+    @classmethod
+    def build_interleaved_root(
+        cls,
+        frame_transforms: list[list[TRSTransform]],  # outer list is frames, inner list is tracks (must be regular)
+        transform_track_bone_indices: list[int],
+        root_motion_array: np.ndarray | None = None,  # four columns: X, Y, Z, Y rotation
+        original_skeleton_name="master",
+        frame_rate: float = 30.0,
+        skeleton_for_armature_to_local: BaseSkeletonHKX = None,
+        track_names: list[str] = (),
+        skeletons: tp.Sequence[hk] = (),
+    ) -> hk:
+        """Build the `hkRootLevelContainer` of an interleaved animation file from scratch (see
+        `from_minimal_data_interleaved()` for the arguments), optionally embedding `skeletons` in its
+        `hkaAnimationContainer` (as cutscene animation files do)."""
         if track_names and len(track_names) != len(transform_track_bone_indices):
             raise ValueError(
                 f"Number of track names ({len(track_names)}) does not match number of track bone indices "
@@ -188,7 +214,7 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
                     name="Merged Animation Container",
                     className="hkaAnimationContainer",
                     variant=animation_container_type(
-                        skeletons=[],
+                        skeletons=list(skeletons),
                         animations=[animation],
                         bindings=[binding],
                         attachments=[],
@@ -198,7 +224,7 @@ class BaseAnimationHKX(BaseWrappedHKX, abc.ABC):
             ],
         )
 
-        return cls(root=root, **cls.get_default_hkx_kwargs())
+        return root
 
     @classmethod
     def from_minimal_data_spline(

@@ -5,10 +5,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+---
+
+## [1.4.0] - 2026-09-21
+
+### Added
+- DSR: `RemoBND` cutscenes can be constructed from scratch using minimal `RemoPartTracks` input.
+  - RemoBND TAE entry narrowed to new `RemoTAE` type in `soulstruct`.
+
+### Changed
+- `soulstruct` updated to 2.5.0 (`RemoTAE` added, `SIBCAM` fixes).
+
 ### Fixed
 - Fixed `hk550` `hkaSkeletalAnimation.annotationTracks` (SimpleArray of pointers).
-
----
 
 ## [1.3.2] - 2026-09-13
 

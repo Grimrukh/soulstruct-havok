@@ -9,20 +9,26 @@ __all__ = [
     "RemoBND",
     "RemoPart",
     "RemoPartAnimationFrame",
+    "RemoPartTracks",
     "RemoCut",
     "RemoPartType",
 ]
 
 import logging
 import re
+import typing as tp
 from dataclasses import dataclass, field
 from enum import StrEnum
 
 from soulstruct.containers import Binder, BinderEntry, EntryNotFoundError
+from soulstruct.containers.core import BinderFlags, BinderVersion
 from soulstruct.base.animations import SIBCAM
+from soulstruct.base.animations.tae import RemoTAE, RemoTAEAnimation
 from soulstruct.darksouls1r.maps import MSB, MapStudioDirectory, get_map
 from soulstruct.darksouls1r.maps.parts import MSBPart
+from soulstruct.dcx import DCXType
 
+from soulstruct.havok.fromsoft.base.remo_animation import RemoPartTracks
 from soulstruct.havok.utilities.maths import TRSTransform
 from .core import RemoAnimationHKX, Bone
 
@@ -320,7 +326,20 @@ class RemoBND(Binder):
     within the cutscene, held here in `RemoCut` instances.
 
     One TAE file is used across all cuts.
+
+    Vanilla layout (used by `new()`/`add_cut()`): entry IDs `100 * (cut_index + 1)` for a cut's SIBCAM and one more
+    for its HKX, with paths `\\cutNNNN\\camera_win32.sibcam` and `\\cutNNNN\\hkxx64\\aNNNN.hkx`; the TAE is entry
+    10000 at `\\taeNew\\x64\\{cutscene_name}.tae`.
     """
+
+    TAE_ENTRY_ID: tp.ClassVar[int] = 10000
+
+    # Vanilla DSR RemoBND settings (`Binder` defaults are for newer games).
+    dcx_type: DCXType = DCXType.DCX_DFLT_10000_24_9
+    signature: str = "07D7R6"
+    flags: BinderFlags = BinderFlags(0b00101110)
+    version: BinderVersion = BinderVersion.V3
+    v4_info = None
 
     tae_entry: BinderEntry = None
     cutscene_name: str = ""  # e.g. 'scn100100'
@@ -333,6 +352,10 @@ class RemoBND(Binder):
     GET_MAP = staticmethod(get_map)
 
     def __post_init__(self):
+        if not self.entries:
+            # Empty binder being built from scratch (see `new()`). `cutscene_name` must be set by the caller.
+            self.cuts = []
+            return
         try:
             self.tae_entry = self.find_entry_by_name_regex(r".*\.tae")
         except EntryNotFoundError:
@@ -352,6 +375,96 @@ class RemoBND(Binder):
                 animation = entry.to_binary_file(RemoAnimationHKX)  # we only convert to interleaved when required
                 cut = RemoCut(cut_name, animation, sibcam)
                 self.cuts.append(cut)
+
+    # region From-scratch construction
+
+    @classmethod
+    def new(cls, cutscene_name: str, tae: RemoTAE | None = None) -> tp.Self:
+        """Create an empty RemoBND for `cutscene_name` (e.g. 'scn100100') with vanilla DSR binder settings and a TAE
+        entry (a minimal event-less `RemoTAE` with no animations if `tae` is not given; `add_cut()` adds an animation
+        for each new cut). Add cuts with `add_cut()`."""
+        if not re.match(r"^scn\d{6}$", cutscene_name):
+            raise ValueError(f"Cutscene name must look like 'scn100100', not '{cutscene_name}'.")
+        remobnd = cls()
+        remobnd.cutscene_name = cutscene_name
+        remobnd.set_tae(tae or RemoTAE())
+        return remobnd
+
+    def set_tae(self, tae: RemoTAE):
+        """Replace (or create) the binder's TAE entry with `tae`."""
+        if self.tae_entry is None:
+            self.tae_entry = BinderEntry(
+                data=b"",
+                entry_id=self.TAE_ENTRY_ID,
+                path=f"\\taeNew\\x64\\{self.cutscene_name}.tae",
+                flags=self.DEFAULT_ENTRY_FLAGS,
+            )
+            self.add_entry(self.tae_entry)
+        self.tae_entry.set_from_binary_file(tae)
+
+    def get_tae(self) -> RemoTAE:
+        if self.tae_entry is None:
+            raise ValueError("RemoBND has no TAE entry.")
+        return self.tae_entry.to_binary_file(RemoTAE)
+
+    @staticmethod
+    def get_cut_number(cut_name: str) -> int:
+        """'cut0020' -> 20."""
+        match = re.match(r"^cut(\d{4})$", cut_name)
+        if not match:
+            raise ValueError(f"Cut name must look like 'cut0020', not '{cut_name}'.")
+        return int(match.group(1))
+
+    def add_cut(
+        self,
+        cut_name: str,
+        animation: RemoAnimationHKX,
+        sibcam: SIBCAM,
+        add_tae_animation=True,
+    ) -> RemoCut:
+        """Append a cut (HKX + SIBCAM binder entries) and, by default, an event-less animation for it in the TAE.
+
+        Cuts play in ascending cut number order, so `cut_name` must sort after existing cuts. Entry IDs follow the
+        vanilla scheme (see class docstring).
+        """
+        cut_number = self.get_cut_number(cut_name)
+        for cut in self.cuts:
+            if self.get_cut_number(cut.name) >= cut_number:
+                raise ValueError(
+                    f"Cut '{cut_name}' must have a higher number than every existing cut ({[c.name for c in self.cuts]})."
+                )
+        cut_index = len(self.cuts)
+        sibcam_entry = BinderEntry(
+            data=b"",
+            entry_id=100 * (cut_index + 1),
+            path=f"\\{cut_name}\\camera_win32.sibcam",
+            flags=self.DEFAULT_ENTRY_FLAGS,
+        )
+        sibcam_entry.set_from_binary_file(sibcam)
+        hkx_entry = BinderEntry(
+            data=b"",
+            entry_id=100 * (cut_index + 1) + 1,
+            path=f"\\{cut_name}\\hkxx64\\a{cut_number:04d}.hkx",
+            flags=self.DEFAULT_ENTRY_FLAGS,
+        )
+        hkx_entry.set_from_binary_file(animation)
+        # Keep the TAE entry last (vanilla order), as it has the highest ID.
+        tae_index = self.entries.index(self.tae_entry) if self.tae_entry in self.entries else len(self.entries)
+        self.entries.insert(tae_index, sibcam_entry)
+        self.entries.insert(tae_index + 1, hkx_entry)
+
+        cut = RemoCut(cut_name, animation, sibcam)
+        self.cuts.append(cut)
+
+        if add_tae_animation and self.tae_entry is not None:
+            tae = self.get_tae()
+            if tae.get_animation(cut_number) is None:
+                tae.animations.append(RemoTAEAnimation(animation_id=cut_number))
+                tae.animations.sort(key=lambda a: a.animation_id)
+                self.set_tae(tae)
+        return cut
+
+    # endregion
 
     def load_remo_parts(self):
         """Load placeholder `RemoPart`s for each cut, without `MSB` references."""

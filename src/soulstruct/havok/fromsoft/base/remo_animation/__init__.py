@@ -1,3 +1,3 @@
-__all__ = ["BaseRemoAnimationHKX"]
+__all__ = ["BaseRemoAnimationHKX", "RemoPartTracks"]
 
-from .core import BaseRemoAnimationHKX
+from .core import BaseRemoAnimationHKX, RemoPartTracks
