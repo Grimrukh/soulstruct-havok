@@ -5,6 +5,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- New `soulstruct.havok.utilities.mopp` module for pure-Python Havok MOPP code (DeS, PTDE, DSR map collisions):
+  - `build_mopp()` builds MOPP code for `hkpExtendedMeshShape` subparts on any platform, without `mopper.exe`.
+  - `get_mopp_terminals()` and `query_mopp_aabb()` decode MOPP code and run AABB queries through it, including the
+    chunked and 24-bit bounds commands used by vanilla DeS and DS1 files.
+  - Validated against all DeS/DSR vanilla collisions.
+- `MapCollisionModel.to_hkx()` takes `mopp_builder="python"` (new default, see `MapCollisionModel.MOPP_BUILDER`) or
+  `"mopper"` (previous behavior).
+
+### Fixed
+- Built wheels now include all bundled resources (e.g. template HKX files).
+- DeS: Map collisions exported from `MapCollisionModel` now have working collision for every submesh (material), not
+  just the first one (`hk550.hkpExtendedMeshShape.numBitsForSubpartIndex` member was missing).
+- DeS: Fixed `hk550.hkpPhysicsSystem.active` offset (64 -> 68) and `hkpTypedBroadPhaseHandle.objectQualityType`
+  size (16-bit).
+- DeS: Map collision rigid body `objectRadius` now calculated as `|aabbCenter| + |aabbHalfExtents|`.
+
 ---
 
 ## [1.4.0] - 2026-09-21

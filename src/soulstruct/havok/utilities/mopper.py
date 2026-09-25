@@ -1,4 +1,8 @@
-"""Call `mopper.exe` (compiled with Havok 2012) to generate MOPP code for collision meshes."""
+"""Call `mopper.exe` (compiled with Havok 2012) to generate MOPP code for collision meshes.
+
+NOTE: A pure-Python alternative is now available in `mopp.py` and recommended. It is the default build method
+for `MapCollisionModel`.
+"""
 import logging
 import subprocess as sp
 import tempfile

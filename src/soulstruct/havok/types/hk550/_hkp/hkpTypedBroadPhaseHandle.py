@@ -18,7 +18,7 @@ class hkpTypedBroadPhaseHandle(hkpBroadPhaseHandle):
     local_members = (
         Member(4, "type", hkInt8),
         Member(5, "ownerOffset", hkInt8, MemberFlags.NotSerializable),
-        Member(6, "objectQualityType", hkInt8),
+        Member(6, "objectQualityType", hkInt16),  # 16-bit in Havok 5.5 (8-bit from 2010 onward)
         Member(8, "collisionFilterInfo", hkUint32),
     )
     members = hkpBroadPhaseHandle.members + local_members

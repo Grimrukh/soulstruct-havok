@@ -29,6 +29,7 @@ from soulstruct.havok.types import hk550, hk2010, hk2015
 from soulstruct.havok.types.protocols.physics import *
 from soulstruct.havok.utilities.files import SOULSTRUCT_HAVOK_PATH
 from soulstruct.havok.utilities.maths import Vector4
+from soulstruct.havok.utilities.mopp import build_mopp
 from soulstruct.havok.utilities.mopper import mopper
 from soulstruct.havok.utilities.wavefront import read_obj
 
@@ -158,6 +159,12 @@ class MapCollisionModel(GameFile):
     # Indicates if this model will be exported as big-endian.
     is_big_endian: bool = False
 
+    # Number of high shape key bits used for the subpart index by `mopper` (Havok default) and all vanilla files.
+    NUM_BITS_FOR_SUBPART_INDEX: tp.ClassVar[int] = 12
+
+    # Default MOPP code builder for `to_hkx()`: "python" (`soulstruct.havok.utilities.mopp`) or "mopper" (`mopper.exe`).
+    MOPP_BUILDER: tp.ClassVar[str] = "python"
+
     SUPPORTED_MODULES: tp.ClassVar[set[HavokModule]] = {
         HavokModule.hk550,
         HavokModule.hk2010,
@@ -274,8 +281,11 @@ class MapCollisionModel(GameFile):
         hkx = self.to_hkx()
         return hkx.to_writer()
 
-    def to_hkx(self) -> HKX:
-        """Use bundled template HKX of appropriate Havok version to insert mesh data into a new HKX file."""
+    def to_hkx(self, mopp_builder: str = "") -> HKX:
+        """Use bundled template HKX of appropriate Havok version to insert mesh data into a new HKX file.
+
+        `mopp_builder` selects how MOPP code is built: "python" or "mopper" (defaults to `MOPP_BUILDER`).
+        """
         if not self.meshes:
             raise ValueError("Map collision has no `meshes`. Cannot convert to collision HKX.")
 
@@ -298,12 +308,20 @@ class MapCollisionModel(GameFile):
         # Name is assigned to rigid body.
         rigid_body = physics_system.rigidBodies[0]
         rigid_body.name = self.name
-        # TODO: rigid_body.motion.motionState.objectRadius?
 
         # We only assign data (vertices, faces, material indices) to the `CustomParamStorageExtendedMeshShape`, which
         # is stored deep at `physicsData.systems[0].rigidBodies[0].collidable.shape.child.childShape`. (These collision
         # HKX files have only a single system, rigid body, and child shape.)
         child_shape, _ = self.get_child_shape(physics_system)  # template always has custom material data
+        if len(self.meshes) > 1 << self.NUM_BITS_FOR_SUBPART_INDEX:
+            raise ValueError(
+                f"Map collision has {len(self.meshes)} meshes, but at most {1 << self.NUM_BITS_FOR_SUBPART_INDEX} "
+                f"subparts can be addressed by MOPP shape keys."
+            )
+        # MOPP shape keys (from `mopper`) store the subpart index in their high bits, and the game needs this count to
+        # decode them. If it were wrong (e.g. zero), every shape key would decode to subpart 0, and all other subparts
+        # (i.e. all materials after the first) would have no collision in-game.
+        child_shape.numBitsForSubpartIndex = self.NUM_BITS_FOR_SUBPART_INDEX
         total_face_count = sum(mesh.face_count for mesh in self.meshes)
         if hasattr(child_shape, "cachedNumChildShapes"):
             child_shape.cachedNumChildShapes = total_face_count
@@ -359,8 +377,15 @@ class MapCollisionModel(GameFile):
         child_shape.aabbHalfExtents = Vector4(half_extents)
         child_shape.aabbCenter = Vector4(center)
 
-        # Use Mopper executable to regenerate binary MOPP code.
-        self.regenerate_mopp_data(physics_system)
+        if self.havok_module == HavokModule.hk550:
+            # Every vanilla Demon's Souls collision uses this bounding radius (around the rigid body origin). Dark Souls
+            # uses a different (unknown) calculation, so its template value is left alone for now.
+            rigid_body.motion.motionState.objectRadius = float(
+                np.linalg.norm(center[:3]) + np.linalg.norm(half_extents[:3])
+            )
+
+        # Regenerate binary MOPP code (bounding volume tree over all subpart triangles).
+        self.regenerate_mopp_data(physics_system, mopp_builder)
 
         return hkx
 
@@ -437,15 +462,35 @@ class MapCollisionModel(GameFile):
             raise TypeError("Expected collision shape to be `hkpMoppBvTreeShape`.")
         return shape.code
 
-    def regenerate_mopp_data(self, physics_system: PhysicsSystem):
-        """Use `mopper.exe` to build new MOPP code, including `code.info.offset` vector.
+    def regenerate_mopp_data(self, physics_system: PhysicsSystem, mopp_builder: str = ""):
+        """Build new MOPP code for the child shape's current `meshstorage`, including the `code.info.offset` vector.
+
+        `mopp_builder` is "python" (Soulstruct's own builder in `soulstruct.havok.utilities.mopp`, which works on any
+        platform) or "mopper" (bundled Windows `mopper.exe`, compiled from the Havok 2012 SDK). Defaults to
+        `MOPP_BUILDER`.
 
         Works for Demon's Souls, Dark Souls: PTDE, and Dark Souls: Remastered. Games after DS1 use `hkcd` classes
         rather than MOPP code and are currently impossible to build/export.
         """
+        mopp_builder = mopp_builder or self.MOPP_BUILDER
         shape, _ = self.get_child_shape(physics_system)
         meshstorage = shape.meshstorage
         mopp_code = self.get_mopp_code(physics_system)
+
+        if mopp_builder == "python":
+            subparts = []
+            for mesh in meshstorage:
+                indices = mesh.indices16 or mesh.indices32
+                if not indices:
+                    raise ValueError("Cannot regenerate MOPP code for mesh with no 16-bit or 32-bit vertex indices.")
+                faces = np.array(indices, dtype=np.int64).reshape((-1, 4))[:, :3]
+                subparts.append((mesh.vertices, faces))
+            data, offset = build_mopp(subparts, num_bits_for_subpart_index=shape.numBitsForSubpartIndex)
+            mopp_code.data = list(data)
+            mopp_code.info.offset = Vector4(offset)
+            return
+        if mopp_builder != "mopper":
+            raise ValueError(f"Unknown `mopp_builder`: {mopp_builder!r}. Must be 'python' or 'mopper'.")
 
         mopper_input = [f"{len(meshstorage)}"]
         for mesh in meshstorage:

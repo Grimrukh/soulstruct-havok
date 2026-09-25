@@ -26,7 +26,7 @@ class hkpPhysicsSystem(hkReferencedObject):
         Member(44, "phantoms", hkArray(Ptr(hkpPhantom), flags=0xC0000000)),
         Member(56, "name", hkStringPtr),
         Member(60, "userData", hkUlong),
-        Member(68, "active", hkBool),
+        Member(64, "active", hkBool),  # directly follows `userData` (32-bit PS3 layout)
     )
     members = hkReferencedObject.members + local_members
 

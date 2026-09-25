@@ -20,6 +20,10 @@ class hkpExtendedMeshShape(hkpShapeCollection):
     __version = 4
 
     local_members = (
+        # Number of high bits of each shape key (e.g. MOPP terminal) that hold the subpart index; the rest hold the
+        # triangle index. Always 12 in FromSoft files, matching the default used by Havok's MOPP builder (`mopper`).
+        # If this is zero, the game decodes every shape key as subpart 0, so only the first subpart has collision.
+        Member(24, "numBitsForSubpartIndex", hkInt32, MemberFlags.Protected),
         Member(32, "scaling", hkVector4),
         Member(48, "aabbHalfExtents", hkVector4),
         Member(64, "aabbCenter", hkVector4),
@@ -45,6 +49,7 @@ class hkpExtendedMeshShape(hkpShapeCollection):
 
     members = hkpShapeCollection.members + local_members
 
+    numBitsForSubpartIndex: int
     scaling: Vector4
     aabbHalfExtents: Vector4
     aabbCenter: Vector4
