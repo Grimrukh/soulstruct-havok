@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+---
+
+## [1.5.0] - 2026-09-27
+
 ### Added
 - New `soulstruct.havok.utilities.mopp` module for pure-Python Havok MOPP code (DeS, PTDE, DSR map collisions):
   - `build_mopp()` builds MOPP code for `hkpExtendedMeshShape` subparts on any platform, without `mopper.exe`.
@@ -21,8 +25,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - DeS: Fixed `hk550.hkpPhysicsSystem.active` offset (64 -> 68) and `hkpTypedBroadPhaseHandle.objectQualityType`
   size (16-bit).
 - DeS: Map collision rigid body `objectRadius` now calculated as `|aabbCenter| + |aabbHalfExtents|`.
-
----
 
 ## [1.4.0] - 2026-09-21
 
