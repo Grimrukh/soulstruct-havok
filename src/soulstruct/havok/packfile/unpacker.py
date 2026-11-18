@@ -65,8 +65,8 @@ class PackFileUnpacker:
     data_items: list[PackFileDataItem] = field(default_factory=list)
     root: ROOT_TYPING = None
 
-    def unpack(self, reader: BinaryReader, types_only=False):
-
+    def read_sections(self, reader: BinaryReader) -> list[SectionInfo]:
+        """Read the header and raw sections, including fixups, without resolving any Havok types."""
         self.byte_order = reader.byte_order = ByteOrder.big_endian_bool(
             not reader.unpack_value("?", offset=0x11)
         )
@@ -89,10 +89,12 @@ class PackFileUnpacker:
         if self.header.pointer_size not in {4, 8}:
             raise ValueError(f"Packfile pointer size must be 4 or 8, not {self.header.pointer_size}.")
 
-        # Section order is almost always (classnames, types, data). However, very old Demon's Souls (m07) collisions
-        # somtimes have (classnames, data, types). We always pack the standard order, but are flexible when reading.
+        return [self.unpack_section(reader) for _ in range(self.header.section_count)]
+
+    def unpack(self, reader: BinaryReader, types_only=False):
+        section_infos = self.read_sections(reader)
+        # Some old Demon's Souls collision files reverse the types and data sections.
         section_order = self.header.get_section_order()
-        section_infos = [self.unpack_section(reader) for _ in range(3)]
         classnames_section_info = section_infos[section_order["classnames"]]
         type_section_info = section_infos[section_order["types"]]
         data_section_info = section_infos[section_order["data"]]
